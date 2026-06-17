@@ -1,0 +1,30 @@
+gitignore# Node
+node_modules/
+dist/
+.next/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Env + secrets (never commit these)
+.env
+.env.*
+*.local
+
+# DB
+*.sqlite
+*.dump
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local scratch
+scratch/
+*.tmp
