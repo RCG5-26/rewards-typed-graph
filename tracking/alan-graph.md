@@ -5,11 +5,10 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Draft the schema spec for the lock meeting (RCG-6).
-- Run the nine open decisions in the room (see [schema checklist](../docs/meetings/schema-lock-decision-checklist.md), [schema prep doc](../docs/meetings/schema-prepdoc-meeting1.md), [ADR 0001](../docs/adr/0001-schema-lock.md), and [schema spec](../docs/architecture/schema-v2.md)).
+- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer 
+- Produce the canonical schema artifact: DDL + shared types (RCG-7).
 
 ## Next
-- Produce the canonical schema artifact: DDL + shared types (RCG-7).
 - Lock the seed fixture with stable IDs (RCG-8).
 
 ## Blocked on
