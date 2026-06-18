@@ -13,3 +13,4 @@ The schema is frozen after the Day 1 lock. "Frozen" only means something if chan
 
 ## Index
 - [0001 — Schema Lock (v2)](0001-schema-lock.md) — the typed-graph schema, OCC model, and the resolutions from the v2 review. Status: Proposed (ratify at Day 1 meeting).
+- [0002 — MVP Scope: Keep the Research Apparatus](0002-mvp-scope-trim.md) — decision to retain the benchmark, both baselines, and the eval harness. No schema change; the cost is Person C's load, with a protection plan. Status: Accepted.
