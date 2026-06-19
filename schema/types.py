@@ -8,7 +8,7 @@ attribute requirements.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 
 
 NODE_TYPES: Tuple[str, ...] = (
@@ -73,6 +73,57 @@ NODE_REQUIRED_ATTRIBUTES: Mapping[str, Tuple[str, ...]] = {
     "PlanStep": ("step_order", "agent", "claim", "inputs", "output", "status"),
 }
 
+NODE_ATTRIBUTE_TYPES: Mapping[str, Mapping[str, str]] = {
+    "User": {
+        "name": "str",
+        "optimization_goal": "str",
+    },
+    "Card": {
+        "name": "str",
+        "issuer": "str",
+        "network": "str",
+        "annual_fee_cents": "int",
+        "signup_bonus_points": "int",
+        "signup_bonus_spend_cents": "int",
+    },
+    "Program": {
+        "name": "str",
+        "kind": "str",
+        "currency_name": "str",
+    },
+    "MerchantCategory": {
+        "name": "str",
+        "mcc_codes": "list[int]",
+    },
+    "Balance": {
+        "program_id": "str",
+        "amount_points": "int",
+        "as_of": "str",
+        "source": "str",
+    },
+    "Goal": {
+        "goal_type": "str",
+        "description": "str",
+        "target_program_id": "str",
+        "target_location": "str",
+        "target_date": "str",
+    },
+    "PlanQuery": {
+        "query_text": "str",
+        "status": "str",
+        "summary": "str|null",
+    },
+    "PlanStep": {
+        "step_order": "int",
+        "agent": "str",
+        "claim": "str",
+        "inputs": "object",
+        "output": "object",
+        "status": "str",
+        "stale_reason": "str|null",
+    },
+}
+
 NODE_TIERS: Mapping[str, str] = {
     "User": "personal",
     "Card": "world",
@@ -98,6 +149,52 @@ EDGE_TYPE_RULES: Mapping[str, Tuple[str, Optional[str]]] = {
     "STEP_OF": ("PlanStep", "PlanQuery"),
     "DEPENDS_ON": ("PlanStep", None),
 }
+
+EDGE_REQUIRED_ATTRIBUTES: Mapping[str, Tuple[str, ...]] = {
+    "HOLDS": (),
+    "ASSOCIATED_WITH": (),
+    "EARNS": ("earn_rate_basis_points", "earn_type"),
+    "HAS_BALANCE": (),
+    "BALANCE_FOR": (),
+    "HAS_GOAL": (),
+    "FOR_USER": (),
+    "TRANSFERS_TO": ("ratio_num", "ratio_den", "transfer_time_days", "is_active"),
+    "TARGETS": (),
+    "STEP_OF": (),
+    "DEPENDS_ON": ("observed_version", "observed_value"),
+}
+
+EDGE_ATTRIBUTE_TYPES: Mapping[str, Mapping[str, str]] = {
+    "HOLDS": {
+        "opened_date": "str",
+        "is_primary": "bool",
+    },
+    "ASSOCIATED_WITH": {},
+    "EARNS": {
+        "earn_rate_basis_points": "int",
+        "earn_type": "str",
+        "cap_amount_cents": "int|null",
+    },
+    "HAS_BALANCE": {},
+    "BALANCE_FOR": {},
+    "HAS_GOAL": {},
+    "FOR_USER": {},
+    "TRANSFERS_TO": {
+        "ratio_num": "int",
+        "ratio_den": "int",
+        "transfer_time_days": "int",
+        "is_active": "bool",
+    },
+    "TARGETS": {},
+    "STEP_OF": {},
+    "DEPENDS_ON": {
+        "observed_version": "int",
+        "observed_property": "str|null",
+        "observed_value": "any",
+    },
+}
+
+EARN_TYPES: Tuple[str, ...] = ("points", "miles", "cashback_pct")
 
 
 @dataclass(frozen=True)
@@ -150,6 +247,8 @@ def validate_node(node: GraphNode) -> Sequence[str]:
         if field_name not in node.attributes:
             errors.append(f"{node.type}.attributes missing required field: {field_name}")
 
+    errors.extend(_validate_attributes(node.type, node.attributes, NODE_ATTRIBUTE_TYPES))
+
     if node.type == "Program":
         kind = node.attributes.get("kind")
         if kind is not None and kind not in PROGRAM_KINDS:
@@ -185,5 +284,60 @@ def validate_edge(edge: GraphEdge) -> Sequence[str]:
             f"{edge.type} edge target must be {expected_target}, got {edge.target_type}"
         )
 
+    for field_name in EDGE_REQUIRED_ATTRIBUTES[edge.type]:
+        if field_name not in edge.attributes:
+            errors.append(f"{edge.type}.attributes missing required field: {field_name}")
+
+    errors.extend(_validate_attributes(edge.type, edge.attributes, EDGE_ATTRIBUTE_TYPES))
+
+    if edge.type == "EARNS":
+        earn_type = edge.attributes.get("earn_type")
+        if earn_type is not None and earn_type not in EARN_TYPES:
+            errors.append(f"EARNS.attributes.earn_type must be one of {EARN_TYPES}")
+
     return errors
 
+
+def _validate_attributes(
+    owner: str,
+    attributes: Mapping[str, Any],
+    schemas: Mapping[str, Mapping[str, str]],
+) -> Sequence[str]:
+    errors = []
+
+    for field_name, expected_type in schemas[owner].items():
+        if field_name not in attributes:
+            continue
+
+        value = attributes[field_name]
+        if not _matches_schema_type(value, expected_type):
+            errors.append(
+                f"{owner}.attributes.{field_name} must be {_type_error_label(expected_type)}"
+            )
+
+    return errors
+
+
+def _matches_schema_type(value: Any, expected_type: str) -> bool:
+    validators: Mapping[str, Callable[[Any], bool]] = {
+        "any": lambda _: True,
+        "bool": lambda candidate: isinstance(candidate, bool),
+        "int": lambda candidate: isinstance(candidate, int)
+        and not isinstance(candidate, bool),
+        "int|null": lambda candidate: candidate is None
+        or (isinstance(candidate, int) and not isinstance(candidate, bool)),
+        "list[int]": lambda candidate: isinstance(candidate, list)
+        and all(isinstance(item, int) and not isinstance(item, bool) for item in candidate),
+        "object": lambda candidate: isinstance(candidate, dict),
+        "str": lambda candidate: isinstance(candidate, str),
+        "str|null": lambda candidate: candidate is None or isinstance(candidate, str),
+    }
+
+    return validators[expected_type](value)
+
+
+def _type_error_label(expected_type: str) -> str:
+    return {
+        "int|null": "int or null",
+        "str|null": "str or null",
+    }.get(expected_type, expected_type)
