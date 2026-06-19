@@ -111,3 +111,83 @@ CREATE TABLE mutation_log (
 CREATE INDEX mutation_log_created_at_idx ON mutation_log (created_at);
 CREATE INDEX mutation_log_target_idx ON mutation_log (target_kind, target_id);
 CREATE INDEX mutation_log_actor_idx ON mutation_log (actor);
+
+CREATE VIEW stale_plan_steps AS
+SELECT
+  plan_step.id AS plan_step_id,
+  plan_step.attributes AS plan_step_attributes,
+  depended_node.id AS depended_node_id,
+  depended_node.type AS depended_node_type,
+  depended_node.version AS current_version,
+  (dep.attributes->>'observed_version')::integer AS observed_version
+FROM edges dep
+JOIN nodes plan_step
+  ON plan_step.id = dep.source_id
+JOIN nodes depended_node
+  ON depended_node.id = dep.target_id
+WHERE dep.type = 'DEPENDS_ON'
+  AND plan_step.type = 'PlanStep'
+  AND depended_node.version <> (dep.attributes->>'observed_version')::integer;
+
+CREATE FUNCTION mark_plan_step_stale(
+  p_plan_step_id UUID,
+  p_reason TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  updated_id UUID;
+BEGIN
+  UPDATE nodes
+  SET
+    attributes = jsonb_set(
+      jsonb_set(attributes, '{status}', '"stale"'::jsonb),
+      '{stale_reason}',
+      to_jsonb(p_reason)
+    ),
+    version = version + 1,
+    updated_at = now()
+  WHERE id = p_plan_step_id
+    AND type = 'PlanStep'
+  RETURNING id INTO updated_id;
+
+  RETURN updated_id;
+END;
+$$;
+
+CREATE FUNCTION update_node_optimistic(
+  p_node_id UUID,
+  p_expected_version INTEGER,
+  p_attributes JSONB
+)
+RETURNS TABLE (id UUID, version INTEGER)
+LANGUAGE sql
+AS $$
+  UPDATE nodes
+  SET
+    attributes = p_attributes,
+    version = version + 1,
+    updated_at = now()
+  WHERE id = p_node_id
+    AND version = p_expected_version
+  RETURNING id, version;
+$$;
+
+CREATE FUNCTION update_edge_optimistic(
+  p_edge_id UUID,
+  p_expected_version INTEGER,
+  p_attributes JSONB
+)
+RETURNS TABLE (id UUID, version INTEGER)
+LANGUAGE sql
+AS $$
+  UPDATE edges
+  SET
+    attributes = p_attributes,
+    version = version + 1,
+    updated_at = now()
+  WHERE id = p_edge_id
+    AND version = p_expected_version
+  RETURNING id, version;
+$$;

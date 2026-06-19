@@ -183,6 +183,43 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("nodes_attributes_gin_idx", schema_sql)
         self.assertIn("edges_unique_active_relationship", schema_sql)
 
+    def test_schema_sql_defines_stale_plan_steps_view(self):
+        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+
+        self.assertIn("CREATE VIEW stale_plan_steps AS", schema_sql)
+        self.assertIn("dep.type = 'DEPENDS_ON'", schema_sql)
+        self.assertIn("plan_step.type = 'PlanStep'", schema_sql)
+        self.assertIn(
+            "depended_node.version <> (dep.attributes->>'observed_version')::integer",
+            schema_sql,
+        )
+
+    def test_schema_sql_defines_mark_plan_step_stale_function(self):
+        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+
+        self.assertIn("CREATE FUNCTION mark_plan_step_stale", schema_sql)
+        self.assertIn("jsonb_set(", schema_sql)
+        self.assertIn("'{status}'", schema_sql)
+        self.assertIn("'\"stale\"'::jsonb", schema_sql)
+        self.assertIn("'{stale_reason}'", schema_sql)
+        self.assertIn("version = version + 1", schema_sql)
+        self.assertIn("WHERE id = p_plan_step_id", schema_sql)
+        self.assertIn("AND type = 'PlanStep'", schema_sql)
+
+    def test_schema_sql_defines_optimistic_concurrency_update_functions(self):
+        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+
+        self.assertIn("CREATE FUNCTION update_node_optimistic", schema_sql)
+        self.assertIn("CREATE FUNCTION update_edge_optimistic", schema_sql)
+        self.assertIn("p_expected_version INTEGER", schema_sql)
+        self.assertIn("p_attributes JSONB", schema_sql)
+        self.assertIn("WHERE id = p_node_id", schema_sql)
+        self.assertIn("WHERE id = p_edge_id", schema_sql)
+        self.assertIn("AND version = p_expected_version", schema_sql)
+        self.assertIn("attributes = p_attributes", schema_sql)
+        self.assertIn("version = version + 1", schema_sql)
+        self.assertIn("RETURNS TABLE (id UUID, version INTEGER)", schema_sql)
+
 
 if __name__ == "__main__":
     unittest.main()
