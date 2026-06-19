@@ -220,6 +220,32 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("version = version + 1", schema_sql)
         self.assertIn("RETURNS TABLE (id UUID, version INTEGER)", schema_sql)
 
+    def test_schema_sql_defines_node_connectivity_violations_view(self):
+        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+
+        self.assertIn("CREATE VIEW node_connectivity_violations AS", schema_sql)
+        self.assertIn("node_id", schema_sql)
+        self.assertIn("node_type", schema_sql)
+        self.assertIn("violation", schema_sql)
+        self.assertIn("n.type = 'User'", schema_sql)
+        self.assertIn("e.type IN ('FOR_USER', 'HOLDS', 'HAS_BALANCE', 'HAS_GOAL')", schema_sql)
+        self.assertIn("n.type = 'Card'", schema_sql)
+        self.assertIn("e.type IN ('HOLDS', 'ASSOCIATED_WITH', 'EARNS')", schema_sql)
+        self.assertIn("n.type = 'Program'", schema_sql)
+        self.assertIn("e.type IN ('ASSOCIATED_WITH', 'BALANCE_FOR', 'TRANSFERS_TO')", schema_sql)
+        self.assertIn("n.type = 'MerchantCategory'", schema_sql)
+        self.assertIn("e.type = 'EARNS'", schema_sql)
+        self.assertIn("n.type = 'Balance'", schema_sql)
+        self.assertIn("e.type = 'HAS_BALANCE'", schema_sql)
+        self.assertIn("e.type = 'BALANCE_FOR'", schema_sql)
+        self.assertIn("n.type = 'Goal'", schema_sql)
+        self.assertIn("e.type IN ('HAS_GOAL', 'TARGETS')", schema_sql)
+        self.assertIn("n.type = 'PlanQuery'", schema_sql)
+        self.assertIn("e.type IN ('FOR_USER', 'TARGETS', 'STEP_OF')", schema_sql)
+        self.assertIn("n.type = 'PlanStep'", schema_sql)
+        self.assertIn("e.type = 'STEP_OF'", schema_sql)
+        self.assertIn("e.type = 'DEPENDS_ON'", schema_sql)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -129,6 +129,137 @@ WHERE dep.type = 'DEPENDS_ON'
   AND plan_step.type = 'PlanStep'
   AND depended_node.version <> (dep.attributes->>'observed_version')::integer;
 
+CREATE VIEW node_connectivity_violations AS
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing one of FOR_USER, HOLDS, HAS_BALANCE, HAS_GOAL' AS violation
+FROM nodes n
+WHERE n.type = 'User'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type IN ('FOR_USER', 'HOLDS', 'HAS_BALANCE', 'HAS_GOAL')
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing one of HOLDS, ASSOCIATED_WITH, EARNS' AS violation
+FROM nodes n
+WHERE n.type = 'Card'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type IN ('HOLDS', 'ASSOCIATED_WITH', 'EARNS')
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing one of ASSOCIATED_WITH, BALANCE_FOR, TRANSFERS_TO' AS violation
+FROM nodes n
+WHERE n.type = 'Program'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type IN ('ASSOCIATED_WITH', 'BALANCE_FOR', 'TRANSFERS_TO')
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing EARNS edge' AS violation
+FROM nodes n
+WHERE n.type = 'MerchantCategory'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type = 'EARNS'
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing HAS_BALANCE edge' AS violation
+FROM nodes n
+WHERE n.type = 'Balance'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type = 'HAS_BALANCE'
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing BALANCE_FOR edge' AS violation
+FROM nodes n
+WHERE n.type = 'Balance'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type = 'BALANCE_FOR'
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing one of HAS_GOAL, TARGETS' AS violation
+FROM nodes n
+WHERE n.type = 'Goal'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type IN ('HAS_GOAL', 'TARGETS')
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing one of FOR_USER, TARGETS, STEP_OF' AS violation
+FROM nodes n
+WHERE n.type = 'PlanQuery'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type IN ('FOR_USER', 'TARGETS', 'STEP_OF')
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing STEP_OF edge' AS violation
+FROM nodes n
+WHERE n.type = 'PlanStep'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type = 'STEP_OF'
+  )
+UNION ALL
+SELECT
+  n.id AS node_id,
+  n.type AS node_type,
+  'missing DEPENDS_ON edge' AS violation
+FROM nodes n
+WHERE n.type = 'PlanStep'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM edges e
+    WHERE (e.source_id = n.id OR e.target_id = n.id)
+      AND e.type = 'DEPENDS_ON'
+  );
+
 CREATE FUNCTION mark_plan_step_stale(
   p_plan_step_id UUID,
   p_reason TEXT
