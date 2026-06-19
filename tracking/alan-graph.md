@@ -5,11 +5,11 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer 
 - Produce the canonical schema artifact: DDL + shared types (RCG-7).
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
+- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer (RCG-9)
 
 ## Blocked on
 - nothing
