@@ -5,11 +5,15 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Scaffold the demo shell: NL query input + multi-step plan display with per-step reasoning (RCG-27).
-- Start the graph-mutation sidebar against mocked events (RCG-24). You do not wait on the backend.
+- Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
+- Design system **ready to be added** — tokens/components staged for the demo shell.
+- Wireframes flow mapped (query → plan → sidebar → contrast view).
+- Continue demo shell scaffold + graph-mutation sidebar against mocked events (RCG-27, RCG-24).
 
 ## Next
-- Match your mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
+- Add the design system into the shell and wire the wireframe flow.
+- Auth: stand up sign-in, **likely Clerk** (evaluate fit for the demo).
+- Match mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
 - Plan-node dependency view that lights up stale nodes (RCG-26).
 
 ## Blocked on

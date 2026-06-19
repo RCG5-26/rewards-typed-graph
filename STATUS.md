@@ -2,7 +2,7 @@
 
 The shared source of truth for the sprint. Update your own row before standup. Keep it skimmable.
 
-**Live demo:** Mon June 29 (10 min) · **Today:** Day 1, Wed June 17 · **Phase:** Phase A3 — contracts & codegen (spec v3.1 + DDL authored)
+**Live demo:** Mon June 29 (10 min) · **Today:** Day 3, Fri June 19 · **Phase:** Phase A3 — contracts & codegen (spec v3.1 + DDL authored)
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
 **Linear:** optional backbone (milestones + gates). This board is the daily driver. Task ids below map to `RCG-##` in Linear.
 
@@ -37,7 +37,7 @@ Update only your own row. Format: short phrases, not paragraphs.
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
 | Alan · Graph | kickoff | Phase A3: JSON Schema contracts + codegen plan | nothing |
-| Val · Frontend | kickoff | Demo shell scaffold; sidebar against mock events (RCG-24, RCG-27) | real contracts for payload wiring |
+| Val · Frontend | Card API research done; design system staged; wireframe flow mapped | Demo shell scaffold + sidebar on mocks (RCG-27, RCG-24) | real contracts for payload wiring |
 | Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20) | nothing |
 | Raq · Orchestrator (owner, lead) | kickoff | Review v3.1; scaffold orchestrator + agent harness on mocks (RCG-15) | generated contracts for real wiring |
 
