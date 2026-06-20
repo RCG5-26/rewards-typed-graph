@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration — Rewards Agent (RCG5-26/rewards-typed-graph)
+# Merge policy: 1 teammate approval + passing CodeRabbit check on PRs to main.
+# See repo ruleset "main — human + CodeRabbit" and AGENTS.md.
+
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  # Request changes when issues found; human teammate still required for merge approval.
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  commit_status: true
+  # Treat skipped/failed reviews as a failing check (blocks merge).
+  fail_commit_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+    ignore_title_keywords:
+      - "WIP"
+      - "[skip review]"
+      - "DO NOT MERGE"
+  path_filters:
+    - "!**/*.pdf"
+    - "!**/STUDY_GUIDE.md"
+  path_instructions:
+    - path: "schema/**"
+      instructions: |
+        Canonical persistence is docs/architecture/schema-final.md v3.1 and schema/schema.sql
+        (table-per-type). Flag any divergence: plan revision lifecycle (plans.status /
+        plan_steps.status), replan_jobs with leases, graph_mutations (user-scoped audit/SSE only),
+        idempotency_records, Clerk users table, eval tables. Do not treat generic nodes/edges
+        JSONB models as aligned unless an ADR supersedes v3.1. DDL changes should include a
+        clean-Postgres apply test or note why one is not present.
+    - path: "docs/architecture/**"
+      instructions: |
+        schema-final.md v3.1 supersedes schema-v2.md and schemaMVP-style docs. Check consistency
+        with context/architecture-context.md: no plans.is_current, no plan_steps.is_stale, no
+        in-place plan refresh, authenticated per-user reset (not unconfirmed admin routes).
+    - path: "context/**"
+      instructions: |
+        Documentation paths — verify consistency with schema-final v3.1 and decisions-log.md.
+        Do not treat specified/planned controls as implemented unless matching code or tests exist.
+    - path: "apps/**"
+      instructions: |
+        Application code must match JSON Schema contracts in schema/contracts/ when present.
+        All graph writes through graph-write; agents must not receive DATABASE_URL. Flag free-text
+        inter-agent coordination.
+    - path: "agents/**"
+      instructions: |
+        Python agents: subprocess JSON stdin/stdout only; no DB credentials; MutationBatch
+        validation before write. Match agent-invocation contract limits (configured timeout/size).
+    - path: "tests/**"
+      instructions: |
+        Prefer behavioral tests over string-grep of SQL. Schema tests should apply schema.sql to
+        PostgreSQL 16 when possible.
+
+chat:
+  auto_reply: true
