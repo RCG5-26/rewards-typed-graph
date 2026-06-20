@@ -17,5 +17,5 @@ be additive unless the team records and approves a migration decision.
 - One active `Balance` per `User` + `Program` enforcement. The likely MVP path
   is a partial unique index on `nodes.user_id` and
   `nodes.attributes->>'program_id'` for rows where `type = 'Balance'`.
-- Full graph write service tying together Python validation, optimistic SQL
-  writes, mutation logging, stale-plan propagation, and retry behavior.
+- Retry/backoff orchestration around optimistic update conflicts.
+- Integration test against a real Postgres database using `schema.sql`.
