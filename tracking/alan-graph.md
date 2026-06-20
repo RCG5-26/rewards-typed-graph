@@ -5,15 +5,21 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Draft the schema spec for the lock meeting (RCG-6).
-- Run the nine open decisions in the room (see [schema checklist](../docs/meetings/schema-lock-decision-checklist.md), [schema prep doc](../docs/meetings/schema-prepdoc-meeting1.md), [ADR 0001](../docs/adr/0001-schema-lock.md), and [schema spec](../docs/architecture/schema-v2.md)).
+- Phase A3: JSON Schema contracts + codegen plan (RCG-7 follow-on).
 
 ## Next
-- Produce the canonical schema artifact: DDL + shared types (RCG-7).
 - Lock the seed fixture with stable IDs (RCG-8).
 
 ## Blocked on
 - nothing
+
+---
+
+## Schema references
+
+- **Current spec:** [`schema-final.md`](../docs/architecture/schema-final.md) v3.1
+- **Canonical DDL:** [`schema/schema.sql`](../schema/schema.sql)
+- Historical: [`schema-v2.md`](../docs/architecture/schema-v2.md), [ADR 0001](../docs/adr/0001-schema-lock.md)
 
 ---
 
