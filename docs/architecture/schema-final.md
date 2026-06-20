@@ -1,30 +1,32 @@
-# Schema — Final (Locked) · v3
+# Schema — Final (Locked) · v3.1
 
-> **Status:** Locked for the sprint. Supersedes `schema-v2.md`. Additive-only after sign-off (new optional columns / new tables allowed; no renames, removals, or retypes without an ADR + lead sign-off).
-> **Reflects:** ADR 0001 (schema lock), ADR 0002 (research apparatus kept), ADR 0003 (four-person team; ingestion + verifier are stretch; Layer 4 cut-by-default).
+> **Status:** Locked for the sprint. Supersedes `schema-v2.md` and **v3 closeout draft**. Additive-only after sign-off (new optional columns / new tables allowed; no renames, removals, or retypes without an ADR + lead sign-off).
+> **Reflects:** ADR 0001 (schema lock, **Accepted** 2026-06-18), ADR 0002, ADR 0003, ADRs 0004–0008, architecture closeout D019–D027 (`context/architecture-context.md`).
 > **Owner:** Alan (Graph/Persistence). Reviewed by Raq (lead).
-> **Scope note:** Layers 1–3 are the locked core. **Ingestion + Verifier (Layer 4) are stretch** and live in a clearly fenced section; their tables are documented but are *not* part of the Day-1 lock and may be cut at the Day 10 go/no-go.
+> **Scope note:** Layers 1–3 are the locked core. **Layer 4 (§9) is stretch** — not Day-1 lock.
+
+**Canonical artifact:** `schema/schema.sql` + JSON Schema in `schema/contracts/` + generated shared types.
 
 ---
 
 ## 0. Storage & conventions (read first)
 
 - **Engine:** PostgreSQL only. No graph DB. Multi-hop traversal via recursive CTEs.
-- **Physical layout:** **table-per-type** (one table per node type, one per edge type). `node_type` is a constant text discriminator on every node row for generic traversal, debug tooling, and the mutation log. (ADR 0001, Decision 7.)
-- **Tiers:** every node row carries `graph_tier ∈ {world, personal, plan}`. World = shared; personal = per-user; plan = per-query.
-- **IDs:** `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`. World nodes also carry a unique `slug text` for idempotent seed/upsert and stable cross-lane references.
-- **Money:** integer **cents** (`*_cents`). Never float.
-- **Ratios / multipliers / CPP:** integer **basis points** (`*_basis_points`), where `10000 = 1.0` (1:1 transfer, 1.0× earn) and CPP is cents-per-point × 10000 (`15000` = 1.5 cpp). A `toBasisPoints()` / `fromBasisPoints()` util ships Day 1 (Alan). No business logic touches raw ratio numbers.
+- **Physical layout:** **table-per-type** (one table per node type, one per edge type). `node_type` is a constant text discriminator on every node row.
+- **Tiers:** every node row carries `graph_tier ∈ {world, personal, plan}`. World = shared; personal = per-user; plan = per-query/lineage.
+- **IDs:** `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`. World nodes also carry unique `slug text` for idempotent seed.
+- **Money:** integer **cents**. Never float.
+- **Ratios / CPP:** integer **basis points** (`10000 = 1.0`). `toBasisPoints()` / `fromBasisPoints()` util ships Day 1.
 - **Points / balances:** integer.
-- **Time:** `timestamptz`, UTC. `created_at` immutable; `updated_at` on mutable rows.
-- **Concurrency:** integer `version` (default 0, `++` on every write) on all mutable tables. See §4.
-- **Enums:** stored as `text` + `CHECK` constraint (not native PG `ENUM`) so values can be added additively without a type migration. Enumerated values are listed per column.
-- **"In effect now":** two conventions, applied deliberately — `is_active boolean` for entities you disable/enable (cards, programs, transfer routes); `valid_from` / `valid_until` for time-bounded facts (earn rates, transfer ratios, redemption valuations). A fact is current when `is_active` and `now()` ∈ `[valid_from, valid_until)`.
-- **Referential integrity:** real FKs everywhere except the one deliberately polymorphic edge (`state_dependencies`, §3) — see B5.
+- **Time:** `timestamptz`, UTC.
+- **Concurrency:** integer `version` (default 0, increment on write) on mutable tables. See §6.
+- **Enums:** `text` + `CHECK` constraint (not native PG ENUM).
+- **Plan lifecycle:** `plans.status` is **authoritative for UI actionability**. No `is_current` boolean. See §4.1.
+- **Referential integrity:** real FKs everywhere except polymorphic `state_dependencies` (B5).
 
 ### Node inventory (locked core)
 
-| Table | Tier | node_type | OCC | Writer (mutation-ownership) |
+| Table | Tier | node_type | OCC | Writer |
 |---|---|---|---|---|
 | `users` | personal | `User` | yes | seed / wallet |
 | `credit_cards` | world | `CreditCard` | no | seed |
@@ -38,7 +40,15 @@
 | `plan_steps` | plan | `PlanStep` | **yes** | **redemption agent (sole)** |
 | `agent_runs` | plan | `AgentRun` | yes | each agent (own row) |
 | `external_quotes` | world | `ExternalQuote` | no | graph-typed tools |
-| `evaluations` | plan | `Evaluation` | no | eval harness (Raq DRI) |
+
+### Infrastructure tables (not graph nodes)
+
+| Table | Purpose |
+|---|---|
+| `graph_mutations` | Append-only audit + SSE replay log (user-scoped MVP) |
+| `replan_jobs` | Durable async re-plan work queue with lease recovery |
+| `idempotency_records` | Scoped mutation deduplication |
+| `evaluations` | Benchmark/eval metric rows (FK to `plans`; not a graph node) |
 
 ### Edge inventory (locked core)
 
@@ -46,22 +56,23 @@
 |---|---|---|---|
 | `holds` | User → CreditCard | no | wallet membership |
 | `earns` | CreditCard → SpendCategory | no | earn rate per category |
-| `transfers_to` | RewardProgram → RewardProgram | **yes** | transfer route + ratio (see §2) |
-| `redeems_via` | RewardProgram → RedemptionOption | no | program's redemption surfaces |
+| `transfers_to` | RewardProgram → RewardProgram | **yes** | transfer route + ratio |
+| `redeems_via` | RewardProgram → RedemptionOption | no | redemption surfaces |
 | `targets` | Plan → UserGoal | no | plan intent |
-| `state_dependencies` | PlanStep → (any node, polymorphic) | **yes** | **the dependency-tracking edge (§3)** |
+| `state_dependencies` | PlanStep → (any node, polymorphic) | **yes** | dependency-tracking edge |
 
-> **Change from v2 (needs Alan's nod at lock):** v2's separate `TransferPartner` node + `TRANSFERS_TO` edge are **unified**. A transfer destination (e.g., Hyatt) is itself a `RewardProgram`, so transfers are a `transfers_to` **edge between two programs** carrying the ratio. This removes the v2 node/edge ratio duplication (gap G16) and the need for the B3 `lands_in_program_id` bridge — "transfer then redeem" becomes one clean traversal: `program -transfers_to-> program -redeems_via-> redemption_option`. *Minimal-change fallback if the team prefers v2: keep the `transfer_partners` node and add `lands_in_program_id → reward_programs`; drop the redundant edge either way.*
+> **Unified transfers (locked):** Transfers are `transfers_to` edges between two `reward_programs`. No separate `TransferPartner` node.
 
 ---
 
 ## 1. World graph (shared, seeded)
 
 ### 1.1 `credit_cards`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| slug | text | UNIQUE, e.g. `card:csp` |
+| slug | text | UNIQUE |
 | name | text | NOT NULL |
 | issuer | text | NOT NULL |
 | network | text | CHECK in (`visa`,`mastercard`,`amex`,`discover`) |
@@ -76,71 +87,73 @@
 | created_at / updated_at | timestamptz | UTC |
 
 ### 1.2 `reward_programs`
-Currencies (issuer points, airline miles, hotel points, cashback). A transfer destination is a row here.
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| slug | text | UNIQUE, e.g. `program:chase_ur`, `program:hyatt` |
+| slug | text | UNIQUE |
 | name | text | NOT NULL |
 | issuer | text | nullable |
 | program_kind | text | CHECK in (`issuer_transferable`,`airline`,`hotel`,`cashback`) |
-| currency_name | text | "points","miles","cash back" |
+| currency_name | text | NOT NULL |
 | min_redemption_points | integer | nullable |
-| points_expire_months | integer | nullable (null = no expiry) |
+| points_expire_months | integer | nullable |
 | is_active | boolean | NOT NULL DEFAULT true |
 | graph_tier | text | CHECK = `world` |
 | node_type | text | CHECK = `RewardProgram` |
 | created_at / updated_at | timestamptz | UTC |
 
 ### 1.3 `spend_categories`
-Kept (the earning agent needs it). MCC-mapped hierarchy (Decision 1).
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| slug | text | UNIQUE, e.g. `cat:dining` |
+| slug | text | UNIQUE |
 | name | text | NOT NULL |
-| parent_id | uuid | FK → spend_categories(id), nullable; **no cycles** (enforced in write service at insert) |
-| mcc_codes | integer[] | GIN index; seed top ~50 MCCs covering demo merchants |
+| parent_id | uuid | FK → spend_categories(id), nullable; no cycles (app-enforced) |
+| mcc_codes | integer[] | GIN index |
 | graph_tier | text | CHECK = `world` |
 | node_type | text | CHECK = `SpendCategory` |
 
 ### 1.4 `redemption_options`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | program_id | uuid | FK → reward_programs(id) |
 | option_type | text | CHECK in (`travel_portal`,`transfer_partner`,`statement_credit`,`gift_card`,`check`,`merchandise`) |
-| cpp_basis_points | integer | cents-per-point × 10000 |
+| cpp_basis_points | integer | NOT NULL |
 | min_points | integer | nullable |
-| description | text | |
-| valid_from / valid_until | date | nullable — valuations change over time |
+| description | text | nullable |
+| valid_from / valid_until | date | nullable |
 | graph_tier | text | CHECK = `world` |
 | node_type | text | CHECK = `RedemptionOption` |
 
-### 1.5 `external_quotes` *(graph-typed tool results — resolves review item I3)*
-Tools (cash-price, award-availability) **write a typed row here**, not a JSON blob to a variable, so results compose into the shared graph and downstream agents read them as state.
+### 1.5 `external_quotes`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | quote_type | text | CHECK in (`cash_price`,`award_availability`) |
 | program_id | uuid | FK → reward_programs(id), nullable |
 | redemption_option_id | uuid | FK → redemption_options(id), nullable |
-| subject | text | free identifier, e.g. "Park Hyatt Tokyo, 5 nights, Oct" |
-| value_cents | integer | nullable (cash price) |
-| points_cost | integer | nullable (award cost) |
-| source_tool | text | provenance — which tool produced this |
-| fetched_at | timestamptz | UTC |
+| subject | text | NOT NULL |
+| value_cents | integer | nullable |
+| points_cost | integer | nullable |
+| source_tool | text | NOT NULL |
+| fetched_at | timestamptz | NOT NULL |
 | valid_until | timestamptz | nullable |
-| plan_id | uuid | FK → plans(id), nullable — which query fetched it |
-| payload | jsonb | full typed fragment |
+| plan_id | uuid | FK → plans(id), nullable |
+| payload | jsonb | NOT NULL |
 | graph_tier | text | CHECK = `world` |
 | node_type | text | CHECK = `ExternalQuote` |
 
 ---
 
-## 2. Transfer routes (the multi-hop edge)
+## 2. Transfer routes
 
 ### `transfers_to` — RewardProgram → RewardProgram
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
@@ -148,218 +161,476 @@ Tools (cash-price, award-availability) **write a typed row here**, not a JSON bl
 | dest_program_id | uuid | FK → reward_programs(id) |
 | transfer_ratio_basis_points | integer | NOT NULL; `10000` = 1:1 |
 | transfer_time_days | integer | nullable |
-| valid_from / valid_until | timestamptz | nullable — base ratio temporal validity (review item I5) |
+| valid_from / valid_until | timestamptz | nullable |
 | is_active | boolean | NOT NULL DEFAULT true |
-| version | integer | NOT NULL DEFAULT 0 — OCC (a route can be re-rated) |
+| version | integer | NOT NULL DEFAULT 0 |
 | created_at / updated_at | timestamptz | UTC |
 | | | UNIQUE (source_program_id, dest_program_id) WHERE is_active |
 
-Redemption surfaces hang off the destination program via `redeems_via`, so the redemption agent traverses `source -transfers_to-> dest -redeems_via-> option` in one CTE. Directed and asymmetric (UR→Hyatt does not imply the reverse).
+Traversal: `source -transfers_to-> dest -redeems_via-> option`.
 
 ---
 
-## 3. Plan graph + dependency tracking (the architectural core)
+## 3. Personal graph (per-user)
 
-### 3.1 `plans`
+### 3.1 `users`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| clerk_id | text | **UNIQUE NOT NULL** — Clerk identity mapping |
+| display_name | text | nullable |
+| graph_tier | text | CHECK = `personal` |
+| node_type | text | CHECK = `User` |
+| version | integer | NOT NULL DEFAULT 0 |
+| created_at / updated_at | timestamptz | UTC |
+
+First login clones **bootstrap template** (demo persona) into this user's personal graph — not a shared global user row.
+
+### 3.2 `user_balances`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
-| query_text | text | the NL query (shown in the demo sidebar) |
-| status | text | CHECK in (`pending`,`in_progress`,`completed`,`failed`) |
-| plan_type | text | CHECK in (`agent_generated`,`baseline_single_agent`,`baseline_free_text_multiagent`) — partitions benchmark results by architecture |
-| benchmark_query_id | uuid | nullable — joins the same benchmark query across architectures (review item I2) |
-| raw_output | jsonb | nullable — full response for **baseline** plans (they don't write plan_steps; see §6) |
+| program_id | uuid | FK → reward_programs(id) |
+| balance_points | integer | NOT NULL DEFAULT 0; CHECK >= 0 |
+| as_of | timestamptz | NOT NULL DEFAULT now() |
+| source | text | CHECK in (`manual_entry`,`agent_computed`) — no `plaid_sync` in MVP |
+| graph_tier | text | CHECK = `personal` |
+| node_type | text | CHECK = `UserBalance` |
+| version | integer | NOT NULL DEFAULT 0 |
+| created_at / updated_at | timestamptz | UTC |
+| | | UNIQUE (user_id, program_id) — B4 |
+
+### 3.3 `user_program_statuses`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| program_id | uuid | FK → reward_programs(id) |
+| status_tier | text | NOT NULL |
+| tier_benefits | jsonb | nullable |
+| valid_through | date | nullable |
+| graph_tier | text | CHECK = `personal` |
+| node_type | text | CHECK = `UserProgramStatus` |
+| version | integer | NOT NULL DEFAULT 0 |
+| created_at / updated_at | timestamptz | UTC |
+| | | UNIQUE (user_id, program_id) |
+
+### 3.4 `user_goals`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| goal_type | text | CHECK in (`maximize_points`,`maximize_cashback`,`specific_redemption`,`minimize_fees`) |
+| target_redemption_id | uuid | FK → redemption_options(id), nullable |
+| description | text | nullable — e.g. "Tokyo trip October" |
+| priority | integer | NOT NULL DEFAULT 1 |
+| graph_tier | text | CHECK = `personal` |
+| node_type | text | CHECK = `UserGoal` |
+| created_at / updated_at | timestamptz | UTC |
+
+### 3.5 `holds` — User → CreditCard
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| credit_card_id | uuid | FK → credit_cards(id) |
+| opened_date | date | nullable |
+| is_primary | boolean | NOT NULL DEFAULT false |
+| created_at | timestamptz | UTC |
+| | | UNIQUE (user_id, credit_card_id) |
+
+### 3.6 `earns` — CreditCard → SpendCategory
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| credit_card_id | uuid | FK → credit_cards(id) |
+| spend_category_id | uuid | FK → spend_categories(id) |
+| earn_rate_basis_points | integer | NOT NULL; CHECK >= 0 |
+| earn_type | text | CHECK in (`points`,`miles`,`cashback_pct`) |
+| cap_amount_cents | integer | nullable |
+| cap_period | text | CHECK in (`annual`,`quarterly`,`monthly`), nullable |
+| valid_from / valid_until | date | nullable |
+| created_at | timestamptz | UTC |
+| | | UNIQUE (credit_card_id, spend_category_id) |
+
+### 3.7 `redeems_via` — RewardProgram → RedemptionOption
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| program_id | uuid | FK → reward_programs(id) |
+| redemption_option_id | uuid | FK → redemption_options(id) |
+| created_at | timestamptz | UTC |
+| | | UNIQUE (program_id, redemption_option_id) |
+
+---
+
+## 4. Plan graph + dependency tracking
+
+### 4.1 Plan lifecycle (authoritative)
+
+**Plan revision status** (`plans.status` for `plan_type = agent_generated`):
+
+| Status | Meaning |
+|---|---|
+| `generating` | Initial creation or re-plan revision being built |
+| `current` | **Only actionable revision** for this lineage |
+| `stale` | Invalidated by personal-state change; awaiting re-plan |
+| `failed` | Generation or re-plan failed |
+| `superseded` | Replaced by newer revision; historical |
+
+**Plan-step status** (`plan_steps.status`):
+
+| Status | Meaning |
+|---|---|
+| `proposed` | Created during generation; not yet final |
+| `current` | Active step on current/generating revision |
+| `stale` | Invalidated by personal-state change |
+| `superseded` | Belongs to superseded plan revision |
+
+**Rules:**
+
+1. Only `plans.status = 'current'` is actionable in the UI.
+2. Only one revision per **`plan_lineage_id`** may have `status = 'current'`.
+3. A user may have **many lineages** (separate goals/trips) — **no** per-user single-current-plan constraint.
+4. On invalidation: current revision → `stale`; steps → `stale`; `replan_jobs` row inserted (same txn).
+5. Re-plan creates new revision `generating` → on success `current`; prior → `superseded`.
+6. On re-plan failure: stale revision stays `stale`; never restored to `current`.
+7. **No `is_current` boolean. No `plan_steps.is_stale` boolean.**
+
+**Baseline plans** (`plan_type ∈ {baseline_single_agent, baseline_free_text_multiagent}`):
+
+- Use simplified status: `completed` or `failed` only.
+- `plan_lineage_id` = `id` (self); no replan jobs; no `plan_steps`.
+- CHECK enforced in DDL (see `schema/schema.sql`).
+
+### 4.2 `plans`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| plan_lineage_id | uuid | NOT NULL — stable across revisions |
+| revision_number | integer | NOT NULL DEFAULT 1 |
+| supersedes_plan_id | uuid | FK → plans(id), nullable |
+| query_text | text | NOT NULL for agent_generated |
+| status | text | See §4.1 + baseline exception |
+| stale_reason | text | nullable — populated when status → stale |
+| plan_type | text | CHECK in (`agent_generated`,`baseline_single_agent`,`baseline_free_text_multiagent`) |
+| benchmark_query_id | uuid | nullable |
+| raw_output | jsonb | nullable — baselines only |
 | summary | text | nullable |
-| version | integer | OCC |
+| version | integer | NOT NULL DEFAULT 0 |
 | graph_tier | text | CHECK = `plan` |
 | node_type | text | CHECK = `Plan` |
 | created_at / updated_at | timestamptz | UTC |
 
-### 3.2 `plan_steps` *(highest-risk table — the staleness fields ARE the demo)*
+```sql
+CREATE UNIQUE INDEX plans_one_current_revision
+  ON plans (plan_lineage_id)
+  WHERE status = 'current';
+```
+
+### 4.3 `plan_steps`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| plan_id | uuid | FK → plans(id) |
-| step_order | integer | NOT NULL — deterministic sequence |
+| plan_id | uuid | FK → plans(id) ON DELETE CASCADE |
+| step_order | integer | NOT NULL |
 | step_type | text | CHECK in (`card_assignment`,`redemption_recommendation`,`spend_analysis`,`transfer_recommendation`) |
-| payload | jsonb | step-specific data |
-| status | text | CHECK in (`pending`,`ready`,`in_progress`,`completed`,`failed`,`skipped`,**`stale`**) |
-| is_stale | boolean | NOT NULL DEFAULT false |
+| payload | jsonb | NOT NULL DEFAULT '{}' |
+| status | text | CHECK in (`proposed`,`current`,`stale`,`superseded`) |
 | staled_at | timestamptz | nullable |
-| stale_reason | text | nullable — e.g. "user_balances:abc balance_points 180000 → 120000" |
+| stale_reason | text | nullable |
 | result | jsonb | nullable |
 | error | text | nullable |
-| version | integer | OCC |
+| version | integer | NOT NULL DEFAULT 0 |
 | graph_tier | text | CHECK = `plan` |
 | node_type | text | CHECK = `PlanStep` |
 | created_at / updated_at | timestamptz | UTC |
+| | | UNIQUE (plan_id, step_order) |
 
-### 3.3 `state_dependencies` — PlanStep → (any node) *(the dependency edge)*
-The edge that makes the architectural claim real. **Deliberately polymorphic** (target can be any node type), so it carries no FK — node-reference integrity is enforced in the write service + an orphan sweep (B5).
+### 4.4 `state_dependencies`
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | plan_step_id | uuid | FK → plan_steps(id) ON DELETE CASCADE |
-| target_node_id | uuid | NOT NULL — no FK (polymorphic) |
-| target_node_type | text | NOT NULL — e.g. `UserBalance` |
-| target_table | text | NOT NULL — physical table for the orphan sweep, e.g. `user_balances` |
-| depended_property | text | nullable — e.g. `balance_points` |
-| observed_version | integer | the target's `version` at read time |
-| snapshot_value | jsonb | the value at plan-generation time — enables drift detection |
-| is_stale | boolean | NOT NULL DEFAULT false |
+| target_node_id | uuid | NOT NULL — polymorphic, no FK |
+| target_node_type | text | NOT NULL |
+| target_table | text | NOT NULL |
+| depended_property | text | nullable |
+| observed_version | integer | NOT NULL |
+| snapshot_value | jsonb | NOT NULL |
 | created_at | timestamptz | UTC |
 
-**MVP staleness scope (B2):** dependency targets are **node-valued, personal-tier only** — `user_balances` and `user_program_statuses`. Edge-valued dependencies (an `earns` rate, a `transfers_to` ratio) are **out of staleness scope for the MVP** and explicitly deferred. The hero moment is a balance change (a node), so the demo is covered. To extend later, add `target_edge_id` / `target_edge_table`.
+**MVP staleness scope (B2):** personal-tier nodes only — `user_balances`, `user_program_statuses`. World edges out of scope.
 
-### 3.4 `agent_runs`
+### 4.5 `targets` — Plan → UserGoal
+
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| agent_type | text | CHECK in (`orchestrator`,`wallet_agent`,`earning_agent`,`redemption_agent`) — plus `ingestion_agent`,`verifier_agent` when Layer 4 is in |
+| plan_id | uuid | FK → plans(id) ON DELETE CASCADE |
+| user_goal_id | uuid | FK → user_goals(id) |
+| created_at | timestamptz | UTC |
+| | | UNIQUE (plan_id, user_goal_id) |
+
+### 4.6 `agent_runs`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| agent_type | text | CHECK in (`orchestrator`,`wallet_agent`,`earning_agent`,`redemption_agent`) |
 | plan_id | uuid | FK → plans(id), nullable |
-| started_at / completed_at | timestamptz | UTC |
+| user_id | uuid | FK → users(id) — scope for audit |
+| started_at | timestamptz | NOT NULL DEFAULT now() |
+| completed_at | timestamptz | nullable |
 | status | text | CHECK in (`running`,`completed`,`failed`,`timed_out`) |
-| state | jsonb | checkpoint blob incl. `last_read_versions` (crash recovery; Decision 8) |
-| token_count | integer | nullable — summed into the token-cost benchmark metric |
+| state | jsonb | nullable — incl. `last_read_versions` |
+| token_count | integer | nullable |
 | error | text | nullable |
 | graph_tier | text | CHECK = `plan` |
 | node_type | text | CHECK = `AgentRun` |
 
 ---
 
-## 4. Optimistic concurrency (the commit contract)
+## 5. Write-path infrastructure
 
-Every mutable write is conditional on the version read (ADR 0001, Decision 5):
+### 5.1 `graph_mutations` *(audit + SSE replay — NOT a work queue)*
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | bigserial | PK — SSE `event_id`; monotonic **per user** when §6.3 lock held |
+| mutation_txn_id | uuid | NOT NULL — groups rows in one commit |
+| user_id | uuid | FK → users(id), **NOT NULL** — MVP user-scoped only |
+| plan_lineage_id | uuid | nullable |
+| plan_id | uuid | FK → plans(id), nullable |
+| agent_run_id | uuid | FK → agent_runs(id), nullable |
+| mutation_type | text | NOT NULL — e.g. `TransferPoints`, `CreatePlanStep` |
+| target_table | text | nullable |
+| target_node_id | uuid | nullable |
+| summary | text | NOT NULL |
+| before | jsonb | nullable |
+| after | jsonb | nullable |
+| committed_at | timestamptz | NOT NULL DEFAULT now() |
+
+MVP: all rows require `user_id`. Layer 4 global events excluded from sidebar until stretch adds `visibility_scope`.
+
+### 5.2 `replan_jobs` *(durable work queue)*
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| plan_lineage_id | uuid | NOT NULL |
+| source_plan_id | uuid | FK → plans(id) — stale revision at enqueue |
+| trigger_mutation_txn_id | uuid | NOT NULL |
+| idempotency_key | text | NOT NULL UNIQUE — e.g. `{plan_lineage_id}:{mutation_txn_id}` |
+| status | text | CHECK in (`pending`,`processing`,`completed`,`failed`,`superseded`) |
+| attempt_count | integer | NOT NULL DEFAULT 0 |
+| max_attempts | integer | NOT NULL DEFAULT 3 |
+| available_at | timestamptz | NOT NULL DEFAULT now() |
+| locked_at | timestamptz | nullable |
+| locked_by | text | nullable — `hostname:pid` |
+| lease_expires_at | timestamptz | nullable |
+| result_plan_id | uuid | FK → plans(id), nullable |
+| error | text | nullable |
+| created_at / updated_at | timestamptz | UTC |
+| completed_at | timestamptz | nullable |
+
+**Claiming:** `pending` where `available_at <= now()`, or `processing` where `lease_expires_at < now()`. Use `FOR UPDATE SKIP LOCKED`. Increment `attempt_count` on claim. Job completion + new revision `current` + prior `superseded` in **one transaction**.
+
+### 5.3 `idempotency_records`
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | FK → users(id) |
+| operation_type | text | NOT NULL — e.g. `TransferPoints` |
+| idempotency_key | text | NOT NULL |
+| request_hash | text | NOT NULL — canonical hash of request body |
+| mutation_txn_id | uuid | NOT NULL |
+| result_reference | jsonb | NOT NULL |
+| created_at | timestamptz | NOT NULL DEFAULT now() |
+| | | UNIQUE (user_id, operation_type, idempotency_key) |
+
+Same key + same hash → replay outcome. Same key + different hash → **409 conflict**.
+
+---
+
+## 6. Graph-write contract
+
+### 6.1 Optimistic concurrency
 
 ```sql
 UPDATE user_balances
    SET balance_points = $new, version = version + 1, updated_at = now()
  WHERE id = $id AND version = $expected_version;
--- rowcount = 0  ->  raise ConflictError  ->  retry
+-- rowcount = 0 -> ConflictError -> retry (max 3)
 ```
 
-- **Retries:** max 3, exponential backoff with jitter (base 50ms, cap 400ms). After 3 failures the `plan_step` goes `failed` and the orchestrator decides whether to requeue.
-- **Mutation ownership matrix** (shrinks the concurrent-write surface): wallet agent is the **sole** writer of personal-tier nodes; redemption agent is the **sole** writer of `plan_steps` and `state_dependencies`; earning agent reads world and writes only its own plan-step contributions; orchestrator writes `plans`. World nodes are seed-only in the core (and, in the Layer-4 stretch, written only via the verified serializable path).
-- **Single write path (B1):** all node mutations go through one graph-write-service function. It runs validation (§5), the version check above, **and** the staleness propagation below, in **one transaction**. No agent writes around it. A `user_balances` trigger is added as a backstop so staleness cannot be bypassed even by a manual write.
+### 6.2 Mutation ownership
 
-### Staleness propagation (runs in the same txn as a personal-tier mutation)
+| Writer | May write |
+|---|---|
+| wallet agent | personal-tier nodes |
+| redemption agent | `plan_steps`, `state_dependencies` |
+| earning agent | own plan-step contributions only |
+| orchestrator | `plans`, `targets` |
+| graph-write service | `graph_mutations`, `replan_jobs`, `idempotency_records`, staleness propagation |
+
+### 6.3 Per-user write serialization (SSE ordering)
+
+Before mutating graph state or inserting `graph_mutations`:
+
 ```sql
-UPDATE plan_steps ps
-   SET is_stale = true, status = 'stale', staled_at = now(),
-       stale_reason = format('user_balances:%s balance_points %s -> %s', $id, $old, $new)
-  FROM state_dependencies sd
- WHERE sd.plan_step_id = ps.id
-   AND sd.target_table = 'user_balances'
-   AND sd.target_node_id = $id
-   AND sd.depended_property = 'balance_points'
-   AND (sd.snapshot_value->>'balance_points')::int IS DISTINCT FROM $new
-   AND ps.status NOT IN ('completed','failed','skipped');
+SELECT pg_advisory_xact_lock(
+  hashtextextended('graph_write:' || $user_id::text, 0)
+);
 ```
-The redemption agent subscribes to stale steps and re-plans with no orchestrator message — that is the hero loop. This is ~20–50 lines, bounded, plan-nodes-only, no transitive propagation.
+
+Guarantees `graph_mutations.id` commit order matches **per-user** mutation stream. Not global cross-user ordering.
+
+### 6.4 Invalidation + job enqueue (same transaction)
+
+On personal-tier mutation (example: balance change):
+
+```sql
+-- 1. Apply balance change (or TransferPoints debit/credit)
+-- 2. Mark current plan revision stale
+UPDATE plans p
+   SET status = 'stale', stale_reason = $reason, updated_at = now(), version = version + 1
+ WHERE p.plan_lineage_id = $lineage_id AND p.status = 'current';
+
+UPDATE plan_steps ps
+   SET status = 'stale', staled_at = now(), stale_reason = $reason, updated_at = now()
+  FROM plans p
+ WHERE ps.plan_id = p.id AND p.id = $source_plan_id AND ps.status = 'current';
+
+-- 3. Insert graph_mutations rows
+-- 4. Insert replan_jobs (status = pending, source_plan_id = $source_plan_id)
+-- 5. Insert idempotency_records if key present
+```
+
+### 6.5 Re-plan flow
+
+1. Worker claims job → creates new `plans` row (`generating`, `revision_number + 1`).
+2. Redemption agent subprocess writes new steps.
+3. **Atomic promotion:** new → `current`; source → `superseded`; job → `completed`; `result_plan_id` set.
+4. Failure after max attempts: job → `failed`; source stays `stale`.
+
+### 6.6 `TransferPoints` domain validation
+
+Enforced in graph-write before commit:
+
+- `amount_points > 0`
+- `source_program_id <> dest_program_id`
+- Both balance rows belong to authenticated `user_id`
+- Source `balance_points >= amount_points`
+- Active `transfers_to` route exists (or domain error)
+- Debit, credit, `graph_mutations`, invalidation, job enqueue, idempotency record — **one transaction**
+
+### 6.7 Trigger backstop
+
+`user_balances` AFTER UPDATE trigger re-applies plan/step staleness if write path bypassed in dev (does not enqueue jobs — application responsibility).
 
 ---
 
-## 5. Validation taxonomy (every mutation, before commit)
+## 7. Validation taxonomy
 
-Enforced in the graph-write service for **all** agents:
-1. **Structural** — node/edge type exists; required columns present and correctly typed; enum values in their `CHECK` set.
-2. **Referential** — real FKs for everything except `state_dependencies`, whose `target_node_id` is validated in-app against `target_table` (no orphan), plus a periodic orphan sweep.
-3. **Domain invariants** — `transfer_ratio_basis_points > 0`; `earn_rate_basis_points >= 0`; `balance_points >= 0`; at most one active row per natural key (e.g. `transfers_to` per source/dest, `user_balances` per user/program); no overlapping active validity windows.
-
-The fourth class — **ratio transitivity** (e.g. `A→B × B→C` must agree with any direct `A→C`, exact via integer basis points) — is the **Verifier's** job and lives in the Layer-4 stretch (§7). Encoding the invariant now keeps the gold corpus honest even if Layer 4 is cut.
+1. **Structural** — types, required columns, CHECK enums.
+2. **Referential** — FKs; polymorphic `state_dependencies` validated in-app + orphan sweep.
+3. **Domain** — non-negative balances; unique natural keys; TransferPoints rules (§6.6).
+4. **Ratio transitivity** — Layer 4 verifier only (§9).
 
 ---
 
-## 6. Benchmark & evaluation (research apparatus — kept, ADR 0002)
+## 8. Benchmark & evaluation
 
-### `evaluations`
+### `evaluations` *(infrastructure — not a graph node)*
+
 | Column | Type | Notes |
 |---|---|---|
 | id | uuid | PK |
 | plan_id | uuid | FK → plans(id) |
 | baseline_plan_id | uuid | FK → plans(id), nullable |
-| benchmark_query_id | uuid | the query under test |
+| benchmark_query_id | uuid | NOT NULL |
 | total_value_cents / baseline_value_cents | integer | nullable |
 | improvement_basis_points | integer | nullable |
-| accuracy_score | boolean | nullable — matches ground truth? |
-| hallucination_count | integer | nullable — hallucinated ratios/programs (taxonomy in `metric_scores`) |
-| token_cost_total | integer | nullable — summed from `agent_runs.token_count` |
-| plan_invalidation_correct | boolean | nullable — caught the mid-query state change? (categorical; baselines = false by construction) |
-| domain_extension_correct | boolean | nullable — Layer-4-only metric |
-| metric_scores | jsonb | authoritative breakdown for anything not a typed column |
-| evaluator_version | text | |
+| accuracy_score | boolean | nullable |
+| hallucination_count | integer | nullable |
+| token_cost_total | integer | nullable |
+| plan_invalidation_correct | boolean | nullable |
+| domain_extension_correct | boolean | nullable |
+| metric_scores | jsonb | nullable |
+| evaluator_version | text | NOT NULL |
 | created_at | timestamptz | UTC |
 
-**Benchmark integrity (review item I1):** baseline plans (`baseline_single_agent`, `baseline_free_text_multiagent`) write **only** a `plans` row (with `raw_output`) and an `evaluations` row. They do **not** write `plan_steps`, `state_dependencies`, or `agent_runs`-as-coordination — those are architecture-specific and writing fakes would contaminate the comparison. Baselines read the same world graph through Alan's `serialize_world_graph(user_id)` utility. Win thresholds are pre-committed before Day 7 (all four sign off).
+**Benchmark integrity (I1):** Baselines write **only** `plans` (`raw_output`, status `completed`/`failed`) + `evaluations`. No `plan_steps`, `state_dependencies`, or coordination `agent_runs`. Same `serialize_world_graph(user_id)` read path.
 
 ---
 
-## 7. STRETCH — Ingestion + Verifier (Layer 4) · NOT part of the Day-1 lock
+## 9. STRETCH — Layer 4 · NOT Day-1 lock
 
-> Fenced per ADR 0003: Layer 4 is unowned and cut-by-default with four people. These tables are documented so the core schema is forward-compatible, but they are **not built unless the team is ahead at the Day 10 go/no-go.** Nothing in Layers 1–3 depends on them.
+> Cut-by-default per ADR 0003. Nothing in §1–8 depends on this.
 
-- **`mutation_proposals`** — `id`, `mutation_type` (`new_transfer_route`,`update_transfer_ratio`,`new_transfer_bonus`,`update_earn_rate`,`other`), `status` (`pending`,`accepted`,`rejected`,`superseded`), `payload jsonb`, `rejection_reason`, `source_document_url`, `source_document_text`, `proposed_by_run_id` / `reviewed_by_run_id` (FK → agent_runs), `reviewed_at`, `version`. The verifier reads-validates-commits this in a **`SERIALIZABLE`** transaction so two conflicting proposals can't both be accepted.
-- **`transfer_bonuses`** — `id`, `transfers_to_id` (FK → transfers_to), `bonus_multiplier_basis_points` (`13000` = +30%), `valid_from` / `valid_until`, `source_url`, `mutation_proposal_id`, `is_active`. A bonus is a time-boxed overlay on a route, created by the verified path — never a mutated base field.
-- **Verifier checks:** schema violation, node-reference violation, ratio-transitivity violation — each a distinct rejection mode the adversarial set must cover (≥1 each) before the verifier appears in any demo.
-
----
-
-## 8. Required indexes (not optional — recursive CTEs on unindexed FKs will be unusably slow live)
-
-```sql
--- FK / lookup
-CREATE INDEX ON credit_cards (reward_program_id);
-CREATE INDEX ON redemption_options (program_id);
-CREATE INDEX ON transfers_to (source_program_id);
-CREATE INDEX ON transfers_to (dest_program_id);
-CREATE UNIQUE INDEX ON user_balances (user_id, program_id);      -- B4: one canonical balance row
-CREATE INDEX ON user_program_statuses (user_id, program_id);
-CREATE INDEX ON plan_steps (plan_id, step_order);
-CREATE INDEX ON agent_runs (plan_id);
-CREATE INDEX ON external_quotes (plan_id);
-CREATE INDEX ON evaluations (benchmark_query_id);
-
--- dependency tracking — the hot path
-CREATE INDEX ON state_dependencies (target_table, target_node_id);
-CREATE INDEX ON state_dependencies (plan_step_id);
-CREATE INDEX ON plan_steps (is_stale) WHERE is_stale = true;
-
--- category MCC lookup
-CREATE INDEX ON spend_categories USING GIN (mcc_codes);
-
--- OCC hot paths
-CREATE INDEX ON user_balances (id, version);
-CREATE INDEX ON plan_steps (plan_id, version);
-```
+- `mutation_proposals`, `transfer_bonuses`, verifier agent — see v3 §7 narrative.
+- Future: `graph_mutations.visibility_scope = 'global'` for verified world-graph events.
 
 ---
 
-## 9. Seed fixture (part of the lock — all lanes build against the same IDs)
+## 10. Required indexes
 
-- 20 `credit_cards`, each linked to a `reward_program`; real earn rates verified against issuer pages at a documented snapshot date.
-- Transfer routes for the two issuer programs at minimum: Chase UR and Amex MR, including the Tokyo demo destinations (Hyatt, United, ANA) with verified ratios.
-- Top ~50 `spend_categories` MCCs covering demo merchants.
-- Demo persona: 5 cards, 240k points across 3 programs, goal = Tokyo in October, with stable slugs/IDs.
+See `schema/schema.sql`. Highlights:
+
+- `plans_one_current_revision` on `(plan_lineage_id) WHERE status = 'current'`
+- `graph_mutations (user_id, id)`
+- `replan_jobs (status, available_at) WHERE status IN ('pending','processing')`
+- `state_dependencies (target_table, target_node_id)`
+- `plan_steps (status) WHERE status = 'stale'` — replaces v3 `is_stale` index
+- All §8 v3 FK/OCC indexes retained
 
 ---
 
-## 10. Changes from v2 (so Alan can ratify the deltas, not re-read everything)
+## 11. Seed fixture
 
-1. **Unified transfers** — dropped the `TransferPartner` node; transfers are now a `transfers_to` edge between two `reward_programs` (ratio on the edge). Removes the v2 node/edge ratio duplication (G16) and the B3 bridge. *(Fallback: keep the node + `lands_in_program_id` if the team prefers minimal change.)*
-2. **Dropped `Merchant` + `Transaction`** (and `CATEGORIZED_AS` / `PAID_WITH`) — they were no-write MVP placeholders; manual wallet has no transactions. `SpendCategory` and `RedemptionOption` stay (earning + redemption agents need them).
-3. **Added `external_quotes`** so graph-typed tool results are real nodes with provenance (review item I3).
-4. **Added `plans.benchmark_query_id` + `plans.raw_output`**; baselines write Plan + Evaluation only (review item I1/I2).
-5. **`transfers_to` is temporally validated** (`valid_from/until`) for base-ratio consistency (review item I5).
-6. **`state_dependencies` made explicitly polymorphic + app-level integrity** (B5), with MVP staleness scoped to personal-tier nodes (B2).
-7. **`UserBalance` uniqueness** on `(user_id, program_id)`, update-in-place (B4).
-8. **Ingestion + Verifier (Layer 4) fenced to §7 as stretch** — not part of the Day-1 lock (ADR 0003).
+- 20 `credit_cards` + programs; Chase UR + Amex MR transfer routes (Tokyo: Hyatt, United, ANA).
+- Top ~50 MCC `spend_categories`.
+- **Bootstrap template** (not one global user): 5 cards, ~240k points, Tokyo October goal — cloned per Clerk user on first login.
 
-## 11. Sign-off
-Locked when each lane confirms it can build with no open questions:
-- [ ] Alan (Graph) — tables, write service, OCC, staleness, indexes, seed.
-- [ ] Raq (Orchestrator/lead) — mutation contract + shared type artifact; eval tables.
-- [ ] Michael (Redemption/Eval) — traversal targets (`transfers_to` → `redeems_via`), `external_quotes` shape, benchmark/eval columns.
-- [ ] Val (Frontend) — mutation-log event shape + plan/`state_dependencies` shape render-ready.
+---
 
-Date locked: __________  ·  Canonical artifact: `schema/schema.sql` + generated shared types (Alan, post-lock).
+## 12. Changes from v3 → v3.1
+
+1. **`plan_lineage_id`** + revision model; dropped `is_current`.
+2. **Authoritative plan/step status lifecycle** (§4.1); dropped `plan_steps.is_stale`.
+3. **`graph_mutations`**, **`replan_jobs`**, **`idempotency_records`** added.
+4. **`users.clerk_id`** added.
+5. **Personal graph tables** documented (§3).
+6. **Per-user advisory lock** for SSE ordering (§6.3).
+7. **Re-plan job leases** + atomic promotion (§5.2, §6.5).
+8. **Scoped idempotency** with request fingerprint (§5.3).
+9. **Baseline status exception** (§4.1).
+10. Re-plan narrative: revision replacement, not in-place step refresh.
+
+---
+
+## 13. Sign-off
+
+Locked when each lane confirms v3.1 shapes:
+
+- [x] Alan (Graph) — DDL, write service, OCC, staleness, jobs, indexes, seed.
+- [x] Raq (Orchestrator/lead) — contracts, idempotency, eval tables.
+- [x] Michael (Redemption/Eval) — traversal, tool quotes, benchmark columns.
+- [x] Val (Frontend) — SSE event shape, plan lifecycle UI, stale/superseded display.
+
+Date locked: **2026-06-18** (ADR 0001 Accepted) · Canonical artifact: `schema/schema.sql` + `schema/contracts/` + generated types · DDL clean-DB apply test: **passed** (PostgreSQL 16, 22 tables, `psql -f schema/schema.sql`).

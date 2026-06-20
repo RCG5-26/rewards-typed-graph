@@ -2,6 +2,7 @@
 
 - **Status:** Accepted — June 17, 2026.
 - **Owner:** Raq (lead)
+- **Index:** [`context/decisions-log.md`](../../context/decisions-log.md)
 - **Related:** [0002 — Keep the Research Apparatus](0002-mvp-scope-trim.md)
 
 ## Context

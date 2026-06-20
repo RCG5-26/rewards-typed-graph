@@ -1,8 +1,8 @@
-# Risks & Failure Modes — [Project Name]
+# Risks & Failure Modes — Rewards Agent
 
-> What could go wrong, how we'd notice, and what we do about it. Review at kickoff and before major gates.
+> What could go wrong, how we'd notice, and what we do about it. Review at kickoff, before integration gates, demo rehearsal, and benchmark review.
 
-**Last updated:** [YYYY-MM-DD]
+**Last updated:** 2026-06-20
 
 ---
 
@@ -10,71 +10,196 @@
 
 | ID | Risk | Likelihood | Impact | Mitigation | Owner | Status |
 |---|---|---|---|---|---|---|
-| R1 | [e.g. Critical path person blocked] | H/M/L | H/M/L | [plan] | [Name] | watching / mitigated |
-| R2 | [e.g. Weak baseline invalidates comparison] | | | | | |
-| R3 | [e.g. Schema drift mid-sprint] | | | | | |
+| R1 | **Contract drift** — `schema-final.md`, `schema.sql`, JSON Schema, and generated TS/Python types diverge; lanes implement against incompatible shapes | H | H | Alan owns `schema/contracts/` + codegen CI diff gate; no hand-written contract duplicates; freeze minimal contract set before app lanes wire payloads | Alan | mitigating |
+| R2 | **DDL not proven on clean Postgres** — `schema/schema.sql` fails to apply or differs from spec; integration starts on broken foundation | M | H | Apply DDL in CI and locally on every schema change; block graph-write work until green migrate | Alan | watching |
+| R3 | **Partial or duplicate transfer** — `TransferPoints` debits without credit, or same idempotency key applies twice | M | H | Single graph-write transaction; `UNIQUE (user_id, operation_type, idempotency_key)` + request hash; contract tests for atomic batch | Alan | watching |
+| R4 | **Invalidation / re-plan chain breaks** — personal mutation commits but plan revision stays `current`, no `replan_jobs` row, or a stale revision promoted without a new revision | M | H | Alan: graph-write txn (advisory lock, lifecycle transitions, job enqueue); Raq: integration test for hero transfer scenario | Raq | watching |
+| R5 | **Re-plan job crash or lease failure** — worker dies mid-job; expired lease reclaimed incorrectly; duplicate or invalid revision promoted | M | H | Raq: worker receives lease token or verifies `locked_by` plus active lease; confirms job ownership and lease validity before promotion; expired worker may not promote even if LLM returns; winning worker atomically promotes new revision and completes job; duplicate attempts terminate without state change. Alan: `replan_jobs` schema + atomic promotion txn; bounded retries; failed job leaves source revision `stale` | Raq | watching |
+| R6 | **Tenant isolation failure** — user A reads or mutates user B's personal/plan graph; agent snapshot includes foreign data | M | H | Clerk → `users.clerk_id` mapping; `user_id` on all scoped queries; graph-query enforces scope before subprocess; no DB creds in agents | Raq | watching |
+| R7 | **SSE sidebar diverges from truth** — disconnect misses events; UI shows actionable plan while REST/DB says `stale`; sidebar empty despite commits | M | M | Per-user advisory lock for event order; REST `GET /plans/current` + `GET /mutations?after=` recovery; UI actionability from `plans.status` only | Val | watching |
+| R8 | **Demo runtime instability** — API scales to zero, restarts during SSE, Python missing in image, managed Postgres unavailable | M | H | Long-lived API container (min instances = 1); managed PG on hosted demo; docker-compose for local dev; rehearse on target platform before the June 29 live demo ([`STATUS.md`](../STATUS.md)) | Raq | watching |
+| R9 | **Cash-price integration failure** — provider timeout, rate limit, or schema mismatch blocks tool path | M | M | Typed adapter → `external_quotes`; documented fixture fallback behind same contract; label fallback in demo script | Raq | watching |
+| R10 | **Benchmark unfair or falsified** — baselines under-tuned, configs differ, eval touches demo DB, metrics changed post-hoc, partial runs dropped | M | H | Ephemeral `DATABASE_URL_EVAL`; frozen `eval/config.yaml`; baselines write `plans` + `evaluations` only ([`schema-final.md`](../docs/architecture/schema-final.md) §8); pre-commit win thresholds before Day 7 ([ADR 0002](../docs/adr/0002-mvp-scope-trim.md), [ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)); log partial failures | Michael | watching |
+| R11 | **Alan critical-path bottleneck** — contracts, DDL, graph-write, and seed block orchestrator, agents, and frontend wiring | H | H | Alan prioritizes minimal contract set + migrate proof; Raq pairs on graph-write interface; Val/Michael stay on mocks until contracts land | Alan | mitigating |
+| R12 | **Michael lane overload** — redemption hero, Arch-2 baseline, ground truth, and metrics compete with integration window | M | H | Protect redemption agent first; if Day 7 gate slips, drop Arch-2 before typed path or invalidation eval ([ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)); Raq owns Arch-1 + eval harness DRI ([ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)) | Michael | watching |
+| R13 | **Layer 4 consumes core sprint** — ingestion/verifier work starts before Day 7 pass or Day 10 go/no-go (Jun 26) | L | H | [ADR 0003](../docs/adr/0003-team-four-eval-ownership.md) cut-by-default; Day 10 go/no-go ([`STATUS.md`](../STATUS.md)); no Layer 4 tickets in critical path | Raq | mitigated |
+| R14 | **Architectural claim appears true but is hollow** — agents coordinate via hidden prose; re-plan is unconditional re-prompt; baselines are strawmen | M | H | Contract/prompt review; mutation provenance in `graph_mutations`; dependency-specific tests; frozen benchmark config; negative-control invalidation scenarios | Raq | watching |
 
 ---
 
 ## Failure modes by area
 
-### [Area, e.g. Data / persistence]
+### Schema, contracts, and persistence
 
 | Failure | Symptom | Root cause | Prevention | Recovery |
 |---|---|---|---|---|
-| [e.g. Stale plan not invalidated] | UI shows fresh plan after state change | Staleness not triggered on write path | Single graph-write chokepoint | [manual re-plan / fix + backfill] |
-| [e.g. Orphan dependency edges] | Verifier accepts bad reference | Polymorphic FK, no DB constraint | App-level integrity check | Orphan sweep job |
+| DDL fails on clean database | `psql -f schema.sql` errors; CI migrate red | Syntax error, ordering, missing extension, CHECK conflict | Run migrate in CI on Postgres 16; Alan reviews every schema PR | Fix DDL; re-run migrate on fresh DB; do not patch prod data by hand |
+| Spec vs DDL drift | Column or CHECK in spec absent from SQL | v3.1 amended in doc only | Single PR pairs `schema-final.md` + `schema.sql` | Reconcile spec and SQL; add CI schema diff check |
+| Contract vs persistence mismatch | Valid JSON rejected at write or wrong column mapped | JSON Schema not tested against writable columns | Contract tests mapping mutations → columns | Fix schema or contract; regenerate types |
+| Duplicate `current` revision in lineage | Two actionable plans for one trip | Missing partial unique index or bypass write path | `plans_one_current_revision` index; all writes via graph-write | Mark erroneous revision `superseded`; manual SQL only in dev with Alan |
+| Invalid lifecycle transition | Plan jumps `stale` → `current` without new revision | Promotion logic bug | Atomic promotion txn with job completion | Revert erroneous plan to `stale`/`superseded`; enqueue new job |
+| Orphaned `state_dependencies` | Step references deleted balance node | Polymorphic target, no FK | Write-time target validation; periodic orphan sweep | Sweep marks deps invalid; re-plan from fresh snapshot |
+| Idempotency conflict | 409 on retry with altered body | Same key, different request hash | Store `request_hash`; reject mismatch | Client sends new key; return original outcome if hash matches |
 
-### [Area, e.g. Auth / security]
+### Graph writes, invalidation, and re-planning
 
-| Failure | Symptom | Prevention | Recovery |
-|---|---|---|---|
-| [e.g. IDOR on resource] | User A sees User B's data | Ownership check on every mutation | Revoke session, audit log |
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| Write bypasses graph-write | Lifecycle transition missing; no mutation log | Direct SQL or ORM in route handler | Code review; single write module; trigger backstop on `user_balances` | Disable bypass path; correct plan/step revision statuses via graph-write; insert missing `graph_mutations` rows where appropriate; enqueue missing `replan_jobs` |
+| Advisory lock skipped | SSE events out of order for one user | Concurrent txs for same user | Mandatory lock in graph-write before mutation + `graph_mutations` insert | UI recovers via REST ordering; fix write path |
+| Mutation commits; plan revision stays `current` | Hero moment fails silently | Invalidation not applied or wrong lineage | Same txn: balance change + source revision `stale` + steps `stale` + job enqueue | Set source revision and steps to `stale`; enqueue job from `source_plan_id`; fix write service |
+| Mutation commits; no `replan_jobs` row | Transfer succeeds; plan never updates | Job enqueue omitted from txn | Job insert in same transaction as invalidation | Insert pending job from `source_plan_id`; worker picks up |
+| Job lease expires mid-run | Duplicate worker attempts | Crash after claim | `lease_expires_at`; reclaim only when expired; worker receives lease token or verifies `locked_by` + active lease before promotion | Expired worker must not promote even if LLM returns; winning worker atomically promotes new revision and completes job; duplicate attempts exit if lineage already has new `current` revision |
+| Job exhausts retries | Source revision stuck `stale`; UI shows warning | LLM timeout, validation failures | Max 3 attempts; backoff via `available_at` | Job → `failed`; user retry creates new job; source revision stays `stale` |
+| Promotion not atomic | Job `completed` but source revision still `stale` | Split transactions | Single txn: job complete + new revision `current` + prior `superseded` | Complete promotion manually in dev; fix worker txn boundary |
+| Failed re-plan promotes stale revision | Old revision shown actionable | Incorrect lifecycle transition | Never set source revision to `current` on failure; require new revision row | Keep source revision `stale`; show error + retry only |
 
-### [Area, e.g. Integrations / external APIs]
+### Agent subprocesses and LLM behavior
 
-| Failure | Symptom | Prevention | Recovery |
-|---|---|---|---|
-| [e.g. Tool timeout] | Agent hangs | Timeouts + circuit breaker | Fallback fixture |
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| Subprocess timeout | Agent run `timed_out`; empty proposal | LLM slow or hung | Configured execution timeout; kill process | Retry agent run; reduce snapshot size; fail plan step with error |
+| Invalid/extra stdout | Parse error; mutation rejected | Model prints prose around JSON | Exactly one JSON document on stdout; configured maximum output size | Mark run failed; no graph commit |
+| Malformed `MutationBatch` | Schema validation error at write | Untrusted LLM output | JSON Schema validate before write | Return errors to orchestrator; no partial commit |
+| Agent receives foreign user data | Cross-tenant leak in snapshot | graph-query scope bug | Build snapshot in API after Clerk verify; no agent DB | Reject invocation; fix query filters |
+| Agent has `DATABASE_URL` | Subprocess could query Postgres | Launcher env leak | Env allowlist; no DB creds in agent contract | Remove creds; rotate if exposed |
+| Hallucinated transfer route | Plan cites nonexistent program/route | LLM invention | Write-time referential checks; benchmark hallucination metric | Reject mutation; redemption re-reads graph |
+| Secrets in stderr logs | Key fragment in log aggregator | Unsanitized logging | Sanitize stderr; never log prompts with secrets | Rotate secret; purge logs |
 
-### [Area, e.g. Demo / UX]
+### Auth and tenant isolation
 
-| Failure | Symptom | Prevention | Recovery |
-|---|---|---|---|
-| [e.g. Backend stream down] | Empty sidebar | Mock events from Day 1 | Swap to mocks live |
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| Clerk session without internal user | 401/500 on first API call | Missing bootstrap on first login | Create `users` row + template clone on first `clerk_id` | Run bootstrap handler; retry request |
+| Query omits `user_id` filter | Cross-user data in response | Handler forgets scope | Middleware attaches `user_id`; lint/review all scoped routes | Hotfix filter; audit access logs |
+| Reset affects wrong scope | Another user's data cleared | Global truncate bug | Authenticated per-user reset endpoint deletes/restores only that user's personal and plan state; must not mutate shared world graph; global reset requires `ADMIN_RESET_SECRET` and is not ordinary demo behavior | Restore affected user from bootstrap template; fix endpoint scope |
+| Shared world graph mutated | Seed cards/routes changed | Write to world tier in app path | World seed read-only in MVP app | Re-seed world from fixture; redeploy |
+
+### SSE and frontend recovery
+
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| SSE disconnect | Sidebar stops updating | Network blip, API restart | Client auto-reconnect with `Last-Event-ID` | Replay `GET /mutations?after=`; refresh plan via REST |
+| Event committed, not delivered | Gap in sidebar only | SSE failure after commit | REST is source of truth; not SSE | Poll mutations endpoint; committed state intact in PG |
+| Wrong reconnection cursor | Duplicate or skipped sidebar lines | Client cursor bug | Monotonic `event_id` per user stream | Reset cursor from last REST fetch |
+| UI actionability ≠ plan status | Stale plan looks clickable | UI uses step text not `plans.status` | Render actionable only when `status = current` | Force REST refresh; fix component guard |
+| Sidebar empty; plan works | Demo looks broken | SSE route error | Mock events from Day 3 per [`STATUS.md`](../STATUS.md); wire real events during Days 5–7 integration window; REST fallback always available | Switch to REST-only mutation list for demo |
+
+### Integrations and external tools
+
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| Cash-price API timeout | Tool error; no quote node | Provider slow/down | Adapter timeout; typed error fragment | Use documented fixture fallback; commit as `external_quotes` |
+| Rate limiting | 429 from provider | Demo rehearsal volume | Cache recent quotes; backoff | Fixture fallback labeled in UI |
+| Invalid provider JSON | Write validation fails | Schema change at provider | Adapter maps to fixed contract | Fixture fallback; fix adapter |
+| Missing award fixture | Redemption lacks availability | Fixture gap for scenario | Seed award fixtures for Tokyo demo programs | Add fixture row; re-run plan |
+| Stale external quote | Plan uses expired price | `valid_until` passed | Check validity at read; refresh tool | Fetch new quote or fixture |
+| Tool output skips validation | Bad data in graph | Bypass typed write | All tools → graph-write → `external_quotes` | Delete bad quote row; regenerate |
+
+### Benchmark and evaluation
+
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| Eval uses demo database | Demo plans corrupted | Wrong `DATABASE_URL` | Require `DATABASE_URL_EVAL`; separate CLI entrypoint | Restore demo user via authenticated per-user reset endpoint; re-run eval on fresh DB |
+| Config differs across architectures | Unfair comparison | Separate prompt/tool configs | Single frozen `eval/config.yaml` | Re-run all three with shared manifest |
+| Baseline writes fake coordination graph | Contaminated metrics | Baseline writes `plan_steps` | I1 rule: baselines write `plans` + `evaluations` + `raw_output` only | Delete bad rows; fix baseline runner |
+| Mid-run scenario failure | Partial export | One query throws | Record per-query status in export | Include failures in report; do not mark run successful |
+| Ground truth stale | Accuracy metric wrong | Fixture not updated with schema | Version ground truth with schema v3.1 | Update fixtures; re-score |
+| Metrics changed after results | Moving goalposts | Post-hoc threshold edit | Pre-commit win thresholds before Day 7 gate (Jun 23) with all four signing off ([ADR 0002](../docs/adr/0002-mvp-scope-trim.md), [ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)) | Discard run; re-freeze metrics document |
+| Typed path gets extra context | Inflated benchmark win | Richer snapshot to typed-graph only | Same `serialize_world_graph()` + tools for all architectures | Fix eval harness inputs; re-run |
+
+### Deployment and live demo
+
+| Failure | Symptom | Root cause | Prevention | Recovery |
+|---|---|---|---|---|
+| API scales to zero | SSE drops; jobs stall | Serverless or min=0 | Long-lived container; min instances = 1 | Restart API; jobs persist in PG |
+| Managed Postgres unavailable | 503 on all routes | Provider outage | Health checks; choose stable managed PG | Fail demo gracefully; explain infrastructure failure honestly; use pre-rehearsed local fallback environment or recorded demonstration only if that contingency is documented — do not attempt unrehearsed local setup during the live demo |
+| Migrations not applied | Missing table errors | Deploy without migrate | Migrate step in deploy pipeline | Run `schema.sql`; redeploy |
+| Bootstrap persona missing | Empty wallet on login | Seed script not run | First-login template clone | Run bootstrap; invoke authenticated per-user reset endpoint for the demo user |
+| Python missing in API image | Agent spawn fails | Incomplete Dockerfile | CI smoke test spawning agent | Fix image; redeploy |
+| Demo reset fails before live demo | Corrupted state between runs | Reset endpoint bug | Authenticated per-user reset tested before the June 29 live demo | Re-run per-user reset; local dev may use `docker-compose down -v` only outside live demo |
+| External API blocked on hosted network | Cash-price fails | Egress/firewall | Verify egress in rehearsal | Fixture fallback |
 
 ---
 
 ## Architectural claim risks
 
-_If the project has a thesis (e.g. "typed coordination beats free text"), what would falsify it?_
+The core thesis: **typed, schema-validated shared state with explicit dependencies enables safer, more adaptive multi-agent planning than free-text coordination.**
 
-| Claim | How it could silently fail | How we'd detect | Demo/benchmark signal |
-|---|---|---|---|
-| [Claim 1] | [failure mode] | [test/metric/UI] | [what good looks like] |
-| [Claim 2] | | | |
+### Typed coordination
+
+| How it could silently fail | How we detect | Signal when genuinely supported |
+|---|---|---|
+| Orchestrator passes prior agent prose in invocation payload | Review `agent-invocation.json` payloads; integration tests assert no NL between agents | Mutation sidebar shows only typed commits; prompts contain graph fragments only |
+| Orchestrator NL-nudges redemption on invalidation | Code review replan worker; no orchestrator call on personal mutation path | Hero moment re-plans without new user query |
+| Agents produce final plan off-graph; DB is post-hoc storage | Compare agent stdout mutations to displayed plan; audit `graph_mutations` provenance | Each plan step has `state_dependencies` matching snapshot values |
+| LLM output committed without schema validation | Unit tests reject invalid batches; CI contract tests | Invalid runs fail with validation errors, never partial graph |
+
+### Structural invalidation
+
+| How it could silently fail | How we detect | Signal when genuinely supported |
+|---|---|---|
+| Re-plan runs on every wallet change regardless of dependencies | Negative-control test: unrelated balance change must not stale plan | Only dependent lineages stale; `stale_reason` cites dependency |
+| System re-runs original NL prompt instead of revision flow | Plan history shows new `revision_number`; job linked to `trigger_mutation_txn_id` | Old revision `superseded`; new revision `current` with updated deps |
+| All user plans stale on any mutation | Scope invalidation to dependent steps/lineages only | Unaffected lineages stay `current` |
+| Stale revision relabeled `current` without new rows | DB audit: promotion requires new plan id | New revision id in SSE + REST |
+
+### Better benchmark performance
+
+| How it could silently fail | How we detect | Signal when genuinely supported |
+|---|---|---|
+| Arch-1/2 baselines intentionally weak | Review baseline prompts and tool parity | Baselines use same tools/data manifest |
+| Typed-graph receives richer snapshot | Diff eval inputs per architecture in CI | Logged identical `serialize_world_graph` inputs |
+| Failed queries excluded from report | Export includes failure counts | Partial-run table in results JSON |
+| Metrics tuned after seeing results | Signed threshold doc dated before Day 7 gate (Jun 23) | Frozen `evaluator_version` + config hash in export |
+| Win only via higher token spend | Report token_cost_total per architecture | Improvement on accuracy/invalidation, not cost alone |
+
+The thesis is **not proven** until the shared eval run on Days 8–9 ([ADR 0003](../docs/adr/0003-team-four-eval-ownership.md); benchmark window Days 7–10 per [`STATUS.md`](../STATUS.md)) completes with frozen config and honest partial-run reporting.
 
 ---
 
 ## Schedule / scope risks
 
-| Risk | Trigger | Release valve (what to cut first) |
-|---|---|---|
-| [e.g. Day 7 gate slips] | Integration not E2E | [Cut scope X, not Y] |
-| [e.g. Overloaded lane] | One person on critical path | [Reassign Z per decisions-log] |
+| Risk | Trigger | Release valve (what to cut first) | Owner |
+|---|---|---|---|
+| **Contracts delayed** | JSON Schema + generated types not available before app lanes need real payloads during Days 1–3 (Jun 17–19, [`STATUS.md`](../STATUS.md) phase timeline) | Freeze minimal set: `mutation-batch`, `agent-invocation`, `transfer-points`, `sse-mutation-event`; defer optional contracts; **no local hand-written payload types** | Alan |
+| **End-to-end path slips** | Day 7 gate (Jun 23): wallet mutation → source revision `stale` → `replan_jobs` → new `current` revision not working ([`STATUS.md`](../STATUS.md) gate tracker) | Protect one scripted persona + one transfer scenario; cut secondary flows; **do not** cut durable invalidation, plan revisions, or graph-write path | Raq |
+| **Cash-price integration slips** | Provider, credentials, or response mapping unresolved by Days 5–7 integration window (Jun 21–23, [`STATUS.md`](../STATUS.md) phase timeline) | Use clearly labeled deterministic fixture for live demo; keep real adapter behind same typed contract | Raq |
+| **Benchmark slips** | Days 7–10 benchmark window (Jun 23–26, [`STATUS.md`](../STATUS.md)): all three architectures cannot run shared scenario set | Reduce query count keeping category coverage; **do not** remove benchmark; if Day 7 gate slips, drop **Arch-2** before compromising typed path or invalidation metric ([ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)) | Michael |
+| **Layer 4 consumes capacity** | Any Layer 4 implementation starts before Day 7 pass or Day 10 go/no-go (Jun 26, [`STATUS.md`](../STATUS.md)) | **Cut Layer 4 immediately**; no ingestion/verifier tickets on critical path ([ADR 0003](../docs/adr/0003-team-four-eval-ownership.md)) | Raq |
+| **Deployment slips** | No stable hosted platform + managed Postgres ready before the June 29 live demo ([`STATUS.md`](../STATUS.md)) | Pick simplest long-lived container platform + managed PG; do not expand infra options | Raq |
+| **Single-lane bottleneck** | Two or more lanes blocked on one artifact (schema, graph-write, contracts) | Pair on blocker; reassign non-core work; protect graph-write, redemption, eval harness first | Raq |
+
+Rule from [`STATUS.md`](../STATUS.md): if the Day 7 gate slips, cut scope — do not extend. Week 2 is polish and benchmark, not new features.
 
 ---
 
 ## Known edge cases (accepted for MVP)
 
-Things we **know** are wrong or incomplete but **accept** for now. Prevents re-debating.
+| Limitation | Why acceptable for MVP | Future change |
+|---|---|---|
+| **World-graph changes do not auto-invalidate plans** | Hero moment is personal balance change; world seed stable during demo | Add edge-valued dependencies + invalidation for `transfers_to` ratio changes |
+| **Dependency propagation is direct, not transitive** | MVP invalidation follows explicit personal-node dependencies only; unrelated lineages stay `current` | Transitive closure when scope and performance are justified |
+| **Award availability is fixture-based** | Full alliance search out of scope; illustrative quotes sufficient | Live award API behind same `external_quotes` contract |
+| **Cash-price may use fixture fallback** | One real tool required; fallback preserves demo reliability | Harden provider adapter + caching |
+| **Limited graph dataset (~20 cards, demo routes)** | POC domain proof, not production catalog | Expand seed corpus with verification |
+| **Multi-user = identity + ownership only** | Clerk sign-in; no orgs/roles/admin UI | Clerk Organizations only if product expands |
+| **SSE ordering per user stream only** | Advisory lock serializes per-user writes; not global | Document if cross-user audit view needed |
+| **Sidebar is observational; REST/PG authoritative** | SSE is demo affordance, not source of truth | Optional: stronger client state machine |
+| **Layer 4 absent unless Day 10 go/no-go (Jun 26)** | [ADR 0003](../docs/adr/0003-team-four-eval-ownership.md); benchmark is contribution | Ingestion + verifier on verified write path |
+| **Small benchmark (30 queries, one domain)** | Sprint-bound eval per [ADR 0002](../docs/adr/0002-mvp-scope-trim.md); not generalizable claim | Larger query sets in follow-on work |
+| **External quote freshness simplified** | `valid_until` check; no continuous refresh | Background quote refresh jobs |
+| **Polymorphic deps app-enforced** | No FK on `target_node_id`; flexibility for mixed tiers | Orphan sweep + optional FK patterns per target type |
 
-- [Edge case + why it's OK for MVP]
-- [Edge case + when we'll fix it]
+These are **known limitations**, not unmitigated correctness bugs. Tenant isolation failures, partial transfers, and duplicate `current` revisions remain **defects**, not accepted edge cases.
 
 ---
 
 ## Related
 
-- Decisions: [`decisions-log.md`](decisions-log.md)
 - Architecture invariants: [`architecture-context.md`](architecture-context.md)
+- Decisions: [`decisions-log.md`](decisions-log.md)
+- Schema v3.1: [`docs/architecture/schema-final.md`](../docs/architecture/schema-final.md), [`schema/schema.sql`](../schema/schema.sql)
+- Product scope: [`project-overview.md`](project-overview.md)
+- Gates and timeline: [`STATUS.md`](../STATUS.md)
+- ADRs: [`docs/adr/`](../docs/adr/) — [0002](../docs/adr/0002-mvp-scope-trim.md) research apparatus retained; [0003](../docs/adr/0003-team-four-eval-ownership.md) team ownership, Layer 4 cut, eval DRI, baseline release valve

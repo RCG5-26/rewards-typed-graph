@@ -18,7 +18,7 @@
 2. [`architecture-context.md`](architecture-context.md) — structure, boundaries, invariants
 3. [`design-context.md`](design-context.md) — UI/API contracts _(skip if N/A)_
 4. [`code-standards.md`](code-standards.md) — implementation rules
-5. [`decisions-log.md`](decisions-log.md) — past choices
+5. [`decisions-log.md`](decisions-log.md) — master index of decisions (links to ADRs + architecture)
 6. [`risks-and-failure-modes.md`](risks-and-failure-modes.md) — what to watch
 7. [`progress-tracker.md`](progress-tracker.md) — current state
 8. Relevant [`feature-specs/NN-*.md`](feature-specs/) — active unit of work
@@ -74,7 +74,7 @@ Update the relevant file when you change:
 | Boundaries, storage, invariants | `architecture-context.md` |
 | UI tokens, API contracts | `design-context.md` |
 | Conventions | `code-standards.md` |
-| Architectural choice | `decisions-log.md` (+ formal ADR if repo uses them) |
+| Architectural choice | Row in [`decisions-log.md`](decisions-log.md); new [`docs/adr/`](../docs/adr/) file if expensive to reverse |
 | Phase / completion | `progress-tracker.md` |
 | New failure mode discovered | `risks-and-failure-modes.md` |
 
