@@ -1,0 +1,42 @@
+name: Schema Postgres Integration
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  apply-schema:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: rewards_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rewards_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply schema to fresh PostgreSQL 16
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGDATABASE: rewards_test
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: bash tests/integration/apply_schema_postgres.sh
