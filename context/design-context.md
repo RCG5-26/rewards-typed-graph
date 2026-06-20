@@ -1,76 +1,82 @@
-# Design & UX Context — [Project Name]
+# Design & UX Context — Rewards Agent · Typed Graph (Frontend / Demo)
 
 > Visual language, interaction patterns, and external-facing contracts.
 
-**Skip or minimal fill** for backend-only, CLI, or library projects. Keep the **Integration contracts** section if the project exposes an API.
+Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** [YYYY-MM-DD]
+**Last updated:** 2026-06-20
 
 ---
 
 ## Design principles
 
-1. [e.g. "Clarity over decoration"]
-2. [e.g. "One primary action per screen"]
-3. [Add 2–4 principles]
+1. **Make coordination visible** — typed graph mutations stream on screen as agents work; the system's state is the UI.
+2. **Clarity over decoration** — the demo must read in 10 minutes, live. Every element earns its place by explaining the architecture.
+3. **Show, don't assert** — invalidation, re-planning, and baseline failures are demonstrated visually, not narrated.
+4. **One hero moment per view** — each surface lands a single point (mutations streaming, stale nodes lighting up, head-to-head contrast).
 
 ---
 
 ## Theme & tokens
 
-_Document how styling works so agents don't invent colors._
+_Stack: Next.js + custom Tailwind. **Design system + tokens are being added soon** — do not invent colors until then._
 
 | Role | Token / variable | Value / notes |
 |---|---|---|
-| Background | `[e.g. --bg-base]` | [value or "see globals.css"] |
-| Surface | `[e.g. --bg-surface]` | |
-| Primary text | | |
-| Brand / accent | | |
-| Error / success / warning | | |
+| Background | _pending_ | design-system add (RCG-frontend) |
+| Surface | _pending_ | |
+| Primary text | _pending_ | |
+| Brand / accent | _pending_ | |
+| Error / success / warning | _pending_ | error/success used heavily in head-to-head contrast (baseline failures) |
 
 **Rules:**
-- [e.g. "Use design tokens only — no hardcoded hex in components"]
-- [e.g. "Dark-only / light-only / both"]
+- Use design tokens only once the system lands — **no hardcoded hex** in components.
+- Theme mode (dark / light / both): _TBD with design-system add._
 
 ---
 
 ## Typography
 
+_Pending design-system add. Note a mono face is needed for IDs and mutation-log fields._
+
 | Role | Font | Usage |
 |---|---|---|
-| UI | [font] | body, labels |
-| Mono | [font] | code, IDs |
+| UI | _pending_ | body, labels, plan steps |
+| Mono | _pending_ | node IDs, mutation-log entries, JSON fragments |
 
 ---
 
 ## Layout patterns
 
-Describe recurring layouts (not every page).
-
 | Pattern | Where used | Notes |
 |---|---|---|
-| [e.g. App shell] | [routes] | [sidebar + main + optional panel] |
-| [e.g. Modal] | [dialogs] | [size, dismiss behavior] |
-| [e.g. Empty state] | [lists] | [icon + CTA pattern] |
+| App shell | demo shell | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right) |
+| Streaming sidebar | mutation log (RCG-24/25) | append-only stream of typed mutations as agents coordinate |
+| Dependency view | plan-node graph (RCG-26) | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded) |
+| Side-by-side contrast | head-to-head (RCG-45) | same scenario, typed-graph vs baselines, rendered in parallel columns |
+| Metrics panel | benchmark display (RCG-46) | accuracy, hallucination, invalidation, token cost |
+| Auth / sign-in | gate (Clerk) | Clerk identity-only sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)) |
 
 ---
 
 ## Component library
 
-- **Library:** [e.g. shadcn/ui, MUI, custom]
-- **Location:** `[path, e.g. components/ui/]`
-- **Rule:** [e.g. "Do not modify generated foundation components unless task explicitly requires it"]
+- **Library:** custom components on Tailwind (no prebuilt UI kit). Design system being added soon.
+- **Location:** _TBD_ (likely `components/` + `components/ui/` once the system lands).
+- **Rule:** once the design system is in, build from its primitives; do not hand-roll one-off styled elements.
 
 ---
 
 ## Key UI surfaces
 
-_List screens/views agents will touch. One row each._
-
 | Surface | Route / component | Primary actions | Data source |
 |---|---|---|---|
-| [e.g. Home] | `[path]` | [create, list] | [API] |
-| [e.g. Detail] | `[path]` | [edit, delete] | [API] |
+| Demo shell | `[TBD]` (RCG-27) | enter NL query; view multi-step plan + per-step reasoning; only `status = current` revision actionable | orchestrator (mocked → real Days 5–7) |
+| Mutation sidebar | `[TBD]` (RCG-24/25) | observe streaming typed mutations (`graph_mutations` / SSE) | SSE replay + REST catch-up (mock → real) |
+| Plan-node dependency view | `[TBD]` (RCG-26) | watch stale steps/revision; see new current revision promoted | invalidation + replan lifecycle events |
+| Head-to-head contrast | `[TBD]` (RCG-45) | run same scenario across architectures | benchmark run output |
+| Benchmark numbers | `[TBD]` (RCG-46) | view accuracy / hallucination / invalidation / token cost | benchmark results |
+| Sign-in | `[TBD]` | authenticate | Clerk (identity-only; per-user demo persona) |
 
 ---
 
@@ -78,40 +84,65 @@ _List screens/views agents will touch. One row each._
 
 | Event | Expected UX |
 |---|---|
-| Loading | [spinner, skeleton, optimistic] |
-| Error | [toast, inline, retry] |
-| Success | [toast, redirect] |
-| Empty | [illustration + CTA] |
+| Loading | plan steps stream in incrementally; per-step reasoning appears as it resolves |
+| Mutation arrives | new typed entry animates into the sidebar |
+| Invalidation | affected plan revision → `stale`; steps → `stale`; then new revision promoted to **`current`** (prior → `superseded`) |
+| Baseline failure (contrast) | baseline visibly hallucinates a ratio / misses invalidation / re-fetches a tool result |
+| Error | _TBD with design-system add (inline vs toast)_ |
+| Empty | pre-query state: prompt the persona query |
 
 ---
 
 ## Accessibility baseline
 
-- [e.g. "Keyboard navigable forms"]
-- [e.g. "Focus visible on interactive elements"]
-- [e.g. "Color contrast WCAG AA for text"]
+- Keyboard navigable query input and controls.
+- Focus visible on interactive elements.
+- Color contrast WCAG AA for text (confirm once tokens land).
 
 ---
 
 ## API / event contracts (frontend ↔ backend)
 
-_Fill even for API-only projects._
+### SSE mutation event (sidebar)
 
-### [Contract name, e.g. "Mutation log event"]
+Mock shape mirrors **`graph_mutations` + SSE envelope** from [`architecture-context.md`](architecture-context.md) (final fields locked in Phase A3 JSON Schema with Alan). **REST is source of truth**; SSE is observability — reconnect via `GET /mutations?after=`.
 
 ```json
 {
-  "field": "type and meaning",
-  "example": "value"
+  "event_id": 12345,
+  "user_id": "uuid",
+  "mutation_txn_id": "uuid",
+  "plan_lineage_id": "uuid — nullable",
+  "operation_type": "e.g. TransferPoints",
+  "payload": "typed mutation summary — no inter-agent free text"
 }
 ```
 
-### [Contract name, e.g. "REST error shape"]
+### Card / rewards API
+
+Research **done** — endpoints and response shape understood; feeds the demo shell and informs the mock event design. Concrete request/response shapes to be pinned here when wired.
 
 ```json
 {
-  "error": "string",
-  "code": "optional machine code"
+  "_note": "fill from card API research when wiring; capture endpoints + response shape"
+}
+```
+
+### NL query → plan (mock)
+
+```json
+{
+  "query": "natural-language persona query",
+  "plan_lineage_id": "uuid",
+  "status": "generating | current | stale | failed | superseded",
+  "steps": [
+    {
+      "step": "string",
+      "reasoning": "string",
+      "status": "proposed | current | stale | superseded",
+      "dependsOn": ["node ids"]
+    }
+  ]
 }
 ```
 
@@ -119,12 +150,18 @@ _Fill even for API-only projects._
 
 ## Icons & assets
 
-- **Icons:** [library, e.g. Lucide]
-- **Assets path:** `[path]`
+- **Icons:** _TBD with design-system add._
+- **Assets path:** _TBD._
 
 ---
 
 ## Related docs
 
-- Architecture: [`architecture-context.md`](architecture-context.md)
-- Feature specs: [`feature-specs/`](feature-specs/)
+- Architecture (SSE, lifecycle, Clerk): [`architecture-context.md`](architecture-context.md)
+- Product overview: [`project-overview.md`](project-overview.md)
+- Team status board: [`../STATUS.md`](../STATUS.md)
+- Frontend lane tracker: [`../tracking/val-frontend.md`](../tracking/val-frontend.md)
+- Graph lane (contracts, RCG-14): [`../tracking/alan-graph.md`](../tracking/alan-graph.md)
+- Schema spec: [`../docs/architecture/schema-final.md`](../docs/architecture/schema-final.md) **v3.1**
+- ADR 0006 (Clerk): [`../docs/adr/0006-clerk-identity-only.md`](../docs/adr/0006-clerk-identity-only.md)
+- ADR 0008 (SSE): [`../docs/adr/0008-per-user-serialization-sse.md`](../docs/adr/0008-per-user-serialization-sse.md)
