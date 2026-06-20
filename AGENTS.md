@@ -33,12 +33,13 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` require:
+Pull requests targeting `main` require **all three**:
 
-1. **One approving review** from a teammate with write access.
-2. A passing **CodeRabbit** commit status check — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
+1. **CodeRabbit approval** — `coderabbitai[bot]` submits an approving PR review (automatic via [`.coderabbit.yaml`](.coderabbit.yaml); manual trigger: `@coderabbitai review`).
+2. **One human approving review** from a teammate with write access (Alan, Val, Michael, or Raq).
+3. A passing **CodeRabbit** commit status check (`fail_commit_status: true` if review is skipped).
 
-CodeRabbit posts review comments and requests changes when it finds issues; it does **not** count as the human approval. Manual review trigger: `@coderabbitai review`.
+GitHub enforces **2 approving reviews** on the PR (CodeRabbit counts as one) plus the **CodeRabbit** status check. CodeRabbit alone is not sufficient to merge.
 
 Repository ruleset: **main — human + CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
 
