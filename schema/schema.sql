@@ -119,7 +119,11 @@ SELECT
   depended_node.id AS depended_node_id,
   depended_node.type AS depended_node_type,
   depended_node.version AS current_version,
-  (dep.attributes->>'observed_version')::integer AS observed_version
+  CASE
+    WHEN jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
+      AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
+    THEN (dep.attributes->>'observed_version')::integer
+  END AS observed_version
 FROM edges dep
 JOIN nodes plan_step
   ON plan_step.id = dep.source_id
@@ -127,6 +131,8 @@ JOIN nodes depended_node
   ON depended_node.id = dep.target_id
 WHERE dep.type = 'DEPENDS_ON'
   AND plan_step.type = 'PlanStep'
+  AND jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
+  AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
   AND depended_node.version <> (dep.attributes->>'observed_version')::integer;
 
 CREATE VIEW node_connectivity_violations AS

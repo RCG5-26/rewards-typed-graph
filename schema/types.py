@@ -53,6 +53,12 @@ PLAN_STATUSES: Tuple[str, ...] = (
     "failed",
 )
 
+PLAN_QUERY_STATUSES: Tuple[str, ...] = (
+    "active",
+    "completed",
+    "failed",
+)
+
 MUTATION_ACTIONS: Tuple[str, ...] = (
     "create_node",
     "update_node",
@@ -254,7 +260,14 @@ def validate_node(node: GraphNode) -> Sequence[str]:
         if kind is not None and kind not in PROGRAM_KINDS:
             errors.append(f"Program.attributes.kind must be one of {PROGRAM_KINDS}")
 
-    if node.type in ("PlanQuery", "PlanStep"):
+    if node.type == "PlanQuery":
+        status = node.attributes.get("status")
+        if status is not None and status not in PLAN_QUERY_STATUSES:
+            errors.append(
+                f"PlanQuery.attributes.status must be one of {PLAN_QUERY_STATUSES}"
+            )
+
+    if node.type == "PlanStep":
         status = node.attributes.get("status")
         if status is not None and status not in PLAN_STATUSES:
             errors.append(f"{node.type}.attributes.status must be one of {PLAN_STATUSES}")

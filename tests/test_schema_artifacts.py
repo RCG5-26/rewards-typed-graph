@@ -123,6 +123,39 @@ class SchemaArtifactsTest(unittest.TestCase):
             ["MerchantCategory.attributes.mcc_codes must be list[int]"],
         )
 
+    def test_plan_query_statuses_are_restricted_from_plan_step_statuses(self):
+        from schema import types
+
+        plan_query = types.GraphNode(
+            type="PlanQuery",
+            tier="plan",
+            attributes={
+                "query_text": "Find the best Tokyo redemption.",
+                "status": "stale",
+            },
+        )
+        plan_step = types.GraphNode(
+            type="PlanStep",
+            tier="plan",
+            attributes={
+                "step_order": 1,
+                "agent": "redemption_agent",
+                "claim": "Transfer Chase points to Hyatt.",
+                "inputs": {},
+                "output": {},
+                "status": "stale",
+            },
+        )
+
+        self.assertEqual(
+            types.validate_node(plan_query),
+            [
+                "PlanQuery.attributes.status must be one of "
+                "('active', 'completed', 'failed')"
+            ],
+        )
+        self.assertEqual(types.validate_node(plan_step), [])
+
     def test_edge_validation_enforces_required_attribute_types(self):
         from schema import types
 
@@ -188,13 +221,19 @@ class SchemaArtifactsTest(unittest.TestCase):
 
     def test_schema_sql_defines_stale_plan_steps_view(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        view_sql = schema_sql[
+            schema_sql.index("CREATE VIEW stale_plan_steps") :
+            schema_sql.index("CREATE VIEW node_connectivity_violations")
+        ]
 
-        self.assertIn("CREATE VIEW stale_plan_steps AS", schema_sql)
-        self.assertIn("dep.type = 'DEPENDS_ON'", schema_sql)
-        self.assertIn("plan_step.type = 'PlanStep'", schema_sql)
+        self.assertIn("CREATE VIEW stale_plan_steps AS", view_sql)
+        self.assertIn("dep.type = 'DEPENDS_ON'", view_sql)
+        self.assertIn("plan_step.type = 'PlanStep'", view_sql)
+        self.assertIn("jsonb_typeof(dep.attributes->'observed_version')", view_sql)
+        self.assertIn("dep.attributes->>'observed_version' ~ '^-?[0-9]+$'", view_sql)
         self.assertIn(
             "depended_node.version <> (dep.attributes->>'observed_version')::integer",
-            schema_sql,
+            view_sql,
         )
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
