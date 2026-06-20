@@ -2,6 +2,7 @@
 
 - **Status:** Accepted — June 17, 2026. Decision: **retain** the research apparatus.
 - **Owner:** Raq (lead)
+- **Index:** [`context/decisions-log.md`](../../context/decisions-log.md) (D007)
 - **Related:** [0001 — Schema Lock](0001-schema-lock.md), [`schema-v2.md`](../architecture/schema-v2.md), [`planning-brief.pdf`](../planning-brief.pdf)
 
 ## Context

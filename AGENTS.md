@@ -15,7 +15,7 @@ Read these files **in order**:
 3. [`context/design-context.md`](context/design-context.md) — UI/API contracts, mutation-log event shape
 4. [`context/code-standards.md`](context/code-standards.md) — implementation rules
 5. [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md) — workflow and scoping
-6. [`context/decisions-log.md`](context/decisions-log.md) — lightweight decisions
+6. [`context/decisions-log.md`](context/decisions-log.md) — master index of decisions (links to ADRs)
 7. [`context/risks-and-failure-modes.md`](context/risks-and-failure-modes.md) — what could go wrong
 8. [`context/progress-tracker.md`](context/progress-tracker.md) — current phase and active work
 9. Active feature spec in [`context/feature-specs/`](context/feature-specs/) — if one exists for this task
@@ -64,7 +64,7 @@ Update [`context/progress-tracker.md`](context/progress-tracker.md):
 - In progress / next up
 - New open questions
 
-Log decisions in [`context/decisions-log.md`](context/decisions-log.md) and, for durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/).
+Log decisions in [`context/decisions-log.md`](context/decisions-log.md) (index row first). For durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/) and link it from the index — do not paste full ADR text into the log.
 
 For daily team visibility, update your row in [`STATUS.md`](STATUS.md) and your file in [`tracking/`](tracking/).
 

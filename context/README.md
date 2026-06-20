@@ -16,7 +16,7 @@ Reusable context templates for any software project. Fill these in at project ki
 | [`code-standards.md`](code-standards.md) | What are the implementation rules and conventions? |
 | [`ai-workflow-rules.md`](ai-workflow-rules.md) | How do we build incrementally? When to split work? How to keep docs in sync? |
 | [`progress-tracker.md`](progress-tracker.md) | Where do things stand right now? What's done, in progress, next? |
-| [`decisions-log.md`](decisions-log.md) | What did we decide, when, and why? |
+| [`decisions-log.md`](decisions-log.md) | **Master index** of all decisions — links to ADRs and architecture docs |
 | [`risks-and-failure-modes.md`](risks-and-failure-modes.md) | What could go wrong? What are we watching? |
 | [`feature-specs/`](feature-specs/) | Per-unit implementation specs (one file per feature or subsystem) |
 | [`AGENTS.md`](AGENTS.md) | Entry point for AI agents — read order and update rules |
@@ -41,7 +41,7 @@ Reusable context templates for any software project. Fill these in at project ki
 - **Update after meaningful change** — not every commit, but every phase shift, scope change, or architectural decision.
 - **One source of truth** — if README and context disagree, fix context (or README if context is authoritative for that topic).
 - **Specs before code** — if behavior isn't defined, add it to a context file or feature spec before implementing.
-- **Decisions get logged** — lightweight entries in `decisions-log.md`; formal ADRs in `docs/adr/` if the repo uses them.
+- **Decisions get logged** — add a row to [`decisions-log.md`](decisions-log.md) (master index). Expensive-to-reverse choices get a file in [`docs/adr/`](../docs/adr/); detail lives there or in [`architecture-context.md`](architecture-context.md), not duplicated in the index body.
 
 ---
 
@@ -49,6 +49,6 @@ Reusable context templates for any software project. Fill these in at project ki
 
 | Need | Add |
 |---|---|
-| Formal ADRs | `docs/adr/` in repo + link from `decisions-log.md` |
+| Formal ADRs | [`docs/adr/`](../docs/adr/) — one file per major decision; always linked from [`decisions-log.md`](decisions-log.md) |
 | Team coordination | `STATUS.md` + `tracking/` (sprint repos) |
 | Interview prep | Personal `STUDY_GUIDE.md` (gitignored, not in context/) |
