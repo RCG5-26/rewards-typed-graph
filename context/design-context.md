@@ -52,10 +52,10 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 |---|---|---|
 | App shell | demo shell | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right) |
 | Streaming sidebar | mutation log (RCG-24/25) | append-only stream of typed mutations as agents coordinate |
-| Dependency view | plan-node graph (RCG-26) | plan nodes; stale nodes "light up" on invalidation, then a re-plan appears |
+| Dependency view | plan-node graph (RCG-26) | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded) |
 | Side-by-side contrast | head-to-head (RCG-45) | same scenario, typed-graph vs baselines, rendered in parallel columns |
 | Metrics panel | benchmark display (RCG-46) | accuracy, hallucination, invalidation, token cost |
-| Auth / sign-in | gate (Clerk, likely) | sign-in before demo shell; minimal |
+| Auth / sign-in | gate (Clerk) | Clerk identity-only sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)) |
 
 ---
 
@@ -71,12 +71,12 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 
 | Surface | Route / component | Primary actions | Data source |
 |---|---|---|---|
-| Demo shell | `[TBD]` (RCG-27) | enter NL query, view multi-step plan + per-step reasoning | orchestrator (mocked → real Days 5–7) |
-| Mutation sidebar | `[TBD]` (RCG-24/25) | observe streaming typed mutations | mutation-log events (mock → real) |
-| Plan-node dependency view | `[TBD]` (RCG-26) | watch stale nodes light up, see re-plan | graph invalidation events |
+| Demo shell | `[TBD]` (RCG-27) | enter NL query; view multi-step plan + per-step reasoning; only `status = current` revision actionable | orchestrator (mocked → real Days 5–7) |
+| Mutation sidebar | `[TBD]` (RCG-24/25) | observe streaming typed mutations (`graph_mutations` / SSE) | SSE replay + REST catch-up (mock → real) |
+| Plan-node dependency view | `[TBD]` (RCG-26) | watch stale steps/revision; see new current revision promoted | invalidation + replan lifecycle events |
 | Head-to-head contrast | `[TBD]` (RCG-45) | run same scenario across architectures | benchmark run output |
 | Benchmark numbers | `[TBD]` (RCG-46) | view accuracy / hallucination / invalidation / token cost | benchmark results |
-| Sign-in | `[TBD]` | authenticate | Clerk (likely — under evaluation) |
+| Sign-in | `[TBD]` | authenticate | Clerk (identity-only; per-user demo persona) |
 
 ---
 
@@ -86,7 +86,7 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 |---|---|
 | Loading | plan steps stream in incrementally; per-step reasoning appears as it resolves |
 | Mutation arrives | new typed entry animates into the sidebar |
-| Invalidation | affected plan nodes light up (stale), then a re-plan renders |
+| Invalidation | affected plan revision → `stale`; steps → `stale`; then new revision promoted to **`current`** (prior → `superseded`) |
 | Baseline failure (contrast) | baseline visibly hallucinates a ratio / misses invalidation / re-fetches a tool result |
 | Error | _TBD with design-system add (inline vs toast)_ |
 | Empty | pre-query state: prompt the persona query |
@@ -103,17 +103,18 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 
 ## API / event contracts (frontend ↔ backend)
 
-### Mutation-log event (sidebar)
+### SSE mutation event (sidebar)
 
-Shape to be **locked with Alan (RCG-14)** so the mock → real swap (Days 5–7) is trivial. Mock event shape mirrors the agreed mutation-log fields.
+Mock shape mirrors **`graph_mutations` + SSE envelope** from [`architecture-context.md`](architecture-context.md) (final fields locked in Phase A3 JSON Schema with Alan). **REST is source of truth**; SSE is observability — reconnect via `GET /mutations?after=`.
 
 ```json
 {
-  "type": "typed mutation kind — TBD with Alan",
-  "node": "graph node id (mono)",
-  "agent": "which agent emitted it",
-  "ts": "timestamp",
-  "payload": "typed fragment — no free text"
+  "event_id": 12345,
+  "user_id": "uuid",
+  "mutation_txn_id": "uuid",
+  "plan_lineage_id": "uuid — nullable",
+  "operation_type": "e.g. TransferPoints",
+  "payload": "typed mutation summary — no inter-agent free text"
 }
 ```
 
@@ -127,12 +128,21 @@ Research **done** — endpoints and response shape understood; feeds the demo sh
 }
 ```
 
-### NL query → plan
+### NL query → plan (mock)
 
 ```json
 {
   "query": "natural-language persona query",
-  "plan": [{ "step": "string", "reasoning": "string", "dependsOn": ["node ids"] }]
+  "plan_lineage_id": "uuid",
+  "status": "generating | current | stale | failed | superseded",
+  "steps": [
+    {
+      "step": "string",
+      "reasoning": "string",
+      "status": "proposed | current | stale | superseded",
+      "dependsOn": ["node ids"]
+    }
+  ]
 }
 ```
 
@@ -147,7 +157,11 @@ Research **done** — endpoints and response shape understood; feeds the demo sh
 
 ## Related docs
 
+- Architecture (SSE, lifecycle, Clerk): [`architecture-context.md`](architecture-context.md)
+- Product overview: [`project-overview.md`](project-overview.md)
 - Team status board: [`../STATUS.md`](../STATUS.md)
 - Frontend lane tracker: [`../tracking/val-frontend.md`](../tracking/val-frontend.md)
-- Graph lane (mutation-log shape, RCG-14): [`../tracking/alan-graph.md`](../tracking/alan-graph.md)
-- Schema spec: [`../docs/architecture/schema-v2.md`](../docs/architecture/schema-v2.md)
+- Graph lane (contracts, RCG-14): [`../tracking/alan-graph.md`](../tracking/alan-graph.md)
+- Schema spec: [`../docs/architecture/schema-final.md`](../docs/architecture/schema-final.md) **v3.1**
+- ADR 0006 (Clerk): [`../docs/adr/0006-clerk-identity-only.md`](../docs/adr/0006-clerk-identity-only.md)
+- ADR 0008 (SSE): [`../docs/adr/0008-per-user-serialization-sse.md`](../docs/adr/0008-per-user-serialization-sse.md)

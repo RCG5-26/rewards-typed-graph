@@ -12,7 +12,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Next
 - Add the design system into the shell and wire the wireframe flow.
-- Auth: stand up sign-in, **likely Clerk** (evaluate fit for the demo).
+- Auth: stand up **Clerk** sign-in (identity-only; [ADR 0006](../docs/adr/0006-clerk-identity-only.md)).
 - Match mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
 - Plan-node dependency view that lights up stale nodes (RCG-26).
 
@@ -34,7 +34,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## What the demo needs from me (the three visible moments)
 1. Mutations streaming as agents coordinate (sidebar).
-2. Hero Moment 1: a balance change lights up stale plan nodes, then a re-plan appears.
+2. Hero Moment 1: a balance change marks the current revision stale; a new **current** revision replaces it (prior superseded).
 3. Head-to-head: the baseline visibly hallucinates a ratio, misses the invalidation, and re-fetches a tool result.
 
 ## My risk
