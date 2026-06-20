@@ -2,6 +2,9 @@ import pathlib
 import unittest
 
 
+SCHEMA_SQL_PATH = pathlib.Path(__file__).resolve().parents[1] / "schema" / "schema.sql"
+
+
 class SchemaArtifactsTest(unittest.TestCase):
     def test_python_schema_exports_mvp_enums_and_validation(self):
         from schema import types
@@ -173,7 +176,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         )
 
     def test_schema_sql_contains_mvp_tables_constraints_and_indexes(self):
-        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
         self.assertIn("CREATE TABLE nodes", schema_sql)
         self.assertIn("CREATE TABLE edges", schema_sql)
@@ -184,7 +187,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("edges_unique_active_relationship", schema_sql)
 
     def test_schema_sql_defines_stale_plan_steps_view(self):
-        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
         self.assertIn("CREATE VIEW stale_plan_steps AS", schema_sql)
         self.assertIn("dep.type = 'DEPENDS_ON'", schema_sql)
@@ -195,7 +198,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         )
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
-        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
         function_sql = schema_sql[
             schema_sql.index("CREATE FUNCTION mark_plan_step_stale") :
             schema_sql.index("CREATE FUNCTION update_node_optimistic")
@@ -213,7 +216,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("RETURNING id, version", function_sql)
 
     def test_schema_sql_defines_optimistic_concurrency_update_functions(self):
-        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
         self.assertIn("CREATE FUNCTION update_node_optimistic", schema_sql)
         self.assertIn("CREATE FUNCTION update_edge_optimistic", schema_sql)
@@ -227,7 +230,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("RETURNS TABLE (id UUID, version INTEGER)", schema_sql)
 
     def test_schema_sql_defines_node_connectivity_violations_view(self):
-        schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
         self.assertIn("CREATE VIEW node_connectivity_violations AS", schema_sql)
         self.assertIn("node_id", schema_sql)
