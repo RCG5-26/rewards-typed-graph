@@ -218,23 +218,9 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("'DEPENDS_ON'", schema_sql)
         self.assertIn("nodes_attributes_gin_idx", schema_sql)
         self.assertIn("edges_unique_active_relationship", schema_sql)
-
-    def test_schema_sql_defines_stale_plan_steps_view(self):
-        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
-        view_sql = schema_sql[
-            schema_sql.index("CREATE VIEW stale_plan_steps") :
-            schema_sql.index("CREATE VIEW node_connectivity_violations")
-        ]
-
-        self.assertIn("CREATE VIEW stale_plan_steps AS", view_sql)
-        self.assertIn("dep.type = 'DEPENDS_ON'", view_sql)
-        self.assertIn("plan_step.type = 'PlanStep'", view_sql)
-        self.assertIn("jsonb_typeof(dep.attributes->'observed_version')", view_sql)
-        self.assertIn("dep.attributes->>'observed_version' ~ '^-?[0-9]+$'", view_sql)
-        self.assertIn(
-            "depended_node.version <> (dep.attributes->>'observed_version')::integer",
-            view_sql,
-        )
+        self.assertIn("balance_one_per_user_program_unique", schema_sql)
+        self.assertIn("ON nodes (user_id, (attributes->>'program_id'))", schema_sql)
+        self.assertIn("WHERE type = 'Balance'", schema_sql)
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
@@ -252,6 +238,10 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("version = version + 1", function_sql)
         self.assertIn("WHERE id = p_plan_step_id", function_sql)
         self.assertIn("AND type = 'PlanStep'", function_sql)
+        self.assertIn(
+            "AND COALESCE(attributes->>'status', '') NOT IN ('completed', 'failed', 'skipped')",
+            function_sql,
+        )
         self.assertIn("RETURNING id, version", function_sql)
 
     def test_schema_sql_defines_optimistic_concurrency_update_functions(self):

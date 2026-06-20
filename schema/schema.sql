@@ -40,6 +40,10 @@ CREATE INDEX nodes_tier_idx ON nodes (tier);
 CREATE INDEX nodes_user_id_idx ON nodes (user_id);
 CREATE INDEX nodes_attributes_gin_idx ON nodes USING gin (attributes);
 
+CREATE UNIQUE INDEX balance_one_per_user_program_unique
+  ON nodes (user_id, (attributes->>'program_id'))
+  WHERE type = 'Balance';
+
 CREATE TABLE edges (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL,
@@ -113,27 +117,36 @@ CREATE INDEX mutation_log_target_idx ON mutation_log (target_kind, target_id);
 CREATE INDEX mutation_log_actor_idx ON mutation_log (actor);
 
 CREATE VIEW stale_plan_steps AS
+WITH dependency_versions AS MATERIALIZED (
+  SELECT
+    plan_step.id AS plan_step_id,
+    plan_step.attributes AS plan_step_attributes,
+    depended_node.id AS depended_node_id,
+    depended_node.type AS depended_node_type,
+    depended_node.version AS current_version,
+    CASE
+      WHEN jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
+        AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
+      THEN (dep.attributes->>'observed_version')::integer
+    END AS observed_version
+  FROM edges dep
+  JOIN nodes plan_step
+    ON plan_step.id = dep.source_id
+  JOIN nodes depended_node
+    ON depended_node.id = dep.target_id
+  WHERE dep.type = 'DEPENDS_ON'
+    AND plan_step.type = 'PlanStep'
+)
 SELECT
-  plan_step.id AS plan_step_id,
-  plan_step.attributes AS plan_step_attributes,
-  depended_node.id AS depended_node_id,
-  depended_node.type AS depended_node_type,
-  depended_node.version AS current_version,
-  CASE
-    WHEN jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
-      AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
-    THEN (dep.attributes->>'observed_version')::integer
-  END AS observed_version
-FROM edges dep
-JOIN nodes plan_step
-  ON plan_step.id = dep.source_id
-JOIN nodes depended_node
-  ON depended_node.id = dep.target_id
-WHERE dep.type = 'DEPENDS_ON'
-  AND plan_step.type = 'PlanStep'
-  AND jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
-  AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
-  AND depended_node.version <> (dep.attributes->>'observed_version')::integer;
+  plan_step_id,
+  plan_step_attributes,
+  depended_node_id,
+  depended_node_type,
+  current_version,
+  observed_version
+FROM dependency_versions
+WHERE observed_version IS NOT NULL
+  AND current_version <> observed_version;
 
 CREATE VIEW node_connectivity_violations AS
 SELECT
@@ -284,6 +297,7 @@ AS $$
     updated_at = now()
   WHERE id = p_plan_step_id
     AND type = 'PlanStep'
+    AND COALESCE(attributes->>'status', '') NOT IN ('completed', 'failed', 'skipped')
   RETURNING id, version;
 $$;
 
