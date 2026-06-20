@@ -633,4 +633,4 @@ Locked when each lane confirms v3.1 shapes:
 - [x] Michael (Redemption/Eval) — traversal, tool quotes, benchmark columns.
 - [x] Val (Frontend) — SSE event shape, plan lifecycle UI, stale/superseded display.
 
-Date locked: **2026-06-18** (ADR 0001 Accepted) · Canonical artifact: `schema/schema.sql` + `schema/contracts/` + generated types · DDL clean-DB apply test: pending (Docker daemon unavailable locally).
+Date locked: **2026-06-18** (ADR 0001 Accepted) · Canonical artifact: `schema/schema.sql` + `schema/contracts/` + generated types · DDL clean-DB apply test: **passed** (PostgreSQL 16, 22 tables, `psql -f schema/schema.sql`).

@@ -4,7 +4,7 @@
 
 **Last updated:** 2026-06-20 · **Schema/spec version:** schema-final **v3.1** (`docs/architecture/schema-final.md`, `schema/schema.sql`)
 
-**Approval status:** **Locked (ADR 0001 Accepted 2026-06-18).** Phase A DDL authored; clean-DB apply test pending. Phase A3 contracts next.
+**Approval status:** **Locked (ADR 0001 Accepted 2026-06-18).** Phase A DDL validated on clean PostgreSQL 16. Phase A3 contracts next.
 
 **Implementation status:** Spec and DDL authored; application code not scaffolded. Paths marked *(proposed)* do not exist yet. Controls below are **specified**, not implemented, unless code or tests exist in the repo.
 
@@ -20,7 +20,7 @@
 | Database | PostgreSQL | Graph tiers, mutation audit log, replan job queue |
 | Auth | Clerk (identity only) | Sign-in → `users.clerk_id` |
 | Contracts | JSON Schema in `schema/contracts/` *(proposed)* | Authoritative for API, mutation, subprocess, tool, benchmark, SSE |
-| Persistence DDL | SQL in `schema/schema.sql` | Authoritative for relational structure (authored; awaiting clean-DB validation) |
+| Persistence DDL | SQL in `schema/schema.sql` | Authoritative for relational structure (validated on clean PostgreSQL 16) |
 | Generated types | `packages/schema-ts/`, `agents/schema_py/` *(proposed)* | Generated from JSON Schema only |
 | Evaluation | Python CLI in `eval/` *(proposed)* | Local/CI only; ephemeral eval DB |
 
