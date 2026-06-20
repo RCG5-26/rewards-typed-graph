@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration — Rewards Agent (RCG5-26/rewards-typed-graph)
-# Merge policy: 2 approving reviews on PRs to main (CodeRabbit + one teammate).
+# Merge policy: 1 teammate approval + passing CodeRabbit check on PRs to main.
 # See repo ruleset "main — PR + 2 reviews" and AGENTS.md.
 
 language: "en-US"
