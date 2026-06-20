@@ -386,6 +386,7 @@ RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   UPDATE plan_steps ps
      SET status = 'stale',
+         version = ps.version + 1,
          staled_at = now(),
          stale_reason = format('user_balances:%s balance_points %s -> %s', NEW.id, OLD.balance_points, NEW.balance_points),
          updated_at = now()

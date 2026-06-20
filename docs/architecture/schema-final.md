@@ -40,7 +40,6 @@
 | `plan_steps` | plan | `PlanStep` | **yes** | **redemption agent (sole)** |
 | `agent_runs` | plan | `AgentRun` | yes | each agent (own row) |
 | `external_quotes` | world | `ExternalQuote` | no | graph-typed tools |
-| `evaluations` | plan | `Evaluation` | no | eval harness |
 
 ### Infrastructure tables (not graph nodes)
 
@@ -49,6 +48,7 @@
 | `graph_mutations` | Append-only audit + SSE replay log (user-scoped MVP) |
 | `replan_jobs` | Durable async re-plan work queue with lease recovery |
 | `idempotency_records` | Scoped mutation deduplication |
+| `evaluations` | Benchmark/eval metric rows (FK to `plans`; not a graph node) |
 
 ### Edge inventory (locked core)
 
@@ -556,7 +556,7 @@ Enforced in graph-write before commit:
 
 ## 8. Benchmark & evaluation
 
-### `evaluations`
+### `evaluations` *(infrastructure — not a graph node)*
 
 | Column | Type | Notes |
 |---|---|---|
