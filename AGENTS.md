@@ -24,8 +24,23 @@ Read these files **in order**:
 
 10. [`README.md`](README.md) — project summary, team lanes, hard constraint
 11. [`STATUS.md`](STATUS.md) — daily standup board, gates, blockers
-12. [`docs/architecture/schema-final.md`](docs/architecture/schema-final.md) — **locked schema v3** (canonical; supersedes `schema-v2.md`)
-13. [`docs/adr/`](docs/adr/) — formal ADRs (0001 schema lock, 0002 research apparatus, 0003 team ownership)
+12. [`docs/architecture/schema-final.md`](docs/architecture/schema-final.md) — **locked schema v3.1** (canonical; supersedes `schema-v2.md`)
+13. [`schema/schema.sql`](schema/schema.sql) — canonical DDL
+14. [`.coderabbit.yaml`](.coderabbit.yaml) — AI code review configuration
+15. [`docs/adr/`](docs/adr/) — formal ADRs (0001 schema lock, 0002 research apparatus, 0003 team ownership)
+
+---
+
+## Merging to `main`
+
+Pull requests targeting `main` require **two approving reviews**:
+
+1. **CodeRabbit** (`@coderabbitai`) — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml); approves when clean, requests changes when issues are found (`request_changes_workflow: true`).
+2. **One teammate** with write access.
+
+The **CodeRabbit** commit status check must also pass (review completed, not skipped). Manual trigger on an open PR: comment `@coderabbitai review`.
+
+Repository ruleset: **main — PR + 2 reviews** (Settings → Rules).
 
 ---
 
