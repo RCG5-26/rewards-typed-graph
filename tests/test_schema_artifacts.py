@@ -196,15 +196,21 @@ class SchemaArtifactsTest(unittest.TestCase):
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
         schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")
+        function_sql = schema_sql[
+            schema_sql.index("CREATE FUNCTION mark_plan_step_stale") :
+            schema_sql.index("CREATE FUNCTION update_node_optimistic")
+        ]
 
-        self.assertIn("CREATE FUNCTION mark_plan_step_stale", schema_sql)
-        self.assertIn("jsonb_set(", schema_sql)
-        self.assertIn("'{status}'", schema_sql)
-        self.assertIn("'\"stale\"'::jsonb", schema_sql)
-        self.assertIn("'{stale_reason}'", schema_sql)
-        self.assertIn("version = version + 1", schema_sql)
-        self.assertIn("WHERE id = p_plan_step_id", schema_sql)
-        self.assertIn("AND type = 'PlanStep'", schema_sql)
+        self.assertIn("CREATE FUNCTION mark_plan_step_stale", function_sql)
+        self.assertIn("RETURNS TABLE (id UUID, version INTEGER)", function_sql)
+        self.assertIn("jsonb_set(", function_sql)
+        self.assertIn("'{status}'", function_sql)
+        self.assertIn("'\"stale\"'::jsonb", function_sql)
+        self.assertIn("'{stale_reason}'", function_sql)
+        self.assertIn("version = version + 1", function_sql)
+        self.assertIn("WHERE id = p_plan_step_id", function_sql)
+        self.assertIn("AND type = 'PlanStep'", function_sql)
+        self.assertIn("RETURNING id, version", function_sql)
 
     def test_schema_sql_defines_optimistic_concurrency_update_functions(self):
         schema_sql = pathlib.Path("schema/schema.sql").read_text(encoding="utf-8")

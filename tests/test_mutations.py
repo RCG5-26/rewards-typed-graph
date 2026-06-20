@@ -63,10 +63,22 @@ class FakeCursor:
             self.result = (node_id, expected_version + 1)
             return
 
+        if compact_sql.startswith("SELECT plan_step_id, depended_node_type"):
+            self.result = self.connection.stale_rows
+            return
+
+        if compact_sql.startswith("SELECT id, version FROM mark_plan_step_stale"):
+            plan_step_id, _reason = params
+            self.result = self.connection.mark_stale_results.get(plan_step_id)
+            return
+
         self.result = None
 
     def fetchone(self):
         return self.result
+
+    def fetchall(self):
+        return self.result or []
 
 
 class FakeConnection:
@@ -74,6 +86,8 @@ class FakeConnection:
         self.executed = []
         self.nodes = {}
         self.balances = set()
+        self.stale_rows = []
+        self.mark_stale_results = {}
         self.next_node_id = "node-1"
         self.next_edge_id = "edge-1"
 
@@ -323,6 +337,47 @@ class GraphMutationServiceTest(unittest.TestCase):
         self.assertEqual(updated_id, "user-1")
         self.assertTrue(_any_sql(connection, "update_node_optimistic"))
         self.assertTrue(_any_sql(connection, "INSERT INTO mutation_log"))
+
+    def test_update_node_logs_actual_version_returned_by_mark_stale(self):
+        connection = FakeConnection()
+        connection.nodes = {
+            "balance-1": {
+                "type": "Balance",
+                "tier": "personal",
+                "user_id": "user-1",
+                "slug": None,
+                "attributes": {
+                    "program_id": "program-1",
+                    "amount_points": 240000,
+                    "as_of": "2026-06-17T00:00:00Z",
+                    "source": "manual_entry",
+                },
+                "version": 4,
+            },
+        }
+        connection.stale_rows = [("plan-step-1", "Balance", 5, 4)]
+        connection.mark_stale_results = {"plan-step-1": ("plan-step-1", 6)}
+        service = GraphMutationService(connection)
+
+        service.update_node(
+            actor="wallet_agent",
+            node_id="balance-1",
+            expected_version=4,
+            attributes={
+                "program_id": "program-1",
+                "amount_points": 180000,
+                "as_of": "2026-06-20T00:00:00Z",
+                "source": "manual_entry",
+            },
+        )
+
+        mark_stale_logs = [
+            params
+            for sql, params in connection.executed
+            if "INSERT INTO mutation_log" in sql and params[1] == "mark_stale"
+        ]
+        self.assertEqual(len(mark_stale_logs), 1)
+        self.assertEqual(mark_stale_logs[0][7], 6)
 
 
 def _any_sql(connection, snippet):

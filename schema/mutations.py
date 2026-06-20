@@ -405,20 +405,21 @@ class GraphMutationService:
             )
             with self.connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT mark_plan_step_stale(%s, %s)",
+                    "SELECT id, version FROM mark_plan_step_stale(%s, %s)",
                     (plan_step_id, reason),
                 )
                 marked = cursor.fetchone()
             if marked is not None:
+                marked_id, marked_version = marked
                 self._log_mutation(
                     actor=actor,
                     action="mark_stale",
                     target_kind="node",
-                    target_id=plan_step_id,
+                    target_id=marked_id,
                     target_type="PlanStep",
                     before_value=None,
                     after_value={"stale_reason": reason},
-                    resulting_version=0,
+                    resulting_version=marked_version,
                 )
 
     @staticmethod

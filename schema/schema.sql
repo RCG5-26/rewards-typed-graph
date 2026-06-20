@@ -264,12 +264,9 @@ CREATE FUNCTION mark_plan_step_stale(
   p_plan_step_id UUID,
   p_reason TEXT
 )
-RETURNS UUID
-LANGUAGE plpgsql
+RETURNS TABLE (id UUID, version INTEGER)
+LANGUAGE sql
 AS $$
-DECLARE
-  updated_id UUID;
-BEGIN
   UPDATE nodes
   SET
     attributes = jsonb_set(
@@ -281,10 +278,7 @@ BEGIN
     updated_at = now()
   WHERE id = p_plan_step_id
     AND type = 'PlanStep'
-  RETURNING id INTO updated_id;
-
-  RETURN updated_id;
-END;
+  RETURNING id, version;
 $$;
 
 CREATE FUNCTION update_node_optimistic(
