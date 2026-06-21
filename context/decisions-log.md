@@ -10,6 +10,7 @@
 
 | ID | Date | Decision | Status | Detail |
 |---|---|---|---|---|
+| D002 | 2026-06-21 | Preserve v3.1 plan lifecycle in MVP polymorphic storage | Proposed | ADR 0004 is storage-only; plan lineage/revision and supersede semantics remain canonical. |
 | D001 | [YYYY-MM-DD] | [Short title] | Accepted / Proposed / Superseded | [Link or section below] |
 
 ---
@@ -29,6 +30,16 @@
 ---
 
 ## Decisions
+
+### D002 — Preserve v3.1 plan lifecycle in MVP polymorphic storage
+
+- **Status:** Proposed
+- **Date:** 2026-06-21
+- **Deciders:** Alan, pending all-lane ADR 0004 sign-off
+- **Context:** PR #2 uses polymorphic `nodes` / `edges`, but review feedback flagged that in-place plan refresh conflicts with v3.1 lineage/revision semantics and the hero invalidation chain.
+- **Decision:** Keep polymorphic storage as the proposed MVP physical layout, but preserve v3.1 plan lifecycle: plan nodes carry `plan_lineage_id` and `revision_number`; successful re-plans create successor revisions; prior stale steps become `superseded` only after the successor exists.
+- **Alternatives considered:** Treat ADR 0004 as superseding all v3.1 plan lifecycle behavior. Rejected because it breaks auditability, failed re-plan handling, and the demo sidebar invalidation chain.
+- **Consequences:** Re-plan code must call `supersede_plan_step` instead of updating stale steps in place. Failed successor creation leaves the source step `stale`.
 
 ### D001 — [Example: Primary database]
 

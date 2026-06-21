@@ -205,6 +205,95 @@ class GraphMutationService:
         )
         return updated_id
 
+    def supersede_plan_step(
+        self,
+        actor: str,
+        source_plan_step_id: str,
+        successor_attributes: Mapping[str, Any],
+    ) -> str:
+        source = self._fetch_node_row(source_plan_step_id)
+        if source is None:
+            raise MutationValidationError(
+                [f"source PlanStep does not exist: {source_plan_step_id}"]
+            )
+        if source["type"] != "PlanStep":
+            raise MutationValidationError(
+                [f"source node must be PlanStep, got {source['type']}"]
+            )
+
+        source_attributes = source["attributes"]
+        if source_attributes.get("status") != "stale":
+            raise MutationValidationError(["source PlanStep must be stale before superseding"])
+
+        plan_lineage_id = source_attributes.get("plan_lineage_id")
+        revision_number = source_attributes.get("revision_number")
+        if not isinstance(plan_lineage_id, str):
+            raise MutationValidationError(
+                ["source PlanStep.attributes.plan_lineage_id must be str"]
+            )
+        if not isinstance(revision_number, int) or isinstance(revision_number, bool):
+            raise MutationValidationError(
+                ["source PlanStep.attributes.revision_number must be int"]
+            )
+
+        replacement = dict(successor_attributes)
+        replacement["plan_lineage_id"] = plan_lineage_id
+        replacement["revision_number"] = revision_number + 1
+        replacement["supersedes_plan_step_id"] = source_plan_step_id
+        replacement["superseded_by_plan_step_id"] = None
+        replacement["stale_reason"] = None
+
+        successor_node = GraphNode(
+            type="PlanStep",
+            tier="plan",
+            user_id=source["user_id"],
+            attributes=replacement,
+        )
+        errors = list(validate_node(successor_node))
+        errors.extend(self._validate_node_domain(successor_node))
+        self._raise_if_invalid(errors)
+
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT source_id, source_version, successor_id, successor_version
+                FROM supersede_plan_step(%s, %s)
+                """,
+                (source_plan_step_id, replacement),
+            )
+            superseded = cursor.fetchone()
+
+        if superseded is None:
+            raise MutationConflictError(
+                f"PlanStep {source_plan_step_id} was not stale when supersede committed"
+            )
+
+        marked_source_id, source_version, successor_id, successor_version = superseded
+        self._log_mutation(
+            actor=actor,
+            action="create_node",
+            target_kind="node",
+            target_id=successor_id,
+            target_type="PlanStep",
+            before_value=None,
+            after_value=replacement,
+            resulting_version=successor_version,
+        )
+        self._log_mutation(
+            actor=actor,
+            action="supersede_plan_step",
+            target_kind="node",
+            target_id=marked_source_id,
+            target_type="PlanStep",
+            before_value=source_attributes,
+            after_value={
+                "status": "superseded",
+                "successor_plan_step_id": successor_id,
+            },
+            resulting_version=source_version,
+        )
+        return successor_id
+
     def _validate_node_domain(
         self,
         node: GraphNode,
@@ -227,6 +316,17 @@ class GraphMutationService:
             ):
                 errors.append(
                     f"Balance already exists for user_id={node.user_id} program_id={program_id}"
+                )
+
+        if node.type in ("PlanQuery", "PlanStep"):
+            revision_number = node.attributes.get("revision_number")
+            if (
+                isinstance(revision_number, int)
+                and not isinstance(revision_number, bool)
+                and revision_number < 1
+            ):
+                errors.append(
+                    f"{node.type}.attributes.revision_number must be at least 1"
                 )
 
         return errors

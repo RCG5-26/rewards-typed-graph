@@ -14,7 +14,7 @@ VALUES
     '00000000-0000-0000-0000-000000000101',
     'PlanStep',
     'plan',
-    '{"step_order": 1, "agent": "redemption_agent", "claim": "Malformed dependency test", "inputs": {}, "output": {}, "status": "active"}',
+    '{"plan_lineage_id": "plan-lineage-1", "revision_number": 1, "step_order": 1, "agent": "redemption_agent", "claim": "Malformed dependency test", "inputs": {}, "output": {}, "status": "active"}',
     0
   ),
   (
@@ -28,7 +28,7 @@ VALUES
     '00000000-0000-0000-0000-000000000103',
     'PlanStep',
     'plan',
-    '{"step_order": 2, "agent": "redemption_agent", "claim": "Valid dependency test", "inputs": {}, "output": {}, "status": "active"}',
+    '{"plan_lineage_id": "plan-lineage-2", "revision_number": 1, "step_order": 2, "agent": "redemption_agent", "claim": "Valid dependency test", "inputs": {}, "output": {}, "status": "active"}',
     0
   ),
   (
@@ -72,6 +72,57 @@ BEGIN
 
   IF malformed_count <> 0 THEN
     RAISE EXCEPTION 'malformed observed_version row should be excluded from stale_plan_steps';
+  END IF;
+END;
+$$;
+
+SELECT id, version
+FROM mark_plan_step_stale(
+  '00000000-0000-0000-0000-000000000103',
+  'Balance:00000000-0000-0000-0000-000000000104 version changed from 0 to 1'
+);
+
+DO $$
+DECLARE
+  supersede_count integer;
+  source_status text;
+  source_successor text;
+BEGIN
+  SELECT count(*) INTO supersede_count
+  FROM supersede_plan_step(
+    '00000000-0000-0000-0000-000000000103',
+    '{
+      "plan_lineage_id": "plan-lineage-2",
+      "revision_number": 2,
+      "step_order": 2,
+      "agent": "redemption_agent",
+      "claim": "Replacement dependency test",
+      "inputs": {},
+      "output": {},
+      "status": "active",
+      "stale_reason": null,
+      "supersedes_plan_step_id": "00000000-0000-0000-0000-000000000103",
+      "superseded_by_plan_step_id": null
+    }'
+  );
+
+  IF supersede_count <> 1 THEN
+    RAISE EXCEPTION 'expected supersede_plan_step to create one successor, got %', supersede_count;
+  END IF;
+
+  SELECT
+    attributes->>'status',
+    attributes->>'superseded_by_plan_step_id'
+  INTO source_status, source_successor
+  FROM nodes
+  WHERE id = '00000000-0000-0000-0000-000000000103';
+
+  IF source_status <> 'superseded' THEN
+    RAISE EXCEPTION 'expected source step to be superseded, got %', source_status;
+  END IF;
+
+  IF source_successor IS NULL THEN
+    RAISE EXCEPTION 'expected source step to point at successor';
   END IF;
 END;
 $$;

@@ -4,18 +4,35 @@ These files are the machine-usable schema artifacts for the MVP described in
 [`docs/architecture/schemaMVP.md`](../docs/architecture/schemaMVP.md).
 
 - `schema.sql` defines the Postgres tables, constraints, and indexes.
-- `types.py` defines Python constants, dataclasses, and lightweight validators
+- `contracts/graph.schema.json` is the shared JSON Schema contract and source
+  for generated dual-stack type artifacts.
+- `generated/types.py` and `generated/types.ts` are generated from the shared
+  contract.
+- `types.py` imports generated Python constants and adds lightweight validators
   for node and edge payloads.
+
+Regenerate contract artifacts after editing `contracts/graph.schema.json`:
+
+```bash
+python3 scripts/generate_schema_types.py
+```
+
+CI/test checks should run:
+
+```bash
+python3 scripts/generate_schema_types.py --check
+```
 
 Keep these artifacts aligned with the MVP doc. After schema lock, changes should
 be additive unless the team records and approves a migration decision.
+
+Plan lifecycle follows the locked v3.1 semantics even though storage is
+polymorphic: `PlanQuery` and `PlanStep` attributes carry `plan_lineage_id` and
+`revision_number`, and successful re-plans use `supersede_plan_step()` so the
+old stale step is superseded only after its successor exists.
 
 ## Still Not Fully Implemented
 
 - `seed.sql` fixture with stable IDs for the demo user, cards, programs,
   balances, goal, plan query, plan step, and dependency edges.
-- One active `Balance` per `User` + `Program` enforcement. The likely MVP path
-  is a partial unique index on `nodes.user_id` and
-  `nodes.attributes->>'program_id'` for rows where `type = 'Balance'`.
 - Retry/backoff orchestration around optimistic update conflicts.
-- Integration test against a real Postgres database using `schema.sql`.

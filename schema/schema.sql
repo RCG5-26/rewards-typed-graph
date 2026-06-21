@@ -136,6 +136,12 @@ WITH dependency_versions AS MATERIALIZED (
     ON depended_node.id = dep.target_id
   WHERE dep.type = 'DEPENDS_ON'
     AND plan_step.type = 'PlanStep'
+    AND COALESCE(plan_step.attributes->>'status', '') NOT IN (
+      'stale',
+      'superseded',
+      'completed',
+      'failed'
+    )
 )
 SELECT
   plan_step_id,
@@ -297,8 +303,72 @@ AS $$
     updated_at = now()
   WHERE id = p_plan_step_id
     AND type = 'PlanStep'
-    AND COALESCE(attributes->>'status', '') NOT IN ('completed', 'failed', 'skipped')
+    AND COALESCE(attributes->>'status', '') NOT IN (
+      'stale',
+      'superseded',
+      'completed',
+      'failed'
+    )
   RETURNING id, version;
+$$;
+
+CREATE FUNCTION supersede_plan_step(
+  p_source_plan_step_id UUID,
+  p_successor_attributes JSONB
+)
+RETURNS TABLE (
+  source_id UUID,
+  source_version INTEGER,
+  successor_id UUID,
+  successor_version INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  source_step nodes%ROWTYPE;
+  new_source_version INTEGER;
+  new_successor_id UUID;
+  new_successor_version INTEGER;
+BEGIN
+  SELECT *
+    INTO source_step
+    FROM nodes
+   WHERE id = p_source_plan_step_id
+     AND type = 'PlanStep'
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  IF COALESCE(source_step.attributes->>'status', '') <> 'stale' THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO nodes (type, tier, user_id, slug, attributes, version)
+  VALUES ('PlanStep', 'plan', source_step.user_id, NULL, p_successor_attributes, 0)
+  RETURNING id, version
+    INTO new_successor_id, new_successor_version;
+
+  UPDATE nodes
+     SET attributes = jsonb_set(
+           jsonb_set(attributes, '{status}', '"superseded"'::jsonb),
+           '{superseded_by_plan_step_id}',
+           to_jsonb(new_successor_id::text)
+         ),
+         version = version + 1,
+         updated_at = now()
+   WHERE id = p_source_plan_step_id
+     AND type = 'PlanStep'
+  RETURNING version
+    INTO new_source_version;
+
+  source_id := p_source_plan_step_id;
+  source_version := new_source_version;
+  successor_id := new_successor_id;
+  successor_version := new_successor_version;
+  RETURN NEXT;
+END;
 $$;
 
 CREATE FUNCTION update_node_optimistic(

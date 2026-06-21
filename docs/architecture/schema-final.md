@@ -1,6 +1,6 @@
-# Schema — Final (Locked) · v3
+# Schema — Final · v3.1
 
-> **Status:** Locked for the sprint. Supersedes `schema-v2.md`. Additive-only after sign-off (new optional columns / new tables allowed; no renames, removals, or retypes without an ADR + lead sign-off).
+> **Status:** Locked v3.1 architecture. [ADR 0004](../adr/0004-mvp-polymorphic-graph-schema.md) changes the MVP physical storage layout to polymorphic `nodes` / `edges`, but it does not supersede the plan lifecycle, dependency invalidation, or re-plan semantics in this file.
 > **Reflects:** ADR 0001 (schema lock), ADR 0002 (research apparatus kept), ADR 0003 (four-person team; ingestion + verifier are stretch; Layer 4 cut-by-default).
 > **Owner:** Alan (Graph/Persistence). Reviewed by Raq (lead).
 > **Scope note:** Layers 1–3 are the locked core. **Ingestion + Verifier (Layer 4) are stretch** and live in a clearly fenced section; their tables are documented but are *not* part of the Day-1 lock and may be cut at the Day 10 go/no-go.
@@ -165,8 +165,10 @@ Redemption surfaces hang off the destination program via `redeems_via`, so the r
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
+| plan_lineage_id | uuid | stable lineage shared by all revisions of this query |
+| revision_number | integer | starts at 1; increments on successful re-plan |
 | query_text | text | the NL query (shown in the demo sidebar) |
-| status | text | CHECK in (`pending`,`in_progress`,`completed`,`failed`) |
+| status | text | CHECK in (`pending`,`in_progress`,`completed`,`failed`,`stale`,`superseded`) |
 | plan_type | text | CHECK in (`agent_generated`,`baseline_single_agent`,`baseline_free_text_multiagent`) — partitions benchmark results by architecture |
 | benchmark_query_id | uuid | nullable — joins the same benchmark query across architectures (review item I2) |
 | raw_output | jsonb | nullable — full response for **baseline** plans (they don't write plan_steps; see §6) |
@@ -181,10 +183,14 @@ Redemption surfaces hang off the destination program via `redeems_via`, so the r
 |---|---|---|
 | id | uuid | PK |
 | plan_id | uuid | FK → plans(id) |
+| plan_lineage_id | uuid | copied from parent plan lineage for easy revision queries |
+| revision_number | integer | starts at 1; successor steps increment the source revision |
+| supersedes_plan_step_id | uuid | nullable FK → plan_steps(id), prior stale step this revision replaced |
+| superseded_by_plan_step_id | uuid | nullable FK → plan_steps(id), successor that replaced this stale step |
 | step_order | integer | NOT NULL — deterministic sequence |
 | step_type | text | CHECK in (`card_assignment`,`redemption_recommendation`,`spend_analysis`,`transfer_recommendation`) |
 | payload | jsonb | step-specific data |
-| status | text | CHECK in (`pending`,`ready`,`in_progress`,`completed`,`failed`,`skipped`,**`stale`**) |
+| status | text | CHECK in (`pending`,`ready`,`in_progress`,`completed`,`failed`,`skipped`,**`stale`**,**`superseded`**) |
 | is_stale | boolean | NOT NULL DEFAULT false |
 | staled_at | timestamptz | nullable |
 | stale_reason | text | nullable — e.g. "user_balances:abc balance_points 180000 → 120000" |
@@ -256,7 +262,7 @@ UPDATE plan_steps ps
    AND (sd.snapshot_value->>'balance_points')::int IS DISTINCT FROM $new
    AND ps.status NOT IN ('completed','failed','skipped');
 ```
-The redemption agent subscribes to stale steps and re-plans with no orchestrator message — that is the hero loop. This is ~20–50 lines, bounded, plan-nodes-only, no transitive propagation.
+The redemption agent subscribes to stale steps and re-plans with no orchestrator message — that is the hero loop. A successful re-plan creates a new revision in the same `plan_lineage_id`, increments `revision_number`, points the successor at the stale source via `supersedes_plan_step_id`, and only then marks the source `superseded` with `superseded_by_plan_step_id`. If successor creation fails, the source remains `stale`. This is bounded, plan-nodes-only, no transitive propagation.
 
 ---
 
@@ -315,7 +321,9 @@ CREATE INDEX ON transfers_to (source_program_id);
 CREATE INDEX ON transfers_to (dest_program_id);
 CREATE UNIQUE INDEX ON user_balances (user_id, program_id);      -- B4: one canonical balance row
 CREATE INDEX ON user_program_statuses (user_id, program_id);
+CREATE INDEX ON plans (plan_lineage_id, revision_number);
 CREATE INDEX ON plan_steps (plan_id, step_order);
+CREATE INDEX ON plan_steps (plan_lineage_id, revision_number);
 CREATE INDEX ON agent_runs (plan_id);
 CREATE INDEX ON external_quotes (plan_id);
 CREATE INDEX ON evaluations (benchmark_query_id);

@@ -1,6 +1,11 @@
 # MVP Database Schema — Rewards Typed Graph
 
 This schema is the pared-down MVP version of the rewards typed graph.
+Per [ADR 0004](../adr/0004-mvp-polymorphic-graph-schema.md), it uses
+polymorphic `nodes` / `edges` storage for the MVP implementation while keeping
+the v3.1 plan lifecycle semantics: plan revisions share a lineage, re-plans
+create successor revisions, and prior stale steps are marked `superseded` only
+after the successor exists.
 
 The MVP goal is to prove one loop:
 
@@ -27,6 +32,7 @@ Agents do not pass free-text messages to each other. They commit typed graph mut
 | Graph tiers | `world`, `personal`, `plan` |
 | Concurrency | Integer `version` on nodes and edges |
 | Dependency tracking | `DEPENDS_ON` edges store observed versions and values |
+| Plan lifecycle | `plan_lineage_id` + `revision_number`; re-plan creates a successor revision |
 | Effective dating | Deferred from MVP |
 | Ingestion/verifier | Deferred from MVP |
 | Transfer partners | Programs connected to programs by `TRANSFERS_TO` |
@@ -416,6 +422,8 @@ Tier: `plan`
 
 ```json
 {
+  "plan_lineage_id": "plan-lineage-tokyo-demo",
+  "revision_number": 1,
   "query_text": "How should I use my points for Tokyo?",
   "status": "active",
   "summary": null
@@ -426,6 +434,8 @@ Required attributes:
 
 | Attribute | Type | Notes |
 |---|---|---|
+| `plan_lineage_id` | string | Stable lineage shared by all revisions of the same user query |
+| `revision_number` | integer | Starts at `1`; each successful re-plan increments it |
 | `query_text` | string | Original user query |
 | `status` | string | `active`, `completed`, or `failed` |
 
@@ -441,6 +451,8 @@ Tier: `plan`
 
 ```json
 {
+  "plan_lineage_id": "plan-lineage-tokyo-demo",
+  "revision_number": 1,
   "step_order": 1,
   "agent": "redemption_agent",
   "claim": "Transfer Chase points to Hyatt for the hotel stay.",
@@ -452,7 +464,9 @@ Tier: `plan`
     "recommendation": "Transfer 120000 points to Hyatt."
   },
   "status": "active",
-  "stale_reason": null
+  "stale_reason": null,
+  "supersedes_plan_step_id": null,
+  "superseded_by_plan_step_id": null
 }
 ```
 
@@ -460,6 +474,8 @@ Required attributes:
 
 | Attribute | Type | Notes |
 |---|---|---|
+| `plan_lineage_id` | string | Stable lineage shared by all revisions of this logical plan step |
+| `revision_number` | integer | Starts at `1`; successor steps increment the previous revision |
 | `step_order` | integer | Display/order inside the plan |
 | `agent` | string | Agent that created the step |
 | `claim` | string | Human-readable plan step |
@@ -472,6 +488,8 @@ Optional attributes:
 | Attribute | Type | Notes |
 |---|---|---|
 | `stale_reason` | string/null | Why the step became stale |
+| `supersedes_plan_step_id` | string/null | Prior stale step replaced by this revision |
+| `superseded_by_plan_step_id` | string/null | Successor step that replaced this stale step |
 
 ---
 
@@ -789,6 +807,12 @@ JOIN nodes depended_node
   ON depended_node.id = dep.target_id
 WHERE dep.type = 'DEPENDS_ON'
   AND plan_step.type = 'PlanStep'
+  AND COALESCE(plan_step.attributes->>'status', '') NOT IN (
+    'stale',
+    'superseded',
+    'completed',
+    'failed'
+  )
   AND depended_node.version <> (dep.attributes->>'observed_version')::integer;
 ```
 
@@ -805,8 +829,29 @@ SET
   version = version + 1,
   updated_at = now()
 WHERE id = $plan_step_id
-  AND type = 'PlanStep';
+  AND type = 'PlanStep'
+  AND COALESCE(attributes->>'status', '') NOT IN (
+    'stale',
+    'superseded',
+    'completed',
+    'failed'
+  );
 ```
+
+Successful re-plan:
+
+```text
+source PlanStep status must be stale
+successor PlanStep gets same plan_lineage_id
+successor revision_number = source revision_number + 1
+successor supersedes_plan_step_id = source PlanStep id
+source status becomes superseded
+source superseded_by_plan_step_id = successor PlanStep id
+```
+
+The write path performs successor creation and source superseding in one
+database function. If successor creation fails, the source step remains `stale`;
+it is not refreshed in place.
 
 ---
 
@@ -849,12 +894,15 @@ Example plan graph:
 
 ```text
 PlanQuery: "How should I use my points for Tokyo?"
-PlanStep: "Transfer Chase points to Hyatt."
+PlanQuery plan_lineage_id=plan-lineage-tokyo-demo revision_number=1
+PlanStep: "Transfer Chase points to Hyatt." revision_number=1
 PlanStep --DEPENDS_ON--> Chase balance at version 0 / 240000 points
 ```
 
 If the Chase balance changes from `240000` to `180000`, the `Balance` node version increments.
-The dependency query then marks the old plan step stale and the redemption agent can create a superseding step.
+The write path marks the old plan step stale. The redemption agent then creates
+a successor step with revision `2`; only after that successor exists does the
+old stale step move to `superseded`.
 
 ---
 
@@ -878,4 +926,3 @@ These are intentionally deferred:
 | Merchant node | Categories are enough for MVP |
 | Full MCC hierarchy | Seed only a few categories |
 | Multi-agent concurrency stress tests | Simple version checks are enough |
-

@@ -1,6 +1,6 @@
 # 0001 — Schema Lock (v2)
 
-- **Status:** Proposed — ratify at the Day 1 meeting (June 17, 2026). Flip to Accepted with date + sign-offs below.
+- **Status:** Partially superseded for MVP storage by [0004 — MVP Storage Uses Polymorphic Nodes and Edges](0004-mvp-polymorphic-graph-schema.md); plan lifecycle / re-plan semantics remain authoritative.
 - **Owner:** Raq (Graph/Persistence)
 - **Source:** [`schema-v2.md`](../architecture/schema-v2.md) · [`schema-prepdoc-meeting1.md`](../meetings/schema-prepdoc-meeting1.md)
 

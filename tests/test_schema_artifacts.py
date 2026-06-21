@@ -1,11 +1,67 @@
+import json
 import pathlib
+import subprocess
+import sys
 import unittest
 
 
-SCHEMA_SQL_PATH = pathlib.Path(__file__).resolve().parents[1] / "schema" / "schema.sql"
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+SCHEMA_SQL_PATH = REPO_ROOT / "schema" / "schema.sql"
+SCHEMA_CONTRACT_PATH = REPO_ROOT / "schema" / "contracts" / "graph.schema.json"
+GENERATED_PYTHON_TYPES_PATH = REPO_ROOT / "schema" / "generated" / "types.py"
+GENERATED_TYPESCRIPT_TYPES_PATH = REPO_ROOT / "schema" / "generated" / "types.ts"
+GENERATE_SCHEMA_TYPES_PATH = REPO_ROOT / "scripts" / "generate_schema_types.py"
 
 
 class SchemaArtifactsTest(unittest.TestCase):
+    def test_schema_contract_is_canonical_source_for_generated_types(self):
+        contract = json.loads(SCHEMA_CONTRACT_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(contract["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(contract["title"], "Rewards Typed Graph MVP Contract")
+        self.assertIn("nodeTypes", contract["$defs"])
+        self.assertIn("edgeTypes", contract["$defs"])
+        self.assertEqual(
+            tuple(contract["$defs"]["nodeTypes"]["enum"]),
+            (
+                "User",
+                "Card",
+                "Program",
+                "MerchantCategory",
+                "Balance",
+                "Goal",
+                "PlanQuery",
+                "PlanStep",
+            ),
+        )
+        self.assertEqual(contract["x-graph"]["nodeTiers"]["Balance"], "personal")
+        self.assertEqual(
+            contract["x-graph"]["edgeTypeRules"]["DEPENDS_ON"],
+            {"source": "PlanStep", "target": None},
+        )
+
+        self.assertTrue(GENERATED_PYTHON_TYPES_PATH.exists())
+        self.assertTrue(GENERATED_TYPESCRIPT_TYPES_PATH.exists())
+
+    def test_generated_schema_types_are_up_to_date(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(GENERATE_SCHEMA_TYPES_PATH),
+                "--check",
+            ],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+
     def test_python_schema_exports_mvp_enums_and_validation(self):
         from schema import types
 
@@ -92,6 +148,8 @@ class SchemaArtifactsTest(unittest.TestCase):
             type="PlanStep",
             tier="plan",
             attributes={
+                "plan_lineage_id": "plan-lineage-1",
+                "revision_number": 1,
                 "step_order": 1,
                 "agent": "redemption_agent",
                 "claim": "Transfer Chase points to Hyatt.",
@@ -130,6 +188,8 @@ class SchemaArtifactsTest(unittest.TestCase):
             type="PlanQuery",
             tier="plan",
             attributes={
+                "plan_lineage_id": "plan-lineage-1",
+                "revision_number": 1,
                 "query_text": "Find the best Tokyo redemption.",
                 "status": "stale",
             },
@@ -138,6 +198,8 @@ class SchemaArtifactsTest(unittest.TestCase):
             type="PlanStep",
             tier="plan",
             attributes={
+                "plan_lineage_id": "plan-lineage-1",
+                "revision_number": 1,
                 "step_order": 1,
                 "agent": "redemption_agent",
                 "claim": "Transfer Chase points to Hyatt.",
@@ -238,11 +300,31 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("version = version + 1", function_sql)
         self.assertIn("WHERE id = p_plan_step_id", function_sql)
         self.assertIn("AND type = 'PlanStep'", function_sql)
-        self.assertIn(
-            "AND COALESCE(attributes->>'status', '') NOT IN ('completed', 'failed', 'skipped')",
-            function_sql,
-        )
+        self.assertIn("AND COALESCE(attributes->>'status', '') NOT IN (", function_sql)
+        self.assertIn("'stale'", function_sql)
+        self.assertIn("'superseded'", function_sql)
+        self.assertIn("'completed'", function_sql)
+        self.assertIn("'failed'", function_sql)
         self.assertIn("RETURNING id, version", function_sql)
+
+    def test_schema_sql_defines_supersede_plan_step_function(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        function_sql = schema_sql[
+            schema_sql.index("CREATE FUNCTION supersede_plan_step") :
+            schema_sql.index("CREATE FUNCTION update_node_optimistic")
+        ]
+
+        self.assertIn("CREATE FUNCTION supersede_plan_step", function_sql)
+        self.assertIn("p_source_plan_step_id UUID", function_sql)
+        self.assertIn("p_successor_attributes JSONB", function_sql)
+        self.assertIn("FOR UPDATE", function_sql)
+        self.assertIn("COALESCE(source_step.attributes->>'status', '') <> 'stale'", function_sql)
+        self.assertIn("INSERT INTO nodes (type, tier, user_id, slug, attributes, version)", function_sql)
+        self.assertIn("'PlanStep'", function_sql)
+        self.assertIn("'{status}'", function_sql)
+        self.assertIn("'\"superseded\"'::jsonb", function_sql)
+        self.assertIn("'{superseded_by_plan_step_id}'", function_sql)
+        self.assertIn("RETURN NEXT", function_sql)
 
     def test_schema_sql_defines_optimistic_concurrency_update_functions(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")

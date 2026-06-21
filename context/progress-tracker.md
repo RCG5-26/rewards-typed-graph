@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** [YYYY-MM-DD] by [Name]
+**Last updated:** 2026-06-21 by Alan
 
 ---
 
@@ -24,6 +24,7 @@
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
+- [x] PR #2 plan lifecycle alignment — 2026-06-21 — preserved v3.1 lineage/revision semantics in MVP polymorphic storage.
 - [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
 - [ ] [Unit / milestone] — [date] — [note]
 
@@ -51,6 +52,7 @@ _Unresolved ambiguities. Link to feature spec or decision if applicable._
 
 | # | Question | Owner | Status |
 |---|---|---|---|
+| 2 | Does ADR 0004 storage-only compromise have all-four lane sign-off? | Alan/Raq | open |
 | 1 | [Question] | [Name] | open / resolved → see decisions-log |
 
 ---
@@ -68,6 +70,7 @@ _Unresolved ambiguities. Link to feature spec or decision if applicable._
 Brief bullets from recent work sessions. Trim when stale.
 
 - [YYYY-MM-DD]: [note]
+- 2026-06-21: PR #2 updated so polymorphic storage keeps v3.1 plan lineage/revision and supersede-on-success semantics.
 
 ---
 

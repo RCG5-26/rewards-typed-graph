@@ -72,6 +72,12 @@ class FakeCursor:
             self.result = self.connection.mark_stale_results.get(plan_step_id)
             return
 
+        if compact_sql.startswith("SELECT source_id, source_version, successor_id, successor_version FROM supersede_plan_step"):
+            source_plan_step_id, successor_attributes = params
+            self.connection.supersede_calls.append((source_plan_step_id, successor_attributes))
+            self.result = self.connection.supersede_result
+            return
+
         self.result = None
 
     def fetchone(self):
@@ -88,6 +94,8 @@ class FakeConnection:
         self.balances = set()
         self.stale_rows = []
         self.mark_stale_results = {}
+        self.supersede_result = None
+        self.supersede_calls = []
         self.next_node_id = "node-1"
         self.next_edge_id = "edge-1"
 
@@ -378,6 +386,62 @@ class GraphMutationServiceTest(unittest.TestCase):
         ]
         self.assertEqual(len(mark_stale_logs), 1)
         self.assertEqual(mark_stale_logs[0][7], 6)
+
+    def test_supersede_plan_step_creates_successor_revision_and_logs(self):
+        connection = FakeConnection()
+        connection.nodes = {
+            "plan-step-1": {
+                "type": "PlanStep",
+                "tier": "plan",
+                "user_id": "user-1",
+                "slug": None,
+                "attributes": {
+                    "plan_lineage_id": "plan-lineage-1",
+                    "revision_number": 1,
+                    "step_order": 1,
+                    "agent": "redemption_agent",
+                    "claim": "Transfer Chase points to Hyatt.",
+                    "inputs": {},
+                    "output": {},
+                    "status": "stale",
+                    "stale_reason": "Balance:balance-1 version changed from 4 to 5",
+                },
+                "version": 7,
+            },
+        }
+        connection.supersede_result = ("plan-step-1", 8, "plan-step-2", 0)
+        service = GraphMutationService(connection)
+
+        successor_id = service.supersede_plan_step(
+            actor="redemption_agent",
+            source_plan_step_id="plan-step-1",
+            successor_attributes={
+                "step_order": 1,
+                "agent": "redemption_agent",
+                "claim": "Transfer Chase points to Hyatt after balance change.",
+                "inputs": {},
+                "output": {"recommendation": "Transfer 90000 points."},
+                "status": "active",
+            },
+        )
+
+        self.assertEqual(successor_id, "plan-step-2")
+        self.assertEqual(len(connection.supersede_calls), 1)
+        _source_id, successor_attributes = connection.supersede_calls[0]
+        self.assertEqual(successor_attributes["plan_lineage_id"], "plan-lineage-1")
+        self.assertEqual(successor_attributes["revision_number"], 2)
+        self.assertEqual(successor_attributes["supersedes_plan_step_id"], "plan-step-1")
+        self.assertEqual(successor_attributes["stale_reason"], None)
+
+        supersede_logs = [
+            params
+            for sql, params in connection.executed
+            if "INSERT INTO mutation_log" in sql and params[1] == "supersede_plan_step"
+        ]
+        self.assertEqual(len(supersede_logs), 1)
+        self.assertEqual(supersede_logs[0][3], "plan-step-1")
+        self.assertEqual(supersede_logs[0][6]["successor_plan_step_id"], "plan-step-2")
+        self.assertEqual(supersede_logs[0][7], 8)
 
 
 def _any_sql(connection, snippet):
