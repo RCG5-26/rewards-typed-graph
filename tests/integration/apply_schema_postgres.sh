@@ -161,6 +161,48 @@ FROM transfer_points(
   'wallet_agent'
 );
 
+INSERT INTO idempotency_records (
+  user_id,
+  operation_type,
+  idempotency_key,
+  request_hash,
+  status
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'TransferPoints',
+  'transfer-in-progress',
+  'request-hash-in-progress',
+  'in_progress'
+);
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM transfer_points(
+      '00000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000301',
+      '00000000-0000-0000-0000-000000000302',
+      1000,
+      2,
+      2,
+      'transfer-in-progress',
+      'request-hash-in-progress',
+      'wallet_agent'
+    );
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM LIKE '%idempotency request already in progress%' THEN
+        RETURN;
+      END IF;
+
+      RAISE;
+  END;
+
+  RAISE EXCEPTION 'expected in-progress idempotency request to fail';
+END;
+$$;
+
 DO $$
 DECLARE
   plan_status text;
@@ -194,8 +236,125 @@ BEGIN
 END;
 $$;
 
+INSERT INTO plans (
+  id,
+  user_id,
+  plan_lineage_id,
+  revision_number,
+  query_text,
+  status,
+  created_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000497',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000490',
+  1,
+  'Already exhausted re-plan.',
+  'stale',
+  now() - interval '1 day'
+);
+
+INSERT INTO replan_jobs (
+  id,
+  user_id,
+  plan_lineage_id,
+  source_plan_id,
+  trigger_mutation_txn_id,
+  idempotency_key,
+  status,
+  attempt_count,
+  max_attempts,
+  available_at,
+  created_at
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000701',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000490',
+  '00000000-0000-0000-0000-000000000497',
+  '00000000-0000-0000-0000-000000000702',
+  'exhausted-replan-job',
+  'pending',
+  3,
+  3,
+  now() - interval '1 day',
+  now() - interval '1 day'
+);
+
 SELECT *
 FROM claim_replan_jobs('worker-1', 1, interval '5 minutes');
+
+DO $$
+DECLARE
+  exhausted_status text;
+  exhausted_attempts integer;
+  active_status text;
+BEGIN
+  SELECT status, attempt_count
+    INTO exhausted_status, exhausted_attempts
+  FROM replan_jobs
+  WHERE id = '00000000-0000-0000-0000-000000000701';
+
+  SELECT status INTO active_status
+  FROM replan_jobs
+  WHERE source_plan_id = '00000000-0000-0000-0000-000000000401';
+
+  IF exhausted_status <> 'pending' THEN
+    RAISE EXCEPTION 'expected exhausted job to remain pending, got %', exhausted_status;
+  END IF;
+
+  IF exhausted_attempts <> 3 THEN
+    RAISE EXCEPTION 'expected exhausted job attempt_count to remain 3, got %', exhausted_attempts;
+  END IF;
+
+  IF active_status <> 'processing' THEN
+    RAISE EXCEPTION 'expected claimable job processing, got %', active_status;
+  END IF;
+END;
+$$;
+
+INSERT INTO plans (
+  id,
+  user_id,
+  plan_lineage_id,
+  revision_number,
+  query_text,
+  status
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000499',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000400',
+  99,
+  'Find the best Tokyo redemption.',
+  'generating'
+);
+
+DO $$
+DECLARE
+  active_job_id uuid;
+BEGIN
+  SELECT id INTO active_job_id
+  FROM replan_jobs
+  WHERE source_plan_id = '00000000-0000-0000-0000-000000000401';
+
+  BEGIN
+    PERFORM promote_replan_job_success(
+      active_job_id,
+      'worker-1',
+      '00000000-0000-0000-0000-000000000499'
+    );
+
+    RAISE EXCEPTION 'expected invalid successor promotion to fail';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%result plan is not direct successor of source plan%' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$$;
 
 INSERT INTO plans (
   id,

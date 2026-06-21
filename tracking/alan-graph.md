@@ -10,6 +10,10 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Add v3.1 operational tables/write paths flagged by PR #2 review.
 - Align PR #2 operational table/column names with v3.1 vocabulary.
 - Restore canonical schema artifacts to v3.1 table-per-type and preserve the polymorphic implementation only as an experimental path.
+- Add direct-successor validation to `promote_replan_job_success`.
+- Enforce `max_attempts` when claiming `replan_jobs`.
+- Reject duplicate `TransferPoints` calls while an idempotency record is still `in_progress`.
+- Replace canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

@@ -620,6 +620,7 @@ AS $$
     SELECT job.id
       FROM replan_jobs job
      WHERE job.available_at <= now()
+       AND job.attempt_count < job.max_attempts
        AND (
          job.status = 'pending'
          OR (
@@ -688,6 +689,26 @@ BEGIN
     RAISE EXCEPTION 'source and destination balances must differ';
   END IF;
 
+  INSERT INTO idempotency_records (
+    user_id,
+    operation_type,
+    idempotency_key,
+    request_hash,
+    mutation_txn_id,
+    status
+  )
+  VALUES (
+    p_user_id,
+    'TransferPoints',
+    p_idempotency_key,
+    p_request_hash,
+    v_mutation_txn_id,
+    'in_progress'
+  )
+  ON CONFLICT (user_id, operation_type, idempotency_key)
+  DO UPDATE
+     SET updated_at = idempotency_records.updated_at;
+
   SELECT *
     INTO existing_idempotency
     FROM idempotency_records
@@ -696,37 +717,21 @@ BEGIN
      AND idempotency_key = p_idempotency_key
    FOR UPDATE;
 
-  IF FOUND THEN
-    IF existing_idempotency.request_hash <> p_request_hash THEN
-      RAISE EXCEPTION 'idempotency key reused with different request';
-    END IF;
+  IF existing_idempotency.request_hash <> p_request_hash THEN
+    RAISE EXCEPTION 'idempotency key reused with different request';
+  END IF;
 
-    IF existing_idempotency.status = 'completed' THEN
-      source_balance_id := (existing_idempotency.result_reference->>'source_balance_id')::uuid;
-      source_version := (existing_idempotency.result_reference->>'source_version')::integer;
-      dest_balance_id := (existing_idempotency.result_reference->>'dest_balance_id')::uuid;
-      dest_version := (existing_idempotency.result_reference->>'dest_version')::integer;
-      idempotency_replayed := true;
-      RETURN NEXT;
-      RETURN;
-    END IF;
-  ELSE
-    INSERT INTO idempotency_records (
-      user_id,
-      operation_type,
-      idempotency_key,
-      request_hash,
-      mutation_txn_id,
-      status
-    )
-    VALUES (
-      p_user_id,
-      'TransferPoints',
-      p_idempotency_key,
-      p_request_hash,
-      v_mutation_txn_id,
-      'in_progress'
-    );
+  IF existing_idempotency.status = 'completed' THEN
+    source_balance_id := (existing_idempotency.result_reference->>'source_balance_id')::uuid;
+    source_version := (existing_idempotency.result_reference->>'source_version')::integer;
+    dest_balance_id := (existing_idempotency.result_reference->>'dest_balance_id')::uuid;
+    dest_version := (existing_idempotency.result_reference->>'dest_version')::integer;
+    idempotency_replayed := true;
+    RETURN NEXT;
+    RETURN;
+  ELSIF existing_idempotency.status = 'in_progress'
+        AND existing_idempotency.mutation_txn_id IS DISTINCT FROM v_mutation_txn_id THEN
+    RAISE EXCEPTION 'idempotency request already in progress';
   END IF;
 
   SELECT *
@@ -967,6 +972,15 @@ BEGIN
      OR job.locked_by <> p_worker_id
      OR job.lease_expires_at <= now() THEN
     RAISE EXCEPTION 'replan job lease is not active for worker';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM plans result_plan
+     WHERE result_plan.id = p_result_plan_id
+       AND result_plan.supersedes_plan_id = job.source_plan_id
+  ) THEN
+    RAISE EXCEPTION 'result plan is not direct successor of source plan';
   END IF;
 
   UPDATE plans

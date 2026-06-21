@@ -182,6 +182,7 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("result_plan_id UUID NULL REFERENCES plans(id)", table_sql)
         self.assertIn("FOR UPDATE SKIP LOCKED", function_sql)
         self.assertIn("SET status = 'processing'", function_sql)
+        self.assertIn("job.attempt_count < job.max_attempts", function_sql)
 
     def test_default_schema_sql_defines_transfer_and_atomic_promotion_functions(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
@@ -194,6 +195,45 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("CREATE FUNCTION promote_replan_job_success", schema_sql)
         self.assertIn("SET status = 'current'", schema_sql)
         self.assertIn("SET status = 'superseded'", schema_sql)
+        self.assertIn("result plan is not direct successor of source plan", schema_sql)
+        self.assertIn("result_plan.supersedes_plan_id = job.source_plan_id", schema_sql)
+
+    def test_transfer_functions_reject_in_progress_idempotency_records(self):
+        schema_paths = (
+            SCHEMA_SQL_PATH,
+            EXPERIMENTAL_DIR / "schema.sql",
+        )
+
+        for schema_path in schema_paths:
+            with self.subTest(schema_path=schema_path):
+                schema_sql = schema_path.read_text(encoding="utf-8")
+                transfer_sql = schema_sql[
+                    schema_sql.index("CREATE FUNCTION transfer_points") :
+                ]
+
+                self.assertIn(
+                    "idempotency request already in progress",
+                    transfer_sql,
+                )
+
+    def test_transfer_points_claims_idempotency_record_with_upsert(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        transfer_sql = schema_sql[schema_sql.index("CREATE FUNCTION transfer_points") :]
+        idempotency_sql = transfer_sql[
+            transfer_sql.index("INSERT INTO idempotency_records") :
+            transfer_sql.index("SELECT *\n    INTO source_balance")
+        ]
+
+        self.assertIn(
+            "ON CONFLICT (user_id, operation_type, idempotency_key)",
+            idempotency_sql,
+        )
+        self.assertIn("DO UPDATE", idempotency_sql)
+        self.assertLess(
+            idempotency_sql.index("ON CONFLICT"),
+            idempotency_sql.index("SELECT *\n    INTO existing_idempotency"),
+        )
+        self.assertIn("FOR UPDATE", idempotency_sql)
 
     def test_polymorphic_artifacts_are_preserved_under_experimental_path(self):
         self.assertTrue((EXPERIMENTAL_DIR / "schema.sql").exists())

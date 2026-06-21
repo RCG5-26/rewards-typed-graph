@@ -332,6 +332,8 @@ BEGIN
       idempotency_replayed := true;
       RETURN NEXT;
       RETURN;
+    ELSIF existing_idempotency.status = 'in_progress' THEN
+      RAISE EXCEPTION 'idempotency request already in progress';
     END IF;
   ELSE
     INSERT INTO idempotency_records (
