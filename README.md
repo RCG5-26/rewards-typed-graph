@@ -8,6 +8,14 @@ A multi-agent system for personalized credit-card rewards optimization that uses
 
 Coordination is state, not messages. Every interaction between agents is a typed mutation to the shared graph, validated against a schema that is locked on Day 1 and additive-only after. No free-text inter-agent messages, ever.
 
+## How we work here
+
+New to the repo? Read **[AGENTS.md](AGENTS.md)** — it's the working guide for humans and AI agents alike (read order, the build workflow, and update rules). In short:
+
+- **The spec is the unit of work.** Each lane owner writes a spec in [`context/feature-specs/`](context/feature-specs/) from the template, clears its Definition-of-Ready gate, and the lead marks it **Ready**; then it's implemented with the prompt in [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md). One owner per spec.
+- **Build against the contracts, never around them.** The locked data model is [`schema-final.md` v3.1](docs/architecture/schema-final.md); the *why* lives in [`docs/adr/`](docs/adr/). Schema is additive-only.
+- **Keep things in sync.** One source of truth per fact; link, don't duplicate; update docs as part of the change (see "Keeping docs in sync" in [`ai-workflow-rules.md`](context/ai-workflow-rules.md)). Tasks are tracked in Linear (**RCG**).
+
 ## How this team coordinates
 
 This repo is the source of truth for daily coordination. Linear is an optional backbone for the timeline view.
