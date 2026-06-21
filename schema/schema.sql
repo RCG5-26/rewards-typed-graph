@@ -282,7 +282,6 @@ CREATE TABLE plan_steps (
   step_type TEXT NOT NULL,
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   status TEXT NOT NULL DEFAULT 'proposed',
-  staled_at TIMESTAMPTZ NULL,
   stale_reason TEXT NULL,
   result JSONB NULL,
   error TEXT NULL,
@@ -602,6 +601,60 @@ WHERE ps.status NOT IN ('stale', 'superseded')
     WHEN 'transfers_to' THEN tt.version
   END <> sd.observed_version;
 
+CREATE FUNCTION mark_user_balance_dependents_stale_backstop()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF current_setting('rewards.skip_user_balance_staleness_backstop', true) = 'on' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.balance_points IS NOT DISTINCT FROM OLD.balance_points
+     AND NEW.version IS NOT DISTINCT FROM OLD.version THEN
+    RETURN NEW;
+  END IF;
+
+  UPDATE plan_steps ps
+     SET status = 'stale',
+         stale_reason = 'Balance dependency changed',
+         version = ps.version + 1,
+         updated_at = now()
+    FROM plans p,
+         state_dependencies sd
+   WHERE ps.plan_id = p.id
+     AND sd.plan_step_id = ps.id
+     AND p.user_id = NEW.user_id
+     AND p.status = 'current'
+     AND ps.status = 'current'
+     AND sd.target_table = 'user_balances'
+     AND sd.target_node_id = NEW.id;
+
+  UPDATE plans p
+     SET status = 'stale',
+         stale_reason = 'Balance dependency changed',
+         version = p.version + 1,
+         updated_at = now()
+   WHERE p.user_id = NEW.user_id
+     AND p.status = 'current'
+     AND EXISTS (
+       SELECT 1
+         FROM plan_steps ps
+         JOIN state_dependencies sd ON sd.plan_step_id = ps.id
+        WHERE ps.plan_id = p.id
+          AND sd.target_table = 'user_balances'
+          AND sd.target_node_id = NEW.id
+     );
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER user_balances_staleness_backstop
+AFTER UPDATE OF balance_points, version ON user_balances
+FOR EACH ROW
+EXECUTE FUNCTION mark_user_balance_dependents_stale_backstop();
+
 CREATE FUNCTION claim_replan_jobs(
   p_worker_id TEXT,
   p_limit INTEGER DEFAULT 10,
@@ -784,6 +837,8 @@ BEGIN
     RAISE EXCEPTION 'active transfer route does not exist';
   END IF;
 
+  PERFORM set_config('rewards.skip_user_balance_staleness_backstop', 'on', true);
+
   UPDATE user_balances
      SET balance_points = balance_points - p_amount_points,
          version = version + 1,
@@ -865,7 +920,6 @@ BEGIN
 
     UPDATE plan_steps
        SET status = 'stale',
-           staled_at = now(),
            stale_reason = 'Balance dependency changed during TransferPoints',
            version = version + 1,
            updated_at = now()

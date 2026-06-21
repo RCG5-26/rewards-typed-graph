@@ -198,6 +198,30 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("result plan is not direct successor of source plan", schema_sql)
         self.assertIn("result_plan.supersedes_plan_id = job.source_plan_id", schema_sql)
 
+    def test_default_schema_sql_uses_status_only_for_step_staleness(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        plan_steps_sql = schema_sql[
+            schema_sql.index("CREATE TABLE plan_steps") :
+            schema_sql.index("CREATE TABLE targets")
+        ]
+        transfer_sql = schema_sql[schema_sql.index("CREATE FUNCTION transfer_points") :]
+
+        self.assertNotIn("staled_at", plan_steps_sql)
+        self.assertNotIn("staled_at", transfer_sql)
+
+    def test_default_schema_sql_defines_user_balance_staleness_backstop_trigger(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "CREATE FUNCTION mark_user_balance_dependents_stale_backstop",
+            schema_sql,
+        )
+        self.assertIn(
+            "CREATE TRIGGER user_balances_staleness_backstop",
+            schema_sql,
+        )
+        self.assertIn("AFTER UPDATE OF balance_points, version ON user_balances", schema_sql)
+
     def test_transfer_functions_reject_in_progress_idempotency_records(self):
         schema_paths = (
             SCHEMA_SQL_PATH,

@@ -148,6 +148,103 @@ BEGIN
 END;
 $$;
 
+INSERT INTO plans (
+  id,
+  user_id,
+  plan_lineage_id,
+  revision_number,
+  query_text,
+  status
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000498',
+  '00000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0000-000000000498',
+  1,
+  'Backstop trigger coverage plan.',
+  'current'
+);
+
+INSERT INTO plan_steps (
+  id,
+  plan_id,
+  plan_lineage_id,
+  revision_number,
+  step_order,
+  step_type,
+  status,
+  payload
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000598',
+  '00000000-0000-0000-0000-000000000498',
+  '00000000-0000-0000-0000-000000000498',
+  1,
+  1,
+  'transfer_recommendation',
+  'current',
+  '{"claim": "Watch the Hyatt balance."}'
+);
+
+INSERT INTO state_dependencies (
+  id,
+  plan_step_id,
+  target_node_id,
+  target_node_type,
+  target_table,
+  depended_property,
+  observed_version,
+  snapshot_value
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000698',
+  '00000000-0000-0000-0000-000000000598',
+  '00000000-0000-0000-0000-000000000302',
+  'UserBalance',
+  'user_balances',
+  'balance_points',
+  1,
+  '{"balance_points": 0}'
+);
+
+UPDATE user_balances
+   SET balance_points = 5,
+       version = version + 1,
+       updated_at = now()
+ WHERE id = '00000000-0000-0000-0000-000000000302';
+
+DO $$
+DECLARE
+  plan_status text;
+  step_status text;
+  job_count integer;
+BEGIN
+  SELECT status INTO plan_status
+  FROM plans
+  WHERE id = '00000000-0000-0000-0000-000000000498';
+
+  SELECT status INTO step_status
+  FROM plan_steps
+  WHERE id = '00000000-0000-0000-0000-000000000598';
+
+  SELECT count(*) INTO job_count
+  FROM replan_jobs
+  WHERE source_plan_id = '00000000-0000-0000-0000-000000000498';
+
+  IF plan_status <> 'stale' THEN
+    RAISE EXCEPTION 'expected trigger-backstop plan stale, got %', plan_status;
+  END IF;
+
+  IF step_status <> 'stale' THEN
+    RAISE EXCEPTION 'expected trigger-backstop step stale, got %', step_status;
+  END IF;
+
+  IF job_count <> 0 THEN
+    RAISE EXCEPTION 'expected trigger backstop to skip job enqueue, got %', job_count;
+  END IF;
+END;
+$$;
+
 SELECT *
 FROM transfer_points(
   '00000000-0000-0000-0000-000000000001',
@@ -155,7 +252,7 @@ FROM transfer_points(
   '00000000-0000-0000-0000-000000000302',
   60000,
   1,
-  1,
+  2,
   'transfer-123',
   'request-hash-123',
   'wallet_agent'
