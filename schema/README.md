@@ -53,6 +53,10 @@ Use `transfer_points` for point transfers. It updates source/destination
 balances, writes graph mutations, invalidates dependent plan revisions/steps,
 and enqueues re-plan jobs in one transaction.
 
+`schema.mutations.V31GraphWriteService` is the current schema-lane graph-write
+adapter for RCG-10. It validates plan creation, plan-step creation, state
+dependency recording, and `TransferPoints` before executing write SQL.
+
 ## Still Not Fully Implemented
 
 - `seed.sql` fixture with stable IDs for the demo user, cards, programs,

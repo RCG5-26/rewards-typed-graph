@@ -14,6 +14,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Enforce `max_attempts` when claiming `replan_jobs`.
 - Reject duplicate `TransferPoints` calls while an idempotency record is still `in_progress`.
 - Replace canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim.
+- Complete RCG-10 canonical mutation layer for plan, plan-step, dependency, and transfer writes.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
