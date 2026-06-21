@@ -4,7 +4,9 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-20
+**Last updated:** 2026-06-21
+
+> **Design system landed.** Tokens, fonts, Tailwind preset, and base primitives live in [`../design-system/`](../design-system/). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
 ---
 
@@ -19,30 +21,36 @@ Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisi
 
 ## Theme & tokens
 
-_Stack: Next.js + custom Tailwind. **Design system + tokens are being added soon** — do not invent colors until then._
+_Stack: Next.js + custom Tailwind. Design system installed at [`../design-system/`](../design-system/). Wire it via the [Tailwind preset](../design-system/tailwind-preset.js) (`bg-surface`, `rounded-card`, …) and import [`global.css`](../design-system/global.css) once at the app root. Colors are defined in [`tokens/colors.css`](../design-system/tokens/colors.css) and [`tokens/status.css`](../design-system/tokens/status.css)._
 
 | Role | Token / variable | Value / notes |
 |---|---|---|
-| Background | _pending_ | design-system add (RCG-frontend) |
-| Surface | _pending_ | |
-| Primary text | _pending_ | |
-| Brand / accent | _pending_ | |
-| Error / success / warning | _pending_ | error/success used heavily in head-to-head contrast (baseline failures) |
+| Background | `--color-bg` | cool grey (neutral-100); page canvas |
+| Surface | `--color-surface` / `--color-surface-raised` | white / neutral-50 cards & panels |
+| Primary text | `--color-text-primary` | neutral-900 (secondary/tertiary/disabled also defined) |
+| Brand / accent | `--color-accent` (= `--color-iris-500`) | iris/periwinkle scale `--color-iris-50…900`; `-fg`/`-text`/`-subtle`/`-muted` aliases |
+| Border | `--color-border` / `-strong` / `-subtle` | translucent black hairlines |
+| Error / success / warning | `--color-error` / `--color-success` / `--color-warning` (+ `-bg`/`-fg`) | used heavily in head-to-head contrast (baseline failures) |
+
+**Plan/step lifecycle colors** (map 1:1 to `plans.status` / `plan_steps.status`) — drive every node + chip from these, never a literal: `--status-generating`, `--status-proposed`, `--status-current`, `--status-stale`, `--status-superseded`, `--status-failed` (each with a `-bg` pair). Mutation log: `--mutation-accent`, `--mutation-rail`.
 
 **Rules:**
-- Use design tokens only once the system lands — **no hardcoded hex** in components.
-- Theme mode (dark / light / both): _TBD with design-system add._
+- **No hardcoded hex** in components — reference tokens (or preset utilities) only.
+- Theme mode: **light only** for the demo. Tokens are semantic aliases over raw scales, so a dark map can be added later without touching component code.
 
 ---
 
 ## Typography
 
-_Pending design-system add. Note a mono face is needed for IDs and mutation-log fields._
+_Defined in [`tokens/typography.css`](../design-system/tokens/typography.css); faces declared in [`tokens/fonts.css`](../design-system/tokens/fonts.css). Global font is set on `body` by [`global.css`](../design-system/global.css) — inherit it, don't set per-component. Use the semantic `--type-*` roles (shorthand `font:` values) rather than raw size/weight tokens._
 
-| Role | Font | Usage |
+| Role | Font (token) | Usage |
 |---|---|---|
-| UI | _pending_ | body, labels, plan steps |
-| Mono | _pending_ | node IDs, mutation-log entries, JSON fragments |
+| UI / body | `--font-sans` (SF Pro Text) | body, labels, plan steps — roles `--type-body`, `--type-body-sm`, `--type-label` |
+| Display | `--font-display` (SF Pro Display) | headings/titles — `--type-display`, `--type-headline`, `--type-title` |
+| Mono | `--font-mono` (Fira Code) | node IDs, mutation-log entries, JSON fragments — role `--type-mono` |
+
+Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--tracking-*` · leading `--leading-*`.
 
 ---
 
@@ -61,9 +69,10 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 
 ## Component library
 
-- **Library:** custom components on Tailwind (no prebuilt UI kit). Design system being added soon.
-- **Location:** _TBD_ (likely `components/` + `components/ui/` once the system lands).
-- **Rule:** once the design system is in, build from its primitives; do not hand-roll one-off styled elements.
+- **Library:** Malleable UI — custom components on Tailwind (no prebuilt UI kit), all token-backed.
+- **Location:** tokens + fonts + Tailwind preset at [`../design-system/`](../design-system/); app components built in `components/ui/` once the shell is scaffolded. No component code ships in the design system yet — by design.
+- **Planned primitives:** `Button`, `Card`, `Tag`, `CommandInput`, `Blob` — build as token-backed Tailwind components when needed (pattern + cheat sheet in [`design-system/README.md`](../design-system/README.md)).
+- **Rule:** build from tokens + the Tailwind preset; map any new component (props → tokens) in the design-system README. Do not hand-roll one-off styled elements or literal values.
 
 ---
 
@@ -88,7 +97,7 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 | Mutation arrives | new typed entry animates into the sidebar |
 | Invalidation | affected plan revision → `stale`; steps → `stale`; then new revision promoted to **`current`** (prior → `superseded`) |
 | Baseline failure (contrast) | baseline visibly hallucinates a ratio / misses invalidation / re-fetches a tool result |
-| Error | _TBD with design-system add (inline vs toast)_ |
+| Error | inline, token-colored with `--color-error` / `-bg` / `-fg`; baseline failures render in the contrast column, not a toast |
 | Empty | pre-query state: prompt the persona query |
 
 ---
@@ -96,8 +105,9 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 ## Accessibility baseline
 
 - Keyboard navigable query input and controls.
-- Focus visible on interactive elements.
-- Color contrast WCAG AA for text (confirm once tokens land).
+- Focus visible on interactive elements — handled globally by [`global.css`](../design-system/global.css) (`:focus-visible` ring on `--color-accent`).
+- `prefers-reduced-motion` honored globally (springs/breathe neutralized) — also in `global.css`.
+- Color contrast WCAG AA for text: `--color-text-secondary` (neutral-600) on `--color-surface` is the body floor; don't go lighter for body copy.
 
 ---
 
@@ -157,13 +167,14 @@ Research **done** — endpoints and response shape understood; feeds the demo sh
 
 ## Icons & assets
 
-- **Icons:** _TBD with design-system add._
-- **Assets path:** _TBD._
+- **Icons:** inline SVG, sized in `em` and colored via `currentColor` so they inherit token text colors. Add a shared `components/ui/Icon` set as surfaces are built.
+- **Fonts/assets path:** webfonts resolve via `local()` (SF Pro) + CDN (Fira Code); for non-Apple self-hosting, drop `.woff2` into `design-system/assets/fonts/` and add `url()` entries in [`tokens/fonts.css`](../design-system/tokens/fonts.css).
 
 ---
 
 ## Related docs
 
+- **Design system + usage guide: [`../design-system/README.md`](../design-system/README.md)** (tokens, fonts, preset, primitives)
 - Architecture (SSE, lifecycle, Clerk): [`architecture-context.md`](architecture-context.md)
 - Product overview: [`project-overview.md`](project-overview.md)
 - Team status board: [`../STATUS.md`](../STATUS.md)
