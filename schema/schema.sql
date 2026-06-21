@@ -2,7 +2,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  clerk_user_id TEXT NOT NULL UNIQUE,
+  clerk_id TEXT NOT NULL UNIQUE,
   email TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -95,6 +95,7 @@ CREATE UNIQUE INDEX edges_unique_active_relationship
 CREATE TABLE graph_mutations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sequence BIGINT GENERATED ALWAYS AS IDENTITY,
+  mutation_txn_id UUID NOT NULL DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   actor TEXT NOT NULL,
   event_type TEXT NOT NULL,
@@ -132,44 +133,54 @@ CREATE TABLE replan_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   plan_lineage_id TEXT NOT NULL,
-  source_plan_step_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'queued',
-  lease_owner TEXT NULL,
-  lease_expires_at TIMESTAMPTZ NULL,
+  source_plan_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  trigger_mutation_txn_id UUID NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
   attempt_count INTEGER NOT NULL DEFAULT 0,
-  run_after TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_error TEXT NULL,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_at TIMESTAMPTZ NULL,
+  locked_by TEXT NULL,
+  lease_expires_at TIMESTAMPTZ NULL,
+  result_plan_id UUID NULL REFERENCES nodes(id),
+  error TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ NULL,
 
   CONSTRAINT replan_jobs_status_check CHECK (
-    status IN ('queued', 'leased', 'completed', 'failed')
+    status IN ('pending', 'processing', 'completed', 'failed', 'superseded')
   ),
-  CONSTRAINT replan_jobs_attempt_count_nonnegative CHECK (attempt_count >= 0)
+  CONSTRAINT replan_jobs_attempt_count_nonnegative CHECK (attempt_count >= 0),
+  CONSTRAINT replan_jobs_max_attempts_positive CHECK (max_attempts > 0)
 );
 
 CREATE INDEX replan_jobs_claim_idx
-  ON replan_jobs (status, run_after, lease_expires_at);
+  ON replan_jobs (status, available_at, lease_expires_at);
 CREATE INDEX replan_jobs_user_status_idx ON replan_jobs (user_id, status);
 CREATE UNIQUE INDEX replan_jobs_open_source_unique
-  ON replan_jobs (source_plan_step_id)
-  WHERE status IN ('queued', 'leased');
+  ON replan_jobs (source_plan_id)
+  WHERE status IN ('pending', 'processing');
+CREATE UNIQUE INDEX replan_jobs_idempotency_key_unique
+  ON replan_jobs (user_id, plan_lineage_id, trigger_mutation_txn_id, idempotency_key);
 
 CREATE TABLE idempotency_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  operation_type TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
-  operation TEXT NOT NULL,
   request_hash TEXT NOT NULL,
+  mutation_txn_id UUID NULL,
   status TEXT NOT NULL DEFAULT 'in_progress',
-  response JSONB NULL,
+  result_reference JSONB NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   CONSTRAINT idempotency_records_status_check CHECK (
     status IN ('in_progress', 'completed', 'failed')
   ),
-  UNIQUE (user_id, operation, idempotency_key)
+  UNIQUE (user_id, operation_type, idempotency_key)
 );
 
 CREATE TABLE agent_runs (
@@ -293,6 +304,7 @@ DECLARE
   new_source_version INTEGER;
   new_dest_version INTEGER;
   response_payload JSONB;
+  v_mutation_txn_id UUID := gen_random_uuid();
   stale_step RECORD;
 BEGIN
   IF p_amount_points <= 0 THEN
@@ -303,7 +315,7 @@ BEGIN
     INTO existing_idempotency
     FROM idempotency_records
    WHERE user_id = p_user_id
-     AND operation = 'TransferPoints'
+     AND operation_type = 'TransferPoints'
      AND idempotency_key = p_idempotency_key
    FOR UPDATE;
 
@@ -313,10 +325,10 @@ BEGIN
     END IF;
 
     IF existing_idempotency.status = 'completed' THEN
-      source_balance_id := (existing_idempotency.response->>'source_balance_id')::uuid;
-      source_version := (existing_idempotency.response->>'source_version')::integer;
-      dest_balance_id := (existing_idempotency.response->>'dest_balance_id')::uuid;
-      dest_version := (existing_idempotency.response->>'dest_version')::integer;
+      source_balance_id := (existing_idempotency.result_reference->>'source_balance_id')::uuid;
+      source_version := (existing_idempotency.result_reference->>'source_version')::integer;
+      dest_balance_id := (existing_idempotency.result_reference->>'dest_balance_id')::uuid;
+      dest_version := (existing_idempotency.result_reference->>'dest_version')::integer;
       idempotency_replayed := true;
       RETURN NEXT;
       RETURN;
@@ -324,16 +336,18 @@ BEGIN
   ELSE
     INSERT INTO idempotency_records (
       user_id,
+      operation_type,
       idempotency_key,
-      operation,
       request_hash,
+      mutation_txn_id,
       status
     )
     VALUES (
       p_user_id,
-      p_idempotency_key,
       'TransferPoints',
+      p_idempotency_key,
       p_request_hash,
+      v_mutation_txn_id,
       'in_progress'
     );
   END IF;
@@ -405,6 +419,7 @@ BEGIN
   RETURNING version INTO new_dest_version;
 
   INSERT INTO graph_mutations (
+    mutation_txn_id,
     user_id,
     actor,
     event_type,
@@ -417,6 +432,7 @@ BEGIN
   )
   VALUES
     (
+      v_mutation_txn_id,
       p_user_id,
       p_actor,
       'transfer_points',
@@ -428,6 +444,7 @@ BEGIN
       new_source_version
     ),
     (
+      v_mutation_txn_id,
       p_user_id,
       p_actor,
       'transfer_points',
@@ -443,9 +460,16 @@ BEGIN
     SELECT DISTINCT
       stale.plan_step_id,
       step.user_id,
-      step.attributes->>'plan_lineage_id' AS plan_lineage_id
+      step.attributes->>'plan_lineage_id' AS plan_lineage_id,
+      plan_node.id AS source_plan_id
     FROM stale_plan_steps stale
     JOIN nodes step ON step.id = stale.plan_step_id
+    JOIN edges step_of
+      ON step_of.source_id = step.id
+     AND step_of.type = 'STEP_OF'
+    JOIN nodes plan_node
+      ON plan_node.id = step_of.target_id
+     AND plan_node.type = 'PlanQuery'
     WHERE stale.depended_node_id IN (p_source_balance_id, p_dest_balance_id)
       AND step.user_id = p_user_id
   LOOP
@@ -457,17 +481,21 @@ BEGIN
     INSERT INTO replan_jobs (
       user_id,
       plan_lineage_id,
-      source_plan_step_id,
+      source_plan_id,
+      trigger_mutation_txn_id,
+      idempotency_key,
       status
     )
     VALUES (
       p_user_id,
-      COALESCE(stale_step.plan_lineage_id, stale_step.plan_step_id::text),
-      stale_step.plan_step_id,
-      'queued'
+      COALESCE(stale_step.plan_lineage_id, stale_step.source_plan_id::text),
+      stale_step.source_plan_id,
+      v_mutation_txn_id,
+      p_idempotency_key,
+      'pending'
     )
-    ON CONFLICT (source_plan_step_id)
-      WHERE status IN ('queued', 'leased')
+    ON CONFLICT (source_plan_id)
+      WHERE status IN ('pending', 'processing')
       DO NOTHING;
   END LOOP;
 
@@ -480,10 +508,11 @@ BEGIN
 
   UPDATE idempotency_records
      SET status = 'completed',
-         response = response_payload,
+         mutation_txn_id = v_mutation_txn_id,
+         result_reference = response_payload,
          updated_at = now()
    WHERE user_id = p_user_id
-     AND operation = 'TransferPoints'
+     AND operation_type = 'TransferPoints'
      AND idempotency_key = p_idempotency_key;
 
   source_balance_id := p_source_balance_id;
@@ -504,19 +533,19 @@ RETURNS TABLE (
   id UUID,
   user_id UUID,
   plan_lineage_id TEXT,
-  source_plan_step_id UUID,
+  source_plan_id UUID,
   attempt_count INTEGER
 )
 LANGUAGE sql
 AS $$
   WITH claimable AS (
     SELECT job.id
-      FROM replan_jobs job
-     WHERE job.run_after <= now()
+     FROM replan_jobs job
+     WHERE job.available_at <= now()
        AND (
-         job.status = 'queued'
+         job.status = 'pending'
          OR (
-           job.status = 'leased'
+           job.status = 'processing'
            AND job.lease_expires_at < now()
          )
        )
@@ -525,8 +554,9 @@ AS $$
      FOR UPDATE SKIP LOCKED
   )
   UPDATE replan_jobs job
-     SET status = 'leased',
-         lease_owner = p_worker_id,
+     SET status = 'processing',
+         locked_at = now(),
+         locked_by = p_worker_id,
          lease_expires_at = now() + p_lease_duration,
          attempt_count = attempt_count + 1,
          updated_at = now()
@@ -536,7 +566,7 @@ AS $$
     job.id,
     job.user_id,
     job.plan_lineage_id,
-    job.source_plan_step_id,
+    job.source_plan_id,
     job.attempt_count;
 $$;
 

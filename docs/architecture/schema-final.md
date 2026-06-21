@@ -73,7 +73,7 @@ Relational app-user table. It maps the authenticated Clerk identity to the inter
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
-| clerk_user_id | text | UNIQUE, NOT NULL |
+| clerk_id | text | UNIQUE, NOT NULL |
 | email | text | nullable |
 | created_at / updated_at | timestamptz | UTC |
 
@@ -297,6 +297,7 @@ User-scoped append-only audit/SSE replay table. This is not a worker queue; work
 |---|---|---|
 | id | uuid | PK |
 | sequence | bigint | identity; replay cursor per user |
+| mutation_txn_id | uuid | groups all mutation rows from one graph-write transaction |
 | user_id | uuid | FK → users(id) |
 | actor | text | agent/service that committed the mutation |
 | event_type | text | `create_node`,`update_node`,`create_edge`,`update_edge`,`mark_stale`,`supersede_plan_step`,`transfer_points` |
@@ -313,13 +314,17 @@ Async work queue for stale-plan re-planning. Balance writes enqueue here; redemp
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
 | plan_lineage_id | text | stale plan lineage |
-| source_plan_step_id | uuid | FK → plan step |
-| status | text | `queued`,`leased`,`completed`,`failed` |
-| lease_owner / lease_expires_at | text / timestamptz | worker lease |
+| source_plan_id | uuid | FK → stale source plan revision |
+| trigger_mutation_txn_id | uuid | invalidating graph-write transaction |
+| idempotency_key | text | unique per lineage + trigger |
+| status | text | `pending`,`processing`,`completed`,`failed`,`superseded` |
+| locked_at / locked_by / lease_expires_at | timestamptz / text / timestamptz | worker lease |
 | attempt_count | integer | increments on claim |
-| run_after | timestamptz | delayed retry support |
-| last_error | text | nullable |
-| created_at / updated_at | timestamptz | UTC |
+| max_attempts | integer | default 3 |
+| available_at | timestamptz | delayed retry support |
+| result_plan_id | uuid | new revision on success |
+| error | text | nullable |
+| created_at / updated_at / completed_at | timestamptz | UTC |
 
 ### 3.7 `idempotency_records`
 Dedupes side-effecting operations such as `TransferPoints`.
@@ -328,13 +333,14 @@ Dedupes side-effecting operations such as `TransferPoints`.
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
+| operation_type | text | e.g. `TransferPoints` |
 | idempotency_key | text | caller-provided key |
-| operation | text | e.g. `TransferPoints` |
 | request_hash | text | rejects key reuse with a different request |
+| mutation_txn_id | uuid | outcome graph-write transaction |
 | status | text | `in_progress`,`completed`,`failed` |
-| response | jsonb | stored completed response |
+| result_reference | jsonb | stored completed response |
 | created_at / updated_at | timestamptz | UTC |
-| | | UNIQUE (`user_id`, `operation`, `idempotency_key`) |
+| | | UNIQUE (`user_id`, `operation_type`, `idempotency_key`) |
 
 ---
 
@@ -460,7 +466,7 @@ CREATE INDEX ON agent_runs (plan_id);
 CREATE INDEX ON external_quotes (plan_id);
 CREATE INDEX ON evaluations (benchmark_query_id);
 CREATE INDEX ON graph_mutations (user_id, sequence);
-CREATE INDEX ON replan_jobs (status, run_after, lease_expires_at);
+CREATE INDEX ON replan_jobs (status, available_at, lease_expires_at);
 
 -- dependency tracking — the hot path
 CREATE INDEX ON state_dependencies (target_table, target_node_id);

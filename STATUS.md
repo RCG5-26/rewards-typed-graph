@@ -36,7 +36,7 @@ Update only your own row. Format: short phrases, not paragraphs.
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Draft schema spec (RCG-6); align PR #2 with v3.1 lifecycle + operational tables | nothing |
+| Alan · Graph | kickoff | Draft schema spec (RCG-6); align PR #2 with v3.1 lifecycle + operational table names | nothing |
 | Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
 | Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
 | Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |

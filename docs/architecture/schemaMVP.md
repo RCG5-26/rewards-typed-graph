@@ -220,7 +220,7 @@ Relational app-user table used to scope graph nodes, graph mutation replay, jobs
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  clerk_user_id TEXT NOT NULL UNIQUE,
+  clerk_id TEXT NOT NULL UNIQUE,
   email TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -235,6 +235,7 @@ Append-only, user-scoped audit/event log. This powers the demo sidebar and SSE r
 CREATE TABLE graph_mutations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sequence BIGINT GENERATED ALWAYS AS IDENTITY,
+  mutation_txn_id UUID NOT NULL DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
   actor TEXT NOT NULL,
   event_type TEXT NOT NULL,
@@ -259,41 +260,48 @@ CREATE INDEX graph_mutations_target_idx
 
 ### 4.5 `replan_jobs`
 
-Queue for async re-planning after write-path invalidation. Workers claim rows with leases and `FOR UPDATE SKIP LOCKED` so only one worker processes a stale plan step at a time.
+Queue for async re-planning after write-path invalidation. Workers claim rows with leases and `FOR UPDATE SKIP LOCKED` so only one worker processes a stale source plan revision at a time.
 
 ```sql
 CREATE TABLE replan_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
   plan_lineage_id TEXT NOT NULL,
-  source_plan_step_id UUID NOT NULL REFERENCES nodes(id),
-  status TEXT NOT NULL DEFAULT 'queued',
-  lease_owner TEXT NULL,
-  lease_expires_at TIMESTAMPTZ NULL,
+  source_plan_id UUID NOT NULL REFERENCES nodes(id),
+  trigger_mutation_txn_id UUID NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
   attempt_count INTEGER NOT NULL DEFAULT 0,
-  run_after TIMESTAMPTZ NOT NULL DEFAULT now(),
-  last_error TEXT NULL,
+  max_attempts INTEGER NOT NULL DEFAULT 3,
+  available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  locked_at TIMESTAMPTZ NULL,
+  locked_by TEXT NULL,
+  lease_expires_at TIMESTAMPTZ NULL,
+  result_plan_id UUID NULL REFERENCES nodes(id),
+  error TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ NULL
 );
 ```
 
 ### 4.6 `idempotency_records`
 
-Prevents duplicate side effects for operations such as `TransferPoints`. A retry with the same request hash returns the original completed response; the same key with a different request is rejected.
+Prevents duplicate side effects for operations such as `TransferPoints`. A retry with the same request hash returns the original completed `result_reference`; the same key with a different request is rejected.
 
 ```sql
 CREATE TABLE idempotency_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
+  operation_type TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
-  operation TEXT NOT NULL,
   request_hash TEXT NOT NULL,
+  mutation_txn_id UUID NULL,
   status TEXT NOT NULL DEFAULT 'in_progress',
-  response JSONB NULL,
+  result_reference JSONB NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, operation, idempotency_key)
+  UNIQUE (user_id, operation_type, idempotency_key)
 );
 ```
 

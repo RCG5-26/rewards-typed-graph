@@ -25,10 +25,10 @@ For the MVP implementation, use polymorphic typed-graph storage instead of the v
 - `schema/schema.sql` is the canonical DDL for the MVP database.
 - `PlanQuery` and `PlanStep` attributes carry v3.1-compatible lifecycle fields: `plan_lineage_id`, `revision_number`, and step supersession links.
 - `supersede_plan_step()` creates the successor `PlanStep` and marks the stale source step `superseded` atomically.
-- `users` maps app users to Clerk identities and scopes graph data, SSE replay, jobs, and benchmark rows.
-- `graph_mutations` is the user-scoped append-only audit/SSE replay log; it is not a work queue.
-- `replan_jobs` is the async work queue for stale-plan re-planning, with leases and `FOR UPDATE SKIP LOCKED` claims.
-- `idempotency_records` protects side-effecting writes such as `TransferPoints` from duplicate retries.
+- `users.clerk_id` maps Clerk identities and scopes graph data, SSE replay, jobs, and benchmark rows.
+- `graph_mutations` is the user-scoped append-only audit/SSE replay log; it carries `mutation_txn_id` and is not a work queue.
+- `replan_jobs` is the async work queue for stale-plan re-planning, with v3.1 names (`source_plan_id`, `trigger_mutation_txn_id`, `available_at`, `locked_by`, `result_plan_id`) and `FOR UPDATE SKIP LOCKED` claims.
+- `idempotency_records` protects side-effecting writes such as `TransferPoints` from duplicate retries using v3.1 names (`operation_type`, `mutation_txn_id`, `result_reference`).
 - `agent_runs`, `benchmark_queries`, and `evaluations` preserve the ADR 0002 benchmark apparatus.
 
 The MVP keeps the architectural core that matters for the demo:
@@ -57,6 +57,7 @@ It also matches the current implementation and tests: the DDL, JSON Schema contr
 - Application/schema validators carry more responsibility for type-specific attributes and polymorphic referential rules.
 - Re-plan consumers should use `supersede_plan_step`, not update stale steps in place.
 - Frontend sidebar consumers should replay from `graph_mutations (user_id, sequence)` and workers should claim from `replan_jobs`, never from the mutation log.
+- Operational tables intentionally use v3.1 field names even though plan and step rows live in polymorphic `nodes`.
 - Wallet transfer code should use `transfer_points` with an idempotency key; direct balance updates bypass the hero invalidation chain.
 - Future schema changes remain additive-only unless recorded in a new ADR.
 

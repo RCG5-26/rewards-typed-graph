@@ -274,6 +274,8 @@ class SchemaArtifactsTest(unittest.TestCase):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
         self.assertIn("CREATE TABLE users", schema_sql)
+        self.assertIn("clerk_id TEXT NOT NULL UNIQUE", schema_sql)
+        self.assertNotIn("clerk_user_id", schema_sql)
         self.assertIn("CREATE TABLE nodes", schema_sql)
         self.assertIn("CREATE TABLE edges", schema_sql)
         self.assertIn("CREATE TABLE graph_mutations", schema_sql)
@@ -300,25 +302,66 @@ class SchemaArtifactsTest(unittest.TestCase):
 
     def test_schema_sql_defines_replan_job_claims_with_leases(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        table_sql = schema_sql[
+            schema_sql.index("CREATE TABLE replan_jobs") :
+            schema_sql.index("CREATE TABLE idempotency_records")
+        ]
         function_sql = schema_sql[
             schema_sql.index("CREATE FUNCTION claim_replan_jobs") :
             schema_sql.index("CREATE FUNCTION mark_plan_step_stale")
         ]
 
+        self.assertIn("source_plan_id UUID NOT NULL REFERENCES nodes(id)", table_sql)
+        self.assertIn("trigger_mutation_txn_id UUID NOT NULL", table_sql)
+        self.assertIn("idempotency_key TEXT NOT NULL", table_sql)
+        self.assertIn("available_at TIMESTAMPTZ NOT NULL DEFAULT now()", table_sql)
+        self.assertIn("locked_at TIMESTAMPTZ NULL", table_sql)
+        self.assertIn("locked_by TEXT NULL", table_sql)
+        self.assertIn("max_attempts INTEGER NOT NULL DEFAULT 3", table_sql)
+        self.assertIn("result_plan_id UUID NULL REFERENCES nodes(id)", table_sql)
+        self.assertIn("error TEXT NULL", table_sql)
+        self.assertIn("completed_at TIMESTAMPTZ NULL", table_sql)
+        self.assertIn(
+            "status IN ('pending', 'processing', 'completed', 'failed', 'superseded')",
+            table_sql,
+        )
+        self.assertIn("ON replan_jobs (source_plan_id)", table_sql)
+        self.assertIn("WHERE status IN ('pending', 'processing')", table_sql)
+        self.assertNotIn("source_plan_step_id", table_sql)
+        self.assertNotIn("run_after", table_sql)
+        self.assertNotIn("lease_owner", table_sql)
+        self.assertNotIn("last_error", table_sql)
+
         self.assertIn("CREATE FUNCTION claim_replan_jobs", function_sql)
         self.assertIn("FOR UPDATE SKIP LOCKED", function_sql)
-        self.assertIn("lease_owner = p_worker_id", function_sql)
+        self.assertIn("locked_by = p_worker_id", function_sql)
+        self.assertIn("locked_at = now()", function_sql)
         self.assertIn("lease_expires_at = now() + p_lease_duration", function_sql)
         self.assertIn("attempt_count = attempt_count + 1", function_sql)
+        self.assertIn("job.available_at <= now()", function_sql)
+        self.assertIn("job.status = 'pending'", function_sql)
+        self.assertIn("job.status = 'processing'", function_sql)
+        self.assertIn("SET status = 'processing'", function_sql)
 
     def test_schema_sql_defines_idempotency_records(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        table_sql = schema_sql[
+            schema_sql.index("CREATE TABLE idempotency_records") :
+            schema_sql.index("CREATE TABLE agent_runs")
+        ]
 
-        self.assertIn("CREATE TABLE idempotency_records", schema_sql)
-        self.assertIn("idempotency_key TEXT NOT NULL", schema_sql)
-        self.assertIn("request_hash TEXT NOT NULL", schema_sql)
-        self.assertIn("response JSONB NULL", schema_sql)
-        self.assertIn("UNIQUE (user_id, operation, idempotency_key)", schema_sql)
+        self.assertIn("CREATE TABLE idempotency_records", table_sql)
+        self.assertIn("operation_type TEXT NOT NULL", table_sql)
+        self.assertIn("idempotency_key TEXT NOT NULL", table_sql)
+        self.assertIn("request_hash TEXT NOT NULL", table_sql)
+        self.assertIn("mutation_txn_id UUID NULL", table_sql)
+        self.assertIn("result_reference JSONB NULL", table_sql)
+        self.assertIn(
+            "UNIQUE (user_id, operation_type, idempotency_key)",
+            table_sql,
+        )
+        self.assertNotIn("operation TEXT NOT NULL", table_sql)
+        self.assertNotIn("response JSONB NULL", table_sql)
 
     def test_schema_sql_defines_transfer_points_function(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
@@ -333,6 +376,10 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("amount_points", function_sql)
         self.assertIn("INSERT INTO graph_mutations", function_sql)
         self.assertIn("INSERT INTO replan_jobs", function_sql)
+        self.assertIn("source_plan_id", function_sql)
+        self.assertIn("trigger_mutation_txn_id", function_sql)
+        self.assertIn("operation_type", function_sql)
+        self.assertIn("result_reference", function_sql)
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
