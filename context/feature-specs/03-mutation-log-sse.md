@@ -27,17 +27,28 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 ## Contracts touched (link — do not restate the schema)
 
-- **Consumes:** `graph_mutations` table ([`../../docs/architecture/schema-final.md`](../../docs/architecture/schema-final.md) infra tables).
-- **Produces:** the SSE event type + its JSON Schema in `schema/contracts/` (the canonical "mutation-log event shape" both backend and frontend validate against, ADR 0007).
+- **Consumes:** `graph_mutations` table ([`../../docs/architecture/schema-final.md`](../../docs/architecture/schema-final.md) §5.1).
+- **Produces:** [`../../schema/contracts/mutation-event.schema.json`](../../schema/contracts/mutation-event.schema.json) — canonical SSE payload (ADR 0007).
 - **Invariants:** per-user ordering via the advisory lock (ADR 0008); user-scoped (no cross-user fanout in MVP).
+
+---
+
+## Event model (decided)
+
+| Choice | Decision |
+|---|---|
+| Granularity | **One SSE event per `graph_mutations` row** — not a transaction-level envelope grouping multiple rows |
+| Cursor / ordering | **`event_id` = `graph_mutations.id`** (bigserial). No separate `seq` column — per-user monotonic order when §6.3 advisory lock held |
+| Field names | Wire JSON mirrors DDL columns (`mutation_type`, `target_table`, `target_node_id`, `before`/`after`, …). `operation_type` is idempotency-only, not SSE |
+| OCC `version` | Lives inside `before`/`after` jsonb for versioned tables (e.g. `user_balances`), not a top-level SSE field |
 
 ---
 
 ## Downstream behavior
 
-- Client opens one SSE connection per user and receives mutation events in commit order: `{seq, ts, agent, op (insert|update), node_type|edge_type, id, summary (old→new), version}`.
-- On reconnect with `Last-Event-ID`, the stream replays missed events from that seq exactly once.
-- The sidebar renders the stream live; stale-flip events let it light up affected plan steps (paired with spec 04 output).
+- Client opens one SSE connection per user and receives **row-level** mutation events in commit order (shape validates against `mutation-event.schema.json`).
+- SSE `Last-Event-ID` = `event_id`; reconnect replays rows with `id > Last-Event-ID` for that user (exactly once).
+- The sidebar renders the stream live; `mutation_type` values such as plan/step staleness updates light affected plan steps (paired with spec 04 output).
 
 ---
 
@@ -51,11 +62,10 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 ## Implementation plan
 
-1. Define the event TS type + JSON Schema in `schema/contracts/mutation-event.*` (one source of truth; codegen per ADR 0007).
-2. Add a per-user monotonic `seq` to `graph_mutations` (or derive from the ordered insert).
-3. SSE endpoint: stream new `graph_mutations` for the user, ordered by `seq`.
-4. Replay: honor `Last-Event-ID` → resend events with `seq >` that id.
-5. Ship a mock event generator matching the schema so Val builds the sidebar without the backend (RCG-24).
+1. **Done (contract):** [`schema/contracts/mutation-event.schema.json`](../../schema/contracts/mutation-event.schema.json) — generate TS/Python types per ADR 0007 when codegen lands.
+2. SSE endpoint: `SELECT` new `graph_mutations` for the authenticated user, ordered by `id`; map columns 1:1 to the schema.
+3. Replay: honor `Last-Event-ID` → resend rows with `id >` that cursor; REST `GET /mutations?after=` for catch-up.
+4. Ship a mock event generator validating against the schema so Val builds the sidebar without the backend (RCG-24).
 
 ---
 
@@ -63,7 +73,8 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 | Path | Change |
 |---|---|
-| `schema/contracts/mutation-event.*` | create — event JSON Schema + generated type |
+| `schema/contracts/mutation-event.schema.json` | **exists** — canonical event JSON Schema |
+| `packages/schema-ts/` (generated) | add — TS type from schema when codegen wired |
 | `src/api/stream.*` | create — SSE endpoint + replay |
 | `src/mock/mutation-stream.*` | create — schema-shaped mock generator |
 | `tests/api/stream.*` | create — ordering + replay tests |
@@ -72,8 +83,8 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 ## Acceptance criteria
 
-- [ ] Emitted events validate against `schema/contracts/mutation-event` schema.
-- [ ] Events arrive in commit order; `seq` is monotonic per user.
+- [ ] Emitted events validate against `schema/contracts/mutation-event.schema.json`.
+- [ ] Events arrive in commit order; `event_id` (`graph_mutations.id`) is monotonic per user.
 - [ ] Reconnect with `Last-Event-ID` replays missed events exactly once (no dupes, no gaps).
 - [ ] The mock generator emits the same shape as the live endpoint.
 - [ ] typecheck + tests pass.
@@ -94,4 +105,5 @@ npm test -- api/stream
 
 | # | Question | Blocking? | Resolution |
 |---|---|---|---|
-| 1 | `seq` stored column vs ordered-insert derivation? | no | Alan to pick during 02; either works for the contract |
+| 1 | Row-level vs transaction envelope? | — | **Resolved:** one SSE event per `graph_mutations` row; `event_id` = `id` |
+| 2 | Consumer sign-off on field list | yes (Ready gate) | Val — review `mutation-event.schema.json` |
