@@ -139,6 +139,17 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "INSERT INTO plans"))
         self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
+        graph_sql, graph_params = _first_sql(connection, "INSERT INTO graph_mutations")
+        self.assertIn("mutation_type", graph_sql)
+        self.assertIn("target_table", graph_sql)
+        self.assertIn("target_node_id", graph_sql)
+        self.assertIn("summary", graph_sql)
+        self.assertIn("before", graph_sql)
+        self.assertIn("after", graph_sql)
+        self.assertNotIn("event_type", graph_sql)
+        self.assertNotIn("target_kind", graph_sql)
+        self.assertNotIn("before_value", graph_sql)
+        self.assertEqual(graph_params[4:8], ("CreatePlan", "plans", plan_id, "Created plan"))
 
     def test_create_plan_step_rejects_missing_plan_before_insert(self):
         connection = FakeConnection()
@@ -390,6 +401,13 @@ class V31GraphWriteServiceTest(unittest.TestCase):
 
 def _any_sql(connection, snippet):
     return any(snippet in sql for sql, _ in connection.executed)
+
+
+def _first_sql(connection, snippet):
+    for sql, params in connection.executed:
+        if snippet in sql:
+            return sql, params
+    raise AssertionError(f"SQL fragment not executed: {snippet}")
 
 
 if __name__ == "__main__":

@@ -412,34 +412,19 @@ CREATE TABLE external_quotes (
 );
 
 CREATE TABLE graph_mutations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sequence BIGINT GENERATED ALWAYS AS IDENTITY,
-  mutation_txn_id UUID NOT NULL DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  plan_lineage_id UUID NULL,
-  actor TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  target_kind TEXT NOT NULL,
-  target_id UUID NOT NULL,
-  target_type TEXT NOT NULL,
-  operation_type TEXT NULL,
-  before_value JSONB NULL,
-  after_value JSONB NULL,
-  resulting_version INTEGER NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT graph_mutations_event_type_check CHECK (
-    event_type IN (
-      'create_node',
-      'update_node',
-      'create_edge',
-      'update_edge',
-      'mark_stale',
-      'supersede_plan_step',
-      'transfer_points'
-    )
-  ),
-  CONSTRAINT graph_mutations_target_kind_check CHECK (target_kind IN ('node', 'edge'))
+  id                  bigserial PRIMARY KEY,
+  mutation_txn_id     uuid NOT NULL,
+  user_id             uuid NOT NULL REFERENCES users(id),
+  plan_lineage_id     uuid,
+  plan_id             uuid REFERENCES plans(id),
+  agent_run_id        uuid REFERENCES agent_runs(id),
+  mutation_type       text NOT NULL,
+  target_table        text,
+  target_node_id      uuid,
+  summary             text NOT NULL,
+  before              jsonb,
+  after               jsonb,
+  committed_at        timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE replan_jobs (
@@ -536,9 +521,10 @@ CREATE INDEX state_dependencies_step_idx ON state_dependencies (plan_step_id);
 CREATE INDEX agent_runs_plan_idx ON agent_runs (plan_id);
 CREATE INDEX external_quotes_plan_idx ON external_quotes (plan_id);
 CREATE INDEX evaluations_benchmark_query_idx ON evaluations (benchmark_query_id);
-CREATE INDEX graph_mutations_user_sequence_idx ON graph_mutations (user_id, sequence);
-CREATE INDEX graph_mutations_created_at_idx ON graph_mutations (created_at);
-CREATE INDEX graph_mutations_target_idx ON graph_mutations (target_kind, target_id);
+CREATE INDEX graph_mutations_user_id_idx ON graph_mutations (user_id, id);
+CREATE INDEX graph_mutations_committed_at_idx ON graph_mutations (committed_at);
+CREATE INDEX graph_mutations_target_idx
+  ON graph_mutations (target_table, target_node_id);
 CREATE INDEX replan_jobs_claim_idx
   ON replan_jobs (status, available_at, lease_expires_at);
 CREATE INDEX replan_jobs_user_status_idx ON replan_jobs (user_id, status);
@@ -856,48 +842,47 @@ BEGIN
   INSERT INTO graph_mutations (
     mutation_txn_id,
     user_id,
-    actor,
-    event_type,
-    target_kind,
-    target_id,
-    target_type,
-    operation_type,
-    before_value,
-    after_value,
-    resulting_version
+    mutation_type,
+    target_table,
+    target_node_id,
+    summary,
+    before,
+    after
   )
   VALUES
     (
       v_mutation_txn_id,
       p_user_id,
-      p_actor,
-      'transfer_points',
-      'node',
-      p_source_balance_id,
-      'UserBalance',
       'TransferPoints',
+      'user_balances',
+      p_source_balance_id,
+      'Transferred points from source balance',
       to_jsonb(source_balance),
       jsonb_build_object(
         'balance_points',
-        source_balance.balance_points - p_amount_points
-      ),
-      new_source_version
+        source_balance.balance_points - p_amount_points,
+        'version',
+        new_source_version,
+        'actor',
+        p_actor
+      )
     ),
     (
       v_mutation_txn_id,
       p_user_id,
-      p_actor,
-      'transfer_points',
-      'node',
-      p_dest_balance_id,
-      'UserBalance',
       'TransferPoints',
+      'user_balances',
+      p_dest_balance_id,
+      'Transferred points to destination balance',
       to_jsonb(dest_balance),
       jsonb_build_object(
         'balance_points',
-        dest_balance.balance_points + p_amount_points
-      ),
-      new_dest_version
+        dest_balance.balance_points + p_amount_points,
+        'version',
+        new_dest_version,
+        'actor',
+        p_actor
+      )
     );
 
   FOR stale_plan IN
@@ -930,25 +915,25 @@ BEGIN
       mutation_txn_id,
       user_id,
       plan_lineage_id,
-      actor,
-      event_type,
-      target_kind,
-      target_id,
-      target_type,
-      operation_type,
-      after_value
+      plan_id,
+      mutation_type,
+      target_table,
+      target_node_id,
+      summary,
+      before,
+      after
     )
     VALUES (
       v_mutation_txn_id,
       p_user_id,
       stale_plan.plan_lineage_id,
-      p_actor,
-      'mark_stale',
-      'node',
       stale_plan.id,
-      'Plan',
-      'TransferPoints',
-      jsonb_build_object('status', 'stale')
+      'MarkStale',
+      'plans',
+      stale_plan.id,
+      'Marked plan stale after balance dependency changed during TransferPoints',
+      NULL,
+      jsonb_build_object('status', 'stale', 'actor', p_actor)
     );
 
     INSERT INTO replan_jobs (

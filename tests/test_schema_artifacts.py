@@ -198,6 +198,28 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("result plan is not direct successor of source plan", schema_sql)
         self.assertIn("result_plan.supersedes_plan_id = job.source_plan_id", schema_sql)
 
+    def test_default_schema_sql_uses_locked_graph_mutations_contract(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        table_sql = schema_sql[
+            schema_sql.index("CREATE TABLE graph_mutations") :
+            schema_sql.index("CREATE TABLE replan_jobs")
+        ]
+
+        self.assertIn("id                  bigserial PRIMARY KEY", table_sql)
+        self.assertIn("mutation_type       text NOT NULL", table_sql)
+        self.assertIn("target_table        text", table_sql)
+        self.assertIn("target_node_id      uuid", table_sql)
+        self.assertIn("summary             text NOT NULL", table_sql)
+        self.assertIn("before              jsonb", table_sql)
+        self.assertIn("after               jsonb", table_sql)
+        self.assertIn("committed_at        timestamptz NOT NULL DEFAULT now()", table_sql)
+        self.assertNotIn("sequence", table_sql)
+        self.assertNotIn("event_type", table_sql)
+        self.assertNotIn("target_kind", table_sql)
+        self.assertNotIn("target_id", table_sql)
+        self.assertNotIn("before_value", table_sql)
+        self.assertNotIn("after_value", table_sql)
+
     def test_default_schema_sql_uses_status_only_for_step_staleness(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
         plan_steps_sql = schema_sql[

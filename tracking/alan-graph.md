@@ -16,6 +16,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Replace canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim.
 - Complete RCG-10 canonical mutation layer for plan, plan-step, dependency, and transfer writes.
 - Remove residual v3.1 DDL drift around plan-step staleness and direct balance-update invalidation.
+- Align `graph_mutations` with ADR 0008/main so Val can consume the mutation stream contract.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

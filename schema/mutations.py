@@ -8,6 +8,7 @@ experiments at schema.experimental.polymorphic.mutations.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -148,19 +149,19 @@ class V31GraphWriteService:
                 cursor=cursor,
                 user_id=request.user_id,
                 plan_lineage_id=request.plan_lineage_id,
-                actor=request.actor,
-                event_type="create_node",
-                target_kind="node",
-                target_id=plan_id,
-                target_type="Plan",
-                operation_type="CreatePlan",
-                before_value=None,
-                after_value={
+                plan_id=plan_id,
+                mutation_type="CreatePlan",
+                target_table="plans",
+                target_node_id=plan_id,
+                summary="Created plan",
+                before=None,
+                after={
                     "query_text": request.query_text,
                     "status": request.status,
                     "revision_number": request.revision_number,
+                    "actor": request.actor,
+                    "version": version,
                 },
-                resulting_version=version,
             )
 
         return str(plan_id)
@@ -215,20 +216,20 @@ class V31GraphWriteService:
                 cursor=cursor,
                 user_id=request.user_id,
                 plan_lineage_id=request.plan_lineage_id,
-                actor=request.actor,
-                event_type="create_node",
-                target_kind="node",
-                target_id=plan_step_id,
-                target_type="PlanStep",
-                operation_type="CreatePlanStep",
-                before_value=None,
-                after_value={
+                plan_id=request.plan_id,
+                mutation_type="CreatePlanStep",
+                target_table="plan_steps",
+                target_node_id=plan_step_id,
+                summary="Created plan step",
+                before=None,
+                after={
                     "plan_id": request.plan_id,
                     "step_order": request.step_order,
                     "step_type": request.step_type,
                     "status": request.status,
+                    "actor": request.actor,
+                    "version": version,
                 },
-                resulting_version=version,
             )
 
         return str(plan_step_id)
@@ -288,21 +289,21 @@ class V31GraphWriteService:
                 cursor=cursor,
                 user_id=request.user_id,
                 plan_lineage_id=plan_step[1],
-                actor=request.actor,
-                event_type="create_edge",
-                target_kind="edge",
-                target_id=dependency_id,
-                target_type="StateDependency",
-                operation_type="RecordStateDependency",
-                before_value=None,
-                after_value={
+                plan_id=None,
+                mutation_type="RecordStateDependency",
+                target_table="state_dependencies",
+                target_node_id=dependency_id,
+                summary="Recorded state dependency",
+                before=None,
+                after={
                     "plan_step_id": request.plan_step_id,
                     "target_node_id": request.target_node_id,
                     "target_node_type": request.target_node_type,
                     "target_table": request.target_table,
                     "observed_version": request.observed_version,
+                    "actor": request.actor,
+                    "version": version,
                 },
-                resulting_version=version,
             )
 
         return str(dependency_id)
@@ -710,44 +711,40 @@ def _insert_graph_mutation(
     cursor: Any,
     user_id: str,
     plan_lineage_id: Optional[str],
-    actor: str,
-    event_type: str,
-    target_kind: str,
-    target_id: Any,
-    target_type: str,
-    operation_type: str,
-    before_value: Optional[Dict[str, Any]],
-    after_value: Dict[str, Any],
-    resulting_version: int,
+    plan_id: Optional[str],
+    mutation_type: str,
+    target_table: str,
+    target_node_id: Any,
+    summary: str,
+    before: Optional[Dict[str, Any]],
+    after: Dict[str, Any],
 ) -> None:
     cursor.execute(
         """
         INSERT INTO graph_mutations (
+          mutation_txn_id,
           user_id,
           plan_lineage_id,
-          actor,
-          event_type,
-          target_kind,
-          target_id,
-          target_type,
-          operation_type,
-          before_value,
-          after_value,
-          resulting_version
+          plan_id,
+          mutation_type,
+          target_table,
+          target_node_id,
+          summary,
+          before,
+          after
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
+            str(uuid.uuid4()),
             user_id,
             plan_lineage_id,
-            actor,
-            event_type,
-            target_kind,
-            target_id,
-            target_type,
-            operation_type,
-            before_value,
-            after_value,
-            resulting_version,
+            plan_id,
+            mutation_type,
+            target_table,
+            target_node_id,
+            summary,
+            before,
+            after,
         ),
     )
