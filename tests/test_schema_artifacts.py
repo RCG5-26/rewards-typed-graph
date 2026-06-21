@@ -273,9 +273,14 @@ class SchemaArtifactsTest(unittest.TestCase):
     def test_schema_sql_contains_mvp_tables_constraints_and_indexes(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
 
+        self.assertIn("CREATE TABLE users", schema_sql)
         self.assertIn("CREATE TABLE nodes", schema_sql)
         self.assertIn("CREATE TABLE edges", schema_sql)
-        self.assertIn("CREATE TABLE mutation_log", schema_sql)
+        self.assertIn("CREATE TABLE graph_mutations", schema_sql)
+        self.assertIn("CREATE TABLE replan_jobs", schema_sql)
+        self.assertIn("CREATE TABLE idempotency_records", schema_sql)
+        self.assertIn("CREATE TABLE agent_runs", schema_sql)
+        self.assertIn("CREATE TABLE evaluations", schema_sql)
         self.assertIn("'PlanStep'", schema_sql)
         self.assertIn("'DEPENDS_ON'", schema_sql)
         self.assertIn("nodes_attributes_gin_idx", schema_sql)
@@ -283,6 +288,51 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("balance_one_per_user_program_unique", schema_sql)
         self.assertIn("ON nodes (user_id, (attributes->>'program_id'))", schema_sql)
         self.assertIn("WHERE type = 'Balance'", schema_sql)
+
+    def test_schema_sql_defines_user_scoped_graph_mutations_for_sse_replay(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("sequence BIGINT GENERATED ALWAYS AS IDENTITY", schema_sql)
+        self.assertIn("user_id UUID NOT NULL REFERENCES users(id)", schema_sql)
+        self.assertIn("graph_mutations_user_sequence_idx", schema_sql)
+        self.assertIn("ON graph_mutations (user_id, sequence)", schema_sql)
+        self.assertIn("event_type TEXT NOT NULL", schema_sql)
+
+    def test_schema_sql_defines_replan_job_claims_with_leases(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        function_sql = schema_sql[
+            schema_sql.index("CREATE FUNCTION claim_replan_jobs") :
+            schema_sql.index("CREATE FUNCTION mark_plan_step_stale")
+        ]
+
+        self.assertIn("CREATE FUNCTION claim_replan_jobs", function_sql)
+        self.assertIn("FOR UPDATE SKIP LOCKED", function_sql)
+        self.assertIn("lease_owner = p_worker_id", function_sql)
+        self.assertIn("lease_expires_at = now() + p_lease_duration", function_sql)
+        self.assertIn("attempt_count = attempt_count + 1", function_sql)
+
+    def test_schema_sql_defines_idempotency_records(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("CREATE TABLE idempotency_records", schema_sql)
+        self.assertIn("idempotency_key TEXT NOT NULL", schema_sql)
+        self.assertIn("request_hash TEXT NOT NULL", schema_sql)
+        self.assertIn("response JSONB NULL", schema_sql)
+        self.assertIn("UNIQUE (user_id, operation, idempotency_key)", schema_sql)
+
+    def test_schema_sql_defines_transfer_points_function(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        function_sql = schema_sql[
+            schema_sql.index("CREATE FUNCTION transfer_points") :
+            schema_sql.index("CREATE FUNCTION claim_replan_jobs")
+        ]
+
+        self.assertIn("CREATE FUNCTION transfer_points", function_sql)
+        self.assertIn("p_idempotency_key TEXT", function_sql)
+        self.assertIn("UPDATE nodes", function_sql)
+        self.assertIn("amount_points", function_sql)
+        self.assertIn("INSERT INTO graph_mutations", function_sql)
+        self.assertIn("INSERT INTO replan_jobs", function_sql)
 
     def test_schema_sql_defines_mark_plan_step_stale_function(self):
         schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")

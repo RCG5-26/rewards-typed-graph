@@ -25,6 +25,11 @@ For the MVP implementation, use polymorphic typed-graph storage instead of the v
 - `schema/schema.sql` is the canonical DDL for the MVP database.
 - `PlanQuery` and `PlanStep` attributes carry v3.1-compatible lifecycle fields: `plan_lineage_id`, `revision_number`, and step supersession links.
 - `supersede_plan_step()` creates the successor `PlanStep` and marks the stale source step `superseded` atomically.
+- `users` maps app users to Clerk identities and scopes graph data, SSE replay, jobs, and benchmark rows.
+- `graph_mutations` is the user-scoped append-only audit/SSE replay log; it is not a work queue.
+- `replan_jobs` is the async work queue for stale-plan re-planning, with leases and `FOR UPDATE SKIP LOCKED` claims.
+- `idempotency_records` protects side-effecting writes such as `TransferPoints` from duplicate retries.
+- `agent_runs`, `benchmark_queries`, and `evaluations` preserve the ADR 0002 benchmark apparatus.
 
 The MVP keeps the architectural core that matters for the demo:
 
@@ -35,12 +40,13 @@ The MVP keeps the architectural core that matters for the demo:
 - `DEPENDS_ON` edges for plan-step dependency tracking;
 - stale-plan detection from observed dependency versions;
 - write-path invalidation followed by successor revision creation for re-plans;
-- append-only mutation logging for audit/sidebar use.
+- append-only graph mutation logging for audit/sidebar use;
+- atomic `TransferPoints` writes that update balances, log events, invalidate dependent plan steps, and enqueue re-plan jobs in one transaction.
 
 ## Why This Schema
 The polymorphic `nodes`/`edges` model is smaller to implement and easier to evolve during the MVP sprint. It lets the team add node and edge attributes in the shared Python validator without coordinating table migrations for every type-specific field.
 
-It also matches the current implementation and tests: the DDL, JSON Schema contract, generated Python/TypeScript types, mutation service, staleness view, lifecycle/supersession function, optimistic update functions, and Postgres integration script all assume the polymorphic model.
+It also matches the current implementation and tests: the DDL, JSON Schema contract, generated Python/TypeScript types, mutation service, staleness view, lifecycle/supersession function, `TransferPoints` function, operational queue/idempotency/eval tables, optimistic update functions, and Postgres integration script all assume the polymorphic model.
 
 ## Consequences
 - `docs/architecture/schema-final.md` remains authoritative for plan lifecycle semantics, but not for the MVP physical table layout.
@@ -50,6 +56,8 @@ It also matches the current implementation and tests: the DDL, JSON Schema contr
 - Table-per-type benefits are deferred: stronger per-table FK modeling, narrower table schemas, and more conventional relational shape.
 - Application/schema validators carry more responsibility for type-specific attributes and polymorphic referential rules.
 - Re-plan consumers should use `supersede_plan_step`, not update stale steps in place.
+- Frontend sidebar consumers should replay from `graph_mutations (user_id, sequence)` and workers should claim from `replan_jobs`, never from the mutation log.
+- Wallet transfer code should use `transfer_points` with an idempotency key; direct balance updates bypass the hero invalidation chain.
 - Future schema changes remain additive-only unless recorded in a new ADR.
 
 ## Sign-off

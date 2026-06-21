@@ -151,7 +151,8 @@
       "create_edge",
       "update_edge",
       "mark_stale",
-      "supersede_plan_step"
+      "supersede_plan_step",
+      "transfer_points"
     ],
     "earnTypes": [
       "points",

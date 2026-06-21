@@ -5,12 +5,14 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Phase A3: JSON Schema contracts + codegen plan (RCG-7 follow-on).
+- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer (RCG-9)
+- Align PR #2 plan lifecycle with v3.1 lineage/revision semantics.
+- Add v3.1 operational tables/write paths flagged by PR #2 review.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
-- Mutation layer with schema validation (structural + referential + domain)	(RCG-10)
 - Wire redemption re-plan code to call `supersede_plan_step` after successor step creation.
+- Add recursive traversal/query helpers (RCG-12).
 
 ## Blocked on
 - nothing

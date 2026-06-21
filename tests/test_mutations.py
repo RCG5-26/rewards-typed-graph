@@ -39,6 +39,12 @@ class FakeCursor:
             self.result = None if node is None else (node["type"],)
             return
 
+        if compact_sql.startswith("SELECT user_id FROM nodes WHERE id ="):
+            node_id = params[0]
+            node = self.connection.nodes.get(node_id)
+            self.result = None if node is None else (node.get("user_id"),)
+            return
+
         if compact_sql.startswith("SELECT 1 FROM nodes WHERE type = 'Balance'"):
             user_id, program_id = params[:2]
             self.result = (1,) if (user_id, program_id) in self.connection.balances else None
@@ -54,7 +60,7 @@ class FakeCursor:
             self.result = (edge_id, 0)
             return
 
-        if compact_sql.startswith("INSERT INTO mutation_log"):
+        if compact_sql.startswith("INSERT INTO graph_mutations"):
             self.result = None
             return
 
@@ -78,6 +84,11 @@ class FakeCursor:
             self.result = self.connection.supersede_result
             return
 
+        if compact_sql.startswith("SELECT source_balance_id, source_version, dest_balance_id, dest_version, idempotency_replayed FROM transfer_points"):
+            self.connection.transfer_points_calls.append(params)
+            self.result = self.connection.transfer_points_result
+            return
+
         self.result = None
 
     def fetchone(self):
@@ -96,6 +107,8 @@ class FakeConnection:
         self.mark_stale_results = {}
         self.supersede_result = None
         self.supersede_calls = []
+        self.transfer_points_result = None
+        self.transfer_points_calls = []
         self.next_node_id = "node-1"
         self.next_edge_id = "edge-1"
 
@@ -127,7 +140,7 @@ class GraphMutationServiceTest(unittest.TestCase):
             ["Card.attributes missing required field: network"],
         )
         self.assertFalse(_any_sql(connection, "INSERT INTO nodes"))
-        self.assertFalse(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_create_node_rejects_domain_errors_before_commit(self):
         connection = FakeConnection()
@@ -204,7 +217,7 @@ class GraphMutationServiceTest(unittest.TestCase):
             ["HAS_BALANCE edge source must be User, got Card"],
         )
         self.assertFalse(_any_sql(connection, "INSERT INTO edges"))
-        self.assertFalse(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_create_edge_rejects_domain_errors_before_commit(self):
         connection = FakeConnection()
@@ -254,13 +267,13 @@ class GraphMutationServiceTest(unittest.TestCase):
 
         self.assertEqual(node_id, "node-1")
         self.assertTrue(_any_sql(connection, "INSERT INTO nodes"))
-        self.assertTrue(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_create_edge_inserts_and_logs_after_validation(self):
         connection = FakeConnection()
         connection.nodes = {
             "user-1": {"type": "User"},
-            "card-1": {"type": "Card"},
+            "card-1": {"type": "Card", "user_id": "user-1"},
         }
         service = GraphMutationService(connection)
 
@@ -274,7 +287,7 @@ class GraphMutationServiceTest(unittest.TestCase):
 
         self.assertEqual(edge_id, "edge-1")
         self.assertTrue(_any_sql(connection, "INSERT INTO edges"))
-        self.assertTrue(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_update_node_rejects_invalid_attributes_before_commit(self):
         connection = FakeConnection()
@@ -313,7 +326,7 @@ class GraphMutationServiceTest(unittest.TestCase):
             ["Balance.attributes.amount_points must be nonnegative"],
         )
         self.assertFalse(_any_sql(connection, "update_node_optimistic"))
-        self.assertFalse(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_update_node_uses_optimistic_update_and_logs_after_validation(self):
         connection = FakeConnection()
@@ -344,7 +357,7 @@ class GraphMutationServiceTest(unittest.TestCase):
 
         self.assertEqual(updated_id, "user-1")
         self.assertTrue(_any_sql(connection, "update_node_optimistic"))
-        self.assertTrue(_any_sql(connection, "INSERT INTO mutation_log"))
+        self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
 
     def test_update_node_logs_actual_version_returned_by_mark_stale(self):
         connection = FakeConnection()
@@ -382,10 +395,10 @@ class GraphMutationServiceTest(unittest.TestCase):
         mark_stale_logs = [
             params
             for sql, params in connection.executed
-            if "INSERT INTO mutation_log" in sql and params[1] == "mark_stale"
+            if "INSERT INTO graph_mutations" in sql and params[2] == "mark_stale"
         ]
         self.assertEqual(len(mark_stale_logs), 1)
-        self.assertEqual(mark_stale_logs[0][7], 6)
+        self.assertEqual(mark_stale_logs[0][8], 6)
 
     def test_supersede_plan_step_creates_successor_revision_and_logs(self):
         connection = FakeConnection()
@@ -436,12 +449,62 @@ class GraphMutationServiceTest(unittest.TestCase):
         supersede_logs = [
             params
             for sql, params in connection.executed
-            if "INSERT INTO mutation_log" in sql and params[1] == "supersede_plan_step"
+            if "INSERT INTO graph_mutations" in sql and params[2] == "supersede_plan_step"
         ]
         self.assertEqual(len(supersede_logs), 1)
-        self.assertEqual(supersede_logs[0][3], "plan-step-1")
-        self.assertEqual(supersede_logs[0][6]["successor_plan_step_id"], "plan-step-2")
-        self.assertEqual(supersede_logs[0][7], 8)
+        self.assertEqual(supersede_logs[0][4], "plan-step-1")
+        self.assertEqual(supersede_logs[0][7]["successor_plan_step_id"], "plan-step-2")
+        self.assertEqual(supersede_logs[0][8], 8)
+
+    def test_transfer_points_calls_atomic_sql_function_with_idempotency_key(self):
+        connection = FakeConnection()
+        connection.transfer_points_result = (
+            "balance-source",
+            5,
+            "balance-dest",
+            8,
+            False,
+        )
+        service = GraphMutationService(connection)
+
+        result = service.transfer_points(
+            actor="wallet_agent",
+            user_id="user-1",
+            source_balance_id="balance-source",
+            dest_balance_id="balance-dest",
+            amount_points=60000,
+            source_expected_version=4,
+            dest_expected_version=7,
+            idempotency_key="transfer-123",
+            request_hash="hash-abc",
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "source_balance_id": "balance-source",
+                "source_version": 5,
+                "dest_balance_id": "balance-dest",
+                "dest_version": 8,
+                "idempotency_replayed": False,
+            },
+        )
+        self.assertEqual(
+            connection.transfer_points_calls,
+            [
+                (
+                    "user-1",
+                    "balance-source",
+                    "balance-dest",
+                    60000,
+                    4,
+                    7,
+                    "transfer-123",
+                    "hash-abc",
+                    "wallet_agent",
+                )
+            ],
+        )
 
 
 def _any_sql(connection, snippet):

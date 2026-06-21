@@ -10,7 +10,7 @@ GRAPH_TIERS: Tuple[str, ...] = ('world', 'personal', 'plan')
 PROGRAM_KINDS: Tuple[str, ...] = ('transferable', 'airline', 'hotel', 'cashback')
 PLAN_STATUSES: Tuple[str, ...] = ('active', 'stale', 'superseded', 'completed', 'failed')
 PLAN_QUERY_STATUSES: Tuple[str, ...] = ('active', 'completed', 'failed')
-MUTATION_ACTIONS: Tuple[str, ...] = ('create_node', 'update_node', 'create_edge', 'update_edge', 'mark_stale', 'supersede_plan_step')
+MUTATION_ACTIONS: Tuple[str, ...] = ('create_node', 'update_node', 'create_edge', 'update_edge', 'mark_stale', 'supersede_plan_step', 'transfer_points')
 EARN_TYPES: Tuple[str, ...] = ('points', 'miles', 'cashback_pct')
 
 NODE_REQUIRED_ATTRIBUTES: Mapping[str, Tuple[str, ...]] = {'User': ('name', 'optimization_goal'), 'Card': ('name', 'issuer', 'network', 'annual_fee_cents'), 'Program': ('name', 'kind', 'currency_name'), 'MerchantCategory': ('name',), 'Balance': ('program_id', 'amount_points', 'as_of', 'source'), 'Goal': ('goal_type', 'description'), 'PlanQuery': ('plan_lineage_id', 'revision_number', 'query_text', 'status'), 'PlanStep': ('plan_lineage_id', 'revision_number', 'step_order', 'agent', 'claim', 'inputs', 'output', 'status')}

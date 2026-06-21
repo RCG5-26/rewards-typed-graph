@@ -36,10 +36,10 @@ Update only your own row. Format: short phrases, not paragraphs.
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Phase A3: JSON Schema contracts + codegen plan | nothing |
-| Val · Frontend | Card API research done; design system staged; wireframe flow mapped | Demo shell scaffold + sidebar on mocks (RCG-27, RCG-24) | real contracts for payload wiring |
-| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20) | nothing |
-| Raq · Orchestrator (owner, lead) | kickoff | Review v3.1; scaffold orchestrator + agent harness on mocks (RCG-15) | generated contracts for real wiring |
+| Alan · Graph | kickoff | Draft schema spec (RCG-6); align PR #2 with v3.1 lifecycle + operational tables | nothing |
+| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
+| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
+| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
 
 ---
 

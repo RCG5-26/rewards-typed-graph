@@ -64,7 +64,8 @@ export const MUTATION_ACTIONS = [
   "create_edge",
   "update_edge",
   "mark_stale",
-  "supersede_plan_step"
+  "supersede_plan_step",
+  "transfer_points"
 ] as const;
 export type MutationAction = typeof MUTATION_ACTIONS[number];
 

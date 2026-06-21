@@ -13,6 +13,7 @@
 
 | ID | Date | Decision | Status | Detail |
 |---|---|---|---|---|
+| D003 | 2026-06-21 | Add v3.1 operational tables to MVP polymorphic schema | Proposed | `graph_mutations`, `replan_jobs`, idempotency, Clerk users, eval tables, and `TransferPoints` write path are part of the MVP schema contract. |
 | D002 | 2026-06-21 | Preserve v3.1 plan lifecycle in MVP polymorphic storage | Proposed | ADR 0004 is storage-only; plan lineage/revision and supersede semantics remain canonical. |
 | D001 | [YYYY-MM-DD] | [Short title] | Accepted / Proposed / Superseded | [Link or section below] |
 
@@ -34,6 +35,16 @@
 | [ADR 0008](../docs/adr/0008-per-user-serialization-sse.md) | 2026-06-18 | Per-user write serialization + SSE | Accepted | ADR file |
 
 ### ~~Planned ADRs~~ _(promoted 2026-06-18 — see Formal ADRs above)_
+
+### D003 — Add v3.1 operational tables to MVP polymorphic schema
+
+- **Status:** Proposed
+- **Date:** 2026-06-21
+- **Deciders:** Alan, pending all-lane ADR 0004 sign-off
+- **Context:** PR #2 review flagged that generic graph tables alone cannot support the async re-plan hero moment, SSE sidebar recovery, idempotent transfers, or ADR 0002 benchmark apparatus.
+- **Decision:** Keep polymorphic graph storage, but include the v3.1 operational tables and write paths: Clerk-backed `users`, user-scoped `graph_mutations`, leased `replan_jobs`, `idempotency_records`, `agent_runs`, `benchmark_queries`, `evaluations`, and atomic `transfer_points`.
+- **Alternatives considered:** Leave these to later application migrations. Rejected because downstream lanes would build against an incomplete schema and CodeRabbit explicitly treats these as canonical persistence requirements.
+- **Consequences:** Sidebar consumers replay `graph_mutations`; workers claim `replan_jobs`; wallet transfers use `transfer_points` with idempotency keys.
 
 ### D002 — Preserve v3.1 plan lifecycle in MVP polymorphic storage
 

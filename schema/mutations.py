@@ -53,6 +53,7 @@ class GraphMutationService:
             node_id, resulting_version = cursor.fetchone()
 
         self._log_mutation(
+            user_id=node.user_id,
             actor=actor,
             action="create_node",
             target_kind="node",
@@ -101,6 +102,7 @@ class GraphMutationService:
 
         updated_id, resulting_version = updated
         self._log_mutation(
+            user_id=current["user_id"],
             actor=actor,
             action="update_node",
             target_kind="node",
@@ -110,7 +112,11 @@ class GraphMutationService:
             after_value=dict(attributes),
             resulting_version=resulting_version,
         )
-        self._mark_stale_dependents(actor=actor, depended_node_id=node_id)
+        self._mark_stale_dependents(
+            actor=actor,
+            depended_node_id=node_id,
+            user_id=current["user_id"],
+        )
         return updated_id
 
     def create_edge(
@@ -146,7 +152,11 @@ class GraphMutationService:
             )
             edge_id, resulting_version = cursor.fetchone()
 
+        mutation_user_id = self._fetch_node_user_id(source_id) or self._fetch_node_user_id(
+            target_id
+        )
         self._log_mutation(
+            user_id=mutation_user_id,
             actor=actor,
             action="create_edge",
             target_kind="edge",
@@ -194,6 +204,7 @@ class GraphMutationService:
 
         updated_id, resulting_version = updated
         self._log_mutation(
+            user_id=current.get("user_id"),
             actor=actor,
             action="update_edge",
             target_kind="edge",
@@ -204,6 +215,64 @@ class GraphMutationService:
             resulting_version=resulting_version,
         )
         return updated_id
+
+    def transfer_points(
+        self,
+        actor: str,
+        user_id: str,
+        source_balance_id: str,
+        dest_balance_id: str,
+        amount_points: int,
+        source_expected_version: int,
+        dest_expected_version: int,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> Dict[str, Any]:
+        if amount_points <= 0:
+            raise MutationValidationError(["amount_points must be greater than 0"])
+
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                  source_balance_id,
+                  source_version,
+                  dest_balance_id,
+                  dest_version,
+                  idempotency_replayed
+                FROM transfer_points(%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    source_balance_id,
+                    dest_balance_id,
+                    amount_points,
+                    source_expected_version,
+                    dest_expected_version,
+                    idempotency_key,
+                    request_hash,
+                    actor,
+                ),
+            )
+            transferred = cursor.fetchone()
+
+        if transferred is None:
+            raise MutationConflictError("TransferPoints did not commit")
+
+        (
+            committed_source_balance_id,
+            source_version,
+            committed_dest_balance_id,
+            dest_version,
+            idempotency_replayed,
+        ) = transferred
+        return {
+            "source_balance_id": committed_source_balance_id,
+            "source_version": source_version,
+            "dest_balance_id": committed_dest_balance_id,
+            "dest_version": dest_version,
+            "idempotency_replayed": idempotency_replayed,
+        }
 
     def supersede_plan_step(
         self,
@@ -270,6 +339,7 @@ class GraphMutationService:
 
         marked_source_id, source_version, successor_id, successor_version = superseded
         self._log_mutation(
+            user_id=source["user_id"],
             actor=actor,
             action="create_node",
             target_kind="node",
@@ -280,6 +350,7 @@ class GraphMutationService:
             resulting_version=successor_version,
         )
         self._log_mutation(
+            user_id=source["user_id"],
             actor=actor,
             action="supersede_plan_step",
             target_kind="node",
@@ -395,6 +466,15 @@ class GraphMutationService:
             raise MutationValidationError([f"{label} node does not exist: {node_id}"])
         return row[0]
 
+    def _fetch_node_user_id(self, node_id: str) -> Optional[str]:
+        with self.connection.cursor() as cursor:
+            cursor.execute("SELECT user_id FROM nodes WHERE id = %s", (node_id,))
+            row = cursor.fetchone()
+
+        if row is None:
+            return None
+        return row[0]
+
     def _fetch_node_row(self, node_id: str) -> Optional[Dict[str, Any]]:
         with self.connection.cursor() as cursor:
             cursor.execute(
@@ -426,6 +506,7 @@ class GraphMutationService:
                   e.type,
                   source_node.type AS source_type,
                   target_node.type AS target_type,
+                  COALESCE(source_node.user_id, target_node.user_id) AS user_id,
                   e.attributes,
                   e.version
                 FROM edges e
@@ -443,12 +524,14 @@ class GraphMutationService:
             "type": row[0],
             "source_type": row[1],
             "target_type": row[2],
-            "attributes": row[3],
-            "version": row[4],
+            "user_id": row[3],
+            "attributes": row[4],
+            "version": row[5],
         }
 
     def _log_mutation(
         self,
+        user_id: Optional[str],
         actor: str,
         action: str,
         target_kind: str,
@@ -458,12 +541,16 @@ class GraphMutationService:
         after_value: Optional[Mapping[str, Any]],
         resulting_version: int,
     ) -> None:
+        if user_id is None:
+            return
+
         with self.connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO mutation_log (
+                INSERT INTO graph_mutations (
+                  user_id,
                   actor,
-                  action,
+                  event_type,
                   target_kind,
                   target_id,
                   target_type,
@@ -471,9 +558,10 @@ class GraphMutationService:
                   after_value,
                   resulting_version
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
+                    user_id,
                     actor,
                     action,
                     target_kind,
@@ -485,7 +573,12 @@ class GraphMutationService:
                 ),
             )
 
-    def _mark_stale_dependents(self, actor: str, depended_node_id: str) -> None:
+    def _mark_stale_dependents(
+        self,
+        actor: str,
+        depended_node_id: str,
+        user_id: Optional[str],
+    ) -> None:
         with self.connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -512,6 +605,7 @@ class GraphMutationService:
             if marked is not None:
                 marked_id, marked_version = marked
                 self._log_mutation(
+                    user_id=user_id,
                     actor=actor,
                     action="mark_stale",
                     target_kind="node",

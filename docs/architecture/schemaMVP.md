@@ -213,47 +213,93 @@ CREATE UNIQUE INDEX edges_unique_active_relationship
   ON edges (type, source_id, target_id);
 ```
 
-### 4.3 `mutation_log`
+### 4.3 `users`
 
-Append-only audit/event log. This powers the demo sidebar and helps debug graph changes.
+Relational app-user table used to scope graph nodes, graph mutation replay, jobs, and benchmark rows.
 
 ```sql
-CREATE TABLE mutation_log (
+CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clerk_user_id TEXT NOT NULL UNIQUE,
+  email TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 4.4 `graph_mutations`
+
+Append-only, user-scoped audit/event log. This powers the demo sidebar and SSE replay after reconnect. It is not a work queue; async work is claimed from `replan_jobs`.
+
+```sql
+CREATE TABLE graph_mutations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sequence BIGINT GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES users(id),
   actor TEXT NOT NULL,
-  action TEXT NOT NULL,
+  event_type TEXT NOT NULL,
   target_kind TEXT NOT NULL,
   target_id UUID NOT NULL,
   target_type TEXT NOT NULL,
   before_value JSONB NULL,
   after_value JSONB NULL,
   resulting_version INTEGER NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT mutation_log_action_check CHECK (
-    action IN (
-      'create_node',
-      'update_node',
-      'create_edge',
-      'update_edge',
-      'mark_stale',
-      'supersede_plan_step'
-    )
-  ),
-
-  CONSTRAINT mutation_log_target_kind_check CHECK (
-    target_kind IN ('node', 'edge')
-  )
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 
 Recommended indexes:
 
 ```sql
-CREATE INDEX mutation_log_created_at_idx ON mutation_log (created_at);
-CREATE INDEX mutation_log_target_idx ON mutation_log (target_kind, target_id);
-CREATE INDEX mutation_log_actor_idx ON mutation_log (actor);
+CREATE INDEX graph_mutations_user_sequence_idx
+  ON graph_mutations (user_id, sequence);
+CREATE INDEX graph_mutations_target_idx
+  ON graph_mutations (target_kind, target_id);
 ```
+
+### 4.5 `replan_jobs`
+
+Queue for async re-planning after write-path invalidation. Workers claim rows with leases and `FOR UPDATE SKIP LOCKED` so only one worker processes a stale plan step at a time.
+
+```sql
+CREATE TABLE replan_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  plan_lineage_id TEXT NOT NULL,
+  source_plan_step_id UUID NOT NULL REFERENCES nodes(id),
+  status TEXT NOT NULL DEFAULT 'queued',
+  lease_owner TEXT NULL,
+  lease_expires_at TIMESTAMPTZ NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  run_after TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_error TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+### 4.6 `idempotency_records`
+
+Prevents duplicate side effects for operations such as `TransferPoints`. A retry with the same request hash returns the original completed response; the same key with a different request is rejected.
+
+```sql
+CREATE TABLE idempotency_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  idempotency_key TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_progress',
+  response JSONB NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, operation, idempotency_key)
+);
+```
+
+### 4.7 Benchmark and agent-run tables
+
+ADR 0002 keeps the benchmark apparatus in scope. The MVP schema includes `agent_runs`, `benchmark_queries`, and `evaluations` so token cost, plan-invalidation correctness, baseline comparison, and metric breakdowns have durable storage.
 
 ---
 
@@ -900,8 +946,10 @@ PlanStep --DEPENDS_ON--> Chase balance at version 0 / 240000 points
 ```
 
 If the Chase balance changes from `240000` to `180000`, the `Balance` node version increments.
-The write path marks the old plan step stale. The redemption agent then creates
-a successor step with revision `2`; only after that successor exists does the
+The atomic `TransferPoints` write path updates both balance nodes, writes
+`graph_mutations`, marks the old plan step stale, and enqueues a `replan_jobs`
+row in one transaction. The redemption worker claims that job, creates a
+successor step with revision `2`, and only after that successor exists does the
 old stale step move to `superseded`.
 
 ---

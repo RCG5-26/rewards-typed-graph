@@ -1,10 +1,18 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clerk_user_id TEXT NOT NULL UNIQUE,
+  email TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE nodes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL,
   tier TEXT NOT NULL,
-  user_id UUID NULL,
+  user_id UUID NULL REFERENCES users(id) ON DELETE CASCADE,
   slug TEXT NULL,
   attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
   version INTEGER NOT NULL DEFAULT 0,
@@ -84,10 +92,12 @@ CREATE INDEX edges_attributes_gin_idx ON edges USING gin (attributes);
 CREATE UNIQUE INDEX edges_unique_active_relationship
   ON edges (type, source_id, target_id);
 
-CREATE TABLE mutation_log (
+CREATE TABLE graph_mutations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sequence BIGINT GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   actor TEXT NOT NULL,
-  action TEXT NOT NULL,
+  event_type TEXT NOT NULL,
   target_kind TEXT NOT NULL,
   target_id UUID NOT NULL,
   target_type TEXT NOT NULL,
@@ -96,25 +106,121 @@ CREATE TABLE mutation_log (
   resulting_version INTEGER NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT mutation_log_action_check CHECK (
-    action IN (
+  CONSTRAINT graph_mutations_event_type_check CHECK (
+    event_type IN (
       'create_node',
       'update_node',
       'create_edge',
       'update_edge',
       'mark_stale',
-      'supersede_plan_step'
+      'supersede_plan_step',
+      'transfer_points'
     )
   ),
 
-  CONSTRAINT mutation_log_target_kind_check CHECK (
+  CONSTRAINT graph_mutations_target_kind_check CHECK (
     target_kind IN ('node', 'edge')
   )
 );
 
-CREATE INDEX mutation_log_created_at_idx ON mutation_log (created_at);
-CREATE INDEX mutation_log_target_idx ON mutation_log (target_kind, target_id);
-CREATE INDEX mutation_log_actor_idx ON mutation_log (actor);
+CREATE INDEX graph_mutations_user_sequence_idx ON graph_mutations (user_id, sequence);
+CREATE INDEX graph_mutations_created_at_idx ON graph_mutations (created_at);
+CREATE INDEX graph_mutations_target_idx ON graph_mutations (target_kind, target_id);
+CREATE INDEX graph_mutations_actor_idx ON graph_mutations (actor);
+
+CREATE TABLE replan_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_lineage_id TEXT NOT NULL,
+  source_plan_step_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  lease_owner TEXT NULL,
+  lease_expires_at TIMESTAMPTZ NULL,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  run_after TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_error TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT replan_jobs_status_check CHECK (
+    status IN ('queued', 'leased', 'completed', 'failed')
+  ),
+  CONSTRAINT replan_jobs_attempt_count_nonnegative CHECK (attempt_count >= 0)
+);
+
+CREATE INDEX replan_jobs_claim_idx
+  ON replan_jobs (status, run_after, lease_expires_at);
+CREATE INDEX replan_jobs_user_status_idx ON replan_jobs (user_id, status);
+CREATE UNIQUE INDEX replan_jobs_open_source_unique
+  ON replan_jobs (source_plan_step_id)
+  WHERE status IN ('queued', 'leased');
+
+CREATE TABLE idempotency_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idempotency_key TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_progress',
+  response JSONB NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT idempotency_records_status_check CHECK (
+    status IN ('in_progress', 'completed', 'failed')
+  ),
+  UNIQUE (user_id, operation, idempotency_key)
+);
+
+CREATE TABLE agent_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_lineage_id TEXT NULL,
+  agent_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ NULL,
+  state JSONB NOT NULL DEFAULT '{}'::jsonb,
+  token_count INTEGER NULL,
+  error TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT agent_runs_status_check CHECK (
+    status IN ('running', 'completed', 'failed', 'timed_out')
+  )
+);
+
+CREATE INDEX agent_runs_user_lineage_idx ON agent_runs (user_id, plan_lineage_id);
+
+CREATE TABLE benchmark_queries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE,
+  query_text TEXT NOT NULL,
+  ground_truth JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE evaluations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  benchmark_query_id UUID NULL REFERENCES benchmark_queries(id),
+  plan_lineage_id TEXT NULL,
+  baseline_plan_lineage_id TEXT NULL,
+  total_value_cents INTEGER NULL,
+  baseline_value_cents INTEGER NULL,
+  improvement_basis_points INTEGER NULL,
+  accuracy_score BOOLEAN NULL,
+  hallucination_count INTEGER NULL,
+  token_cost_total INTEGER NULL,
+  plan_invalidation_correct BOOLEAN NULL,
+  domain_extension_correct BOOLEAN NULL,
+  metric_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+  evaluator_version TEXT NOT NULL DEFAULT 'mvp-v1',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX evaluations_benchmark_query_idx ON evaluations (benchmark_query_id);
+CREATE INDEX evaluations_user_lineage_idx ON evaluations (user_id, plan_lineage_id);
 
 CREATE VIEW stale_plan_steps AS
 WITH dependency_versions AS MATERIALIZED (
@@ -153,6 +259,286 @@ SELECT
 FROM dependency_versions
 WHERE observed_version IS NOT NULL
   AND current_version <> observed_version;
+
+CREATE FUNCTION transfer_points(
+  p_user_id UUID,
+  p_source_balance_id UUID,
+  p_dest_balance_id UUID,
+  p_amount_points INTEGER,
+  p_source_expected_version INTEGER,
+  p_dest_expected_version INTEGER,
+  p_idempotency_key TEXT,
+  p_request_hash TEXT,
+  p_actor TEXT DEFAULT 'wallet_agent'
+)
+RETURNS TABLE (
+  source_balance_id UUID,
+  source_version INTEGER,
+  dest_balance_id UUID,
+  dest_version INTEGER,
+  idempotency_replayed BOOLEAN
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  existing_idempotency idempotency_records%ROWTYPE;
+  source_balance nodes%ROWTYPE;
+  dest_balance nodes%ROWTYPE;
+  source_before JSONB;
+  dest_before JSONB;
+  source_after JSONB;
+  dest_after JSONB;
+  source_amount INTEGER;
+  dest_amount INTEGER;
+  new_source_version INTEGER;
+  new_dest_version INTEGER;
+  response_payload JSONB;
+  stale_step RECORD;
+BEGIN
+  IF p_amount_points <= 0 THEN
+    RAISE EXCEPTION 'amount_points must be greater than 0';
+  END IF;
+
+  SELECT *
+    INTO existing_idempotency
+    FROM idempotency_records
+   WHERE user_id = p_user_id
+     AND operation = 'TransferPoints'
+     AND idempotency_key = p_idempotency_key
+   FOR UPDATE;
+
+  IF FOUND THEN
+    IF existing_idempotency.request_hash <> p_request_hash THEN
+      RAISE EXCEPTION 'idempotency key reused with different request';
+    END IF;
+
+    IF existing_idempotency.status = 'completed' THEN
+      source_balance_id := (existing_idempotency.response->>'source_balance_id')::uuid;
+      source_version := (existing_idempotency.response->>'source_version')::integer;
+      dest_balance_id := (existing_idempotency.response->>'dest_balance_id')::uuid;
+      dest_version := (existing_idempotency.response->>'dest_version')::integer;
+      idempotency_replayed := true;
+      RETURN NEXT;
+      RETURN;
+    END IF;
+  ELSE
+    INSERT INTO idempotency_records (
+      user_id,
+      idempotency_key,
+      operation,
+      request_hash,
+      status
+    )
+    VALUES (
+      p_user_id,
+      p_idempotency_key,
+      'TransferPoints',
+      p_request_hash,
+      'in_progress'
+    );
+  END IF;
+
+  SELECT *
+    INTO source_balance
+    FROM nodes
+   WHERE id = p_source_balance_id
+     AND type = 'Balance'
+     AND user_id = p_user_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'source balance does not exist';
+  END IF;
+
+  SELECT *
+    INTO dest_balance
+    FROM nodes
+   WHERE id = p_dest_balance_id
+     AND type = 'Balance'
+     AND user_id = p_user_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'destination balance does not exist';
+  END IF;
+
+  IF source_balance.version <> p_source_expected_version THEN
+    RAISE EXCEPTION 'source balance version conflict';
+  END IF;
+
+  IF dest_balance.version <> p_dest_expected_version THEN
+    RAISE EXCEPTION 'destination balance version conflict';
+  END IF;
+
+  source_amount := (source_balance.attributes->>'amount_points')::integer;
+  dest_amount := (dest_balance.attributes->>'amount_points')::integer;
+
+  IF source_amount < p_amount_points THEN
+    RAISE EXCEPTION 'insufficient source balance';
+  END IF;
+
+  source_before := source_balance.attributes;
+  dest_before := dest_balance.attributes;
+  source_after := jsonb_set(
+    source_before,
+    '{amount_points}',
+    to_jsonb(source_amount - p_amount_points)
+  );
+  dest_after := jsonb_set(
+    dest_before,
+    '{amount_points}',
+    to_jsonb(dest_amount + p_amount_points)
+  );
+
+  UPDATE nodes
+     SET attributes = source_after,
+         version = version + 1,
+         updated_at = now()
+   WHERE id = p_source_balance_id
+  RETURNING version INTO new_source_version;
+
+  UPDATE nodes
+     SET attributes = dest_after,
+         version = version + 1,
+         updated_at = now()
+   WHERE id = p_dest_balance_id
+  RETURNING version INTO new_dest_version;
+
+  INSERT INTO graph_mutations (
+    user_id,
+    actor,
+    event_type,
+    target_kind,
+    target_id,
+    target_type,
+    before_value,
+    after_value,
+    resulting_version
+  )
+  VALUES
+    (
+      p_user_id,
+      p_actor,
+      'transfer_points',
+      'node',
+      p_source_balance_id,
+      'Balance',
+      source_before,
+      source_after,
+      new_source_version
+    ),
+    (
+      p_user_id,
+      p_actor,
+      'transfer_points',
+      'node',
+      p_dest_balance_id,
+      'Balance',
+      dest_before,
+      dest_after,
+      new_dest_version
+    );
+
+  FOR stale_step IN
+    SELECT DISTINCT
+      stale.plan_step_id,
+      step.user_id,
+      step.attributes->>'plan_lineage_id' AS plan_lineage_id
+    FROM stale_plan_steps stale
+    JOIN nodes step ON step.id = stale.plan_step_id
+    WHERE stale.depended_node_id IN (p_source_balance_id, p_dest_balance_id)
+      AND step.user_id = p_user_id
+  LOOP
+    PERFORM mark_plan_step_stale(
+      stale_step.plan_step_id,
+      'Balance dependency changed during TransferPoints'
+    );
+
+    INSERT INTO replan_jobs (
+      user_id,
+      plan_lineage_id,
+      source_plan_step_id,
+      status
+    )
+    VALUES (
+      p_user_id,
+      COALESCE(stale_step.plan_lineage_id, stale_step.plan_step_id::text),
+      stale_step.plan_step_id,
+      'queued'
+    )
+    ON CONFLICT (source_plan_step_id)
+      WHERE status IN ('queued', 'leased')
+      DO NOTHING;
+  END LOOP;
+
+  response_payload := jsonb_build_object(
+    'source_balance_id', p_source_balance_id,
+    'source_version', new_source_version,
+    'dest_balance_id', p_dest_balance_id,
+    'dest_version', new_dest_version
+  );
+
+  UPDATE idempotency_records
+     SET status = 'completed',
+         response = response_payload,
+         updated_at = now()
+   WHERE user_id = p_user_id
+     AND operation = 'TransferPoints'
+     AND idempotency_key = p_idempotency_key;
+
+  source_balance_id := p_source_balance_id;
+  source_version := new_source_version;
+  dest_balance_id := p_dest_balance_id;
+  dest_version := new_dest_version;
+  idempotency_replayed := false;
+  RETURN NEXT;
+END;
+$$;
+
+CREATE FUNCTION claim_replan_jobs(
+  p_worker_id TEXT,
+  p_limit INTEGER DEFAULT 10,
+  p_lease_duration INTERVAL DEFAULT interval '30 seconds'
+)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  plan_lineage_id TEXT,
+  source_plan_step_id UUID,
+  attempt_count INTEGER
+)
+LANGUAGE sql
+AS $$
+  WITH claimable AS (
+    SELECT job.id
+      FROM replan_jobs job
+     WHERE job.run_after <= now()
+       AND (
+         job.status = 'queued'
+         OR (
+           job.status = 'leased'
+           AND job.lease_expires_at < now()
+         )
+       )
+     ORDER BY job.created_at
+     LIMIT p_limit
+     FOR UPDATE SKIP LOCKED
+  )
+  UPDATE replan_jobs job
+     SET status = 'leased',
+         lease_owner = p_worker_id,
+         lease_expires_at = now() + p_lease_duration,
+         attempt_count = attempt_count + 1,
+         updated_at = now()
+    FROM claimable
+   WHERE job.id = claimable.id
+  RETURNING
+    job.id,
+    job.user_id,
+    job.plan_lineage_id,
+    job.source_plan_step_id,
+    job.attempt_count;
+$$;
 
 CREATE VIEW node_connectivity_violations AS
 SELECT

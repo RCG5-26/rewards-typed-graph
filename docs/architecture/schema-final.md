@@ -67,6 +67,16 @@
 
 ## 1. World graph (shared, seeded)
 
+### 1.0 `users`
+Relational app-user table. It maps the authenticated Clerk identity to the internal user id used by personal graph rows, SSE replay, re-plan jobs, and benchmark rows.
+
+| Column | Type | Constraints / notes |
+|---|---|---|
+| id | uuid | PK |
+| clerk_user_id | text | UNIQUE, NOT NULL |
+| email | text | nullable |
+| created_at / updated_at | timestamptz | UTC |
+
 ### 1.1 `credit_cards`
 
 | Column | Type | Constraints / notes |
@@ -280,104 +290,69 @@ CREATE UNIQUE INDEX plans_one_current_revision
 | graph_tier | text | CHECK = `plan` |
 | node_type | text | CHECK = `AgentRun` |
 
----
-
-## 5. Write-path infrastructure
-
-### 5.1 `graph_mutations` *(audit + SSE replay — NOT a work queue)*
+### 3.5 `graph_mutations`
+User-scoped append-only audit/SSE replay table. This is not a worker queue; workers claim `replan_jobs`.
 
 | Column | Type | Constraints / notes |
 |---|---|---|
-| id | bigserial | PK — SSE `event_id`; monotonic **per user** when §6.3 lock held |
-| mutation_txn_id | uuid | NOT NULL — groups rows in one commit |
-| user_id | uuid | FK → users(id), **NOT NULL** — MVP user-scoped only |
-| plan_lineage_id | uuid | nullable |
-| plan_id | uuid | FK → plans(id), nullable |
-| agent_run_id | uuid | FK → agent_runs(id), nullable |
-| mutation_type | text | NOT NULL — e.g. `TransferPoints`, `CreatePlanStep` |
-| target_table | text | nullable |
-| target_node_id | uuid | nullable |
-| summary | text | NOT NULL |
-| before | jsonb | nullable |
-| after | jsonb | nullable |
-| committed_at | timestamptz | NOT NULL DEFAULT now() |
+| id | uuid | PK |
+| sequence | bigint | identity; replay cursor per user |
+| user_id | uuid | FK → users(id) |
+| actor | text | agent/service that committed the mutation |
+| event_type | text | `create_node`,`update_node`,`create_edge`,`update_edge`,`mark_stale`,`supersede_plan_step`,`transfer_points` |
+| target_kind / target_id / target_type | text / uuid / text | target identity |
+| before_value / after_value | jsonb | nullable |
+| resulting_version | integer | nullable |
+| created_at | timestamptz | UTC |
 
-MVP: all rows require `user_id`. Layer 4 global events excluded from sidebar until stretch adds `visibility_scope`.
-
-### 5.2 `replan_jobs` *(durable work queue)*
+### 3.6 `replan_jobs`
+Async work queue for stale-plan re-planning. Balance writes enqueue here; redemption workers claim with leases and `FOR UPDATE SKIP LOCKED`.
 
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
-| plan_lineage_id | uuid | NOT NULL |
-| source_plan_id | uuid | FK → plans(id) — stale revision at enqueue |
-| trigger_mutation_txn_id | uuid | NOT NULL |
-| idempotency_key | text | NOT NULL UNIQUE — e.g. `{plan_lineage_id}:{mutation_txn_id}` |
-| status | text | CHECK in (`pending`,`processing`,`completed`,`failed`,`superseded`) |
-| attempt_count | integer | NOT NULL DEFAULT 0 |
-| max_attempts | integer | NOT NULL DEFAULT 3 |
-| available_at | timestamptz | NOT NULL DEFAULT now() |
-| locked_at | timestamptz | nullable |
-| locked_by | text | nullable — `hostname:pid` |
-| lease_expires_at | timestamptz | nullable |
-| result_plan_id | uuid | FK → plans(id), nullable |
-| error | text | nullable |
+| plan_lineage_id | text | stale plan lineage |
+| source_plan_step_id | uuid | FK → plan step |
+| status | text | `queued`,`leased`,`completed`,`failed` |
+| lease_owner / lease_expires_at | text / timestamptz | worker lease |
+| attempt_count | integer | increments on claim |
+| run_after | timestamptz | delayed retry support |
+| last_error | text | nullable |
 | created_at / updated_at | timestamptz | UTC |
-| completed_at | timestamptz | nullable |
 
-**Claiming:** `pending` where `available_at <= now()`, or `processing` where `lease_expires_at < now()`. Use `FOR UPDATE SKIP LOCKED`. Increment `attempt_count` on claim. Job completion + new revision `current` + prior `superseded` in **one transaction**.
-
-### 5.3 `idempotency_records`
+### 3.7 `idempotency_records`
+Dedupes side-effecting operations such as `TransferPoints`.
 
 | Column | Type | Constraints / notes |
 |---|---|---|
 | id | uuid | PK |
 | user_id | uuid | FK → users(id) |
-| operation_type | text | NOT NULL — e.g. `TransferPoints` |
-| idempotency_key | text | NOT NULL |
-| request_hash | text | NOT NULL — canonical hash of request body |
-| mutation_txn_id | uuid | NOT NULL |
-| result_reference | jsonb | NOT NULL |
-| created_at | timestamptz | NOT NULL DEFAULT now() |
-| | | UNIQUE (user_id, operation_type, idempotency_key) |
-
-Same key + same hash → replay outcome. Same key + different hash → **409 conflict**.
+| idempotency_key | text | caller-provided key |
+| operation | text | e.g. `TransferPoints` |
+| request_hash | text | rejects key reuse with a different request |
+| status | text | `in_progress`,`completed`,`failed` |
+| response | jsonb | stored completed response |
+| created_at / updated_at | timestamptz | UTC |
+| | | UNIQUE (`user_id`, `operation`, `idempotency_key`) |
 
 ---
 
-## 6. Graph-write contract
+## 4. Optimistic concurrency (the commit contract)
 
-### 6.1 Optimistic concurrency
+Every mutable write is conditional on the version read (ADR 0001, Decision 5):
 
 ```sql
 UPDATE user_balances
    SET balance_points = $new, version = version + 1, updated_at = now()
  WHERE id = $id AND version = $expected_version;
--- rowcount = 0 -> ConflictError -> retry (max 3)
+-- rowcount = 0  ->  raise ConflictError  ->  retry
 ```
 
-### 6.2 Mutation ownership
-
-| Writer | May write |
-|---|---|
-| wallet agent | personal-tier nodes |
-| redemption agent | `plan_steps`, `state_dependencies` |
-| earning agent | own plan-step contributions only |
-| orchestrator | `plans`, `targets` |
-| graph-write service | `graph_mutations`, `replan_jobs`, `idempotency_records`, staleness propagation |
-
-### 6.3 Per-user write serialization (SSE ordering)
-
-Before mutating graph state or inserting `graph_mutations`:
-
-```sql
-SELECT pg_advisory_xact_lock(
-  hashtextextended('graph_write:' || $user_id::text, 0)
-);
-```
-
-Guarantees `graph_mutations.id` commit order matches **per-user** mutation stream. Not global cross-user ordering.
+- **Retries:** max 3, exponential backoff with jitter (base 50ms, cap 400ms). After 3 failures the `plan_step` goes `failed` and the orchestrator decides whether to requeue.
+- **Mutation ownership matrix** (shrinks the concurrent-write surface): wallet agent is the **sole** writer of personal-tier nodes; redemption agent is the **sole** writer of `plan_steps` and `state_dependencies`; earning agent reads world and writes only its own plan-step contributions; orchestrator writes `plans`. World nodes are seed-only in the core (and, in the Layer-4 stretch, written only via the verified serializable path).
+- **Single write path (B1):** all node mutations go through one graph-write-service function. It runs validation (§5), the version check above, **and** the staleness propagation below, in **one transaction**. No agent writes around it. A `user_balances` trigger is added as a backstop so staleness cannot be bypassed even by a manual write.
+- **Atomic `TransferPoints`:** the wallet transfer path decrements the source balance, increments the destination balance, records `graph_mutations`, marks dependent plan steps stale, enqueues `replan_jobs`, and stores the idempotency response in one transaction.
 
 ### 6.4 Invalidation + job enqueue (same transaction)
 
@@ -484,6 +459,8 @@ CREATE INDEX ON plan_steps (plan_lineage_id, revision_number);
 CREATE INDEX ON agent_runs (plan_id);
 CREATE INDEX ON external_quotes (plan_id);
 CREATE INDEX ON evaluations (benchmark_query_id);
+CREATE INDEX ON graph_mutations (user_id, sequence);
+CREATE INDEX ON replan_jobs (status, run_after, lease_expires_at);
 
 -- dependency tracking — the hot path
 CREATE INDEX ON state_dependencies (target_table, target_node_id);
