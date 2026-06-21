@@ -6,7 +6,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Today
 - Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
-- Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset, primitives (Button/Card/Tag/CommandInput/Blob). Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
+- Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset. Components (Button/Card/Tag/CommandInput/Blob) are planned — build in the app from tokens. Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
 - Wireframes flow mapped (query → plan → sidebar → contrast view).
 - Continue demo shell scaffold + graph-mutation sidebar against mocked events (RCG-27, RCG-24).
 

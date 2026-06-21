@@ -2,12 +2,13 @@
   Malleable UI — Webfont declarations
   ─────────────────────────────────────────────────────────────────────
   SF Pro Text + SF Pro Display: Apple system fonts. `local()` resolves
-  on macOS/iOS automatically. To ship to non-Apple platforms, upload
-  your licensed .woff2 files to assets/fonts/ and add url() entries.
+  on macOS/iOS automatically. To ship to non-Apple platforms, place your
+  licensed .woff2 files in the consuming app's static font dir (e.g.
+  public/fonts/) and add url() entries pointing at it.
 
   Fira Code: open-source (SIL OFL), served via jsDelivr CDN.
-  For self-hosting, upload to assets/fonts/fira-code.woff2 and
-  replace the url() below with a local path.
+  For self-hosting, place fira-code.woff2 in the app's static font dir
+  and replace the url() below with that path.
 */
 
 /* ── SF Pro Text ── */
@@ -18,7 +19,7 @@
   font-display: swap;
   src: local('SF Pro Text'),
        local('.SFNSText');
-  /* Upload assets/fonts/sf-pro-text.woff2 to enable non-Apple fallback */
+  /* Add app static-dir url() (e.g. public/fonts/) for non-Apple fallback */
 }
 
 /* ── SF Pro Display ── */
@@ -29,7 +30,7 @@
   font-display: swap;
   src: local('SF Pro Display'),
        local('.SFNSDisplay');
-  /* Upload assets/fonts/sf-pro-display.woff2 to enable non-Apple fallback */
+  /* Add app static-dir url() (e.g. public/fonts/) for non-Apple fallback */
 }
 
 /* ── Fira Code (CDN) ── */

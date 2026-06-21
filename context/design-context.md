@@ -6,7 +6,7 @@ Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisi
 
 **Last updated:** 2026-06-21
 
-> **Design system landed.** Tokens, fonts, Tailwind preset, and base primitives live in [`../design-system/`](../design-system/). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
+> **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
 ---
 
@@ -168,13 +168,13 @@ Research **done** — endpoints and response shape understood; feeds the demo sh
 ## Icons & assets
 
 - **Icons:** inline SVG, sized in `em` and colored via `currentColor` so they inherit token text colors. Add a shared `components/ui/Icon` set as surfaces are built.
-- **Fonts/assets path:** webfonts resolve via `local()` (SF Pro) + CDN (Fira Code); for non-Apple self-hosting, drop `.woff2` into `design-system/assets/fonts/` and add `url()` entries in [`tokens/fonts.css`](../design-system/tokens/fonts.css).
+- **Fonts/assets path:** webfonts resolve via `local()` (SF Pro) + CDN (Fira Code); for non-Apple self-hosting, drop `.woff2` into the consuming app's static font dir (e.g. `public/fonts/`) and point the `url()` entries in [`tokens/fonts.css`](../design-system/tokens/fonts.css) at it.
 
 ---
 
 ## Related docs
 
-- **Design system + usage guide: [`../design-system/README.md`](../design-system/README.md)** (tokens, fonts, preset, primitives)
+- **Design system + usage guide: [`../design-system/README.md`](../design-system/README.md)** (tokens, fonts, Tailwind preset; planned primitives/patterns)
 - Architecture (SSE, lifecycle, Clerk): [`architecture-context.md`](architecture-context.md)
 - Product overview: [`project-overview.md`](project-overview.md)
 - Team status board: [`../STATUS.md`](../STATUS.md)

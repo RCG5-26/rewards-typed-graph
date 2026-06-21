@@ -13,15 +13,16 @@ design-system/
 ├── global.css            ← import ONCE at the app root (sets global fonts + base)
 ├── styles.css            ← tokens-only entry (@import for isolated component bundles)
 ├── tailwind-preset.js    ← maps tokens → Tailwind theme (bg-surface, rounded-card, …)
-├── tokens/
-│   ├── fonts.css         ← @font-face (SF Pro Text/Display, Fira Code)
-│   ├── colors.css        ← iris + neutral scales, semantic surface/text/border
-│   ├── status.css        ← feedback (success/warning/error) + plan/step lifecycle
-│   ├── typography.css    ← size / weight / tracking / leading + semantic type roles
-│   ├── spacing.css       ← 4px scale, semantic gaps/padding, border radii
-│   ├── effects.css       ← shadows, blur, glass, blob glow
-│   └── motion.css        ← spring easings, durations, named transitions
-└── tailwind-preset.js    ← (no components yet — build them in app `components/ui/`)
+└── tokens/
+    ├── fonts.css         ← @font-face (SF Pro Text/Display, Fira Code)
+    ├── colors.css        ← iris + neutral scales, semantic surface/text/border
+    ├── status.css        ← feedback (success/warning/error) + plan/step lifecycle
+    ├── typography.css    ← size / weight / tracking / leading + semantic type roles
+    ├── spacing.css       ← 4px scale, semantic gaps/padding, border radii
+    ├── effects.css       ← shadows, blur, glass, blob glow
+    └── motion.css        ← spring easings, durations, named transitions
+
+(No components yet — build them in the app's `components/ui/` from tokens + preset.)
 ```
 
 ---
@@ -82,10 +83,10 @@ and map each one here (props + tokens) as you add it.
 ```tsx
 // components/ui/Tag.tsx — example: lifecycle chip driven entirely by status tokens
 const STATUS = {
-  current:    "bg-status-current/10 text-status-current",
-  stale:      "bg-status-stale/10 text-status-stale",
-  superseded: "bg-status-superseded/10 text-status-superseded",
-  failed:     "bg-status-failed/10 text-status-failed",
+  current:    "bg-status-current-bg text-status-current",
+  stale:      "bg-status-stale-bg text-status-stale",
+  superseded: "bg-status-superseded-bg text-status-superseded",
+  failed:     "bg-status-failed-bg text-status-failed",
 } as const;
 
 export function Tag({ status, children }: { status: keyof typeof STATUS; children: React.ReactNode }) {
@@ -148,9 +149,10 @@ durations `--duration-instant…breathe`; named `--transition-color/opacity/pop/
 
 `tokens/fonts.css` declares **SF Pro Text** / **SF Pro Display** via `local()` (resolves
 on macOS/iOS automatically) and **Fira Code** (mono, SIL OFL) via CDN with a `local()`
-fast path. To ship to non-Apple platforms, drop licensed `.woff2` files in
-`assets/fonts/` and add `url()` entries to the existing `@font-face` blocks — no other
-file changes needed. Mono is required for node IDs and mutation-log fields.
+fast path. To ship to non-Apple platforms, drop licensed `.woff2` files in the consuming
+app's static font dir (e.g. `public/fonts/`) and point the `url()` entries in the existing
+`@font-face` blocks at it — no other file changes needed. Mono is required for node IDs
+and mutation-log fields.
 
 ---
 
