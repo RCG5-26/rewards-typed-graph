@@ -15,9 +15,10 @@
   ],
   "properties": {
     "event_id": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "graph_mutations.id — SSE Last-Event-ID cursor; monotonic per user stream"
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "minLength": 1,
+      "description": "graph_mutations.id (bigserial) as decimal string — SSE Last-Event-ID cursor; avoids JS safe-integer loss"
     },
     "mutation_txn_id": {
       "type": "string",

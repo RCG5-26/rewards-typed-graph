@@ -109,7 +109,7 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 
 ```json
 {
-  "event_id": 12345,
+  "event_id": "12345",
   "mutation_txn_id": "uuid",
   "user_id": "uuid",
   "plan_lineage_id": "uuid or null",
