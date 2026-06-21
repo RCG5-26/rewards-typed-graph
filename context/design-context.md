@@ -105,16 +105,23 @@ _Pending design-system add. Note a mono face is needed for IDs and mutation-log 
 
 ### SSE mutation event (sidebar)
 
-Mock shape mirrors **`graph_mutations` + SSE envelope** from [`architecture-context.md`](architecture-context.md) (final fields locked in Phase A3 JSON Schema with Alan). **REST is source of truth**; SSE is observability — reconnect via `GET /mutations?after=`.
+**One event per `graph_mutations` row** (not a transaction-level batch). Canonical contract: [`schema/contracts/mutation-event.schema.json`](../schema/contracts/mutation-event.schema.json) ([spec 03](feature-specs/03-mutation-log-sse.md), ADR 0008). **REST is source of truth**; SSE is observability — reconnect via `GET /mutations?after=` using `event_id` (= row `id`).
 
 ```json
 {
-  "event_id": 12345,
-  "user_id": "uuid",
+  "event_id": "12345",
   "mutation_txn_id": "uuid",
-  "plan_lineage_id": "uuid — nullable",
-  "operation_type": "e.g. TransferPoints",
-  "payload": "typed mutation summary — no inter-agent free text"
+  "user_id": "uuid",
+  "plan_lineage_id": "uuid or null",
+  "plan_id": "uuid or null",
+  "agent_run_id": "uuid or null",
+  "mutation_type": "TransferPoints",
+  "target_table": "user_balances",
+  "target_node_id": "uuid or null",
+  "summary": "Transfer 5000 pts AAdvantage → Hyatt",
+  "before": { "balance": 12000, "version": 3 },
+  "after": { "balance": 7000, "version": 4 },
+  "committed_at": "2026-06-20T12:00:00Z"
 }
 ```
 
@@ -163,5 +170,6 @@ Research **done** — endpoints and response shape understood; feeds the demo sh
 - Frontend lane tracker: [`../tracking/val-frontend.md`](../tracking/val-frontend.md)
 - Graph lane (contracts, RCG-14): [`../tracking/alan-graph.md`](../tracking/alan-graph.md)
 - Schema spec: [`../docs/architecture/schema-final.md`](../docs/architecture/schema-final.md) **v3.1**
+- SSE event contract: [`../schema/contracts/mutation-event.schema.json`](../schema/contracts/mutation-event.schema.json)
 - ADR 0006 (Clerk): [`../docs/adr/0006-clerk-identity-only.md`](../docs/adr/0006-clerk-identity-only.md)
 - ADR 0008 (SSE): [`../docs/adr/0008-per-user-serialization-sse.md`](../docs/adr/0008-per-user-serialization-sse.md)

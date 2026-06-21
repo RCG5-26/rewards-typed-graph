@@ -1,9 +1,21 @@
 # [NN] — [Feature / subsystem name]
 
-- **Status:** Proposed | In progress | Done
-- **Owner:** [Name]
-- **Depends on:** [other specs, decisions, or "none"]
-- **Related flows:** [link to flow in project-overview.md, e.g. "Flow 1: Happy path"]
+- **Status:** Draft | Ready | In progress | Done
+- **Owner:** [Name] · **Lane:** [Graph/Persistence | Orchestrator/Agents | Redemption/Eval | Frontend/Demo]
+- **Linear:** [RCG-NN, …]
+- **Depends on:** [other specs / decisions / "none"]
+- **Related flows:** [link to a flow in ../project-overview.md]
+
+---
+
+## Definition of ready (gate — do NOT run the implement prompt until all checked)
+
+- [ ] Goal and out-of-scope are unambiguous
+- [ ] Acceptance criteria are testable (no "works well")
+- [ ] Contracts it consumes/produces are linked (not restated)
+- [ ] Files/modules touch list is filled
+- [ ] Dependencies + Linear id(s) recorded
+- [ ] No open question is still `Blocking: yes`
 
 ---
 
@@ -13,9 +25,15 @@
 
 ---
 
-## User-visible behavior
+## Contracts touched (link — do not restate the schema)
 
-[What the user (or downstream system) sees when this is done. Bullet points OK.]
+- **Consumes:** [e.g. `../../docs/architecture/schema-final.md` §… ; `schema/contracts/…`]
+- **Produces:** [tables/rows/events this unit writes or emits]
+- **Invariants that apply:** [link `../architecture-context.md` items]
+
+---
+
+## User-visible / downstream behavior
 
 - [Behavior 1]
 - [Behavior 2]
@@ -24,26 +42,16 @@
 
 ## Out of scope
 
-Explicit boundaries for *this* spec only.
-
-- [Not doing X]
-- [Not doing Y — belongs in spec NN+1]
-
----
-
-## Design notes _(optional)_
-
-[UI mock description, API shape sketch, link to design-context.md section]
+- [Not doing X — belongs in spec NN]
 
 ---
 
 ## Implementation plan
 
-Numbered steps. Keep each step verifiable.
+Numbered, each step verifiable.
 
 1. [Step]
 2. [Step]
-3. [Step]
 
 ---
 
@@ -52,7 +60,6 @@ Numbered steps. Keep each step verifiable.
 | Path | Change |
 |---|---|
 | `[path]` | [create / modify — what] |
-| `[path]` | [modify — what] |
 
 _Agent: do not touch files outside this list unless the spec is updated first._
 
@@ -60,8 +67,8 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 ## Data & schema _(if applicable)_
 
-- **Tables / models:** [names]
-- **Migrations:** [yes/no, notes]
+- **Tables / models:** [names — link schema-final, don't redefine]
+- **Migrations:** [yes/no]
 - **Seed data:** [required fixtures]
 
 ---
@@ -70,11 +77,10 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 ### [Endpoint or event name]
 
-- **Method / trigger:** [GET / POST / webhook / job]
-- **Auth:** [required role / ownership check]
-- **Request:** [shape or "see types in …"]
-- **Response:** [shape]
-- **Errors:** [401, 403, 404, …]
+- **Trigger / method:** […]
+- **Auth / ownership:** […]
+- **Shape:** [link to `schema/contracts/…` or shared types]
+- **Errors:** […]
 
 ---
 
@@ -82,19 +88,16 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 - [ ] [Testable criterion 1]
 - [ ] [Testable criterion 2]
-- [ ] [Testable criterion 3]
 - [ ] `[build/test command]` passes
-- [ ] No invariant from `architecture-context.md` violated
+- [ ] No invariant from `../architecture-context.md` violated
+- [ ] Hard constraint respected: typed graph mutations only (no free-text inter-agent messages)
 
 ---
 
 ## Verification
 
-How to manually or automatically verify this spec is done.
-
 ```bash
-# commands to run
-[command]
+[commands to run]
 ```
 
 **Manual check:** [steps]

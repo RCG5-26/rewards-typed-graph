@@ -17,7 +17,7 @@ Read these files **in order**:
 5. [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md) — workflow and scoping
 6. [`context/decisions-log.md`](context/decisions-log.md) — master index of decisions (links to ADRs)
 7. [`context/risks-and-failure-modes.md`](context/risks-and-failure-modes.md) — what could go wrong
-8. [`context/progress-tracker.md`](context/progress-tracker.md) — current phase and active work
+8. [`context/progress-tracker.md`](context/progress-tracker.md) — **AI working memory**: read first for current state + recent history (older history in [`context/progress-archive.md`](context/progress-archive.md))
 9. Active feature spec in [`context/feature-specs/`](context/feature-specs/) — if one exists for this task
 
 ### Repo-specific (authoritative for this sprint)
@@ -60,6 +60,8 @@ Update [`context/progress-tracker.md`](context/progress-tracker.md):
 - Completed items
 - In progress / next up
 - New open questions
+
+Keep the tracker lean — current state + recent history only; move older entries to [`context/progress-archive.md`](context/progress-archive.md). On any conflict, the locked docs (`docs/architecture/schema-final.md`, `docs/adr/`) and Linear take precedence over the tracker.
 
 Log decisions in [`context/decisions-log.md`](context/decisions-log.md) (index row first). For durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/) and link it from the index — do not paste full ADR text into the log.
 
