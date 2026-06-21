@@ -9,10 +9,11 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Align PR #2 plan lifecycle with v3.1 lineage/revision semantics.
 - Add v3.1 operational tables/write paths flagged by PR #2 review.
 - Align PR #2 operational table/column names with v3.1 vocabulary.
+- Restore canonical schema artifacts to v3.1 table-per-type and preserve the polymorphic implementation only as an experimental path.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
-- Wire redemption re-plan code to call `supersede_plan_step` after successor step creation.
+- Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
 - Add recursive traversal/query helpers (RCG-12).
 
 ## Blocked on
@@ -36,7 +37,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-5 | Schema lock (co-own with Raq) | Day 1 | all four lanes sign off |
 | RCG-7 | Canonical schema artifact (DDL + TS/Python types) | Day 1 | committed; both stacks validate against it |
 | RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | committed |
-| RCG-9 | Postgres nodes/edges tables (single-table + JSONB, version cols, FKs) | Day 1-5 | migrations run clean |
+| RCG-9 | Postgres v3.1 table-per-type schema (version cols, FKs) | Day 1-5 | migrations run clean |
 | RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5 | invalid mutations rejected before commit |
 | RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry) | Day 1-5 | stale-version commit rejected; retries bounded |
 | RCG-12 | Recursive-CTE traversal + query helpers | Day 1-5 | multi-hop paths returned at MVP scale |

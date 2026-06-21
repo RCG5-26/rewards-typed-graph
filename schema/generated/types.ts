@@ -2,27 +2,26 @@
 
 export const NODE_TYPES = [
   "User",
-  "Card",
-  "Program",
-  "MerchantCategory",
-  "Balance",
-  "Goal",
-  "PlanQuery",
-  "PlanStep"
+  "CreditCard",
+  "RewardProgram",
+  "SpendCategory",
+  "RedemptionOption",
+  "ExternalQuote",
+  "UserBalance",
+  "UserProgramStatus",
+  "UserGoal",
+  "Plan",
+  "PlanStep",
+  "AgentRun"
 ] as const;
 export type NodeType = typeof NODE_TYPES[number];
 
 export const EDGE_TYPES = [
   "HOLDS",
-  "ASSOCIATED_WITH",
   "EARNS",
-  "HAS_BALANCE",
-  "BALANCE_FOR",
-  "HAS_GOAL",
-  "FOR_USER",
   "TRANSFERS_TO",
+  "REDEEMS_VIA",
   "TARGETS",
-  "STEP_OF",
   "DEPENDS_ON"
 ] as const;
 export type EdgeType = typeof EDGE_TYPES[number];
@@ -35,7 +34,7 @@ export const GRAPH_TIERS = [
 export type GraphTier = typeof GRAPH_TIERS[number];
 
 export const PROGRAM_KINDS = [
-  "transferable",
+  "issuer_transferable",
   "airline",
   "hotel",
   "cashback"
@@ -43,18 +42,20 @@ export const PROGRAM_KINDS = [
 export type ProgramKind = typeof PROGRAM_KINDS[number];
 
 export const PLAN_STATUSES = [
-  "active",
+  "generating",
+  "current",
   "stale",
-  "superseded",
-  "completed",
-  "failed"
+  "failed",
+  "superseded"
 ] as const;
 export type PlanStatus = typeof PLAN_STATUSES[number];
 
 export const PLAN_QUERY_STATUSES = [
-  "active",
-  "completed",
-  "failed"
+  "generating",
+  "current",
+  "stale",
+  "failed",
+  "superseded"
 ] as const;
 export type PlanQueryStatus = typeof PLAN_QUERY_STATUSES[number];
 
@@ -95,34 +96,50 @@ export interface GraphEdge {
 
 export const NODE_REQUIRED_ATTRIBUTES = {
   "User": [
-    "name",
-    "optimization_goal"
+    "clerk_id"
   ],
-  "Card": [
+  "CreditCard": [
     "name",
     "issuer",
     "network",
-    "annual_fee_cents"
+    "annual_fee_cents",
+    "reward_program_id"
   ],
-  "Program": [
+  "RewardProgram": [
     "name",
-    "kind",
+    "program_kind",
     "currency_name"
   ],
-  "MerchantCategory": [
+  "SpendCategory": [
     "name"
   ],
-  "Balance": [
+  "RedemptionOption": [
     "program_id",
-    "amount_points",
-    "as_of",
-    "source"
+    "option_type",
+    "cpp_basis_points"
   ],
-  "Goal": [
+  "ExternalQuote": [
+    "quote_type",
+    "subject",
+    "source_tool",
+    "payload"
+  ],
+  "UserBalance": [
+    "user_id",
+    "program_id",
+    "balance_points"
+  ],
+  "UserProgramStatus": [
+    "user_id",
+    "program_id",
+    "status_tier"
+  ],
+  "UserGoal": [
+    "user_id",
     "goal_type",
     "description"
   ],
-  "PlanQuery": [
+  "Plan": [
     "plan_lineage_id",
     "revision_number",
     "query_text",
@@ -132,119 +149,113 @@ export const NODE_REQUIRED_ATTRIBUTES = {
     "plan_lineage_id",
     "revision_number",
     "step_order",
-    "agent",
-    "claim",
-    "inputs",
-    "output",
+    "step_type",
+    "status"
+  ],
+  "AgentRun": [
+    "agent_type",
     "status"
   ]
 } as const;
 export const NODE_ATTRIBUTE_TYPES = {
   "User": {
-    "name": "str",
-    "optimization_goal": "str"
+    "clerk_id": "str",
+    "email": "str|null"
   },
-  "Card": {
+  "CreditCard": {
     "name": "str",
     "issuer": "str",
     "network": "str",
     "annual_fee_cents": "int",
-    "signup_bonus_points": "int",
-    "signup_bonus_spend_cents": "int"
+    "reward_program_id": "str"
   },
-  "Program": {
+  "RewardProgram": {
     "name": "str",
-    "kind": "str",
+    "program_kind": "str",
     "currency_name": "str"
   },
-  "MerchantCategory": {
+  "SpendCategory": {
     "name": "str",
     "mcc_codes": "list[int]"
   },
-  "Balance": {
+  "RedemptionOption": {
     "program_id": "str",
-    "amount_points": "int",
-    "as_of": "str",
-    "source": "str"
+    "option_type": "str",
+    "cpp_basis_points": "int"
   },
-  "Goal": {
+  "ExternalQuote": {
+    "quote_type": "str",
+    "subject": "str",
+    "source_tool": "str",
+    "payload": "object"
+  },
+  "UserBalance": {
+    "user_id": "str",
+    "program_id": "str",
+    "balance_points": "int"
+  },
+  "UserProgramStatus": {
+    "user_id": "str",
+    "program_id": "str",
+    "status_tier": "str"
+  },
+  "UserGoal": {
+    "user_id": "str",
     "goal_type": "str",
-    "description": "str",
-    "target_program_id": "str",
-    "target_location": "str",
-    "target_date": "str"
+    "description": "str"
   },
-  "PlanQuery": {
+  "Plan": {
     "plan_lineage_id": "str",
     "revision_number": "int",
     "query_text": "str",
-    "status": "str",
-    "summary": "str|null"
+    "status": "str"
   },
   "PlanStep": {
     "plan_lineage_id": "str",
     "revision_number": "int",
     "step_order": "int",
-    "agent": "str",
-    "claim": "str",
-    "inputs": "object",
-    "output": "object",
-    "status": "str",
-    "stale_reason": "str|null",
-    "supersedes_plan_step_id": "str|null",
-    "superseded_by_plan_step_id": "str|null"
+    "step_type": "str",
+    "status": "str"
+  },
+  "AgentRun": {
+    "agent_type": "str",
+    "status": "str"
   }
 } as const;
 export const NODE_TIERS = {
   "User": "personal",
-  "Card": "world",
-  "Program": "world",
-  "MerchantCategory": "world",
-  "Balance": "personal",
-  "Goal": "personal",
-  "PlanQuery": "plan",
-  "PlanStep": "plan"
+  "CreditCard": "world",
+  "RewardProgram": "world",
+  "SpendCategory": "world",
+  "RedemptionOption": "world",
+  "ExternalQuote": "world",
+  "UserBalance": "personal",
+  "UserProgramStatus": "personal",
+  "UserGoal": "personal",
+  "Plan": "plan",
+  "PlanStep": "plan",
+  "AgentRun": "plan"
 } as const;
 export const EDGE_TYPE_RULES = {
   "HOLDS": {
     "source": "User",
-    "target": "Card"
-  },
-  "ASSOCIATED_WITH": {
-    "source": "Card",
-    "target": "Program"
+    "target": "CreditCard"
   },
   "EARNS": {
-    "source": "Card",
-    "target": "MerchantCategory"
-  },
-  "HAS_BALANCE": {
-    "source": "User",
-    "target": "Balance"
-  },
-  "BALANCE_FOR": {
-    "source": "Balance",
-    "target": "Program"
-  },
-  "HAS_GOAL": {
-    "source": "User",
-    "target": "Goal"
-  },
-  "FOR_USER": {
-    "source": "PlanQuery",
-    "target": "User"
+    "source": "CreditCard",
+    "target": "SpendCategory"
   },
   "TRANSFERS_TO": {
-    "source": "Program",
-    "target": "Program"
+    "source": "RewardProgram",
+    "target": "RewardProgram"
+  },
+  "REDEEMS_VIA": {
+    "source": "RewardProgram",
+    "target": "RedemptionOption"
   },
   "TARGETS": {
-    "source": "PlanQuery",
-    "target": "Goal"
-  },
-  "STEP_OF": {
-    "source": "PlanStep",
-    "target": "PlanQuery"
+    "source": "Plan",
+    "target": "UserGoal"
   },
   "DEPENDS_ON": {
     "source": "PlanStep",
@@ -253,26 +264,20 @@ export const EDGE_TYPE_RULES = {
 } as const;
 export const EDGE_REQUIRED_ATTRIBUTES = {
   "HOLDS": [],
-  "ASSOCIATED_WITH": [],
   "EARNS": [
     "earn_rate_basis_points",
     "earn_type"
   ],
-  "HAS_BALANCE": [],
-  "BALANCE_FOR": [],
-  "HAS_GOAL": [],
-  "FOR_USER": [],
   "TRANSFERS_TO": [
-    "ratio_num",
-    "ratio_den",
-    "transfer_time_days",
+    "transfer_ratio_basis_points",
     "is_active"
   ],
+  "REDEEMS_VIA": [],
   "TARGETS": [],
-  "STEP_OF": [],
   "DEPENDS_ON": [
+    "target_table",
     "observed_version",
-    "observed_value"
+    "snapshot_value"
   ]
 } as const;
 export const EDGE_ATTRIBUTE_TYPES = {
@@ -280,27 +285,21 @@ export const EDGE_ATTRIBUTE_TYPES = {
     "opened_date": "str",
     "is_primary": "bool"
   },
-  "ASSOCIATED_WITH": {},
   "EARNS": {
     "earn_rate_basis_points": "int",
     "earn_type": "str",
     "cap_amount_cents": "int|null"
   },
-  "HAS_BALANCE": {},
-  "BALANCE_FOR": {},
-  "HAS_GOAL": {},
-  "FOR_USER": {},
   "TRANSFERS_TO": {
-    "ratio_num": "int",
-    "ratio_den": "int",
-    "transfer_time_days": "int",
+    "transfer_ratio_basis_points": "int",
+    "transfer_time_days": "int|null",
     "is_active": "bool"
   },
+  "REDEEMS_VIA": {},
   "TARGETS": {},
-  "STEP_OF": {},
   "DEPENDS_ON": {
+    "target_table": "str",
     "observed_version": "int",
-    "observed_property": "str|null",
-    "observed_value": "any"
+    "snapshot_value": "any"
   }
 } as const;

@@ -1,7 +1,10 @@
 import unittest
 
-from schema.mutations import GraphMutationService, MutationValidationError
-from schema.types import GraphNode
+from schema.experimental.polymorphic.mutations import (
+    GraphMutationService,
+    MutationValidationError,
+)
+from schema.experimental.polymorphic.types import GraphNode
 
 
 class FakeCursor:

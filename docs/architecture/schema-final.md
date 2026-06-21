@@ -1,6 +1,6 @@
 # Schema — Final · v3.1
 
-> **Status:** Locked v3.1 architecture. [ADR 0004](../adr/0004-mvp-polymorphic-graph-schema.md) changes the MVP physical storage layout to polymorphic `nodes` / `edges`, but it does not supersede the plan lifecycle, dependency invalidation, or re-plan semantics in this file.
+> **Status:** Locked v3.1 architecture. The canonical MVP storage layout is table-per-type in `schema/schema.sql`; the earlier polymorphic `nodes` / `edges` implementation is preserved only as an experimental path under `schema/experimental/polymorphic/`.
 > **Reflects:** ADR 0001 (schema lock), ADR 0002 (research apparatus kept), ADR 0003 (four-person team; ingestion + verifier are stretch; Layer 4 cut-by-default).
 > **Owner:** Alan (Graph/Persistence). Reviewed by Raq (lead).
 > **Scope note:** Layers 1–3 are the locked core. **Layer 4 (§9) is stretch** — not Day-1 lock.

@@ -1,6 +1,6 @@
 # 0001 — Schema Lock
 
-- **Status:** Partially superseded for MVP storage by [0004 — MVP Storage Uses Polymorphic Nodes and Edges](0004-mvp-polymorphic-graph-schema.md); plan lifecycle / re-plan semantics remain authoritative.
+- **Status:** Accepted. The later polymorphic storage proposal was not accepted as canonical; v3.1 table-per-type storage remains authoritative.
 - **Owner:** Raq (Graph/Persistence)
 - **Source:** [`schema-v2.md`](../architecture/schema-v2.md) · [`schema-prepdoc-meeting1.md`](../meetings/schema-prepdoc-meeting1.md)
 

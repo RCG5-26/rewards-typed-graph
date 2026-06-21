@@ -4,104 +4,426 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   clerk_id TEXT NOT NULL UNIQUE,
   email TEXT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE nodes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type TEXT NOT NULL,
-  tier TEXT NOT NULL,
-  user_id UUID NULL REFERENCES users(id) ON DELETE CASCADE,
-  slug TEXT NULL,
-  attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
+  display_name TEXT NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'personal',
+  node_type TEXT NOT NULL DEFAULT 'User',
   version INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT nodes_type_check CHECK (
-    type IN (
-      'User',
-      'Card',
-      'Program',
-      'MerchantCategory',
-      'Balance',
-      'Goal',
-      'PlanQuery',
-      'PlanStep'
-    )
-  ),
-
-  CONSTRAINT nodes_tier_check CHECK (
-    tier IN ('world', 'personal', 'plan')
-  ),
-
-  CONSTRAINT nodes_version_nonnegative CHECK (version >= 0)
+  CONSTRAINT users_graph_tier_check CHECK (graph_tier = 'personal'),
+  CONSTRAINT users_node_type_check CHECK (node_type = 'User'),
+  CONSTRAINT users_version_nonnegative CHECK (version >= 0)
 );
 
-CREATE UNIQUE INDEX nodes_slug_unique
-  ON nodes (slug)
-  WHERE slug IS NOT NULL;
-
-CREATE INDEX nodes_type_idx ON nodes (type);
-CREATE INDEX nodes_tier_idx ON nodes (tier);
-CREATE INDEX nodes_user_id_idx ON nodes (user_id);
-CREATE INDEX nodes_attributes_gin_idx ON nodes USING gin (attributes);
-
-CREATE UNIQUE INDEX balance_one_per_user_program_unique
-  ON nodes (user_id, (attributes->>'program_id'))
-  WHERE type = 'Balance';
-
-CREATE TABLE edges (
+CREATE TABLE reward_programs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type TEXT NOT NULL,
-  source_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
-  target_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
-  attributes JSONB NOT NULL DEFAULT '{}'::jsonb,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  issuer TEXT NULL,
+  program_kind TEXT NOT NULL,
+  currency_name TEXT NOT NULL,
+  min_redemption_points INTEGER NULL,
+  points_expire_months INTEGER NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  graph_tier TEXT NOT NULL DEFAULT 'world',
+  node_type TEXT NOT NULL DEFAULT 'RewardProgram',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT reward_programs_kind_check CHECK (
+    program_kind IN ('issuer_transferable', 'airline', 'hotel', 'cashback')
+  ),
+  CONSTRAINT reward_programs_graph_tier_check CHECK (graph_tier = 'world'),
+  CONSTRAINT reward_programs_node_type_check CHECK (node_type = 'RewardProgram')
+);
+
+CREATE TABLE credit_cards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  issuer TEXT NOT NULL,
+  network TEXT NOT NULL,
+  annual_fee_cents INTEGER NOT NULL DEFAULT 0,
+  reward_program_id UUID NOT NULL REFERENCES reward_programs(id),
+  signup_bonus_points INTEGER NULL,
+  signup_bonus_spend_cents INTEGER NULL,
+  signup_bonus_deadline_days INTEGER NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  graph_tier TEXT NOT NULL DEFAULT 'world',
+  node_type TEXT NOT NULL DEFAULT 'CreditCard',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT credit_cards_network_check CHECK (
+    network IN ('visa', 'mastercard', 'amex', 'discover')
+  ),
+  CONSTRAINT credit_cards_annual_fee_nonnegative CHECK (annual_fee_cents >= 0),
+  CONSTRAINT credit_cards_graph_tier_check CHECK (graph_tier = 'world'),
+  CONSTRAINT credit_cards_node_type_check CHECK (node_type = 'CreditCard')
+);
+
+CREATE TABLE spend_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  parent_id UUID NULL REFERENCES spend_categories(id),
+  mcc_codes INTEGER[] NOT NULL DEFAULT '{}',
+  graph_tier TEXT NOT NULL DEFAULT 'world',
+  node_type TEXT NOT NULL DEFAULT 'SpendCategory',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT spend_categories_node_type_check CHECK (node_type = 'SpendCategory'),
+  CONSTRAINT spend_categories_graph_tier_check CHECK (graph_tier = 'world')
+);
+
+CREATE TABLE redemption_options (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID NOT NULL REFERENCES reward_programs(id),
+  option_type TEXT NOT NULL,
+  cpp_basis_points INTEGER NOT NULL,
+  min_points INTEGER NULL,
+  description TEXT NULL,
+  valid_from DATE NULL,
+  valid_until DATE NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'world',
+  node_type TEXT NOT NULL DEFAULT 'RedemptionOption',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT redemption_options_type_check CHECK (
+    option_type IN (
+      'travel_portal',
+      'transfer_partner',
+      'statement_credit',
+      'gift_card',
+      'check',
+      'merchandise'
+    )
+  ),
+  CONSTRAINT redemption_options_cpp_positive CHECK (cpp_basis_points > 0),
+  CONSTRAINT redemption_options_min_points_nonnegative CHECK (
+    min_points IS NULL OR min_points >= 0
+  ),
+  CONSTRAINT redemption_options_graph_tier_check CHECK (graph_tier = 'world'),
+  CONSTRAINT redemption_options_node_type_check CHECK (node_type = 'RedemptionOption')
+);
+
+CREATE TABLE transfers_to (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_program_id UUID NOT NULL REFERENCES reward_programs(id),
+  dest_program_id UUID NOT NULL REFERENCES reward_programs(id),
+  transfer_ratio_basis_points INTEGER NOT NULL,
+  transfer_time_days INTEGER NULL,
+  valid_from TIMESTAMPTZ NULL,
+  valid_until TIMESTAMPTZ NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
   version INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  CONSTRAINT edges_type_check CHECK (
-    type IN (
-      'HOLDS',
-      'ASSOCIATED_WITH',
-      'EARNS',
-      'HAS_BALANCE',
-      'BALANCE_FOR',
-      'HAS_GOAL',
-      'FOR_USER',
-      'TRANSFERS_TO',
-      'TARGETS',
-      'STEP_OF',
-      'DEPENDS_ON'
-    )
+  CONSTRAINT transfers_to_no_self_loop CHECK (source_program_id <> dest_program_id),
+  CONSTRAINT transfers_to_ratio_positive CHECK (transfer_ratio_basis_points > 0),
+  CONSTRAINT transfers_to_time_nonnegative CHECK (
+    transfer_time_days IS NULL OR transfer_time_days >= 0
   ),
-
-  CONSTRAINT edges_version_nonnegative CHECK (version >= 0),
-  CONSTRAINT edges_no_self_loop CHECK (source_id <> target_id)
+  CONSTRAINT transfers_to_version_nonnegative CHECK (version >= 0)
 );
 
-CREATE INDEX edges_type_idx ON edges (type);
-CREATE INDEX edges_source_idx ON edges (source_id);
-CREATE INDEX edges_target_idx ON edges (target_id);
-CREATE INDEX edges_source_type_idx ON edges (source_id, type);
-CREATE INDEX edges_target_type_idx ON edges (target_id, type);
-CREATE INDEX edges_attributes_gin_idx ON edges USING gin (attributes);
+CREATE UNIQUE INDEX transfers_to_active_route_unique
+  ON transfers_to (source_program_id, dest_program_id)
+  WHERE is_active;
 
-CREATE UNIQUE INDEX edges_unique_active_relationship
-  ON edges (type, source_id, target_id);
+CREATE TABLE user_balances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  program_id UUID NOT NULL REFERENCES reward_programs(id),
+  balance_points INTEGER NOT NULL,
+  as_of TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source TEXT NOT NULL DEFAULT 'manual_entry',
+  graph_tier TEXT NOT NULL DEFAULT 'personal',
+  node_type TEXT NOT NULL DEFAULT 'UserBalance',
+  version INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT user_balances_points_nonnegative CHECK (balance_points >= 0),
+  CONSTRAINT user_balances_version_nonnegative CHECK (version >= 0),
+  CONSTRAINT user_balances_graph_tier_check CHECK (graph_tier = 'personal'),
+  CONSTRAINT user_balances_node_type_check CHECK (node_type = 'UserBalance'),
+  UNIQUE (user_id, program_id)
+);
+
+CREATE TABLE user_program_statuses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  program_id UUID NOT NULL REFERENCES reward_programs(id),
+  status_tier TEXT NOT NULL,
+  status_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  graph_tier TEXT NOT NULL DEFAULT 'personal',
+  node_type TEXT NOT NULL DEFAULT 'UserProgramStatus',
+  version INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT user_program_statuses_version_nonnegative CHECK (version >= 0),
+  CONSTRAINT user_program_statuses_graph_tier_check CHECK (graph_tier = 'personal'),
+  CONSTRAINT user_program_statuses_node_type_check CHECK (
+    node_type = 'UserProgramStatus'
+  ),
+  UNIQUE (user_id, program_id)
+);
+
+CREATE TABLE user_goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  goal_type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  target_program_id UUID NULL REFERENCES reward_programs(id),
+  target_location TEXT NULL,
+  target_date DATE NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  graph_tier TEXT NOT NULL DEFAULT 'personal',
+  node_type TEXT NOT NULL DEFAULT 'UserGoal',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT user_goals_graph_tier_check CHECK (graph_tier = 'personal'),
+  CONSTRAINT user_goals_node_type_check CHECK (node_type = 'UserGoal')
+);
+
+CREATE TABLE holds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credit_card_id UUID NOT NULL REFERENCES credit_cards(id),
+  opened_date DATE NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (user_id, credit_card_id)
+);
+
+CREATE TABLE earns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  credit_card_id UUID NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
+  spend_category_id UUID NOT NULL REFERENCES spend_categories(id),
+  earn_rate_basis_points INTEGER NOT NULL,
+  earn_type TEXT NOT NULL,
+  cap_amount_cents INTEGER NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT earns_rate_nonnegative CHECK (earn_rate_basis_points >= 0),
+  CONSTRAINT earns_type_check CHECK (earn_type IN ('points', 'miles', 'cashback_pct')),
+  CONSTRAINT earns_cap_nonnegative CHECK (
+    cap_amount_cents IS NULL OR cap_amount_cents >= 0
+  ),
+  UNIQUE (credit_card_id, spend_category_id, earn_type)
+);
+
+CREATE TABLE redeems_via (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID NOT NULL REFERENCES reward_programs(id) ON DELETE CASCADE,
+  redemption_option_id UUID NOT NULL REFERENCES redemption_options(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (program_id, redemption_option_id)
+);
+
+CREATE TABLE plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_lineage_id UUID NOT NULL,
+  revision_number INTEGER NOT NULL DEFAULT 1,
+  supersedes_plan_id UUID NULL REFERENCES plans(id),
+  query_text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'generating',
+  plan_type TEXT NOT NULL DEFAULT 'agent_generated',
+  benchmark_query_id UUID NULL,
+  raw_output JSONB NULL,
+  summary TEXT NULL,
+  stale_reason TEXT NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'plan',
+  node_type TEXT NOT NULL DEFAULT 'Plan',
+  version INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT plans_revision_positive CHECK (revision_number > 0),
+  CONSTRAINT plans_status_check CHECK (
+    status IN ('generating', 'current', 'stale', 'failed', 'superseded')
+  ),
+  CONSTRAINT plans_type_check CHECK (
+    plan_type IN (
+      'agent_generated',
+      'baseline_single_agent',
+      'baseline_free_text_multiagent'
+    )
+  ),
+  CONSTRAINT plans_version_nonnegative CHECK (version >= 0),
+  CONSTRAINT plans_graph_tier_check CHECK (graph_tier = 'plan'),
+  CONSTRAINT plans_node_type_check CHECK (node_type = 'Plan'),
+  UNIQUE (plan_lineage_id, revision_number)
+);
+
+CREATE UNIQUE INDEX plans_one_current_revision
+  ON plans (plan_lineage_id)
+  WHERE status = 'current';
+
+CREATE TABLE plan_steps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  plan_lineage_id UUID NOT NULL,
+  revision_number INTEGER NOT NULL,
+  supersedes_plan_step_id UUID NULL REFERENCES plan_steps(id),
+  superseded_by_plan_step_id UUID NULL REFERENCES plan_steps(id),
+  step_order INTEGER NOT NULL,
+  step_type TEXT NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status TEXT NOT NULL DEFAULT 'proposed',
+  staled_at TIMESTAMPTZ NULL,
+  stale_reason TEXT NULL,
+  result JSONB NULL,
+  error TEXT NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'plan',
+  node_type TEXT NOT NULL DEFAULT 'PlanStep',
+  version INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT plan_steps_revision_positive CHECK (revision_number > 0),
+  CONSTRAINT plan_steps_order_positive CHECK (step_order > 0),
+  CONSTRAINT plan_steps_type_check CHECK (
+    step_type IN (
+      'card_assignment',
+      'redemption_recommendation',
+      'spend_analysis',
+      'transfer_recommendation'
+    )
+  ),
+  CONSTRAINT plan_steps_status_check CHECK (
+    status IN ('proposed', 'current', 'stale', 'superseded')
+  ),
+  CONSTRAINT plan_steps_version_nonnegative CHECK (version >= 0),
+  CONSTRAINT plan_steps_graph_tier_check CHECK (graph_tier = 'plan'),
+  CONSTRAINT plan_steps_node_type_check CHECK (node_type = 'PlanStep'),
+  UNIQUE (plan_id, step_order)
+);
+
+CREATE TABLE targets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  user_goal_id UUID NOT NULL REFERENCES user_goals(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  UNIQUE (plan_id, user_goal_id)
+);
+
+CREATE TABLE state_dependencies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_step_id UUID NOT NULL REFERENCES plan_steps(id) ON DELETE CASCADE,
+  target_node_id UUID NOT NULL,
+  target_node_type TEXT NOT NULL,
+  target_table TEXT NOT NULL,
+  depended_property TEXT NULL,
+  observed_version INTEGER NOT NULL,
+  snapshot_value JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT state_dependencies_observed_version_nonnegative CHECK (
+    observed_version >= 0
+  ),
+  CONSTRAINT state_dependencies_target_table_check CHECK (
+    target_table IN (
+      'users',
+      'credit_cards',
+      'reward_programs',
+      'spend_categories',
+      'redemption_options',
+      'user_balances',
+      'user_program_statuses',
+      'user_goals',
+      'plans',
+      'plan_steps',
+      'agent_runs',
+      'external_quotes',
+      'transfers_to'
+    )
+  )
+);
+
+CREATE TABLE agent_runs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_type TEXT NOT NULL,
+  plan_id UUID NULL REFERENCES plans(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  state JSONB NULL,
+  token_count INTEGER NULL,
+  error TEXT NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'plan',
+  node_type TEXT NOT NULL DEFAULT 'AgentRun',
+  version INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT agent_runs_agent_type_check CHECK (
+    agent_type IN ('orchestrator', 'wallet_agent', 'earning_agent', 'redemption_agent')
+  ),
+  CONSTRAINT agent_runs_status_check CHECK (
+    status IN ('running', 'completed', 'failed', 'timed_out')
+  ),
+  CONSTRAINT agent_runs_version_nonnegative CHECK (version >= 0),
+  CONSTRAINT agent_runs_graph_tier_check CHECK (graph_tier = 'plan'),
+  CONSTRAINT agent_runs_node_type_check CHECK (node_type = 'AgentRun')
+);
+
+CREATE TABLE external_quotes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_type TEXT NOT NULL,
+  program_id UUID NULL REFERENCES reward_programs(id),
+  redemption_option_id UUID NULL REFERENCES redemption_options(id),
+  subject TEXT NOT NULL,
+  value_cents INTEGER NULL,
+  points_cost INTEGER NULL,
+  source_tool TEXT NOT NULL,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  valid_until TIMESTAMPTZ NULL,
+  plan_id UUID NULL REFERENCES plans(id) ON DELETE SET NULL,
+  payload JSONB NOT NULL,
+  graph_tier TEXT NOT NULL DEFAULT 'world',
+  node_type TEXT NOT NULL DEFAULT 'ExternalQuote',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  CONSTRAINT external_quotes_type_check CHECK (
+    quote_type IN ('cash_price', 'award_availability')
+  ),
+  CONSTRAINT external_quotes_value_nonnegative CHECK (
+    value_cents IS NULL OR value_cents >= 0
+  ),
+  CONSTRAINT external_quotes_points_nonnegative CHECK (
+    points_cost IS NULL OR points_cost >= 0
+  ),
+  CONSTRAINT external_quotes_graph_tier_check CHECK (graph_tier = 'world'),
+  CONSTRAINT external_quotes_node_type_check CHECK (node_type = 'ExternalQuote')
+);
 
 CREATE TABLE graph_mutations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sequence BIGINT GENERATED ALWAYS AS IDENTITY,
   mutation_txn_id UUID NOT NULL DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan_lineage_id UUID NULL,
   actor TEXT NOT NULL,
   event_type TEXT NOT NULL,
   target_kind TEXT NOT NULL,
   target_id UUID NOT NULL,
   target_type TEXT NOT NULL,
+  operation_type TEXT NULL,
   before_value JSONB NULL,
   after_value JSONB NULL,
   resulting_version INTEGER NULL,
@@ -118,22 +440,14 @@ CREATE TABLE graph_mutations (
       'transfer_points'
     )
   ),
-
-  CONSTRAINT graph_mutations_target_kind_check CHECK (
-    target_kind IN ('node', 'edge')
-  )
+  CONSTRAINT graph_mutations_target_kind_check CHECK (target_kind IN ('node', 'edge'))
 );
-
-CREATE INDEX graph_mutations_user_sequence_idx ON graph_mutations (user_id, sequence);
-CREATE INDEX graph_mutations_created_at_idx ON graph_mutations (created_at);
-CREATE INDEX graph_mutations_target_idx ON graph_mutations (target_kind, target_id);
-CREATE INDEX graph_mutations_actor_idx ON graph_mutations (actor);
 
 CREATE TABLE replan_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  plan_lineage_id TEXT NOT NULL,
-  source_plan_id UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  plan_lineage_id UUID NOT NULL,
+  source_plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
   trigger_mutation_txn_id UUID NOT NULL,
   idempotency_key TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
@@ -143,7 +457,7 @@ CREATE TABLE replan_jobs (
   locked_at TIMESTAMPTZ NULL,
   locked_by TEXT NULL,
   lease_expires_at TIMESTAMPTZ NULL,
-  result_plan_id UUID NULL REFERENCES nodes(id),
+  result_plan_id UUID NULL REFERENCES plans(id),
   error TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -155,15 +469,6 @@ CREATE TABLE replan_jobs (
   CONSTRAINT replan_jobs_attempt_count_nonnegative CHECK (attempt_count >= 0),
   CONSTRAINT replan_jobs_max_attempts_positive CHECK (max_attempts > 0)
 );
-
-CREATE INDEX replan_jobs_claim_idx
-  ON replan_jobs (status, available_at, lease_expires_at);
-CREATE INDEX replan_jobs_user_status_idx ON replan_jobs (user_id, status);
-CREATE UNIQUE INDEX replan_jobs_open_source_unique
-  ON replan_jobs (source_plan_id)
-  WHERE status IN ('pending', 'processing');
-CREATE UNIQUE INDEX replan_jobs_idempotency_key_unique
-  ON replan_jobs (user_id, plan_lineage_id, trigger_mutation_txn_id, idempotency_key);
 
 CREATE TABLE idempotency_records (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -183,26 +488,6 @@ CREATE TABLE idempotency_records (
   UNIQUE (user_id, operation_type, idempotency_key)
 );
 
-CREATE TABLE agent_runs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  plan_lineage_id TEXT NULL,
-  agent_type TEXT NOT NULL,
-  status TEXT NOT NULL,
-  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  completed_at TIMESTAMPTZ NULL,
-  state JSONB NOT NULL DEFAULT '{}'::jsonb,
-  token_count INTEGER NULL,
-  error TEXT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-  CONSTRAINT agent_runs_status_check CHECK (
-    status IN ('running', 'completed', 'failed', 'timed_out')
-  )
-);
-
-CREATE INDEX agent_runs_user_lineage_idx ON agent_runs (user_id, plan_lineage_id);
-
 CREATE TABLE benchmark_queries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT NOT NULL UNIQUE,
@@ -211,12 +496,15 @@ CREATE TABLE benchmark_queries (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE plans
+  ADD CONSTRAINT plans_benchmark_query_fk
+  FOREIGN KEY (benchmark_query_id) REFERENCES benchmark_queries(id);
+
 CREATE TABLE evaluations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  benchmark_query_id UUID NULL REFERENCES benchmark_queries(id),
-  plan_lineage_id TEXT NULL,
-  baseline_plan_lineage_id TEXT NULL,
+  plan_id UUID NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+  baseline_plan_id UUID NULL REFERENCES plans(id) ON DELETE SET NULL,
+  benchmark_query_id UUID NOT NULL REFERENCES benchmark_queries(id),
   total_value_cents INTEGER NULL,
   baseline_value_cents INTEGER NULL,
   improvement_basis_points INTEGER NULL,
@@ -230,46 +518,135 @@ CREATE TABLE evaluations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE INDEX credit_cards_reward_program_idx ON credit_cards (reward_program_id);
+CREATE INDEX redemption_options_program_idx ON redemption_options (program_id);
+CREATE INDEX transfers_to_source_idx ON transfers_to (source_program_id);
+CREATE INDEX transfers_to_dest_idx ON transfers_to (dest_program_id);
+CREATE INDEX user_balances_user_program_idx ON user_balances (user_id, program_id);
+CREATE INDEX user_program_statuses_user_program_idx
+  ON user_program_statuses (user_id, program_id);
+CREATE INDEX plans_lineage_revision_idx ON plans (plan_lineage_id, revision_number);
+CREATE INDEX plans_user_status_idx ON plans (user_id, status);
+CREATE INDEX plan_steps_plan_order_idx ON plan_steps (plan_id, step_order);
+CREATE INDEX plan_steps_lineage_revision_idx
+  ON plan_steps (plan_lineage_id, revision_number);
+CREATE INDEX plan_steps_status_idx ON plan_steps (status);
+CREATE INDEX state_dependencies_target_idx
+  ON state_dependencies (target_table, target_node_id);
+CREATE INDEX state_dependencies_step_idx ON state_dependencies (plan_step_id);
+CREATE INDEX agent_runs_plan_idx ON agent_runs (plan_id);
+CREATE INDEX external_quotes_plan_idx ON external_quotes (plan_id);
 CREATE INDEX evaluations_benchmark_query_idx ON evaluations (benchmark_query_id);
-CREATE INDEX evaluations_user_lineage_idx ON evaluations (user_id, plan_lineage_id);
+CREATE INDEX graph_mutations_user_sequence_idx ON graph_mutations (user_id, sequence);
+CREATE INDEX graph_mutations_created_at_idx ON graph_mutations (created_at);
+CREATE INDEX graph_mutations_target_idx ON graph_mutations (target_kind, target_id);
+CREATE INDEX replan_jobs_claim_idx
+  ON replan_jobs (status, available_at, lease_expires_at);
+CREATE INDEX replan_jobs_user_status_idx ON replan_jobs (user_id, status);
+CREATE UNIQUE INDEX replan_jobs_open_source_unique
+  ON replan_jobs (source_plan_id)
+  WHERE status IN ('pending', 'processing');
+CREATE UNIQUE INDEX replan_jobs_idempotency_key_unique
+  ON replan_jobs (user_id, plan_lineage_id, trigger_mutation_txn_id, idempotency_key);
+CREATE INDEX spend_categories_mcc_codes_idx ON spend_categories USING gin (mcc_codes);
+CREATE INDEX user_balances_id_version_idx ON user_balances (id, version);
+CREATE INDEX plan_steps_plan_version_idx ON plan_steps (plan_id, version);
 
 CREATE VIEW stale_plan_steps AS
-WITH dependency_versions AS MATERIALIZED (
-  SELECT
-    plan_step.id AS plan_step_id,
-    plan_step.attributes AS plan_step_attributes,
-    depended_node.id AS depended_node_id,
-    depended_node.type AS depended_node_type,
-    depended_node.version AS current_version,
-    CASE
-      WHEN jsonb_typeof(dep.attributes->'observed_version') IN ('number', 'string')
-        AND dep.attributes->>'observed_version' ~ '^-?[0-9]+$'
-      THEN (dep.attributes->>'observed_version')::integer
-    END AS observed_version
-  FROM edges dep
-  JOIN nodes plan_step
-    ON plan_step.id = dep.source_id
-  JOIN nodes depended_node
-    ON depended_node.id = dep.target_id
-  WHERE dep.type = 'DEPENDS_ON'
-    AND plan_step.type = 'PlanStep'
-    AND COALESCE(plan_step.attributes->>'status', '') NOT IN (
-      'stale',
-      'superseded',
-      'completed',
-      'failed'
-    )
-)
 SELECT
-  plan_step_id,
-  plan_step_attributes,
-  depended_node_id,
-  depended_node_type,
-  current_version,
-  observed_version
-FROM dependency_versions
-WHERE observed_version IS NOT NULL
-  AND current_version <> observed_version;
+  ps.id AS plan_step_id,
+  ps.plan_id,
+  ps.plan_lineage_id,
+  ps.revision_number,
+  sd.target_node_id,
+  sd.target_node_type,
+  sd.target_table,
+  sd.observed_version,
+  CASE sd.target_table
+    WHEN 'user_balances' THEN ub.version
+    WHEN 'user_program_statuses' THEN ups.version
+    WHEN 'plans' THEN p.version
+    WHEN 'plan_steps' THEN depended_step.version
+    WHEN 'transfers_to' THEN tt.version
+  END AS current_version
+FROM state_dependencies sd
+JOIN plan_steps ps ON ps.id = sd.plan_step_id
+LEFT JOIN user_balances ub
+  ON sd.target_table = 'user_balances'
+ AND ub.id = sd.target_node_id
+LEFT JOIN user_program_statuses ups
+  ON sd.target_table = 'user_program_statuses'
+ AND ups.id = sd.target_node_id
+LEFT JOIN plans p
+  ON sd.target_table = 'plans'
+ AND p.id = sd.target_node_id
+LEFT JOIN plan_steps depended_step
+  ON sd.target_table = 'plan_steps'
+ AND depended_step.id = sd.target_node_id
+LEFT JOIN transfers_to tt
+  ON sd.target_table = 'transfers_to'
+ AND tt.id = sd.target_node_id
+WHERE ps.status NOT IN ('stale', 'superseded')
+  AND CASE sd.target_table
+    WHEN 'user_balances' THEN ub.version
+    WHEN 'user_program_statuses' THEN ups.version
+    WHEN 'plans' THEN p.version
+    WHEN 'plan_steps' THEN depended_step.version
+    WHEN 'transfers_to' THEN tt.version
+  END IS NOT NULL
+  AND CASE sd.target_table
+    WHEN 'user_balances' THEN ub.version
+    WHEN 'user_program_statuses' THEN ups.version
+    WHEN 'plans' THEN p.version
+    WHEN 'plan_steps' THEN depended_step.version
+    WHEN 'transfers_to' THEN tt.version
+  END <> sd.observed_version;
+
+CREATE FUNCTION claim_replan_jobs(
+  p_worker_id TEXT,
+  p_limit INTEGER DEFAULT 10,
+  p_lease_duration INTERVAL DEFAULT interval '30 seconds'
+)
+RETURNS TABLE (
+  id UUID,
+  user_id UUID,
+  plan_lineage_id UUID,
+  source_plan_id UUID,
+  attempt_count INTEGER
+)
+LANGUAGE sql
+AS $$
+  WITH claimable AS (
+    SELECT job.id
+      FROM replan_jobs job
+     WHERE job.available_at <= now()
+       AND (
+         job.status = 'pending'
+         OR (
+           job.status = 'processing'
+           AND job.lease_expires_at < now()
+         )
+       )
+     ORDER BY job.created_at
+     LIMIT p_limit
+     FOR UPDATE SKIP LOCKED
+  )
+  UPDATE replan_jobs job
+     SET status = 'processing',
+         locked_at = now(),
+         locked_by = p_worker_id,
+         lease_expires_at = now() + p_lease_duration,
+         attempt_count = attempt_count + 1,
+         updated_at = now()
+    FROM claimable
+   WHERE job.id = claimable.id
+  RETURNING
+    job.id,
+    job.user_id,
+    job.plan_lineage_id,
+    job.source_plan_id,
+    job.attempt_count;
+$$;
 
 CREATE FUNCTION transfer_points(
   p_user_id UUID,
@@ -293,22 +670,22 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   existing_idempotency idempotency_records%ROWTYPE;
-  source_balance nodes%ROWTYPE;
-  dest_balance nodes%ROWTYPE;
-  source_before JSONB;
-  dest_before JSONB;
-  source_after JSONB;
-  dest_after JSONB;
-  source_amount INTEGER;
-  dest_amount INTEGER;
+  source_balance user_balances%ROWTYPE;
+  dest_balance user_balances%ROWTYPE;
   new_source_version INTEGER;
   new_dest_version INTEGER;
-  response_payload JSONB;
   v_mutation_txn_id UUID := gen_random_uuid();
-  stale_step RECORD;
+  response_payload JSONB;
+  stale_plan RECORD;
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended('graph_write:' || p_user_id::text, 0));
+
   IF p_amount_points <= 0 THEN
     RAISE EXCEPTION 'amount_points must be greater than 0';
+  END IF;
+
+  IF p_source_balance_id = p_dest_balance_id THEN
+    RAISE EXCEPTION 'source and destination balances must differ';
   END IF;
 
   SELECT *
@@ -354,9 +731,8 @@ BEGIN
 
   SELECT *
     INTO source_balance
-    FROM nodes
+    FROM user_balances
    WHERE id = p_source_balance_id
-     AND type = 'Balance'
      AND user_id = p_user_id
    FOR UPDATE;
 
@@ -366,14 +742,17 @@ BEGIN
 
   SELECT *
     INTO dest_balance
-    FROM nodes
+    FROM user_balances
    WHERE id = p_dest_balance_id
-     AND type = 'Balance'
      AND user_id = p_user_id
    FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'destination balance does not exist';
+  END IF;
+
+  IF source_balance.program_id = dest_balance.program_id THEN
+    RAISE EXCEPTION 'source and destination programs must differ';
   END IF;
 
   IF source_balance.version <> p_source_expected_version THEN
@@ -384,35 +763,31 @@ BEGIN
     RAISE EXCEPTION 'destination balance version conflict';
   END IF;
 
-  source_amount := (source_balance.attributes->>'amount_points')::integer;
-  dest_amount := (dest_balance.attributes->>'amount_points')::integer;
-
-  IF source_amount < p_amount_points THEN
+  IF source_balance.balance_points < p_amount_points THEN
     RAISE EXCEPTION 'insufficient source balance';
   END IF;
 
-  source_before := source_balance.attributes;
-  dest_before := dest_balance.attributes;
-  source_after := jsonb_set(
-    source_before,
-    '{amount_points}',
-    to_jsonb(source_amount - p_amount_points)
-  );
-  dest_after := jsonb_set(
-    dest_before,
-    '{amount_points}',
-    to_jsonb(dest_amount + p_amount_points)
-  );
+  IF NOT EXISTS (
+    SELECT 1
+      FROM transfers_to route
+     WHERE route.source_program_id = source_balance.program_id
+       AND route.dest_program_id = dest_balance.program_id
+       AND route.is_active
+       AND (route.valid_from IS NULL OR route.valid_from <= now())
+       AND (route.valid_until IS NULL OR route.valid_until > now())
+  ) THEN
+    RAISE EXCEPTION 'active transfer route does not exist';
+  END IF;
 
-  UPDATE nodes
-     SET attributes = source_after,
+  UPDATE user_balances
+     SET balance_points = balance_points - p_amount_points,
          version = version + 1,
          updated_at = now()
    WHERE id = p_source_balance_id
   RETURNING version INTO new_source_version;
 
-  UPDATE nodes
-     SET attributes = dest_after,
+  UPDATE user_balances
+     SET balance_points = balance_points + p_amount_points,
          version = version + 1,
          updated_at = now()
    WHERE id = p_dest_balance_id
@@ -426,6 +801,7 @@ BEGIN
     target_kind,
     target_id,
     target_type,
+    operation_type,
     before_value,
     after_value,
     resulting_version
@@ -438,9 +814,13 @@ BEGIN
       'transfer_points',
       'node',
       p_source_balance_id,
-      'Balance',
-      source_before,
-      source_after,
+      'UserBalance',
+      'TransferPoints',
+      to_jsonb(source_balance),
+      jsonb_build_object(
+        'balance_points',
+        source_balance.balance_points - p_amount_points
+      ),
       new_source_version
     ),
     (
@@ -450,32 +830,66 @@ BEGIN
       'transfer_points',
       'node',
       p_dest_balance_id,
-      'Balance',
-      dest_before,
-      dest_after,
+      'UserBalance',
+      'TransferPoints',
+      to_jsonb(dest_balance),
+      jsonb_build_object(
+        'balance_points',
+        dest_balance.balance_points + p_amount_points
+      ),
       new_dest_version
     );
 
-  FOR stale_step IN
-    SELECT DISTINCT
-      stale.plan_step_id,
-      step.user_id,
-      step.attributes->>'plan_lineage_id' AS plan_lineage_id,
-      plan_node.id AS source_plan_id
-    FROM stale_plan_steps stale
-    JOIN nodes step ON step.id = stale.plan_step_id
-    JOIN edges step_of
-      ON step_of.source_id = step.id
-     AND step_of.type = 'STEP_OF'
-    JOIN nodes plan_node
-      ON plan_node.id = step_of.target_id
-     AND plan_node.type = 'PlanQuery'
-    WHERE stale.depended_node_id IN (p_source_balance_id, p_dest_balance_id)
-      AND step.user_id = p_user_id
+  FOR stale_plan IN
+    SELECT DISTINCT p.id, p.plan_lineage_id
+      FROM plans p
+      JOIN plan_steps ps ON ps.plan_id = p.id
+      JOIN state_dependencies sd ON sd.plan_step_id = ps.id
+     WHERE p.user_id = p_user_id
+       AND p.status = 'current'
+       AND sd.target_table = 'user_balances'
+       AND sd.target_node_id IN (p_source_balance_id, p_dest_balance_id)
   LOOP
-    PERFORM mark_plan_step_stale(
-      stale_step.plan_step_id,
-      'Balance dependency changed during TransferPoints'
+    UPDATE plans
+       SET status = 'stale',
+           stale_reason = 'Balance dependency changed during TransferPoints',
+           version = version + 1,
+           updated_at = now()
+     WHERE id = stale_plan.id
+       AND status = 'current';
+
+    UPDATE plan_steps
+       SET status = 'stale',
+           staled_at = now(),
+           stale_reason = 'Balance dependency changed during TransferPoints',
+           version = version + 1,
+           updated_at = now()
+     WHERE plan_id = stale_plan.id
+       AND status = 'current';
+
+    INSERT INTO graph_mutations (
+      mutation_txn_id,
+      user_id,
+      plan_lineage_id,
+      actor,
+      event_type,
+      target_kind,
+      target_id,
+      target_type,
+      operation_type,
+      after_value
+    )
+    VALUES (
+      v_mutation_txn_id,
+      p_user_id,
+      stale_plan.plan_lineage_id,
+      p_actor,
+      'mark_stale',
+      'node',
+      stale_plan.id,
+      'Plan',
+      'TransferPoints',
+      jsonb_build_object('status', 'stale')
     );
 
     INSERT INTO replan_jobs (
@@ -488,8 +902,8 @@ BEGIN
     )
     VALUES (
       p_user_id,
-      COALESCE(stale_step.plan_lineage_id, stale_step.source_plan_id::text),
-      stale_step.source_plan_id,
+      stale_plan.plan_lineage_id,
+      stale_plan.id,
       v_mutation_txn_id,
       p_idempotency_key,
       'pending'
@@ -524,301 +938,83 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION claim_replan_jobs(
+CREATE FUNCTION promote_replan_job_success(
+  p_job_id UUID,
   p_worker_id TEXT,
-  p_limit INTEGER DEFAULT 10,
-  p_lease_duration INTERVAL DEFAULT interval '30 seconds'
+  p_result_plan_id UUID
 )
 RETURNS TABLE (
-  id UUID,
-  user_id UUID,
-  plan_lineage_id TEXT,
+  job_id UUID,
   source_plan_id UUID,
-  attempt_count INTEGER
-)
-LANGUAGE sql
-AS $$
-  WITH claimable AS (
-    SELECT job.id
-     FROM replan_jobs job
-     WHERE job.available_at <= now()
-       AND (
-         job.status = 'pending'
-         OR (
-           job.status = 'processing'
-           AND job.lease_expires_at < now()
-         )
-       )
-     ORDER BY job.created_at
-     LIMIT p_limit
-     FOR UPDATE SKIP LOCKED
-  )
-  UPDATE replan_jobs job
-     SET status = 'processing',
-         locked_at = now(),
-         locked_by = p_worker_id,
-         lease_expires_at = now() + p_lease_duration,
-         attempt_count = attempt_count + 1,
-         updated_at = now()
-    FROM claimable
-   WHERE job.id = claimable.id
-  RETURNING
-    job.id,
-    job.user_id,
-    job.plan_lineage_id,
-    job.source_plan_id,
-    job.attempt_count;
-$$;
-
-CREATE VIEW node_connectivity_violations AS
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing one of FOR_USER, HOLDS, HAS_BALANCE, HAS_GOAL' AS violation
-FROM nodes n
-WHERE n.type = 'User'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type IN ('FOR_USER', 'HOLDS', 'HAS_BALANCE', 'HAS_GOAL')
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing one of HOLDS, ASSOCIATED_WITH, EARNS' AS violation
-FROM nodes n
-WHERE n.type = 'Card'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type IN ('HOLDS', 'ASSOCIATED_WITH', 'EARNS')
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing one of ASSOCIATED_WITH, BALANCE_FOR, TRANSFERS_TO' AS violation
-FROM nodes n
-WHERE n.type = 'Program'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type IN ('ASSOCIATED_WITH', 'BALANCE_FOR', 'TRANSFERS_TO')
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing EARNS edge' AS violation
-FROM nodes n
-WHERE n.type = 'MerchantCategory'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type = 'EARNS'
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing HAS_BALANCE edge' AS violation
-FROM nodes n
-WHERE n.type = 'Balance'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type = 'HAS_BALANCE'
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing BALANCE_FOR edge' AS violation
-FROM nodes n
-WHERE n.type = 'Balance'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type = 'BALANCE_FOR'
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing one of HAS_GOAL, TARGETS' AS violation
-FROM nodes n
-WHERE n.type = 'Goal'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type IN ('HAS_GOAL', 'TARGETS')
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing one of FOR_USER, TARGETS, STEP_OF' AS violation
-FROM nodes n
-WHERE n.type = 'PlanQuery'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type IN ('FOR_USER', 'TARGETS', 'STEP_OF')
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing STEP_OF edge' AS violation
-FROM nodes n
-WHERE n.type = 'PlanStep'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type = 'STEP_OF'
-  )
-UNION ALL
-SELECT
-  n.id AS node_id,
-  n.type AS node_type,
-  'missing DEPENDS_ON edge' AS violation
-FROM nodes n
-WHERE n.type = 'PlanStep'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM edges e
-    WHERE (e.source_id = n.id OR e.target_id = n.id)
-      AND e.type = 'DEPENDS_ON'
-  );
-
-CREATE FUNCTION mark_plan_step_stale(
-  p_plan_step_id UUID,
-  p_reason TEXT
-)
-RETURNS TABLE (id UUID, version INTEGER)
-LANGUAGE sql
-AS $$
-  UPDATE nodes
-  SET
-    attributes = jsonb_set(
-      jsonb_set(attributes, '{status}', '"stale"'::jsonb),
-      '{stale_reason}',
-      to_jsonb(p_reason)
-    ),
-    version = version + 1,
-    updated_at = now()
-  WHERE id = p_plan_step_id
-    AND type = 'PlanStep'
-    AND COALESCE(attributes->>'status', '') NOT IN (
-      'stale',
-      'superseded',
-      'completed',
-      'failed'
-    )
-  RETURNING id, version;
-$$;
-
-CREATE FUNCTION supersede_plan_step(
-  p_source_plan_step_id UUID,
-  p_successor_attributes JSONB
-)
-RETURNS TABLE (
-  source_id UUID,
-  source_version INTEGER,
-  successor_id UUID,
-  successor_version INTEGER
+  result_plan_id UUID
 )
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  source_step nodes%ROWTYPE;
-  new_source_version INTEGER;
-  new_successor_id UUID;
-  new_successor_version INTEGER;
+  job replan_jobs%ROWTYPE;
 BEGIN
   SELECT *
-    INTO source_step
-    FROM nodes
-   WHERE id = p_source_plan_step_id
-     AND type = 'PlanStep'
+    INTO job
+    FROM replan_jobs
+   WHERE id = p_job_id
    FOR UPDATE;
 
   IF NOT FOUND THEN
-    RETURN;
+    RAISE EXCEPTION 'replan job does not exist';
   END IF;
 
-  IF COALESCE(source_step.attributes->>'status', '') <> 'stale' THEN
-    RETURN;
+  IF job.status <> 'processing'
+     OR job.locked_by <> p_worker_id
+     OR job.lease_expires_at <= now() THEN
+    RAISE EXCEPTION 'replan job lease is not active for worker';
   END IF;
 
-  INSERT INTO nodes (type, tier, user_id, slug, attributes, version)
-  VALUES ('PlanStep', 'plan', source_step.user_id, NULL, p_successor_attributes, 0)
-  RETURNING id, version
-    INTO new_successor_id, new_successor_version;
-
-  UPDATE nodes
-     SET attributes = jsonb_set(
-           jsonb_set(attributes, '{status}', '"superseded"'::jsonb),
-           '{superseded_by_plan_step_id}',
-           to_jsonb(new_successor_id::text)
-         ),
+  UPDATE plans
+     SET status = 'current',
          version = version + 1,
          updated_at = now()
-   WHERE id = p_source_plan_step_id
-     AND type = 'PlanStep'
-  RETURNING version
-    INTO new_source_version;
+   WHERE id = p_result_plan_id
+     AND status = 'generating';
 
-  source_id := p_source_plan_step_id;
-  source_version := new_source_version;
-  successor_id := new_successor_id;
-  successor_version := new_successor_version;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'result plan must be generating before promotion';
+  END IF;
+
+  UPDATE plans
+     SET status = 'superseded',
+         version = version + 1,
+         updated_at = now()
+   WHERE id = job.source_plan_id
+     AND status = 'stale';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'source plan must be stale before promotion';
+  END IF;
+
+  UPDATE plan_steps
+     SET status = 'current',
+         version = version + 1,
+         updated_at = now()
+   WHERE plan_id = p_result_plan_id
+     AND status = 'proposed';
+
+  UPDATE plan_steps
+     SET status = 'superseded',
+         version = version + 1,
+         updated_at = now()
+   WHERE plan_id = job.source_plan_id
+     AND status = 'stale';
+
+  UPDATE replan_jobs
+     SET status = 'completed',
+         result_plan_id = p_result_plan_id,
+         completed_at = now(),
+         updated_at = now()
+   WHERE id = p_job_id;
+
+  job_id := p_job_id;
+  source_plan_id := job.source_plan_id;
+  result_plan_id := p_result_plan_id;
   RETURN NEXT;
 END;
-$$;
-
-CREATE FUNCTION update_node_optimistic(
-  p_node_id UUID,
-  p_expected_version INTEGER,
-  p_attributes JSONB
-)
-RETURNS TABLE (id UUID, version INTEGER)
-LANGUAGE sql
-AS $$
-  UPDATE nodes
-  SET
-    attributes = p_attributes,
-    version = version + 1,
-    updated_at = now()
-  WHERE id = p_node_id
-    AND version = p_expected_version
-  RETURNING id, version;
-$$;
-
-CREATE FUNCTION update_edge_optimistic(
-  p_edge_id UUID,
-  p_expected_version INTEGER,
-  p_attributes JSONB
-)
-RETURNS TABLE (id UUID, version INTEGER)
-LANGUAGE sql
-AS $$
-  UPDATE edges
-  SET
-    attributes = p_attributes,
-    version = version + 1,
-    updated_at = now()
-  WHERE id = p_edge_id
-    AND version = p_expected_version
-  RETURNING id, version;
 $$;

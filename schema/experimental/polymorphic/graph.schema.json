@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rcg5-26.example/schema/rewards-typed-graph-v31.json",
-  "title": "Rewards Typed Graph v3.1 Contract",
+  "$id": "https://rcg5-26.example/schema/rewards-typed-graph-mvp.json",
+  "title": "Rewards Typed Graph MVP Contract",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -27,27 +27,28 @@
       "type": "string",
       "enum": [
         "User",
-        "CreditCard",
-        "RewardProgram",
-        "SpendCategory",
-        "RedemptionOption",
-        "ExternalQuote",
-        "UserBalance",
-        "UserProgramStatus",
-        "UserGoal",
-        "Plan",
-        "PlanStep",
-        "AgentRun"
+        "Card",
+        "Program",
+        "MerchantCategory",
+        "Balance",
+        "Goal",
+        "PlanQuery",
+        "PlanStep"
       ]
     },
     "edgeTypes": {
       "type": "string",
       "enum": [
         "HOLDS",
+        "ASSOCIATED_WITH",
         "EARNS",
+        "HAS_BALANCE",
+        "BALANCE_FOR",
+        "HAS_GOAL",
+        "FOR_USER",
         "TRANSFERS_TO",
-        "REDEEMS_VIA",
         "TARGETS",
+        "STEP_OF",
         "DEPENDS_ON"
       ]
     },
@@ -68,6 +69,19 @@
         },
         "tier": {
           "$ref": "#/$defs/graphTiers"
+        },
+        "user_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "slug": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "attributes": {
           "type": "object"
@@ -114,24 +128,22 @@
   },
   "x-graph": {
     "programKinds": [
-      "issuer_transferable",
+      "transferable",
       "airline",
       "hotel",
       "cashback"
     ],
     "planStatuses": [
-      "generating",
-      "current",
+      "active",
       "stale",
-      "failed",
-      "superseded"
+      "superseded",
+      "completed",
+      "failed"
     ],
     "planQueryStatuses": [
-      "generating",
-      "current",
-      "stale",
-      "failed",
-      "superseded"
+      "active",
+      "completed",
+      "failed"
     ],
     "mutationActions": [
       "create_node",
@@ -149,64 +161,44 @@
     ],
     "nodeTiers": {
       "User": "personal",
-      "CreditCard": "world",
-      "RewardProgram": "world",
-      "SpendCategory": "world",
-      "RedemptionOption": "world",
-      "ExternalQuote": "world",
-      "UserBalance": "personal",
-      "UserProgramStatus": "personal",
-      "UserGoal": "personal",
-      "Plan": "plan",
-      "PlanStep": "plan",
-      "AgentRun": "plan"
+      "Card": "world",
+      "Program": "world",
+      "MerchantCategory": "world",
+      "Balance": "personal",
+      "Goal": "personal",
+      "PlanQuery": "plan",
+      "PlanStep": "plan"
     },
     "nodeRequiredAttributes": {
       "User": [
-        "clerk_id"
+        "name",
+        "optimization_goal"
       ],
-      "CreditCard": [
+      "Card": [
         "name",
         "issuer",
         "network",
-        "annual_fee_cents",
-        "reward_program_id"
+        "annual_fee_cents"
       ],
-      "RewardProgram": [
+      "Program": [
         "name",
-        "program_kind",
+        "kind",
         "currency_name"
       ],
-      "SpendCategory": [
+      "MerchantCategory": [
         "name"
       ],
-      "RedemptionOption": [
+      "Balance": [
         "program_id",
-        "option_type",
-        "cpp_basis_points"
+        "amount_points",
+        "as_of",
+        "source"
       ],
-      "ExternalQuote": [
-        "quote_type",
-        "subject",
-        "source_tool",
-        "payload"
-      ],
-      "UserBalance": [
-        "user_id",
-        "program_id",
-        "balance_points"
-      ],
-      "UserProgramStatus": [
-        "user_id",
-        "program_id",
-        "status_tier"
-      ],
-      "UserGoal": [
-        "user_id",
+      "Goal": [
         "goal_type",
         "description"
       ],
-      "Plan": [
+      "PlanQuery": [
         "plan_lineage_id",
         "revision_number",
         "query_text",
@@ -216,99 +208,109 @@
         "plan_lineage_id",
         "revision_number",
         "step_order",
-        "step_type",
-        "status"
-      ],
-      "AgentRun": [
-        "agent_type",
+        "agent",
+        "claim",
+        "inputs",
+        "output",
         "status"
       ]
     },
     "nodeAttributeTypes": {
       "User": {
-        "clerk_id": "str",
-        "email": "str|null"
+        "name": "str",
+        "optimization_goal": "str"
       },
-      "CreditCard": {
+      "Card": {
         "name": "str",
         "issuer": "str",
         "network": "str",
         "annual_fee_cents": "int",
-        "reward_program_id": "str"
+        "signup_bonus_points": "int",
+        "signup_bonus_spend_cents": "int"
       },
-      "RewardProgram": {
+      "Program": {
         "name": "str",
-        "program_kind": "str",
+        "kind": "str",
         "currency_name": "str"
       },
-      "SpendCategory": {
+      "MerchantCategory": {
         "name": "str",
         "mcc_codes": "list[int]"
       },
-      "RedemptionOption": {
+      "Balance": {
         "program_id": "str",
-        "option_type": "str",
-        "cpp_basis_points": "int"
+        "amount_points": "int",
+        "as_of": "str",
+        "source": "str"
       },
-      "ExternalQuote": {
-        "quote_type": "str",
-        "subject": "str",
-        "source_tool": "str",
-        "payload": "object"
-      },
-      "UserBalance": {
-        "user_id": "str",
-        "program_id": "str",
-        "balance_points": "int"
-      },
-      "UserProgramStatus": {
-        "user_id": "str",
-        "program_id": "str",
-        "status_tier": "str"
-      },
-      "UserGoal": {
-        "user_id": "str",
+      "Goal": {
         "goal_type": "str",
-        "description": "str"
+        "description": "str",
+        "target_program_id": "str",
+        "target_location": "str",
+        "target_date": "str"
       },
-      "Plan": {
+      "PlanQuery": {
         "plan_lineage_id": "str",
         "revision_number": "int",
         "query_text": "str",
-        "status": "str"
+        "status": "str",
+        "summary": "str|null"
       },
       "PlanStep": {
         "plan_lineage_id": "str",
         "revision_number": "int",
         "step_order": "int",
-        "step_type": "str",
-        "status": "str"
-      },
-      "AgentRun": {
-        "agent_type": "str",
-        "status": "str"
+        "agent": "str",
+        "claim": "str",
+        "inputs": "object",
+        "output": "object",
+        "status": "str",
+        "stale_reason": "str|null",
+        "supersedes_plan_step_id": "str|null",
+        "superseded_by_plan_step_id": "str|null"
       }
     },
     "edgeTypeRules": {
       "HOLDS": {
         "source": "User",
-        "target": "CreditCard"
+        "target": "Card"
+      },
+      "ASSOCIATED_WITH": {
+        "source": "Card",
+        "target": "Program"
       },
       "EARNS": {
-        "source": "CreditCard",
-        "target": "SpendCategory"
+        "source": "Card",
+        "target": "MerchantCategory"
+      },
+      "HAS_BALANCE": {
+        "source": "User",
+        "target": "Balance"
+      },
+      "BALANCE_FOR": {
+        "source": "Balance",
+        "target": "Program"
+      },
+      "HAS_GOAL": {
+        "source": "User",
+        "target": "Goal"
+      },
+      "FOR_USER": {
+        "source": "PlanQuery",
+        "target": "User"
       },
       "TRANSFERS_TO": {
-        "source": "RewardProgram",
-        "target": "RewardProgram"
-      },
-      "REDEEMS_VIA": {
-        "source": "RewardProgram",
-        "target": "RedemptionOption"
+        "source": "Program",
+        "target": "Program"
       },
       "TARGETS": {
-        "source": "Plan",
-        "target": "UserGoal"
+        "source": "PlanQuery",
+        "target": "Goal"
+      },
+      "STEP_OF": {
+        "source": "PlanStep",
+        "target": "PlanQuery"
       },
       "DEPENDS_ON": {
         "source": "PlanStep",
@@ -317,20 +319,26 @@
     },
     "edgeRequiredAttributes": {
       "HOLDS": [],
+      "ASSOCIATED_WITH": [],
       "EARNS": [
         "earn_rate_basis_points",
         "earn_type"
       ],
+      "HAS_BALANCE": [],
+      "BALANCE_FOR": [],
+      "HAS_GOAL": [],
+      "FOR_USER": [],
       "TRANSFERS_TO": [
-        "transfer_ratio_basis_points",
+        "ratio_num",
+        "ratio_den",
+        "transfer_time_days",
         "is_active"
       ],
-      "REDEEMS_VIA": [],
       "TARGETS": [],
+      "STEP_OF": [],
       "DEPENDS_ON": [
-        "target_table",
         "observed_version",
-        "snapshot_value"
+        "observed_value"
       ]
     },
     "edgeAttributeTypes": {
@@ -338,22 +346,28 @@
         "opened_date": "str",
         "is_primary": "bool"
       },
+      "ASSOCIATED_WITH": {},
       "EARNS": {
         "earn_rate_basis_points": "int",
         "earn_type": "str",
         "cap_amount_cents": "int|null"
       },
+      "HAS_BALANCE": {},
+      "BALANCE_FOR": {},
+      "HAS_GOAL": {},
+      "FOR_USER": {},
       "TRANSFERS_TO": {
-        "transfer_ratio_basis_points": "int",
-        "transfer_time_days": "int|null",
+        "ratio_num": "int",
+        "ratio_den": "int",
+        "transfer_time_days": "int",
         "is_active": "bool"
       },
-      "REDEEMS_VIA": {},
       "TARGETS": {},
+      "STEP_OF": {},
       "DEPENDS_ON": {
-        "target_table": "str",
         "observed_version": "int",
-        "snapshot_value": "any"
+        "observed_property": "str|null",
+        "observed_value": "any"
       }
     }
   }

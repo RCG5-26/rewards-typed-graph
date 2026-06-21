@@ -1,8 +1,8 @@
-"""Python validators for the generated rewards typed graph v3.1 contract.
+"""Python validators for the generated rewards typed graph MVP contract.
 
 The canonical schema contract lives in schema/contracts/graph.schema.json.
 Generated constants are imported from schema.generated.types; this module keeps
-small structural validation helpers on top of that shared contract.
+the hand-written validation behavior layered on top of that shared contract.
 """
 
 from __future__ import annotations
@@ -10,17 +10,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
-from schema.generated.types import (
+from schema.experimental.polymorphic.generated_types import (
     EARN_TYPES,
     EDGE_ATTRIBUTE_TYPES,
     EDGE_REQUIRED_ATTRIBUTES,
     EDGE_TYPE_RULES,
     EDGE_TYPES,
     GRAPH_TIERS,
+    MUTATION_ACTIONS,
     NODE_ATTRIBUTE_TYPES,
     NODE_REQUIRED_ATTRIBUTES,
     NODE_TIERS,
     NODE_TYPES,
+    PLAN_QUERY_STATUSES,
     PLAN_STATUSES,
     PROGRAM_KINDS,
 )
@@ -28,17 +30,19 @@ from schema.generated.types import (
 
 @dataclass(frozen=True)
 class GraphNode:
-    """Minimal node payload accepted by the v3.1 graph contract."""
+    """Minimal node payload accepted by the MVP graph write path."""
 
     type: str
     tier: str
     attributes: Dict[str, Any] = field(default_factory=dict)
+    user_id: Optional[str] = None
+    slug: Optional[str] = None
     version: int = 0
 
 
 @dataclass(frozen=True)
 class GraphEdge:
-    """Minimal edge payload accepted by the v3.1 graph contract."""
+    """Minimal edge payload accepted by the MVP graph write path."""
 
     type: str
     source_type: str
@@ -48,7 +52,12 @@ class GraphEdge:
 
 
 def validate_node(node: GraphNode) -> Sequence[str]:
-    """Return validation errors for a v3.1 node payload."""
+    """Return validation errors for a node payload.
+
+    The validator intentionally stays structural and deterministic. Deeper
+    domain checks, such as UUID shape or timestamp parsing, belong in the graph
+    write service once the application stack exists.
+    """
 
     errors = []
 
@@ -71,31 +80,28 @@ def validate_node(node: GraphNode) -> Sequence[str]:
 
     errors.extend(_validate_attributes(node.type, node.attributes, NODE_ATTRIBUTE_TYPES))
 
-    if node.type == "RewardProgram":
-        program_kind = node.attributes.get("program_kind")
-        if program_kind is not None and program_kind not in PROGRAM_KINDS:
-            errors.append(
-                f"RewardProgram.attributes.program_kind must be one of {PROGRAM_KINDS}"
-            )
+    if node.type == "Program":
+        kind = node.attributes.get("kind")
+        if kind is not None and kind not in PROGRAM_KINDS:
+            errors.append(f"Program.attributes.kind must be one of {PROGRAM_KINDS}")
 
-    if node.type == "Plan":
+    if node.type == "PlanQuery":
         status = node.attributes.get("status")
-        if status is not None and status not in PLAN_STATUSES:
-            errors.append(f"Plan.attributes.status must be one of {PLAN_STATUSES}")
+        if status is not None and status not in PLAN_QUERY_STATUSES:
+            errors.append(
+                f"PlanQuery.attributes.status must be one of {PLAN_QUERY_STATUSES}"
+            )
 
     if node.type == "PlanStep":
         status = node.attributes.get("status")
-        valid_step_statuses = ("proposed", "current", "stale", "superseded")
-        if status is not None and status not in valid_step_statuses:
-            errors.append(
-                f"PlanStep.attributes.status must be one of {valid_step_statuses}"
-            )
+        if status is not None and status not in PLAN_STATUSES:
+            errors.append(f"{node.type}.attributes.status must be one of {PLAN_STATUSES}")
 
     return errors
 
 
 def validate_edge(edge: GraphEdge) -> Sequence[str]:
-    """Return validation errors for a v3.1 edge payload."""
+    """Return validation errors for an edge payload."""
 
     errors = []
 

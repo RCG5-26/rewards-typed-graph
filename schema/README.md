@@ -1,9 +1,10 @@
-# Canonical MVP Schema Artifacts
+# Canonical v3.1 Schema Artifacts
 
 These files are the machine-usable schema artifacts for the MVP described in
-[`docs/architecture/schemaMVP.md`](../docs/architecture/schemaMVP.md).
+[`docs/architecture/schema-final.md`](../docs/architecture/schema-final.md).
 
-- `schema.sql` defines the Postgres tables, constraints, and indexes.
+- `schema.sql` defines the canonical v3.1 table-per-type Postgres tables,
+  constraints, indexes, and write-path functions.
 - `contracts/graph.schema.json` is the shared JSON Schema contract and source
   for generated dual-stack type artifacts.
 - `generated/types.py` and `generated/types.ts` are generated from the shared
@@ -23,13 +24,22 @@ CI/test checks should run:
 python3 scripts/generate_schema_types.py --check
 ```
 
-Keep these artifacts aligned with the MVP doc. After schema lock, changes should
-be additive unless the team records and approves a migration decision.
+Keep these artifacts aligned with schema-final v3.1. After schema lock, changes
+should be additive unless the team records and approves a migration decision.
 
-Plan lifecycle follows the locked v3.1 semantics even though storage is
-polymorphic: `PlanQuery` and `PlanStep` attributes carry `plan_lineage_id` and
-`revision_number`, and successful re-plans use `supersede_plan_step()` so the
-old stale step is superseded only after its successor exists.
+The old polymorphic MVP implementation is preserved for experiments only:
+
+- `experimental/polymorphic/schema.sql`
+- `experimental/polymorphic/graph.schema.json`
+- `experimental/polymorphic/types.py`
+- `experimental/polymorphic/mutations.py`
+
+Do not build app lanes against the experimental path unless a new accepted ADR
+explicitly changes the canonical storage model.
+
+Plan lifecycle follows the locked v3.1 semantics: `plans.status` is the source
+of truth for actionability, successful re-plans create successor revisions, and
+failed re-plans leave the source revision `stale`.
 
 Operational support tables are part of the canonical schema:
 
@@ -40,8 +50,8 @@ Operational support tables are part of the canonical schema:
 - `agent_runs`, `benchmark_queries`, and `evaluations` store the ADR 0002 benchmark apparatus.
 
 Use `transfer_points` for point transfers. It updates source/destination
-balances, writes graph mutations, invalidates dependent plan steps, and enqueues
-re-plan jobs in one transaction.
+balances, writes graph mutations, invalidates dependent plan revisions/steps,
+and enqueues re-plan jobs in one transaction.
 
 ## Still Not Fully Implemented
 

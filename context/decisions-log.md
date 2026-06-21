@@ -13,8 +13,9 @@
 
 | ID | Date | Decision | Status | Detail |
 |---|---|---|---|---|
-| D003 | 2026-06-21 | Add v3.1 operational tables to MVP polymorphic schema | Proposed | `graph_mutations`, `replan_jobs`, idempotency, Clerk users, eval tables, and `TransferPoints` write path are part of the MVP schema contract. |
-| D002 | 2026-06-21 | Preserve v3.1 plan lifecycle in MVP polymorphic storage | Proposed | ADR 0004 is storage-only; plan lineage/revision and supersede semantics remain canonical. |
+| D004 | 2026-06-21 | Keep polymorphic schema only as experimental path | Accepted | v3.1 table-per-type remains canonical; polymorphic artifacts live under `schema/experimental/polymorphic/`. |
+| D003 | 2026-06-21 | Add v3.1 operational tables to MVP polymorphic schema | Superseded | Operational tables now live in canonical v3.1 `schema/schema.sql`; polymorphic copy is experimental only. |
+| D002 | 2026-06-21 | Preserve v3.1 plan lifecycle in MVP polymorphic storage | Superseded | v3.1 lifecycle is implemented in canonical `plans` / `plan_steps`; polymorphic lifecycle remains experimental. |
 | D001 | [YYYY-MM-DD] | [Short title] | Accepted / Proposed / Superseded | [Link or section below] |
 
 ---
@@ -33,12 +34,22 @@
 | [ADR 0006](../docs/adr/0006-clerk-identity-only.md) | 2026-06-18 | Clerk identity-only scope | Accepted | ADR file |
 | [ADR 0007](../docs/adr/0007-contract-ownership-codegen.md) | 2026-06-18 | Contract ownership + codegen + subprocess contract | Accepted | ADR file |
 | [ADR 0008](../docs/adr/0008-per-user-serialization-sse.md) | 2026-06-18 | Per-user write serialization + SSE | Accepted | ADR file |
+| [ADR 0004-P](../docs/adr/0004-mvp-polymorphic-graph-schema.md) | 2026-06-21 | Proposed polymorphic storage as MVP default | Superseded | Experimental path only |
 
 ### ~~Planned ADRs~~ _(promoted 2026-06-18 — see Formal ADRs above)_
 
+### D004 — Keep polymorphic schema only as experimental path
+
+- **Status:** Accepted
+- **Date:** 2026-06-21
+- **Deciders:** Alan; preserves v3.1 all-lane schema lock from ADR 0001.
+- **Context:** PR #2 review flagged that polymorphic storage could not coexist with locked schema-final v3.1 as a competing canonical schema without all-lane sign-off.
+- **Decision:** Restore `schema/schema.sql`, `schema/contracts/graph.schema.json`, and generated root types to v3.1 table-per-type semantics. Preserve the previous polymorphic implementation under `schema/experimental/polymorphic/` for optional experiments only.
+- **Consequences:** App lanes build against v3.1 tables (`plans`, `plan_steps`, `user_balances`, etc.). Optional polymorphic tests import `schema.experimental.polymorphic.*`.
+
 ### D003 — Add v3.1 operational tables to MVP polymorphic schema
 
-- **Status:** Proposed
+- **Status:** Superseded by D004
 - **Date:** 2026-06-21
 - **Deciders:** Alan, pending all-lane ADR 0004 sign-off
 - **Context:** PR #2 review flagged that generic graph tables alone cannot support the async re-plan hero moment, SSE sidebar recovery, idempotent transfers, or ADR 0002 benchmark apparatus.
@@ -48,7 +59,7 @@
 
 ### D002 — Preserve v3.1 plan lifecycle in MVP polymorphic storage
 
-- **Status:** Proposed
+- **Status:** Superseded by D004
 - **Date:** 2026-06-21
 - **Deciders:** Alan, pending all-lane ADR 0004 sign-off
 - **Context:** PR #2 uses polymorphic `nodes` / `edges`, but review feedback flagged that in-place plan refresh conflicts with v3.1 lineage/revision semantics and the hero invalidation chain.

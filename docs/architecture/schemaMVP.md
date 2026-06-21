@@ -1,11 +1,12 @@
 # MVP Database Schema — Rewards Typed Graph
 
-This schema is the pared-down MVP version of the rewards typed graph.
-Per [ADR 0004](../adr/0004-mvp-polymorphic-graph-schema.md), it uses
-polymorphic `nodes` / `edges` storage for the MVP implementation while keeping
-the v3.1 plan lifecycle semantics: plan revisions share a lineage, re-plans
-create successor revisions, and prior stale steps are marked `superseded` only
-after the successor exists.
+This schema is the earlier pared-down polymorphic version of the rewards typed
+graph. It is no longer the canonical MVP implementation. The canonical schema is
+[`schema-final.md`](schema-final.md) plus [`schema/schema.sql`](../../schema/schema.sql).
+
+The polymorphic implementation is preserved only for experiments under
+`schema/experimental/polymorphic/`. Do not build app lanes against this document
+unless a later accepted ADR explicitly replaces v3.1.
 
 The MVP goal is to prove one loop:
 
