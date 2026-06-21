@@ -339,7 +339,7 @@ Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher
 | TransferPoints | JSON Schema + idempotency header | Alan |
 | Agent invocation | Snapshot + limits in `agent-invocation.json` | Raq |
 | Agent stdout | Single `MutationBatch` JSON | Alan |
-| SSE event | `{ event_id, user_id, mutation_txn_id, plan_lineage_id, … }` | Alan + Val |
+| SSE event | one row per `graph_mutations` insert — [`schema/contracts/mutation-event.schema.json`](../schema/contracts/mutation-event.schema.json) | Alan + Val |
 | Idempotency record | Table above | Alan |
 | Replan job | Table above | Alan |
 

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rewards-typed-graph/schema/contracts/mutation-event.schema.json",
+  "title": "GraphMutationEvent",
+  "description": "One SSE event per graph_mutations row. event_id = graph_mutations.id (bigserial). Per-user commit order when advisory lock held (ADR 0008). Not a transaction-level batch envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "mutation_txn_id",
+    "user_id",
+    "mutation_type",
+    "summary",
+    "committed_at"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^[0-9]+$",
+      "minLength": 1,
+      "description": "graph_mutations.id (bigserial) as decimal string — SSE Last-Event-ID cursor; avoids JS safe-integer loss"
+    },
+    "mutation_txn_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Groups rows committed in the same graph-write transaction"
+    },
+    "user_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "plan_lineage_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "plan_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "agent_run_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Producing agent run when applicable"
+    },
+    "mutation_type": {
+      "type": "string",
+      "description": "Typed operation e.g. TransferPoints, CreatePlanStep, MarkPlanStale",
+      "minLength": 1
+    },
+    "target_table": {
+      "type": ["string", "null"],
+      "description": "Affected typed-graph table name when row-level target applies"
+    },
+    "target_node_id": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable typed summary — not inter-agent prose",
+      "minLength": 1
+    },
+    "before": {
+      "type": ["object", "null"],
+      "description": "Prior field snapshot (jsonb); may include version for OCC tables"
+    },
+    "after": {
+      "type": ["object", "null"],
+      "description": "Post-mutation field snapshot (jsonb)"
+    },
+    "committed_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
