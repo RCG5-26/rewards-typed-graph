@@ -15,7 +15,7 @@ Read these files **in order**:
 3. [`context/design-context.md`](context/design-context.md) — UI/API contracts, mutation-log event shape
 4. [`context/code-standards.md`](context/code-standards.md) — implementation rules
 5. [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md) — workflow and scoping
-6. [`context/decisions-log.md`](context/decisions-log.md) — lightweight decisions
+6. [`context/decisions-log.md`](context/decisions-log.md) — master index of decisions (links to ADRs)
 7. [`context/risks-and-failure-modes.md`](context/risks-and-failure-modes.md) — what could go wrong
 8. [`context/progress-tracker.md`](context/progress-tracker.md) — current phase and active work
 9. Active feature spec in [`context/feature-specs/`](context/feature-specs/) — if one exists for this task
@@ -33,14 +33,11 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` require:
+Pull requests targeting `main` require a passing **CodeRabbit** commit status check only — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
 
-1. **One approving review** from a teammate with write access.
-2. A passing **CodeRabbit** commit status check — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
+CodeRabbit posts review comments and may request changes when it finds issues. Manual review trigger: `@coderabbitai review`.
 
-CodeRabbit posts review comments and requests changes when it finds issues; it does **not** count as the human approval. Manual review trigger: `@coderabbitai review`.
-
-Repository ruleset: **main — human + CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
+Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
 
 ---
 
@@ -64,7 +61,7 @@ Update [`context/progress-tracker.md`](context/progress-tracker.md):
 - In progress / next up
 - New open questions
 
-Log decisions in [`context/decisions-log.md`](context/decisions-log.md) and, for durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/).
+Log decisions in [`context/decisions-log.md`](context/decisions-log.md) (index row first). For durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/) and link it from the index — do not paste full ADR text into the log.
 
 For daily team visibility, update your row in [`STATUS.md`](STATUS.md) and your file in [`tracking/`](tracking/).
 

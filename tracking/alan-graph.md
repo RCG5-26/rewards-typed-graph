@@ -5,8 +5,7 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer (RCG-9)
-- Align PR #2 plan lifecycle with v3.1 lineage/revision semantics.
+- Phase A3: JSON Schema contracts + codegen plan (RCG-7 follow-on).
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
@@ -15,6 +14,14 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Blocked on
 - nothing
+
+---
+
+## Schema references
+
+- **Current spec:** [`schema-final.md`](../docs/architecture/schema-final.md) v3.1
+- **Canonical DDL:** [`schema/schema.sql`](../schema/schema.sql)
+- Historical: [`schema-v2.md`](../docs/architecture/schema-v2.md), [ADR 0001](../docs/adr/0001-schema-lock.md)
 
 ---
 
