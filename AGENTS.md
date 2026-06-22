@@ -17,7 +17,7 @@ Read these files **in order**:
 5. [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md) — workflow and scoping
 6. [`context/decisions-log.md`](context/decisions-log.md) — master index of decisions (links to ADRs)
 7. [`context/risks-and-failure-modes.md`](context/risks-and-failure-modes.md) — what could go wrong
-8. [`context/progress-tracker.md`](context/progress-tracker.md) — current phase and active work
+8. [`context/progress-tracker.md`](context/progress-tracker.md) — **AI working memory**: read first for current state + recent history (older history in [`context/progress-archive.md`](context/progress-archive.md))
 9. Active feature spec in [`context/feature-specs/`](context/feature-specs/) — if one exists for this task
 
 ### Repo-specific (authoritative for this sprint)
@@ -33,14 +33,11 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` require **both**:
+Pull requests targeting `main` require a passing **CodeRabbit** commit status check only — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
 
-1. **One human approval** from a member of the [`@RCG5-26/rewards-reviewers`](https://github.com/orgs/RCG5-26/teams/rewards-reviewers) team (Alan, Val, Michael, or Raq).
-2. A passing **CodeRabbit** commit status check — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
+CodeRabbit posts review comments and may request changes when it finds issues. Manual review trigger: `@coderabbitai review`.
 
-CodeRabbit may also comment or submit a bot PR review; the **status check** is the CodeRabbit gate. Bot reviews do **not** satisfy the human-approval rule. Manual review trigger: `@coderabbitai review`.
-
-Repository ruleset: **main — human + CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
+Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
 
 ---
 
@@ -63,6 +60,8 @@ Update [`context/progress-tracker.md`](context/progress-tracker.md):
 - Completed items
 - In progress / next up
 - New open questions
+
+Keep the tracker lean — current state + recent history only; move older entries to [`context/progress-archive.md`](context/progress-archive.md). On any conflict, the locked docs (`docs/architecture/schema-final.md`, `docs/adr/`) and Linear take precedence over the tracker.
 
 Log decisions in [`context/decisions-log.md`](context/decisions-log.md) (index row first). For durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/) and link it from the index — do not paste full ADR text into the log.
 

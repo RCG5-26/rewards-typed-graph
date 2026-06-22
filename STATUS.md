@@ -40,7 +40,7 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
 | Alan · Graph | v3.1 DDL + shared types + Postgres CI merged (PR #6) | Phase A3: JSON Schema contracts + codegen (RCG-61); start dependency tracking (RCG-13) | nothing |
-| Val · Frontend | Card API research; design system staged; wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
+| Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
 | Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
 | Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05); push `raq/updates` + open PR | GitHub connector auth (for PR); generated contracts for real wiring |
 
@@ -94,6 +94,7 @@ Append one line per real decision. (Historical v2 open items resolved in schema-
 | Jun 18 | Closeout infra: plan-lineage/`replan_jobs`, `graph_mutations`, per-user advisory lock, runtime topology, contracts/codegen | team | ADRs 0004–0008 |
 | Jun 20 | Keep the research apparatus (benchmark + both baselines + eval) | team | [ADR 0002](docs/adr/0002-mvp-scope-trim.md) |
 | Jun 20 | Team = 4 (Ruijing out); Layer 4 cut-by-default; eval harness = whole-team, **Raq DRI**; single-agent baseline → Raq | team | [ADR 0003](docs/adr/0003-team-four-eval-ownership.md); Linear reconciled |
+| Jun 21 | Design system landed (`design-system/`: tokens, fonts, Tailwind preset; components TBD in app) | Val | lifecycle status tokens map 1:1 to `plans.status`/`plan_steps.status`; no hardcoded hex; see [design-context](context/design-context.md) |
 | Jun 21 | Feature-spec system + specs 02–06; implement-prompt + source-of-truth map | Raq | `context/feature-specs/` |
 | | _Cash-price provider_ | | open |
 | | _Hosted platform choice_ | | open |

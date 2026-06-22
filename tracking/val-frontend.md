@@ -5,11 +5,15 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Scaffold the demo shell: NL query input + multi-step plan display with per-step reasoning (RCG-27).
-- Start the graph-mutation sidebar against mocked events (RCG-24). You do not wait on the backend.
+- Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
+- Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset. Components (Button/Card/Tag/CommandInput/Blob) are planned — build in the app from tokens. Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
+- Wireframes flow mapped (query → plan → sidebar → contrast view).
+- Continue demo shell scaffold + graph-mutation sidebar against mocked events (RCG-27, RCG-24).
 
 ## Next
-- Match your mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
+- Wire the shell to the design system: import `global.css` at app root, add the Tailwind preset, build surfaces from tokens (lifecycle nodes/chips off `--status-*`).
+- Auth: stand up **Clerk** sign-in (identity-only; [ADR 0006](../docs/adr/0006-clerk-identity-only.md)).
+- Match mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
 - Plan-node dependency view that lights up stale nodes (RCG-26).
 
 ## Blocked on
@@ -30,7 +34,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## What the demo needs from me (the three visible moments)
 1. Mutations streaming as agents coordinate (sidebar).
-2. Hero Moment 1: a balance change lights up stale plan nodes, then a re-plan appears.
+2. Hero Moment 1: a balance change marks the current revision stale; a new **current** revision replaces it (prior superseded).
 3. Head-to-head: the baseline visibly hallucinates a ratio, misses the invalidation, and re-fetches a tool result.
 
 ## My risk

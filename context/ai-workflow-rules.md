@@ -48,11 +48,29 @@ If the change cannot be verified end-to-end quickly, the scope is too broad.
 
 ## Feature spec workflow
 
-1. Copy [`feature-specs/_template.md`](feature-specs/_template.md) → `feature-specs/NN-short-name.md`
-2. Fill goal, scope, acceptance criteria, and touch list
-3. Implement against the spec
-4. Mark complete in [`progress-tracker.md`](progress-tracker.md)
-5. Archive or leave spec in place for reference
+1. Copy [`feature-specs/_template.md`](feature-specs/_template.md) → `feature-specs/NN-short-name.md` and add a row to [`feature-specs/README.md`](feature-specs/README.md).
+2. Fill it and clear the **Definition of ready** gate: goal, testable acceptance criteria, linked contracts, touch list, dependencies + Linear id. A spec is not implementable until every gate box is checked.
+3. Lead confirms the spec is **Ready**.
+4. Run the **implement prompt** (below). It marks the spec `In progress`, implements only what's specified, tests, then marks it `Done`.
+5. Confirm `Done`, fill the spec's Completion notes, and add a line to [`progress-tracker.md`](progress-tracker.md) "Recently completed."
+
+---
+
+## Implement prompt (copy-paste)
+
+One spec at a time. Replace `NN-<name>`.
+
+```text
+Read context/feature-specs/NN-<name>.md and AGENTS.md.
+Mark this unit In Progress in the spec header and in context/progress-tracker.md.
+Implement only what the spec's Acceptance Criteria require; change only the files the spec lists.
+Honor docs/architecture/schema-final.md and the invariants in context/architecture-context.md.
+Hard constraint: coordination is typed graph mutations only — no free-text inter-agent messages. Schema is additive-only.
+Write the tests named in the spec first, then code until they pass. Run typecheck + tests.
+When green: set the spec status to Done, fill Completion notes, add one line to progress-tracker "Recently completed" (files touched + any gotcha), then STOP. Do not start the next spec.
+```
+
+If anything in the spec is ambiguous, stop and add an **Open question** — do not guess.
 
 ---
 
@@ -65,6 +83,21 @@ If the change cannot be verified end-to-end quickly, the scope is too broad.
 ---
 
 ## Keeping docs in sync
+
+**One source of truth per fact** — everything else links to it, never copies it:
+
+| Fact | Lives in |
+|---|---|
+| Product scope / intent | `project-overview.md` |
+| Data model + contracts | `../docs/architecture/schema-final.md` + `../schema/contracts/` |
+| Architecture boundaries / invariants | `architecture-context.md` |
+| Decisions (index + durable) | `decisions-log.md` + `../docs/adr/` |
+| Tasks + status (system of record) | Linear (**RCG**) |
+| What to build (a unit) | `feature-specs/NN-*.md` |
+| Current narrative / AI memory | `progress-tracker.md` (+ `progress-archive.md`) |
+| Daily board | `../STATUS.md` |
+
+**Two rules:** (1) link, don't duplicate — a copy is a future contradiction; (2) on any conflict, the locked docs (`schema-final.md`, `../docs/adr/`) and Linear win over the narrative docs.
 
 Update the relevant file when you change:
 
