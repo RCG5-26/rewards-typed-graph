@@ -36,10 +36,10 @@ Update only your own row. Format: short phrases, not paragraphs.
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL | nothing |
-| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
-| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
-| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
+| Alan · Graph | kickoff | Phase A3: JSON Schema contracts + codegen plan | nothing |
+| Val · Frontend | Card API research done; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); wireframe flow mapped | Demo shell scaffold + sidebar on mocks against tokens (RCG-27, RCG-24) | real contracts for payload wiring |
+| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20) | nothing |
+| Raq · Orchestrator (owner, lead) | kickoff | Review v3.1; scaffold orchestrator + agent harness on mocks (RCG-15) | generated contracts for real wiring |
 
 ---
 
@@ -86,7 +86,7 @@ Append one line per real decision. This is the lightweight ADR. (Historical v2 o
 | Jun 17 | Schema additive-only after lock; changes go through Raq | team | |
 | Jun 17 | Layer 4 cut-by-default; go/no-go Day 10 | team | [ADR 0003](docs/adr/0003-team-four-eval-ownership.md) |
 | Jun 18 | schema-final v3.1 + schema.sql on `main` | Alan + Raq | D027; DDL validated PG 16; PR #6 merged |
-| Jun 21 | Polymorphic MVP schema kept experimental only | Alan | canonical `schema/schema.sql` remains v3.1 table-per-type; optional copy under `schema/experimental/polymorphic/` |
+| Jun 21 | Design system landed (`design-system/`: tokens, fonts, Tailwind preset; components TBD in app) | Val | lifecycle status tokens map 1:1 to `plans.status`/`plan_steps.status`; no hardcoded hex; see [design-context](context/design-context.md) |
 | | _Cash-price provider_ | | open |
 | | _Hosted platform choice_ | | open |
 
