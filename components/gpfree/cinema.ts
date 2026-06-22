@@ -280,7 +280,8 @@ export function useGpxCinema(
     const startTyper = () => {
       const wrap = root.querySelector<HTMLElement>("[data-typer]");
       if (!wrap) return;
-      const out = wrap.firstChild as HTMLElement;
+      const out = wrap.firstChild as HTMLElement | null;
+      if (!out) return;
       if (reduced) {
         out.textContent = "finding award seats across 6 programs";
         return;
@@ -346,7 +347,8 @@ export function useGpxCinema(
       const wrap = howSec && howSec.querySelector<HTMLElement>("[data-howtyper]");
       if (!wrap) return;
       stopStepType();
-      const out = wrap.firstChild as HTMLElement;
+      const out = wrap.firstChild as HTMLElement | null;
+      if (!out) return;
       const str = "fly to Tokyo in business this fall";
       if (reduced) {
         out.textContent = str;
@@ -386,6 +388,7 @@ export function useGpxCinema(
       for (let k = 0; k < tabs.length; k++) {
         const on = k === i;
         const t = tabs[k];
+        t.setAttribute("aria-pressed", on ? "true" : "false");
         t.style.background = on ? "var(--color-accent-muted)" : "transparent";
         t.style.borderLeftColor = on ? "var(--color-accent)" : "transparent";
         const bar = t.querySelector<HTMLElement>("[data-stepbar]");
@@ -539,9 +542,7 @@ export function useGpxCinema(
         }
       });
     };
-    // scrollLength/showGrain affect markup (track height, grain) and are kept in
-    // deps so a runtime change re-measures the track; showPoints gates the
-    // points opacity above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Re-run when the points toggle changes (it gates the points opacity in
+    // update()); scrollLength/showGrain only affect markup, handled in JSX.
   }, [rootRef, showPoints]);
 }
