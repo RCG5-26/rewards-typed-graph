@@ -1,5 +1,7 @@
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import unittest
@@ -157,7 +159,6 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("clerk_id TEXT NOT NULL UNIQUE", schema_sql)
         self.assertIn("CREATE UNIQUE INDEX plans_one_current_revision", schema_sql)
         self.assertIn("WHERE status = 'current'", schema_sql)
-        self.assertIn("CREATE VIEW stale_plan_steps AS", schema_sql)
         self.assertNotIn("CREATE TABLE nodes", schema_sql)
         self.assertNotIn("CREATE TABLE edges", schema_sql)
         self.assertNotIn("is_current", schema_sql)
@@ -295,6 +296,246 @@ class SchemaArtifactsTest(unittest.TestCase):
         self.assertIn("CREATE TABLE nodes", schema_sql)
         self.assertIn("CREATE TABLE edges", schema_sql)
         self.assertEqual(contract["title"], "Rewards Typed Graph MVP Contract")
+
+
+class SchemaArtifactsLivePostgresTest(unittest.TestCase):
+    def setUp(self):
+        if os.environ.get("RUN_LIVE_POSTGRES_TESTS") != "1":
+            self.skipTest("set RUN_LIVE_POSTGRES_TESTS=1 to run live Postgres tests")
+
+        if shutil.which("psql") is None:
+            self.skipTest("psql is required for live Postgres tests")
+
+        database_name = os.environ.get("PGDATABASE", "")
+        if "test" not in database_name:
+            self.fail("live Postgres tests require PGDATABASE to include 'test'")
+
+        version_num = _psql_rows("SHOW server_version_num")
+        if not version_num or not (160000 <= version_num[0][0] < 170000):
+            self.fail("live schema artifact tests require PostgreSQL 16")
+
+        _psql_exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        _psql_file(SCHEMA_SQL_PATH)
+
+    def test_stale_plan_steps_view_contract_matches_applied_schema(self):
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT column_name, data_type
+                  FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                   AND table_name = 'stale_plan_steps'
+                 ORDER BY ordinal_position
+                """
+            ),
+            [
+                ("plan_step_id", "uuid"),
+                ("plan_id", "uuid"),
+                ("plan_lineage_id", "uuid"),
+                ("revision_number", "integer"),
+                ("target_node_id", "uuid"),
+                ("target_node_type", "text"),
+                ("target_table", "text"),
+                ("observed_version", "integer"),
+                ("current_version", "integer"),
+            ],
+        )
+
+        _psql_exec(
+            """
+            INSERT INTO users (id, clerk_id, email)
+            VALUES (
+              '00000000-0000-0000-0000-000000000001',
+              'clerk_schema_artifacts',
+              'schema-artifacts@example.com'
+            );
+
+            INSERT INTO reward_programs (
+              id,
+              slug,
+              name,
+              program_kind,
+              currency_name
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000101',
+              'schema-artifacts-program',
+              'Schema Artifacts Program',
+              'issuer_transferable',
+              'points'
+            );
+
+            INSERT INTO user_balances (
+              id,
+              user_id,
+              program_id,
+              balance_points,
+              version
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000301',
+              '00000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000101',
+              240000,
+              1
+            );
+
+            INSERT INTO plans (
+              id,
+              user_id,
+              plan_lineage_id,
+              revision_number,
+              query_text,
+              status
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000401',
+              '00000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000400',
+              1,
+              'Find the best Tokyo redemption.',
+              'current'
+            );
+
+            INSERT INTO plan_steps (
+              id,
+              plan_id,
+              plan_lineage_id,
+              revision_number,
+              step_order,
+              step_type,
+              status,
+              payload
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000501',
+              '00000000-0000-0000-0000-000000000401',
+              '00000000-0000-0000-0000-000000000400',
+              1,
+              1,
+              'transfer_recommendation',
+              'current',
+              '{"claim": "Transfer Chase points to Hyatt."}'
+            );
+
+            INSERT INTO state_dependencies (
+              id,
+              plan_step_id,
+              target_node_id,
+              target_node_type,
+              target_table,
+              depended_property,
+              observed_version,
+              snapshot_value
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000601',
+              '00000000-0000-0000-0000-000000000501',
+              '00000000-0000-0000-0000-000000000301',
+              'UserBalance',
+              'user_balances',
+              'balance_points',
+              0,
+              '{"balance_points": 240000}'
+            );
+            """
+        )
+
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT
+                  plan_step_id::text,
+                  plan_id::text,
+                  plan_lineage_id::text,
+                  revision_number,
+                  target_node_id::text,
+                  target_node_type,
+                  target_table,
+                  observed_version,
+                  current_version
+                FROM stale_plan_steps
+                """
+            ),
+            [
+                (
+                    "00000000-0000-0000-0000-000000000501",
+                    "00000000-0000-0000-0000-000000000401",
+                    "00000000-0000-0000-0000-000000000400",
+                    1,
+                    "00000000-0000-0000-0000-000000000301",
+                    "UserBalance",
+                    "user_balances",
+                    0,
+                    1,
+                )
+            ],
+        )
+
+
+def _psql_file(path):
+    subprocess.run(
+        ["psql", "--set", "ON_ERROR_STOP=1", "--file", str(path)],
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _psql_exec(sql):
+    subprocess.run(
+        ["psql", "--set", "ON_ERROR_STOP=1"],
+        input=sql,
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _psql_rows(sql):
+    result = subprocess.run(
+        [
+            "psql",
+            "--set",
+            "ON_ERROR_STOP=1",
+            "--no-align",
+            "--tuples-only",
+            "--field-separator",
+            "\x1f",
+            "--record-separator",
+            "\x1e",
+        ],
+        input=sql,
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output = result.stdout.strip("\n\x1e")
+    if not output:
+        return []
+    return [
+        tuple(_parse_psql_value(value) for value in row.split("\x1f"))
+        for row in output.split("\x1e")
+        if row
+    ]
+
+
+def _parse_psql_value(value):
+    if value == "":
+        return None
+    if value == "t":
+        return True
+    if value == "f":
+        return False
+    if value.lstrip("-").isdigit():
+        return int(value)
+    return value
 
 
 if __name__ == "__main__":

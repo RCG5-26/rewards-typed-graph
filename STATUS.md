@@ -39,10 +39,10 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | v3.1 DDL + shared types + Postgres CI merged (PR #6) | Phase A3: JSON Schema contracts + codegen (RCG-61); start dependency tracking (RCG-13) | nothing |
-| Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
-| Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
-| Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05); push `raq/updates` + open PR | GitHub connector auth (for PR); generated contracts for real wiring |
+| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test | nothing |
+| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
+| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
+| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
 
 ---
 

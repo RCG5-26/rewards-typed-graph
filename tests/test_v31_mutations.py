@@ -16,7 +16,6 @@ from schema.mutations import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_SQL_PATH = REPO_ROOT / "schema" / "schema.sql"
-MUTATIONS_PY_PATH = REPO_ROOT / "schema" / "mutations.py"
 
 
 class FakeCursor:
@@ -319,7 +318,7 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         )
 
         self.assertTrue(_any_sql(connection, "FROM user_balances"))
-        self.assertNotIn("FROM {target_table}", MUTATIONS_PY_PATH.read_text())
+        self.assertFalse(_any_sql(connection, "FROM {target_table}"))
 
     def test_transfer_points_rejects_invalid_amount_before_sql(self):
         connection = FakeConnection()

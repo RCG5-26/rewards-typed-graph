@@ -19,6 +19,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Align `graph_mutations` with ADR 0008/main so Val can consume the mutation stream contract.
 - Cover the live `TransferPoints` service path against Postgres for Day 7 demo risk.
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
+- Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

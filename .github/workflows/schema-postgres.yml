@@ -44,6 +44,16 @@ jobs:
           PGPASSWORD: postgres
         run: bash tests/integration/apply_schema_postgres.sh
 
+      - name: Validate schema artifact contracts on PostgreSQL 16
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGDATABASE: rewards_test
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          RUN_LIVE_POSTGRES_TESTS: "1"
+        run: python -m unittest tests.test_schema_artifacts.SchemaArtifactsLivePostgresTest
+
       - name: Run live V31 TransferPoints service test
         env:
           PGHOST: localhost
