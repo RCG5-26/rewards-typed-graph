@@ -11,12 +11,10 @@
 
 ## How to log a decision
 
-| ID | Date | Decision | Status | Detail |
-|---|---|---|---|---|
-| D004 | 2026-06-21 | Keep polymorphic schema only as experimental path | Accepted | v3.1 table-per-type remains canonical; polymorphic artifacts live under `schema/experimental/polymorphic/`. |
-| D003 | 2026-06-21 | Add v3.1 operational tables to MVP polymorphic schema | Superseded | Operational tables now live in canonical v3.1 `schema/schema.sql`; polymorphic copy is experimental only. |
-| D002 | 2026-06-21 | Preserve v3.1 plan lifecycle in MVP polymorphic storage | Superseded | v3.1 lifecycle is implemented in canonical `plans` / `plan_steps`; polymorphic lifecycle remains experimental. |
-| D001 | [YYYY-MM-DD] | [Short title] | Accepted / Proposed / Superseded | [Link or section below] |
+1. Add a row to the **Master index** (newest at top of its group).
+2. If the decision is durable and costly to undo → create `docs/adr/000N-short-title.md` and link it from the index.
+3. If the decision is implementation detail → put detail in `architecture-context.md` (or schema spec) and point the index there.
+4. If a decision is replaced → set status to **Superseded** and link the replacement ID or ADR. Do not delete rows.
 
 ---
 
@@ -34,40 +32,10 @@
 | [ADR 0006](../docs/adr/0006-clerk-identity-only.md) | 2026-06-18 | Clerk identity-only scope | Accepted | ADR file |
 | [ADR 0007](../docs/adr/0007-contract-ownership-codegen.md) | 2026-06-18 | Contract ownership + codegen + subprocess contract | Accepted | ADR file |
 | [ADR 0008](../docs/adr/0008-per-user-serialization-sse.md) | 2026-06-18 | Per-user write serialization + SSE | Accepted | ADR file |
-| [ADR 0004-P](../docs/adr/0004-mvp-polymorphic-graph-schema.md) | 2026-06-21 | Proposed polymorphic storage as MVP default | Superseded | Experimental path only |
 
 ### ~~Planned ADRs~~ _(promoted 2026-06-18 — see Formal ADRs above)_
 
-### D004 — Keep polymorphic schema only as experimental path
-
-- **Status:** Accepted
-- **Date:** 2026-06-21
-- **Deciders:** Alan; preserves v3.1 all-lane schema lock from ADR 0001.
-- **Context:** PR #2 review flagged that polymorphic storage could not coexist with locked schema-final v3.1 as a competing canonical schema without all-lane sign-off.
-- **Decision:** Restore `schema/schema.sql`, `schema/contracts/graph.schema.json`, and generated root types to v3.1 table-per-type semantics. Preserve the previous polymorphic implementation under `schema/experimental/polymorphic/` for optional experiments only.
-- **Consequences:** App lanes build against v3.1 tables (`plans`, `plan_steps`, `user_balances`, etc.). Optional polymorphic tests import `schema.experimental.polymorphic.*`.
-
-### D003 — Add v3.1 operational tables to MVP polymorphic schema
-
-- **Status:** Superseded by D004
-- **Date:** 2026-06-21
-- **Deciders:** Alan, pending all-lane ADR 0004 sign-off
-- **Context:** PR #2 review flagged that generic graph tables alone cannot support the async re-plan hero moment, SSE sidebar recovery, idempotent transfers, or ADR 0002 benchmark apparatus.
-- **Decision:** Keep polymorphic graph storage, but include the v3.1 operational tables and write paths: Clerk-backed `users`, user-scoped `graph_mutations`, leased `replan_jobs`, `idempotency_records`, `agent_runs`, `benchmark_queries`, `evaluations`, and atomic `transfer_points`.
-- **Alternatives considered:** Leave these to later application migrations. Rejected because downstream lanes would build against an incomplete schema and CodeRabbit explicitly treats these as canonical persistence requirements.
-- **Consequences:** Sidebar consumers replay `graph_mutations`; workers claim `replan_jobs`; wallet transfers use `transfer_points` with idempotency keys.
-
-### D002 — Preserve v3.1 plan lifecycle in MVP polymorphic storage
-
-- **Status:** Superseded by D004
-- **Date:** 2026-06-21
-- **Deciders:** Alan, pending all-lane ADR 0004 sign-off
-- **Context:** PR #2 uses polymorphic `nodes` / `edges`, but review feedback flagged that in-place plan refresh conflicts with v3.1 lineage/revision semantics and the hero invalidation chain.
-- **Decision:** Keep polymorphic storage as the proposed MVP physical layout, but preserve v3.1 plan lifecycle: plan nodes carry `plan_lineage_id` and `revision_number`; successful re-plans create successor revisions; prior stale steps become `superseded` only after the successor exists.
-- **Alternatives considered:** Treat ADR 0004 as superseding all v3.1 plan lifecycle behavior. Rejected because it breaks auditability, failed re-plan handling, and the demo sidebar invalidation chain.
-- **Consequences:** Re-plan code must call `supersede_plan_step` instead of updating stale steps in place. Failed successor creation leaves the source step `stale`.
-
-### D001 — [Example: Primary database]
+### Session decisions (D-series)
 
 | ID | Date | Decision | Status | Canonical source |
 |---|---|---|---|---|
