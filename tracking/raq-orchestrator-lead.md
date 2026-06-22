@@ -1,45 +1,58 @@
 # Raq — Person D · Orchestrator / Agents (owner, team lead)
 
-**Lane:** orchestrator (NL query to graph operations), wallet agent, earning agent, cross-lane integration + API surface, agent harness. **As owner and lead, you unblock everyone else first and own the integration surface that touches every other agent.**
+**Lane:** orchestrator (NL query to graph operations), wallet agent, earning agent, cross-lane integration + API surface, agent harness. **Plus (ADR 0003): single-agent baseline + eval-harness DRI.** As owner and lead, you unblock everyone else first and own the integration surface that touches every other agent.
 
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Review Alan's schema draft; run the lock meeting with Alan (RCG-5).
-- Scaffold the orchestrator + agent harness against the locked interface (RCG-15).
+- Scaffold the orchestrator + agent harness on mocks (RCG-15, [spec 05](../context/feature-specs/05-orchestrator-harness.md)) — builds against the locked interface; stub the write path until spec 02 lands.
+- Push `raq/updates` (3 commits ready) and open the PR into `main`.
 
 ## Next
-- Wallet agent (personal-graph mutations) and earning agent (RCG-16, RCG-17). These ship early so you can shift to integration.
-- Lock the integration contract so Val and Michael are not blocked on you (RCG-18).
+- Wallet + earning agents (RCG-16/17, [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md)) once the write-path interface (spec 02) is stable.
+- Single-agent baseline (RCG-35 — now mine per ADR 0003) and eval-harness DRI (RCG-40) + win-threshold gate (RCG-55), week 2.
+- Integration contract / API surface (RCG-18); draft as spec 07.
 
 ## Blocked on
-- schema draft from Alan (clears at lock)
+- Generated contracts (Phase A3, Alan) for real wiring — mocks OK now.
+- GitHub connector auth (via `/mcp`) + `git push` to open the `raq/updates` PR.
+
+## Recently done
+- Co-owned the schema lock → **v3.1 Accepted** (RCG-5 done, ADR 0001).
+- Built and reconciled the Linear board (RCG-5–63): eval harness re-homed to me as DRI; single-agent baseline reassigned to me; Layer 4 cut-by-default; added eval-report (RCG-62) + e2e-integration (RCG-63) tickets.
+- Wrote the feature-spec system + specs 02–06; the implement prompt; the source-of-truth map; README "how we work"; PR template; progress-tracker as AI memory + archive.
+- Branch `raq/updates` with 3 doc commits; `STUDY_GUIDE.md` gitignored.
 
 ---
 
 ## My tickets
 
-| ID | Task | Phase | Done when |
+| ID | Task | Phase | Status |
 |---|---|---|---|
-| RCG-5 | Schema lock (review + run the room; co-own with Alan) | Day 1 | all four lanes sign off |
-| RCG-15 | Scaffold orchestrator + agent harness (typed-mutation interface) | Day 1-5 | agents commit mutations through one path, no free text |
-| RCG-16 | Wallet agent (personal-graph mutations: balances, status, goals) | Day 3-5 | balance mutation triggers Hero Moment 1 |
-| RCG-17 | Earning agent (card to category multiplier reasoning) | Day 3-5 | recommends best card per category |
-| RCG-18 | Integration contract / API surface between lanes | Day 1-5 | Val and Michael can build against it independently |
-| RCG-19 | Cross-lane conflict resolution path | Day 1-5 | rejected-commit handling is bounded |
-| RCG-28 | Full Layer 1-3 integration (query to plan) | Day 5-7 | NL query produces a multi-step plan end to end |
-| RCG-29 | Hero Moment 1 (balance change to auto re-plan) | Day 5-7 | structural invalidation + auto re-plan, no orchestrator nudge |
-| RCG-32 | Day 7 gate: end-to-end demo path working | Day 7 | full path + Hero Moment 1 runs on the persona |
-| RCG-39 | Day 10 Layer 4 GO / NO-GO decision | Day 10 | decision made and recorded |
-| RCG-47 | Demo script (persona, 2 hero moments, head-to-head, closing) | Day 10-14 | timed under 10 min |
-| RCG-48 | Full demo rehearsals (x3) | Day 10-14 | rehearsed, fragile transitions caught |
-| RCG-51 | Contingency: clean demo path with Layer 4 cut | Day 10-14 | Plan B rehearsed |
+| RCG-5 | Schema lock (co-own with Alan) | Day 1-2 | ✅ done (v3.1 Accepted) |
+| RCG-15 | Orchestrator + agent harness — [spec 05](../context/feature-specs/05-orchestrator-harness.md) | Day 1-5 | ◐ scaffolding on mocks |
+| RCG-16 | Wallet agent — [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md) | Day 3-5 | next |
+| RCG-17 | Earning agent — [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md) | Day 3-5 | next |
+| RCG-18 | Integration contract / API surface | Day 1-5 | next (→ spec 07) |
+| RCG-19 | Cross-lane conflict resolution path | Day 1-5 | pending write path |
+| RCG-35 | Single-agent baseline (mine per ADR 0003) | Day 7-10 | not started |
+| RCG-40 | Eval harness / benchmark runner (DRI) | Day 7-10 | not started |
+| RCG-55 | Pre-commit benchmark win thresholds (all four sign off) | Day 7 | not started |
+| RCG-28 | Full Layer 1-3 integration (query → plan) | Day 5-7 | pending agents |
+| RCG-29 | Hero Moment 1 (balance change → auto re-plan) | Day 5-7 | pending |
+| RCG-32 | Day 7 gate: end-to-end demo path working | Day 7 | open |
+| RCG-39 | Day 10 Layer 4 GO / NO-GO decision | Day 10 | open |
+| RCG-62 | Head-to-head eval report + architecture write-up (co-own) | Day 10-14 | blocked on RCG-37 |
+| RCG-47 | Demo script (persona, hero moments, head-to-head, closing) | Day 10-14 | open |
+| RCG-48 | Full demo rehearsals | Day 10-14 | open |
+| RCG-51 | Contingency: clean demo path with Layer 4 cut | Day 10-14 | open |
 
 ## Owner / lead responsibilities (beyond my lane)
-- Clear the Active Blockers list in STATUS.md every standup.
-- Own schema change control: after lock, any change goes through you and is evaluated against existing dependency edges before any mutation.
+- Clear the Active Blockers list in STATUS.md every standup; reconcile Linear statuses that lag the code.
+- Own schema change control: after lock, any change goes through me and is checked against existing `state_dependencies` first.
+- Run the PR/merge flow (CodeRabbit + `main` ruleset); connect the GitHub connector.
 - Make the Day 7 and Day 10 calls. Day 7 slips → cut scope, do not extend.
-- Keep the team anchored on coordination semantics, not data format, so the contribution does not collapse into "we used a database."
+- Keep the team anchored on coordination semantics, not data format.
 
 ## My risk
-The integration surface is where cross-lane conflicts surface as real engineering problems. Ship wallet + earning early (Days 3-5) so the back half is integration and unblocking, not feature work.
+My lane now carries the orchestrator + agents **and** the single-agent baseline + the eval-harness DRI. The orchestrator/integration path and the Day 7 gate come first — lean on mocks now, and use the freed week-2 buffer (Layer 4 cut-by-default) for the baseline + harness. Ship wallet + earning early so the back half is integration and unblocking, not feature work.
