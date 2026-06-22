@@ -393,6 +393,24 @@ STATE_DEPENDENCY_TARGET_TABLES = {
     "transfers_to": ("TransferRoute", False),
 }
 
+TARGET_REFERENCE_QUERIES = {
+    "user_balances": """
+        SELECT node_type, version, user_id
+          FROM user_balances
+         WHERE id = %s
+        """,
+    "user_program_statuses": """
+        SELECT node_type, version, user_id
+          FROM user_program_statuses
+         WHERE id = %s
+        """,
+    "plans": """
+        SELECT node_type, version, user_id
+          FROM plans
+         WHERE id = %s
+        """,
+}
+
 
 def _validate_create_plan(request: CreatePlanRequest) -> list[str]:
     errors = _validate_actor_user(request.actor, request.user_id)
@@ -688,14 +706,7 @@ def _fetch_target_reference(
         )
         return cursor.fetchone()
 
-    cursor.execute(
-        f"""
-        SELECT node_type, version, user_id
-          FROM {target_table}
-         WHERE id = %s
-        """,
-        (target_node_id,),
-    )
+    cursor.execute(TARGET_REFERENCE_QUERIES[target_table], (target_node_id,))
     return cursor.fetchone()
 
 

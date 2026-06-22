@@ -3,6 +3,7 @@ name: Schema Postgres Integration
 on:
   pull_request:
   push:
+    branches: [main]
 
 jobs:
   apply-schema:
@@ -42,3 +43,16 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: bash tests/integration/apply_schema_postgres.sh
+
+      - name: Run live V31 TransferPoints service test
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGDATABASE: rewards_test
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          dropdb --if-exists rewards_service_test
+          createdb rewards_service_test
+          RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_service_test \
+            python -m unittest tests.test_v31_mutations.V31GraphWriteServiceLivePostgresTest

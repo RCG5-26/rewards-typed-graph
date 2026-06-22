@@ -1,4 +1,8 @@
+import os
+import shutil
+import subprocess
 import unittest
+from pathlib import Path
 
 from schema.mutations import (
     CreatePlanRequest,
@@ -9,6 +13,10 @@ from schema.mutations import (
     TransferPointsRequest,
     V31GraphWriteService,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_SQL_PATH = REPO_ROOT / "schema" / "schema.sql"
+MUTATIONS_PY_PATH = REPO_ROOT / "schema" / "mutations.py"
 
 
 class FakeCursor:
@@ -275,6 +283,44 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertTrue(_any_sql(connection, "INSERT INTO state_dependencies"))
         self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
 
+    def test_record_state_dependency_uses_hardcoded_target_reference_query(self):
+        connection = FakeConnection()
+        connection.plan_steps = {
+            "00000000-0000-0000-0000-000000000030": (
+                "00000000-0000-0000-0000-000000000001",
+                "00000000-0000-0000-0000-000000000010",
+                1,
+            )
+        }
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000040": (
+                "UserBalance",
+                0,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        connection.record_state_dependency_result = (
+            "00000000-0000-0000-0000-000000000050",
+            0,
+        )
+        service = V31GraphWriteService(connection)
+
+        service.record_state_dependency(
+            RecordStateDependencyRequest(
+                actor="redemption_agent",
+                user_id="00000000-0000-0000-0000-000000000001",
+                plan_step_id="00000000-0000-0000-0000-000000000030",
+                target_node_id="00000000-0000-0000-0000-000000000040",
+                target_node_type="UserBalance",
+                target_table="user_balances",
+                observed_version=0,
+                snapshot_value={"balance_points": 240000},
+            )
+        )
+
+        self.assertTrue(_any_sql(connection, "FROM user_balances"))
+        self.assertNotIn("FROM {target_table}", MUTATIONS_PY_PATH.read_text())
+
     def test_transfer_points_rejects_invalid_amount_before_sql(self):
         connection = FakeConnection()
         service = V31GraphWriteService(connection)
@@ -399,6 +445,243 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertEqual(str(raised.exception), "TransferPoints returned no result")
 
 
+class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
+    def setUp(self):
+        if os.environ.get("RUN_LIVE_POSTGRES_TESTS") != "1":
+            self.skipTest("set RUN_LIVE_POSTGRES_TESTS=1 to run live Postgres tests")
+
+        if shutil.which("psql") is None:
+            self.skipTest("psql is required for live Postgres tests")
+
+        database_name = os.environ.get("PGDATABASE", "")
+        if "test" not in database_name:
+            self.fail("live Postgres tests require PGDATABASE to include 'test'")
+
+        _psql_exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
+        _psql_file(SCHEMA_SQL_PATH)
+        _psql_exec(
+            """
+            INSERT INTO users (id, clerk_id, email)
+            VALUES (
+              '00000000-0000-0000-0000-00000000a001',
+              'clerk_live_transfer',
+              'live-transfer@example.com'
+            );
+
+            INSERT INTO reward_programs (
+              id,
+              slug,
+              name,
+              program_kind,
+              currency_name
+            )
+            VALUES
+              (
+                '00000000-0000-0000-0000-00000000b001',
+                'live-chase-ultimate-rewards',
+                'Live Chase Ultimate Rewards',
+                'issuer_transferable',
+                'points'
+              ),
+              (
+                '00000000-0000-0000-0000-00000000b002',
+                'live-world-of-hyatt',
+                'Live World of Hyatt',
+                'hotel',
+                'points'
+              );
+
+            INSERT INTO transfers_to (
+              id,
+              source_program_id,
+              dest_program_id,
+              transfer_ratio_basis_points,
+              transfer_time_days
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000c001',
+              '00000000-0000-0000-0000-00000000b001',
+              '00000000-0000-0000-0000-00000000b002',
+              10000,
+              1
+            );
+
+            INSERT INTO user_balances (
+              id,
+              user_id,
+              program_id,
+              balance_points,
+              version
+            )
+            VALUES
+              (
+                '00000000-0000-0000-0000-00000000d001',
+                '00000000-0000-0000-0000-00000000a001',
+                '00000000-0000-0000-0000-00000000b001',
+                240000,
+                1
+              ),
+              (
+                '00000000-0000-0000-0000-00000000d002',
+                '00000000-0000-0000-0000-00000000a001',
+                '00000000-0000-0000-0000-00000000b002',
+                0,
+                1
+              );
+
+            INSERT INTO plans (
+              id,
+              user_id,
+              plan_lineage_id,
+              revision_number,
+              query_text,
+              status
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000e001',
+              '00000000-0000-0000-0000-00000000a001',
+              '00000000-0000-0000-0000-00000000e000',
+              1,
+              'Live transfer test plan.',
+              'current'
+            );
+
+            INSERT INTO plan_steps (
+              id,
+              plan_id,
+              plan_lineage_id,
+              revision_number,
+              step_order,
+              step_type,
+              status,
+              payload
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000f001',
+              '00000000-0000-0000-0000-00000000e001',
+              '00000000-0000-0000-0000-00000000e000',
+              1,
+              1,
+              'transfer_recommendation',
+              'current',
+              '{"claim": "Transfer Chase points to Hyatt."}'
+            );
+
+            INSERT INTO state_dependencies (
+              id,
+              plan_step_id,
+              target_node_id,
+              target_node_type,
+              target_table,
+              depended_property,
+              observed_version,
+              snapshot_value
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000f101',
+              '00000000-0000-0000-0000-00000000f001',
+              '00000000-0000-0000-0000-00000000d001',
+              'UserBalance',
+              'user_balances',
+              'balance_points',
+              1,
+              '{"balance_points": 240000}'
+            );
+            """
+        )
+
+    def test_transfer_points_updates_balances_replays_and_enqueues_staleness(self):
+        service = V31GraphWriteService(_PsqlConnection())
+        request = TransferPointsRequest(
+            actor="wallet_agent",
+            user_id="00000000-0000-0000-0000-00000000a001",
+            source_balance_id="00000000-0000-0000-0000-00000000d001",
+            dest_balance_id="00000000-0000-0000-0000-00000000d002",
+            amount_points=60000,
+            source_expected_version=1,
+            dest_expected_version=1,
+            idempotency_key="live-transfer-1",
+            request_hash="live-transfer-hash-1",
+        )
+
+        result = service.transfer_points(request)
+
+        self.assertEqual(
+            result,
+            {
+                "source_balance_id": "00000000-0000-0000-0000-00000000d001",
+                "source_version": 2,
+                "dest_balance_id": "00000000-0000-0000-0000-00000000d002",
+                "dest_version": 2,
+                "idempotency_replayed": False,
+            },
+        )
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT id, balance_points, version
+                  FROM user_balances
+                 ORDER BY id
+                """
+            ),
+            [
+                ("00000000-0000-0000-0000-00000000d001", 180000, 2),
+                ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+            ],
+        )
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT p.status, ps.status, count(rj.id)
+                  FROM plans p
+                  JOIN plan_steps ps ON ps.plan_id = p.id
+                  LEFT JOIN replan_jobs rj ON rj.source_plan_id = p.id
+                 WHERE p.id = '00000000-0000-0000-0000-00000000e001'
+                 GROUP BY p.status, ps.status
+                """
+            ),
+            [("stale", "stale", 1)],
+        )
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT mutation_type, count(*)
+                  FROM graph_mutations
+                 GROUP BY mutation_type
+                 ORDER BY mutation_type
+                """
+            ),
+            [("MarkStale", 1), ("TransferPoints", 2)],
+        )
+
+        replayed = service.transfer_points(request)
+
+        self.assertEqual(
+            replayed,
+            {
+                "source_balance_id": "00000000-0000-0000-0000-00000000d001",
+                "source_version": 2,
+                "dest_balance_id": "00000000-0000-0000-0000-00000000d002",
+                "dest_version": 2,
+                "idempotency_replayed": True,
+            },
+        )
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT id, balance_points, version
+                  FROM user_balances
+                 ORDER BY id
+                """
+            ),
+            [
+                ("00000000-0000-0000-0000-00000000d001", 180000, 2),
+                ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+            ],
+        )
+        self.assertEqual(_psql_rows("SELECT count(*) FROM replan_jobs"), [(1,)])
+
+
 def _any_sql(connection, snippet):
     return any(snippet in sql for sql, _ in connection.executed)
 
@@ -408,6 +691,113 @@ def _first_sql(connection, snippet):
         if snippet in sql:
             return sql, params
     raise AssertionError(f"SQL fragment not executed: {snippet}")
+
+
+class _PsqlConnection:
+    def cursor(self):
+        return _PsqlCursor()
+
+
+class _PsqlCursor:
+    def __init__(self):
+        self.result = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, sql, params=None):
+        self.result = _psql_rows(_format_psql_query(sql, params or ()))
+
+    def fetchone(self):
+        if not self.result:
+            return None
+        return self.result[0]
+
+
+def _format_psql_query(sql, params):
+    formatted = sql
+    for param in params:
+        formatted = formatted.replace("%s", _psql_literal(param), 1)
+    return formatted
+
+
+def _psql_literal(value):
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _psql_file(path):
+    subprocess.run(
+        ["psql", "--set", "ON_ERROR_STOP=1", "--file", str(path)],
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _psql_exec(sql):
+    subprocess.run(
+        ["psql", "--set", "ON_ERROR_STOP=1"],
+        input=sql,
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+def _psql_rows(sql):
+    result = subprocess.run(
+        [
+            "psql",
+            "--set",
+            "ON_ERROR_STOP=1",
+            "--no-align",
+            "--tuples-only",
+            "--field-separator",
+            "\x1f",
+            "--record-separator",
+            "\x1e",
+        ],
+        input=sql,
+        env=os.environ.copy(),
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output = result.stdout.strip("\n\x1e")
+    if not output:
+        return []
+    return [
+        tuple(_parse_psql_value(value) for value in row.split("\x1f"))
+        for row in output.split("\x1e")
+        if row
+    ]
+
+
+def _parse_psql_value(value):
+    if value == "":
+        return None
+    if value == "t":
+        return True
+    if value == "f":
+        return False
+    if value.lstrip("-").isdigit():
+        return int(value)
+    return value
 
 
 if __name__ == "__main__":

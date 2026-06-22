@@ -17,6 +17,8 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Complete RCG-10 canonical mutation layer for plan, plan-step, dependency, and transfer writes.
 - Remove residual v3.1 DDL drift around plan-step staleness and direct balance-update invalidation.
 - Align `graph_mutations` with ADR 0008/main so Val can consume the mutation stream contract.
+- Cover the live `TransferPoints` service path against Postgres for Day 7 demo risk.
+- Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
