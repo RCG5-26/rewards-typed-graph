@@ -28,7 +28,7 @@ export default function GPFreeHero({
     <div
       id="gpx-hero"
       ref={rootRef}
-      style={{ background: "#0C0A07", color: "#F2EADD", fontFamily: FM }}
+      style={{ background: "var(--color-bg)", color: "var(--color-text-primary)", fontFamily: FM }}
     >
       <style>{CSS}</style>
       <HeroStage scrollLength={scrollLength} showPoints={showPoints} showGrain={showGrain} />

@@ -4,6 +4,7 @@ import {
   FB,
   FM,
   FRAMES,
+  FS,
   GRAIN,
   initiallyHidden,
   kicker,
@@ -26,11 +27,11 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           top: 0,
           height: "100vh",
           overflow: "hidden",
-          background: "#0C0A07",
+          background: "var(--color-bg)",
         }}
       >
         {/* ════ SOFT FRAME DISSOLVE (opacity crossfade only — no zoom) ════ */}
-        <div style={{ position: "absolute", inset: 0 }}>
+        <div data-parallax style={{ position: "absolute", inset: 0, willChange: "transform" }}>
           {FRAMES.map((src, i) => (
             <img
               key={src}
@@ -50,7 +51,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           ))}
         </div>
 
-        {/* ════ POINTER-REACTIVE LIGHT ════ */}
+        {/* ════ POINTER-REACTIVE LIGHT (iris tint) ════ */}
         <div
           data-glow
           style={{
@@ -58,11 +59,11 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             inset: 0,
             zIndex: 5,
             pointerEvents: "none",
-            mixBlendMode: "screen",
+            mixBlendMode: "multiply",
             opacity: 0,
-            transition: "opacity 0.7s ease",
+            transition: "var(--transition-opacity)",
             background:
-              "radial-gradient(360px circle at var(--gx,50%) var(--gy,42%), rgba(200,163,94,0.22), rgba(150,175,255,0.07) 42%, transparent 72%)",
+              "radial-gradient(360px circle at var(--gx,50%) var(--gy,42%), color-mix(in srgb, var(--color-accent) 22%, transparent), color-mix(in srgb, var(--color-accent-subtle) 10%, transparent) 42%, transparent 72%)",
           }}
         />
 
@@ -75,23 +76,23 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             width: "32%",
             height: "150%",
             pointerEvents: "none",
-            mixBlendMode: "screen",
-            opacity: 0.55,
+            mixBlendMode: "overlay",
+            opacity: 0.5,
             background:
-              "linear-gradient(90deg, transparent 0%, rgba(255,248,235,0.08) 42%, rgba(255,255,255,0.18) 50%, rgba(200,163,94,0.10) 58%, transparent 100%)",
-            filter: "blur(7px)",
+              "linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-neutral-0) 40%, transparent) 50%, transparent 100%)",
+            filter: "var(--blur-sm)",
             animation: "gpxGlint 8s ease-in-out 2.6s infinite",
           }}
         />
 
-        {/* ════ CINEMATIC SCRIM + VIGNETTE ════ */}
+        {/* ════ LEGIBILITY SCRIM + VIGNETTE (light) ════ */}
         <div
           style={{
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
             background:
-              "linear-gradient(180deg, rgba(12,10,7,0.62) 0%, rgba(12,10,7,0.08) 24%, rgba(12,10,7,0.08) 46%, rgba(12,10,7,0.84) 100%), linear-gradient(100deg, rgba(12,10,7,0.8) 0%, rgba(12,10,7,0.34) 38%, rgba(12,10,7,0) 62%)",
+              "linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 70%, transparent) 0%, color-mix(in srgb, var(--color-bg) 10%, transparent) 26%, color-mix(in srgb, var(--color-bg) 12%, transparent) 50%, color-mix(in srgb, var(--color-bg) 86%, transparent) 100%)",
           }}
         />
         <div
@@ -99,13 +100,13 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
-            boxShadow: "inset 0 0 320px rgba(12,10,7,0.82)",
+            boxShadow: "inset 0 0 320px color-mix(in srgb, var(--color-neutral-900) 10%, transparent)",
           }}
         />
 
         {/* ════ COPY SCRIM (left column legibility) ════ */}
-        {/* Sits below the beats (z 20) but above the imagery so the light
-            headline/CTA stay readable over any frame, without darkening the
+        {/* Sits below the beats (z 20) but above the imagery so the dark
+            headline/CTA stay readable over any frame, without washing out the
             card on the right. */}
         <div
           style={{
@@ -114,7 +115,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             zIndex: 15,
             pointerEvents: "none",
             background:
-              "linear-gradient(90deg, rgba(12,10,7,0.78) 0%, rgba(12,10,7,0.5) 26%, rgba(12,10,7,0) 56%)",
+              "linear-gradient(90deg, color-mix(in srgb, var(--color-bg) 86%, transparent) 0%, color-mix(in srgb, var(--color-bg) 55%, transparent) 26%, transparent 56%)",
           }}
         />
 
@@ -126,8 +127,8 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
               position: "absolute",
               inset: 0,
               pointerEvents: "none",
-              opacity: 0.07,
-              mixBlendMode: "overlay",
+              opacity: 0.05,
+              mixBlendMode: "multiply",
               backgroundImage: GRAIN,
               backgroundSize: "200px 200px",
             }}
@@ -155,10 +156,12 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 top,
                 left,
                 fontFamily: FM,
-                fontWeight: 600,
+                fontWeight: "var(--weight-semibold)" as unknown as number,
                 fontSize: size,
-                color: "#C8A35E",
-                textShadow: `0 0 ${blur}px rgba(200,163,94,${alpha})`,
+                color: "var(--color-accent-text)",
+                textShadow: `0 0 ${blur}px color-mix(in srgb, var(--color-accent) ${Math.round(
+                  alpha * 100,
+                )}%, transparent)`,
                 animation: `gpxPts ${dur}s ease-in-out ${delay}s infinite`,
               }}
             >
@@ -171,24 +174,24 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
         <div
           style={{
             position: "absolute",
-            top: 34,
+            top: "var(--space-8)",
             left: "7vw",
             zIndex: 40,
             display: "flex",
             alignItems: "center",
-            gap: 9,
+            gap: "var(--space-2)",
             animation: "gpxRise 0.9s ease 1s both",
           }}
         >
           <span
             style={{
               fontFamily: FB,
-              fontWeight: 500,
-              fontSize: 16,
-              letterSpacing: "0.34em",
+              fontWeight: "var(--weight-semibold)" as unknown as number,
+              fontSize: "var(--text-md)",
+              letterSpacing: "var(--tracking-widest)",
               textTransform: "uppercase",
-              color: "#F2EADD",
-              paddingLeft: "0.34em",
+              color: "var(--color-text-primary)",
+              paddingLeft: "var(--tracking-widest)",
             }}
           >
             gpfree
@@ -197,9 +200,9 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             style={{
               width: 5,
               height: 5,
-              borderRadius: "50%",
-              background: "#C8A35E",
-              boxShadow: "0 0 10px rgba(200,163,94,0.85)",
+              borderRadius: "var(--radius-full)",
+              background: "var(--color-accent)",
+              boxShadow: "0 0 10px color-mix(in srgb, var(--color-accent) 60%, transparent)",
             }}
           />
         </div>
@@ -223,26 +226,36 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 Your points are worth
               </span>
               <span data-line style={{ display: "block", ...lineTr, transitionDelay: "0.1s" }}>
-                <em style={{ fontStyle: "italic", color: "#C8A35E" }}>more</em> than you think
+                <em style={{ fontStyle: "italic", color: "var(--color-accent-text)" }}>more</em> than you think
               </span>
             </h1>
-            <div data-line style={{ marginTop: 26, height: 18, ...lineTr, transitionDelay: "0.2s" }}>
+            <div data-line style={{ marginTop: "var(--space-6)", height: 18, ...lineTr, transitionDelay: "0.2s" }}>
               <span
                 data-typer
-                style={{ fontFamily: FM, fontSize: 13, letterSpacing: "0.02em", color: "rgba(242,234,221,0.66)" }}
+                style={{
+                  fontFamily: FM,
+                  fontSize: "var(--text-sm)",
+                  letterSpacing: "var(--tracking-normal)",
+                  color: "var(--color-text-secondary)",
+                }}
               >
                 <span />
-                <span style={{ color: "#C8A35E", animation: "gpxCaret 1s step-end infinite" }}>▍</span>
+                <span style={{ color: "var(--color-accent)", animation: "gpxCaret 1s step-end infinite" }}>▍</span>
               </span>
             </div>
-            <div data-line style={{ marginTop: 34, ...lineTr, transitionDelay: "0.3s" }}>
+            <div data-line style={{ marginTop: "var(--space-8)", ...lineTr, transitionDelay: "0.3s" }}>
               <a
                 href="#gpx-how"
                 className="gpx-cta-ivory"
                 data-mag
-                style={{ ...CTA_PILL, color: "#0C0A07", background: "#F2EADD", padding: "16px 32px" }}
+                style={{
+                  ...CTA_PILL,
+                  color: "var(--color-neutral-0)",
+                  background: "var(--color-accent)",
+                  padding: "var(--space-4) var(--space-8)",
+                }}
               >
-                see how it works <span style={{ fontSize: 14 }}>→</span>
+                see how it works <span style={{ fontSize: "var(--text-sm)" }}>→</span>
               </a>
             </div>
           </div>
@@ -258,9 +271,9 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           <div style={{ padding: "0 7vw", maxWidth: 920 }}>
             <div
               data-line
-              style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, ...lineTr, transitionDelay: "0s" }}
+              style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)", ...lineTr, transitionDelay: "0s" }}
             >
-              <span style={{ width: 24, height: 1, background: "#C8A35E" }} />
+              <span style={{ width: 24, height: 1, background: "var(--color-accent)" }} />
               <span style={kicker}>every program · checked in real time</span>
             </div>
             <h2 style={beatHeadStyle}>
@@ -268,7 +281,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 Watch your balance
               </span>
               <span data-line style={{ display: "block", ...lineTr, transitionDelay: "0.1s" }}>
-                <em style={{ fontStyle: "italic", color: "#C8A35E" }}>take off</em>
+                <em style={{ fontStyle: "italic", color: "var(--color-accent-text)" }}>take off</em>
               </span>
             </h2>
           </div>
@@ -284,9 +297,9 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           <div style={{ padding: "0 7vw", maxWidth: 920 }}>
             <div
               data-line
-              style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, ...lineTr, transitionDelay: "0s" }}
+              style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)", ...lineTr, transitionDelay: "0s" }}
             >
-              <span style={{ width: 24, height: 1, background: "#C8A35E" }} />
+              <span style={{ width: 24, height: 1, background: "var(--color-accent)" }} />
               <span style={kicker}>saver seats · the moment they open</span>
             </div>
             <h2 style={beatHeadStyle}>
@@ -294,13 +307,13 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 Every trip,
               </span>
               <span data-line style={{ display: "block", ...lineTr, transitionDelay: "0.1s" }}>
-                <em style={{ fontStyle: "italic", color: "#C8A35E" }}>already paid for</em>
+                <em style={{ fontStyle: "italic", color: "var(--color-accent-text)" }}>already paid for</em>
               </span>
             </h2>
           </div>
         </div>
 
-        {/* ════ BEAT: closing (metal credit card) ════ */}
+        {/* ════ BEAT: closing (light surface card) ════ */}
         <div
           data-beat
           data-center="1.0"
@@ -321,12 +334,12 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             style={{
               position: "relative",
               width: "min(90vw,560px)",
-              padding: "32px 40px 30px",
+              padding: "var(--space-8) var(--space-10) var(--space-7)",
               textAlign: "left",
-              background: "linear-gradient(145deg,#FCFAF4 0%,#ECE6D9 52%,#F4EFE3 100%)",
-              border: "1px solid rgba(255,255,255,0.55)",
-              borderRadius: 22,
-              boxShadow: "0 44px 110px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.85)",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-card)",
+              boxShadow: "var(--shadow-float)",
               overflow: "hidden",
               animation: "gpxFloat 6s ease-in-out infinite",
             }}
@@ -337,7 +350,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 inset: 0,
                 pointerEvents: "none",
                 background:
-                  "linear-gradient(118deg, transparent 32%, rgba(255,255,255,0.55) 49%, transparent 60%)",
+                  "linear-gradient(118deg, transparent 32%, color-mix(in srgb, var(--color-neutral-0) 55%, transparent) 49%, transparent 60%)",
                 opacity: 0.45,
               }}
             />
@@ -347,7 +360,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: 30,
+                marginBottom: "var(--space-7)",
               }}
             >
               {/* EMV chip */}
@@ -355,9 +368,9 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 style={{
                   width: 48,
                   height: 36,
-                  borderRadius: 7,
-                  background: "linear-gradient(135deg,#ead69e,#b8923f)",
-                  boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)",
+                  borderRadius: "var(--radius-sm)",
+                  background: "linear-gradient(135deg, var(--color-accent-subtle), var(--color-accent))",
+                  boxShadow: "inset 0 0 0 1px var(--color-border-strong)",
                   position: "relative",
                 }}
               >
@@ -368,7 +381,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                     top: 5,
                     bottom: 5,
                     width: 1,
-                    background: "rgba(0,0,0,0.2)",
+                    background: "color-mix(in srgb, var(--color-neutral-900) 20%, transparent)",
                     transform: "translateX(-50%)",
                   }}
                 />
@@ -379,7 +392,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                     left: 5,
                     right: 5,
                     height: 1,
-                    background: "rgba(0,0,0,0.2)",
+                    background: "color-mix(in srgb, var(--color-neutral-900) 20%, transparent)",
                     transform: "translateY(-50%)",
                   }}
                 />
@@ -387,12 +400,12 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
               <span
                 style={{
                   fontFamily: FB,
-                  fontWeight: 500,
-                  fontSize: 13,
-                  letterSpacing: "0.32em",
+                  fontWeight: "var(--weight-semibold)" as unknown as number,
+                  fontSize: "var(--text-sm)",
+                  letterSpacing: "var(--tracking-widest)",
                   textTransform: "uppercase",
-                  color: "#14110B",
-                  paddingLeft: "0.32em",
+                  color: "var(--color-text-primary)",
+                  paddingLeft: "var(--tracking-widest)",
                 }}
               >
                 gpfree
@@ -403,41 +416,41 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
                 position: "relative",
                 margin: 0,
                 fontFamily: FB,
-                fontWeight: 500,
-                fontSize: "clamp(40px,4.4vw,66px)",
-                lineHeight: 0.98,
-                letterSpacing: 0,
-                color: "#14110B",
+                fontWeight: "var(--weight-light)" as unknown as number,
+                fontSize: "clamp(var(--text-3xl), 4.4vw, var(--text-4xl))",
+                lineHeight: "var(--leading-tight)",
+                letterSpacing: "var(--tracking-tight)",
+                color: "var(--color-text-primary)",
               }}
             >
               <span data-line style={{ display: "block", ...lineTr, transitionDelay: "0s" }}>
-                Go <em style={{ fontStyle: "italic", color: "#A87C2E" }}>anywhere</em>
+                Go <em style={{ fontStyle: "italic", color: "var(--color-accent-fg)" }}>anywhere</em>
               </span>
             </h2>
-            <div data-line style={{ position: "relative", marginTop: 26, ...lineTr, transitionDelay: "0.16s" }}>
+            <div data-line style={{ position: "relative", marginTop: "var(--space-6)", ...lineTr, transitionDelay: "0.16s" }}>
               <a
                 href="#"
                 className="gpx-cta-ink"
                 data-mag
                 style={{
                   ...CTA_PILL,
-                  color: "#F7F2E9",
-                  background: "#14110B",
-                  padding: "15px 30px",
-                  boxShadow: "0 12px 34px rgba(0,0,0,0.28)",
+                  color: "var(--color-neutral-0)",
+                  background: "var(--color-neutral-900)",
+                  padding: "var(--space-3) var(--space-6)",
+                  boxShadow: "var(--shadow-raised)",
                 }}
               >
-                start optimizing — free <span style={{ fontSize: 15 }}>→</span>
+                start optimizing — free <span style={{ fontSize: "var(--text-sm)" }}>→</span>
               </a>
             </div>
-            <div data-line style={{ position: "relative", marginTop: 20, ...lineTr, transitionDelay: "0.26s" }}>
+            <div data-line style={{ position: "relative", marginTop: "var(--space-5)", ...lineTr, transitionDelay: "0.26s" }}>
               <span
                 style={{
                   fontFamily: FM,
-                  fontSize: 10,
-                  letterSpacing: "0.06em",
+                  fontSize: "var(--text-2xs)",
+                  letterSpacing: "var(--tracking-wide)",
                   textTransform: "uppercase",
-                  color: "rgba(20,17,11,0.48)",
+                  color: "var(--color-text-tertiary)",
                 }}
               >
                 no card numbers stored&nbsp;&nbsp;·&nbsp;&nbsp;free to start&nbsp;&nbsp;·&nbsp;&nbsp;2-min setup
@@ -450,13 +463,13 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
         <div
           style={{
             position: "absolute",
-            bottom: 34,
+            bottom: "var(--space-8)",
             left: "7vw",
             zIndex: 30,
             width: 150,
             height: 2,
-            background: "rgba(242,234,221,0.16)",
-            borderRadius: 2,
+            background: "color-mix(in srgb, var(--color-text-primary) 14%, transparent)",
+            borderRadius: "var(--radius-full)",
             overflow: "hidden",
             animation: "gpxRise 0.9s ease 1.15s both",
           }}
@@ -466,7 +479,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             style={{
               width: "100%",
               height: "100%",
-              background: "#C8A35E",
+              background: "var(--color-accent)",
               transform: "scaleX(0)",
               transformOrigin: "left center",
               transition: "transform 0.1s linear",
@@ -480,27 +493,28 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           className="gpx-ghost"
           style={{
             position: "absolute",
-            bottom: 28,
+            bottom: "var(--space-7)",
             right: "5vw",
             zIndex: 30,
             animation: "gpxRise 0.9s ease 1.15s both",
             textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
-            gap: 9,
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.05em",
+            gap: "var(--space-2)",
+            fontFamily: FS,
+            fontSize: "var(--text-xs)",
+            fontWeight: "var(--weight-semibold)" as unknown as number,
+            letterSpacing: "var(--tracking-wide)",
             textTransform: "uppercase",
-            color: "#F2EADD",
-            border: "1px solid rgba(242,234,221,0.32)",
-            padding: "12px 22px",
-            borderRadius: 999,
-            backdropFilter: "blur(8px)",
-            transition: "background 0.3s ease",
+            color: "var(--color-text-primary)",
+            border: "1px solid var(--color-border-strong)",
+            padding: "var(--space-3) var(--space-5)",
+            borderRadius: "var(--radius-full)",
+            backdropFilter: "var(--blur-sm)",
+            transition: "var(--transition-color)",
           }}
         >
-          start optimizing <span style={{ fontSize: 13 }}>→</span>
+          start optimizing <span style={{ fontSize: "var(--text-sm)" }}>→</span>
         </a>
 
         {/* ════ SCROLL HINT ════ */}
@@ -509,24 +523,24 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
           aria-hidden="true"
           style={{
             position: "absolute",
-            bottom: 30,
+            bottom: "var(--space-7)",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 30,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 7,
+            gap: "var(--space-2)",
             pointerEvents: "none",
           }}
         >
           <span
             style={{
               fontFamily: FM,
-              fontSize: 10,
-              letterSpacing: "0.18em",
+              fontSize: "var(--text-2xs)",
+              letterSpacing: "var(--tracking-widest)",
               textTransform: "uppercase",
-              color: "rgba(242,234,221,0.55)",
+              color: "var(--color-text-tertiary)",
             }}
           >
             scroll
@@ -535,7 +549,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             style={{
               width: 1,
               height: 26,
-              background: "linear-gradient(180deg, rgba(242,234,221,0.7), transparent)",
+              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-text-primary) 55%, transparent), transparent)",
               animation: "gpxHint 1.8s ease-in-out infinite",
             }}
           />
@@ -547,7 +561,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             position: "absolute",
             inset: 0,
             zIndex: 60,
-            background: "#0C0A07",
+            background: "var(--color-bg)",
             pointerEvents: "none",
             animation: "gpxCurtain 1.5s ease 0.15s both",
           }}

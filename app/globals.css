@@ -2,18 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: #0c0a07;
-}
+/* Box-sizing, fonts, colors, and background come from the Malleable UI base
+   layer (design-system/global.css), imported after this file in app/layout.tsx
+   so its token-driven rules win over Tailwind's preflight. */
 
 img {
   -webkit-user-drag: none;

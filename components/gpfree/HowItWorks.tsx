@@ -1,4 +1,4 @@
-import { FB, FM } from "./cinema";
+import { FB, FM, FS } from "./cinema";
 
 const STEPS = [
   {
@@ -21,10 +21,11 @@ const STEPS = [
   },
 ];
 
+// Plan rows map to feedback/accent tokens (status hues from the design system).
 const PLAN_ROWS = [
-  { dot: "#1f9d8f", label: "WALLET", text: "read balances · 180,000 pts", delay: "0.05s", t: "0.55s" },
-  { dot: "#bd8a2e", label: "EARNING", text: "route spend · 3× travel", delay: "0.16s", t: "0.55s" },
-  { dot: "#4f7cf0", label: "REDEEM", text: "transfer → ANA · 1:1", delay: "0.27s", t: "0.55s" },
+  { dot: "var(--color-success)", label: "WALLET", text: "read balances · 180,000 pts", delay: "0.05s", t: "0.55s" },
+  { dot: "var(--color-warning)", label: "EARNING", text: "route spend · 3× travel", delay: "0.16s", t: "0.55s" },
+  { dot: "var(--color-accent)", label: "REDEEM", text: "transfer → ANA · 1:1", delay: "0.27s", t: "0.55s" },
 ];
 
 /** "How it works" — left step tabs + right animated stage (driven by the engine). */
@@ -37,9 +38,9 @@ export default function HowItWorks() {
         minHeight: "100vh",
         display: "flex",
         alignItems: "center",
-        padding: "120px 7vw",
+        padding: "var(--space-32) 7vw",
         overflow: "hidden",
-        background: "#0C0A07",
+        background: "var(--color-bg)",
       }}
     >
       <div
@@ -50,7 +51,7 @@ export default function HowItWorks() {
           transform: "translateX(-50%)",
           width: 1,
           height: 70,
-          background: "linear-gradient(180deg, transparent, rgba(200,163,94,0.65))",
+          background: "linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-accent) 65%, transparent))",
           pointerEvents: "none",
         }}
       />
@@ -62,7 +63,8 @@ export default function HowItWorks() {
           width: 900,
           height: 520,
           transform: "translateX(-50%)",
-          background: "radial-gradient(ellipse at center, rgba(200,163,94,0.07), transparent 68%)",
+          background:
+            "radial-gradient(ellipse at center, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent 68%)",
           pointerEvents: "none",
         }}
       />
@@ -76,7 +78,7 @@ export default function HowItWorks() {
           margin: "0 auto",
           display: "grid",
           gridTemplateColumns: "0.92fr 1.08fr",
-          gap: 80,
+          gap: "var(--space-20)",
           alignItems: "center",
         }}
       >
@@ -85,19 +87,20 @@ export default function HowItWorks() {
           data-reveal
           style={{
             opacity: 0,
-            transform: "translateY(24px)",
-            transition: "opacity 0.8s ease, transform 0.8s cubic-bezier(0.2,0.8,0.2,1)",
+            transform: "translateY(var(--space-6))",
+            transition:
+              "opacity var(--duration-base) var(--ease-soft), transform var(--duration-slow) var(--spring-settle)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
-            <div style={{ width: 30, height: 1, background: "#C8A35E" }} />
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
+            <div style={{ width: 30, height: 1, background: "var(--color-accent)" }} />
             <span
               style={{
                 fontFamily: FM,
-                fontSize: 11,
-                letterSpacing: "0.24em",
+                fontSize: "var(--text-xs)",
+                letterSpacing: "var(--tracking-widest)",
                 textTransform: "uppercase",
-                color: "#C8A35E",
+                color: "var(--color-accent-text)",
               }}
             >
               how it works
@@ -105,13 +108,13 @@ export default function HowItWorks() {
           </div>
           <h2
             style={{
-              margin: "0 0 42px",
+              margin: "0 0 var(--space-10)",
               fontFamily: FB,
-              fontWeight: 500,
-              fontSize: "clamp(38px,3.8vw,60px)",
-              lineHeight: 1.02,
-              letterSpacing: 0,
-              color: "#F2EADD",
+              fontWeight: "var(--weight-light)" as unknown as number,
+              fontSize: "clamp(var(--text-3xl), 3.8vw, var(--text-4xl))",
+              lineHeight: "var(--leading-tight)",
+              letterSpacing: "var(--tracking-tight)",
+              color: "var(--color-text-primary)",
             }}
           >
             Three steps to
@@ -119,7 +122,7 @@ export default function HowItWorks() {
             your next trip
           </h2>
 
-          <div data-steps style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div data-steps style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             {STEPS.map((s, i) => (
               <button
                 type="button"
@@ -136,26 +139,27 @@ export default function HowItWorks() {
                   width: "100%",
                   display: "block",
                   cursor: "pointer",
-                  padding: "18px 22px",
-                  borderRadius: 5,
+                  padding: "var(--space-5) var(--space-6)",
+                  borderRadius: "var(--radius-sm)",
                   border: 0,
-                  borderLeft: `2px solid ${s.active ? "#C8A35E" : "transparent"}`,
-                  background: s.active ? "rgba(255,255,255,0.05)" : "transparent",
-                  transition: "background 0.4s ease, border-color 0.4s ease",
+                  borderLeft: `2px solid ${s.active ? "var(--color-accent)" : "transparent"}`,
+                  background: s.active ? "var(--color-accent-muted)" : "transparent",
+                  transition: "var(--transition-color)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
-                  <span style={{ fontFamily: FM, fontSize: 12, color: "#C8A35E", flex: "none" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-4)" }}>
+                  <span style={{ fontFamily: FM, fontSize: "var(--text-sm)", color: "var(--color-accent-text)", flex: "none" }}>
                     {s.n}
                   </span>
                   <div>
-                    <div style={{ fontFamily: FB, fontSize: 23, color: "#F2EADD" }}>{s.title}</div>
+                    <div style={{ fontFamily: FB, fontSize: "var(--text-lg)", color: "var(--color-text-primary)" }}>{s.title}</div>
                     <div
                       style={{
-                        fontSize: 13,
-                        color: "rgba(242,234,221,0.6)",
-                        marginTop: 5,
-                        lineHeight: 1.5,
+                        fontFamily: FS,
+                        fontSize: "var(--text-sm)",
+                        color: "var(--color-text-secondary)",
+                        marginTop: "var(--space-1)",
+                        lineHeight: "var(--leading-normal)",
                       }}
                     >
                       {s.desc}
@@ -166,15 +170,15 @@ export default function HowItWorks() {
                   data-stepbar
                   style={{
                     height: 2,
-                    background: "rgba(242,234,221,0.12)",
-                    marginTop: 15,
-                    borderRadius: 2,
+                    background: "color-mix(in srgb, var(--color-text-primary) 12%, transparent)",
+                    marginTop: "var(--space-4)",
+                    borderRadius: "var(--radius-full)",
                     overflow: "hidden",
                     opacity: s.active ? 1 : 0,
-                    transition: "opacity 0.3s ease",
+                    transition: "var(--transition-opacity)",
                   }}
                 >
-                  <div data-stepfill style={{ height: "100%", width: "0%", background: "#C8A35E" }} />
+                  <div data-stepfill style={{ height: "100%", width: "0%", background: "var(--color-accent)" }} />
                 </div>
               </button>
             ))}
@@ -189,15 +193,15 @@ export default function HowItWorks() {
           style={{
             position: "relative",
             aspectRatio: "4/3",
-            border: "1px solid rgba(242,234,221,0.1)",
-            borderRadius: 8,
-            background: "linear-gradient(160deg, rgba(255,255,255,0.045), rgba(255,255,255,0.012))",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-card)",
+            background: "var(--color-surface)",
             overflow: "hidden",
-            boxShadow: "0 50px 130px rgba(0,0,0,0.5)",
+            boxShadow: "var(--shadow-card)",
             opacity: 0,
-            transform: "translateY(24px)",
+            transform: "translateY(var(--space-6))",
             transition:
-              "opacity 0.8s ease 0.12s, transform 0.8s cubic-bezier(0.2,0.8,0.2,1) 0.12s",
+              "opacity var(--duration-base) var(--ease-soft) 0.12s, transform var(--duration-slow) var(--spring-settle) 0.12s",
           }}
         >
           {/* panel 0: wallet */}
@@ -210,7 +214,7 @@ export default function HowItWorks() {
               alignItems: "center",
               justifyContent: "center",
               opacity: 1,
-              transition: "opacity 0.6s ease",
+              transition: "var(--transition-opacity)",
             }}
           >
             <div style={{ position: "relative", width: 300, height: 210 }}>
@@ -225,20 +229,21 @@ export default function HowItWorks() {
                   width: 190,
                   height: 120,
                   margin: "-60px 0 0 -95px",
-                  borderRadius: 13,
-                  background: "linear-gradient(150deg,#2a2c34,#15171e)",
-                  boxShadow: "0 18px 44px rgba(0,0,0,0.55)",
-                  padding: 16,
+                  borderRadius: "var(--radius-lg)",
+                  background: "var(--color-surface-raised)",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "var(--shadow-md)",
+                  padding: "var(--space-4)",
                   opacity: 0,
                   transform: "translate(-96px,52px) rotate(-10deg)",
                   transition:
-                    "opacity 0.6s ease 0.05s, transform 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.05s",
+                    "opacity var(--duration-base) var(--ease-soft) 0.05s, transform var(--duration-slow) var(--spring-settle) 0.05s",
                   overflow: "hidden",
                 }}
               >
-                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "#7d97ff" }} />
-                <div style={{ width: 30, height: 22, borderRadius: 5, background: "linear-gradient(135deg,#d8c08a,#b08d3f)" }} />
-                <div style={{ position: "absolute", bottom: 15, left: 16, fontFamily: FM, fontSize: 10, color: "rgba(242,234,221,0.55)" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "var(--color-iris-400)" }} />
+                <div style={{ width: 30, height: 22, borderRadius: "var(--radius-xs)", background: "linear-gradient(135deg, var(--color-accent-subtle), var(--color-accent))" }} />
+                <div style={{ position: "absolute", bottom: 15, left: 16, fontFamily: FM, fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)" }}>
                   •••• 4821
                 </div>
               </div>
@@ -253,20 +258,21 @@ export default function HowItWorks() {
                   width: 190,
                   height: 120,
                   margin: "-60px 0 0 -95px",
-                  borderRadius: 13,
-                  background: "linear-gradient(150deg,#2c2a20,#17150d)",
-                  boxShadow: "0 18px 44px rgba(0,0,0,0.55)",
-                  padding: 16,
+                  borderRadius: "var(--radius-lg)",
+                  background: "var(--color-surface-raised)",
+                  border: "1px solid var(--color-border)",
+                  boxShadow: "var(--shadow-md)",
+                  padding: "var(--space-4)",
                   opacity: 0,
                   transform: "translate(96px,52px) rotate(10deg)",
                   transition:
-                    "opacity 0.6s ease 0.18s, transform 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.18s",
+                    "opacity var(--duration-base) var(--ease-soft) 0.18s, transform var(--duration-slow) var(--spring-settle) 0.18s",
                   overflow: "hidden",
                 }}
               >
-                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "#d2ad5e" }} />
-                <div style={{ width: 30, height: 22, borderRadius: 5, background: "linear-gradient(135deg,#d8c08a,#b08d3f)" }} />
-                <div style={{ position: "absolute", bottom: 15, left: 16, fontFamily: FM, fontSize: 10, color: "rgba(242,234,221,0.55)" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "var(--color-accent)" }} />
+                <div style={{ width: 30, height: 22, borderRadius: "var(--radius-xs)", background: "linear-gradient(135deg, var(--color-accent-subtle), var(--color-accent))" }} />
+                <div style={{ position: "absolute", bottom: 15, left: 16, fontFamily: FM, fontSize: "var(--text-2xs)", color: "var(--color-text-tertiary)" }}>
                   •••• 7390
                 </div>
               </div>
@@ -281,25 +287,26 @@ export default function HowItWorks() {
                   width: 198,
                   height: 124,
                   margin: "-62px 0 0 -99px",
-                  borderRadius: 13,
-                  background: "linear-gradient(150deg,#3a3d47,#1f222b)",
-                  boxShadow: "0 26px 56px rgba(0,0,0,0.6)",
-                  padding: 17,
+                  borderRadius: "var(--radius-lg)",
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border-strong)",
+                  boxShadow: "var(--shadow-lg)",
+                  padding: "var(--space-4)",
                   opacity: 0,
                   transform: "translate(0,44px) rotate(-1deg)",
                   transition:
-                    "opacity 0.6s ease 0.3s, transform 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.3s",
+                    "opacity var(--duration-base) var(--ease-soft) 0.3s, transform var(--duration-slow) var(--spring-settle) 0.3s",
                   overflow: "hidden",
                 }}
               >
-                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "#C8A35E" }} />
+                <div style={{ position: "absolute", top: 0, left: 0, width: 4, height: "100%", background: "var(--color-accent)" }} />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ width: 32, height: 23, borderRadius: 5, background: "linear-gradient(135deg,#e2cf9a,#bd9a4a)" }} />
-                  <span style={{ fontFamily: FM, fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,234,221,0.5)" }}>
+                  <div style={{ width: 32, height: 23, borderRadius: "var(--radius-xs)", background: "linear-gradient(135deg, var(--color-accent-subtle), var(--color-accent))" }} />
+                  <span style={{ fontFamily: FM, fontSize: "var(--text-2xs)", letterSpacing: "var(--tracking-wider)", color: "var(--color-text-tertiary)" }}>
                     PRIMARY
                   </span>
                 </div>
-                <div style={{ position: "absolute", bottom: 15, left: 17, fontFamily: FM, fontSize: 10, color: "rgba(242,234,221,0.7)" }}>
+                <div style={{ position: "absolute", bottom: 15, left: 17, fontFamily: FM, fontSize: "var(--text-2xs)", color: "var(--color-text-secondary)" }}>
                   •••• 1205
                 </div>
               </div>
@@ -317,7 +324,7 @@ export default function HowItWorks() {
               justifyContent: "center",
               opacity: 0,
               pointerEvents: "none",
-              transition: "opacity 0.6s ease",
+              transition: "var(--transition-opacity)",
             }}
           >
             <div style={{ width: "80%", maxWidth: 440 }}>
@@ -329,21 +336,21 @@ export default function HowItWorks() {
                   opacity: 0,
                   transform: "translateY(24px)",
                   transition:
-                    "opacity 0.6s ease 0.05s, transform 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.05s",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(242,234,221,0.14)",
-                  borderRadius: 14,
-                  padding: "20px 22px 18px",
+                    "opacity var(--duration-base) var(--ease-soft) 0.05s, transform var(--duration-slow) var(--spring-settle) 0.05s",
+                  background: "var(--color-surface-subtle)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-lg)",
+                  padding: "var(--space-5) var(--space-5) var(--space-4)",
                 }}
               >
                 <div
                   style={{
                     fontFamily: FM,
-                    fontSize: 10,
-                    letterSpacing: "0.14em",
+                    fontSize: "var(--text-2xs)",
+                    letterSpacing: "var(--tracking-wider)",
                     textTransform: "uppercase",
-                    color: "rgba(242,234,221,0.45)",
-                    marginBottom: 13,
+                    color: "var(--color-text-tertiary)",
+                    marginBottom: "var(--space-3)",
                   }}
                 >
                   your goal
@@ -352,15 +359,15 @@ export default function HowItWorks() {
                   style={{
                     fontFamily: FB,
                     fontStyle: "italic",
-                    fontSize: 25,
-                    lineHeight: 1.3,
-                    color: "#F2EADD",
+                    fontSize: "var(--text-lg)",
+                    lineHeight: "var(--leading-snug)",
+                    color: "var(--color-text-primary)",
                     minHeight: 66,
                   }}
                 >
                   <span data-howtyper>
                     <span />
-                    <span style={{ color: "#C8A35E", animation: "gpxCaret 1s step-end infinite" }}>▍</span>
+                    <span style={{ color: "var(--color-accent)", animation: "gpxCaret 1s step-end infinite" }}>▍</span>
                   </span>
                 </div>
               </div>
@@ -372,8 +379,8 @@ export default function HowItWorks() {
                   opacity: 0,
                   transform: "translateY(24px)",
                   transition:
-                    "opacity 0.6s ease 0.22s, transform 0.7s cubic-bezier(0.2,0.8,0.2,1) 0.22s",
-                  marginTop: 16,
+                    "opacity var(--duration-base) var(--ease-soft) 0.22s, transform var(--duration-slow) var(--spring-settle) 0.22s",
+                  marginTop: "var(--space-4)",
                   display: "flex",
                   justifyContent: "flex-end",
                 }}
@@ -382,16 +389,16 @@ export default function HowItWorks() {
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 9,
-                    fontFamily: FM,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: "0.05em",
+                    gap: "var(--space-2)",
+                    fontFamily: FS,
+                    fontSize: "var(--text-xs)",
+                    fontWeight: "var(--weight-semibold)" as unknown as number,
+                    letterSpacing: "var(--tracking-wide)",
                     textTransform: "uppercase",
-                    color: "#0C0A07",
-                    background: "#C8A35E",
-                    padding: "13px 24px",
-                    borderRadius: 999,
+                    color: "var(--color-neutral-0)",
+                    background: "var(--color-accent)",
+                    padding: "var(--space-3) var(--space-6)",
+                    borderRadius: "var(--radius-full)",
                   }}
                 >
                   plan it →
@@ -411,7 +418,7 @@ export default function HowItWorks() {
               justifyContent: "center",
               opacity: 0,
               pointerEvents: "none",
-              transition: "opacity 0.6s ease",
+              transition: "var(--transition-opacity)",
             }}
           >
             <div style={{ width: "82%", maxWidth: 460 }}>
@@ -424,25 +431,25 @@ export default function HowItWorks() {
                   style={{
                     opacity: 0,
                     transform: "translateY(22px)",
-                    transition: `opacity ${r.t} ease ${r.delay}, transform 0.6s cubic-bezier(0.2,0.8,0.2,1) ${r.delay}`,
+                    transition: `opacity ${r.t} var(--ease-soft) ${r.delay}, transform var(--duration-slow) var(--spring-settle) ${r.delay}`,
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
-                    padding: "12px 15px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(242,234,221,0.08)",
-                    borderRadius: 10,
-                    marginBottom: 9,
+                    gap: "var(--space-3)",
+                    padding: "var(--space-3) var(--space-4)",
+                    background: "var(--color-surface-subtle)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-md)",
+                    marginBottom: "var(--space-2)",
                   }}
                 >
-                  <span style={{ width: 7, height: 7, borderRadius: 2, background: r.dot, flex: "none" }} />
-                  <span style={{ fontFamily: FM, fontSize: 10, fontWeight: 600, color: r.dot, width: 62, flex: "none" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "var(--radius-xs)", background: r.dot, flex: "none" }} />
+                  <span style={{ fontFamily: FM, fontSize: "var(--text-2xs)", fontWeight: "var(--weight-semibold)" as unknown as number, color: r.dot, width: 62, flex: "none" }}>
                     {r.label}
                   </span>
-                  <span style={{ fontFamily: FM, fontSize: 11, color: "rgba(242,234,221,0.78)", flex: 1 }}>
+                  <span style={{ fontFamily: FM, fontSize: "var(--text-xs)", color: "var(--color-text-secondary)", flex: 1 }}>
                     {r.text}
                   </span>
-                  <span style={{ color: "#1f9d8f", fontSize: 12 }}>✓</span>
+                  <span style={{ color: "var(--color-success)", fontSize: "var(--text-sm)" }}>✓</span>
                 </div>
               ))}
               <div
@@ -453,34 +460,34 @@ export default function HowItWorks() {
                   opacity: 0,
                   transform: "translateY(22px)",
                   transition:
-                    "opacity 0.55s ease 0.4s, transform 0.6s cubic-bezier(0.2,0.8,0.2,1) 0.4s",
-                  marginTop: 15,
+                    "opacity 0.55s var(--ease-soft) 0.4s, transform var(--duration-slow) var(--spring-settle) 0.4s",
+                  marginTop: "var(--space-4)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "16px 18px",
-                  background: "rgba(200,163,94,0.1)",
-                  border: "1px solid rgba(200,163,94,0.4)",
-                  borderRadius: 12,
+                  padding: "var(--space-4) var(--space-5)",
+                  background: "var(--color-accent-muted)",
+                  border: "1px solid var(--color-accent-subtle)",
+                  borderRadius: "var(--radius-lg)",
                 }}
               >
                 <div>
                   <div
                     style={{
                       fontFamily: FM,
-                      fontSize: 9,
-                      letterSpacing: "0.1em",
+                      fontSize: "var(--text-2xs)",
+                      letterSpacing: "var(--tracking-wider)",
                       textTransform: "uppercase",
-                      color: "rgba(200,163,94,0.85)",
+                      color: "var(--color-accent-fg)",
                     }}
                   >
                     your plan
                   </div>
-                  <div style={{ fontFamily: FB, fontSize: 19, color: "#F2EADD", marginTop: 3 }}>
+                  <div style={{ fontFamily: FB, fontSize: "var(--text-md)", color: "var(--color-text-primary)", marginTop: "var(--space-1)" }}>
                     Business saver · LAX → TYO
                   </div>
                 </div>
-                <div style={{ fontFamily: FB, fontSize: 22, color: "#C8A35E" }}>120k</div>
+                <div style={{ fontFamily: FB, fontSize: "var(--text-xl)", color: "var(--color-accent-text)" }}>120k</div>
               </div>
             </div>
           </div>

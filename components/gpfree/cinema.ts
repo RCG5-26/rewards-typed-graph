@@ -11,8 +11,10 @@ import { useEffect, type CSSProperties, type RefObject } from "react";
  * markup via `data-*` hooks.
  */
 
-export const FB = "var(--font-bodoni), Georgia, serif";
-export const FM = "var(--font-jetbrains), ui-monospace, monospace";
+// Design-system font roles: display (headings), mono (labels/code), sans (body).
+export const FB = "var(--font-display)";
+export const FM = "var(--font-mono)";
+export const FS = "var(--font-sans)";
 
 export const FRAMES = [
   "/assets/frame-001.webp",
@@ -40,29 +42,29 @@ export interface GPFreeHeroProps {
   showGrain?: boolean;
 }
 
-/** Shared pill-CTA styling. Per-CTA color/background/padding/shadow override it. */
+/** Shared pill-CTA styling. Per-CTA color/background/padding override it. */
 export const CTA_PILL: CSSProperties = {
   textDecoration: "none",
   display: "inline-flex",
   alignItems: "center",
-  gap: 10,
-  fontSize: 13,
-  fontWeight: 600,
-  letterSpacing: "0.04em",
+  gap: "var(--gap-xs)",
+  fontFamily: FS,
+  fontSize: "var(--text-sm)",
+  fontWeight: "var(--weight-semibold)" as unknown as number,
+  letterSpacing: "var(--tracking-wide)",
   textTransform: "uppercase",
-  borderRadius: 999,
-  transition: "background 0.3s ease",
+  borderRadius: "var(--radius-full)",
+  transition: "var(--transition-color)",
 };
 
 export const beatHeadStyle: CSSProperties = {
   margin: 0,
   fontFamily: FB,
-  fontWeight: 500,
-  fontSize: "clamp(38px,4.6vw,76px)",
-  lineHeight: 1.05,
-  letterSpacing: 0,
-  color: "#F2EADD",
-  textShadow: "0 1px 2px rgba(12,10,7,0.4), 0 6px 44px rgba(12,10,7,0.5)",
+  fontWeight: "var(--weight-light)" as unknown as number,
+  fontSize: "clamp(var(--text-3xl), 4.6vw, var(--text-5xl))",
+  lineHeight: "var(--leading-tight)",
+  letterSpacing: "var(--tracking-tight)",
+  color: "var(--color-text-primary)",
 };
 
 // Beat lines start hidden so they reveal exactly once (driven by the scroll
@@ -70,8 +72,9 @@ export const beatHeadStyle: CSSProperties = {
 // hidden for the intro, then reveal — a visible→hidden→visible flash on load.
 export const lineTr: CSSProperties = {
   opacity: 0,
-  transform: "translateY(26px)",
-  transition: "opacity 0.8s ease, transform 0.8s cubic-bezier(0.2,0.8,0.2,1)",
+  transform: "translateY(var(--space-6))",
+  transition:
+    "opacity var(--duration-base) var(--ease-soft), transform var(--duration-slow) var(--spring-settle)",
 };
 
 // `inert` on beats that begin hidden keeps their CTAs out of the focus order
@@ -79,12 +82,12 @@ export const lineTr: CSSProperties = {
 export const initiallyHidden = { inert: "" } as unknown as React.HTMLAttributes<HTMLDivElement>;
 
 export const kicker: CSSProperties = {
-  fontFamily: FM,
-  fontSize: 12,
-  letterSpacing: "0.14em",
+  fontFamily: FS,
+  fontSize: "var(--text-2xs)",
+  fontWeight: "var(--weight-semibold)" as unknown as number,
+  letterSpacing: "var(--tracking-wider)",
   textTransform: "uppercase",
-  color: "#C8A35E",
-  textShadow: "0 1px 12px rgba(12,10,7,0.8)",
+  color: "var(--color-accent-text)",
 };
 
 // [top%, left%, fontSize, blur, glowAlpha, durationS, delayS]
@@ -113,10 +116,10 @@ export const CSS = `
 @keyframes gpxFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes gpxPts { 0% { transform: translateY(14px); opacity: 0; } 25% { opacity: 0.9; } 70% { opacity: 0.7; } 100% { transform: translateY(-22px); opacity: 0; } }
 
-.gpx-cta-ivory:hover { background:#C8A35E !important; }
-.gpx-cta-ink:hover { background:#A87C2E !important; }
-.gpx-cta-gilt:hover { background:#DCC089 !important; }
-.gpx-ghost:hover { background:rgba(242,234,221,0.12) !important; }
+.gpx-cta-ivory:hover { background:var(--color-accent-fg) !important; }
+.gpx-cta-ink:hover { background:var(--color-neutral-700) !important; }
+.gpx-cta-gilt:hover { background:var(--color-accent-fg) !important; }
+.gpx-ghost:hover { background:var(--color-accent-muted) !important; }
 
 @media (max-width: 920px){
   [data-howgrid]{ grid-template-columns:1fr !important; gap:46px !important; }
@@ -383,8 +386,8 @@ export function useGpxCinema(
       for (let k = 0; k < tabs.length; k++) {
         const on = k === i;
         const t = tabs[k];
-        t.style.background = on ? "rgba(255,255,255,0.05)" : "transparent";
-        t.style.borderLeftColor = on ? "#C8A35E" : "transparent";
+        t.style.background = on ? "var(--color-accent-muted)" : "transparent";
+        t.style.borderLeftColor = on ? "var(--color-accent)" : "transparent";
         const bar = t.querySelector<HTMLElement>("[data-stepbar]");
         const fill = t.querySelector<HTMLElement>("[data-stepfill]");
         if (bar) bar.style.opacity = on ? "1" : "0";

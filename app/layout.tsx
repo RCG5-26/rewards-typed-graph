@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, JetBrains_Mono } from "next/font/google";
+// Tailwind layers first, then the Malleable UI base layer so the design-system
+// tokens + base rules win over Tailwind's preflight (fonts, headings, bg).
 import "./globals.css";
-
-const bodoni = Bodoni_Moda({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-bodoni",
-  display: "swap",
-});
-
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-jetbrains",
-  display: "swap",
-});
+import "../design-system/global.css";
 
 export const metadata: Metadata = {
   title: "GPFree — Your points are worth more than you think",
@@ -29,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${bodoni.variable} ${jetbrains.variable}`}>
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

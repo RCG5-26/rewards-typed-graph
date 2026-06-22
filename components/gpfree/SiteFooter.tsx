@@ -6,10 +6,10 @@ export default function SiteFooter() {
     <footer
       style={{
         position: "relative",
-        background: "#0C0A07",
-        borderTop: "1px solid rgba(242,234,221,0.08)",
-        padding: "84px 7vw 46px",
-        color: "#F2EADD",
+        background: "var(--color-bg)",
+        borderTop: "1px solid var(--color-border)",
+        padding: "var(--space-20) 7vw var(--space-12)",
+        color: "var(--color-text-primary)",
       }}
     >
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
@@ -17,7 +17,7 @@ export default function SiteFooter() {
           style={{
             display: "flex",
             flexWrap: "wrap",
-            gap: "48px 64px",
+            gap: "var(--space-12) var(--space-16)",
             justifyContent: "space-between",
             alignItems: "flex-end",
           }}
@@ -25,12 +25,13 @@ export default function SiteFooter() {
           <div style={{ maxWidth: 440 }}>
             <h2
               style={{
-                margin: "0 0 26px",
+                margin: "0 0 var(--space-6)",
                 fontFamily: FB,
-                fontWeight: 500,
-                fontSize: "clamp(28px,2.8vw,44px)",
-                lineHeight: 1.06,
-                color: "#F2EADD",
+                fontWeight: "var(--weight-light)" as unknown as number,
+                fontSize: "clamp(var(--text-2xl), 2.8vw, var(--text-3xl))",
+                lineHeight: "var(--leading-snug)",
+                letterSpacing: "var(--tracking-tight)",
+                color: "var(--color-text-primary)",
               }}
             >
               Your next trip is
@@ -41,42 +42,47 @@ export default function SiteFooter() {
               href="#"
               className="gpx-cta-gilt"
               data-mag
-              style={{ ...CTA_PILL, color: "#0C0A07", background: "#C8A35E", padding: "15px 30px" }}
+              style={{
+                ...CTA_PILL,
+                color: "var(--color-neutral-0)",
+                background: "var(--color-accent)",
+                padding: "var(--space-3) var(--space-6)",
+              }}
             >
-              start optimizing — free <span style={{ fontSize: 15 }}>→</span>
+              start optimizing — free <span style={{ fontSize: "var(--text-sm)" }}>→</span>
             </a>
           </div>
         </div>
-        <div style={{ height: 1, background: "rgba(242,234,221,0.08)", margin: "48px 0 22px" }} />
+        <div style={{ height: 1, background: "var(--color-border)", margin: "var(--space-12) 0 var(--space-6)" }} />
         <div
           style={{
             display: "flex",
             flexWrap: "wrap",
-            gap: 16,
+            gap: "var(--space-4)",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
             <span
               style={{
                 fontFamily: FB,
-                fontWeight: 500,
-                fontSize: 14,
-                letterSpacing: "0.32em",
+                fontWeight: "var(--weight-semibold)" as unknown as number,
+                fontSize: "var(--text-sm)",
+                letterSpacing: "var(--tracking-widest)",
                 textTransform: "uppercase",
-                color: "#F2EADD",
-                paddingLeft: "0.32em",
+                color: "var(--color-text-primary)",
+                paddingLeft: "var(--tracking-widest)",
               }}
             >
               gpfree
             </span>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#C8A35E" }} />
+            <span style={{ width: 5, height: 5, borderRadius: "var(--radius-full)", background: "var(--color-accent)" }} />
           </div>
-          <span style={{ fontFamily: FM, fontSize: 11, color: "rgba(242,234,221,0.4)", letterSpacing: "0.04em" }}>
+          <span style={{ fontFamily: FM, fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)", letterSpacing: "var(--tracking-wide)" }}>
             coordination is state, not messages
           </span>
-          <span style={{ fontFamily: FM, fontSize: 11, color: "rgba(242,234,221,0.4)" }}>© 2026 GPFree</span>
+          <span style={{ fontFamily: FM, fontSize: "var(--text-xs)", color: "var(--color-text-tertiary)" }}>© 2026 GPFree</span>
         </div>
       </div>
     </footer>
