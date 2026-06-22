@@ -1,0 +1,43 @@
+:root {
+  /* ── Shadows (always two-layer: diffuse + sharp) ── */
+  --shadow-xs:      0 1px 3px rgba(0,0,0,0.05);
+  --shadow-sm:      0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:      0 4px 24px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-lg:      0 8px 48px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-xl:      0 16px 64px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  --shadow-none:    none;
+
+  /* ── Semantic shadows ── */
+  --shadow-card:     var(--shadow-lg);
+  --shadow-raised:   var(--shadow-md);
+  --shadow-subtle:   var(--shadow-sm);
+  --shadow-float:    var(--shadow-xl);
+
+  /* ── Blur ── */
+  --blur-sm:    blur(4px);  /* @kind other */
+  --blur-md:    blur(12px); /* @kind other */
+  --blur-lg:    blur(24px); /* @kind other */
+  --blur-xl:    blur(40px); /* @kind other */
+
+  /* ── Glass surfaces ── */
+  --glass-light:  rgba(255,255,255,0.72); /* @kind other */
+  --glass-mid:    rgba(255,255,255,0.50); /* @kind other */
+  --glass-dark:   rgba(255,255,255,0.30); /* @kind other */
+
+  /* ── Blob glow gradients ── */
+  --blob-glow-sm:   radial-gradient(ellipse 120px 80px at center,
+                      oklch(80% 0.10 265 / 0.55) 0%,
+                      oklch(86% 0.07 265 / 0.20) 50%,
+                      transparent 100%); /* @kind other */
+  --blob-glow-md:   radial-gradient(ellipse 240px 140px at center,
+                      oklch(78% 0.11 265 / 0.60) 0%,
+                      oklch(84% 0.08 265 / 0.25) 50%,
+                      transparent 100%); /* @kind other */
+  --blob-glow-lg:   radial-gradient(ellipse 400px 220px at center,
+                      oklch(76% 0.12 265 / 0.65) 0%,
+                      oklch(83% 0.09 265 / 0.28) 50%,
+                      transparent 100%); /* @kind other */
+
+  /* ── Ambient particle color ── */
+  --particle-color: oklch(75% 0.08 265); /* @kind other */
+}
