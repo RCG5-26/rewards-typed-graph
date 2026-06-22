@@ -1,0 +1,155 @@
+{
+  "fixture_id": "person-c-mvp-tokyo-hyatt-v1",
+  "description": "Schema-neutral seed data for Person C's first redemption and invalidation demo.",
+  "as_of": "2026-06-18T00:00:00Z",
+  "scope": {
+    "source_currency": "Chase Ultimate Rewards",
+    "source_program_slug": "program:chase_ur",
+    "target_program": "World of Hyatt",
+    "target_program_slug": "program:hyatt",
+    "destination_city": "Tokyo",
+    "nights": 3,
+    "data_mode": "seeded_fixture"
+  },
+  "programs": [
+    {
+      "slug": "program:chase_ur",
+      "display_name": "Chase Ultimate Rewards",
+      "program_kind": "issuer_transferable",
+      "node_type": "RewardProgram"
+    },
+    {
+      "slug": "program:hyatt",
+      "display_name": "World of Hyatt",
+      "program_kind": "hotel",
+      "node_type": "RewardProgram"
+    }
+  ],
+  "transfer_paths": [
+    {
+      "slug": "transfer:chase_ur:hyatt",
+      "source_program_slug": "program:chase_ur",
+      "dest_program_slug": "program:hyatt",
+      "transfer_ratio_basis_points": 10000,
+      "min_increment_points": 1000,
+      "transfer_time_days": 0,
+      "effective_from": "2026-06-18",
+      "effective_to": null,
+      "source": "seed_fixture"
+    }
+  ],
+  "users": [
+    {
+      "slug": "user:mvp_demo",
+      "display_name": "MVP Demo User"
+    }
+  ],
+  "balances": [
+    {
+      "slug": "balance:user_mvp_demo:chase_ur",
+      "user_slug": "user:mvp_demo",
+      "program_slug": "program:chase_ur",
+      "balance_points": 75000,
+      "version": 1,
+      "as_of": "2026-06-18T00:00:00Z",
+      "source": "manual_entry",
+      "node_type": "UserBalance"
+    }
+  ],
+  "trip_request": {
+    "slug": "query:tokyo_hyatt_3n_best_value",
+    "user_slug": "user:mvp_demo",
+    "query_text": "What is the best Hyatt redemption for a 3-night Tokyo trip?",
+    "city": "Tokyo",
+    "nights": 3,
+    "optimization_goal": "highest_cents_per_point"
+  },
+  "hotels": [
+    {
+      "slug": "hotel:demo_hyatt_ginza",
+      "display_name": "Demo Hyatt Ginza",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    },
+    {
+      "slug": "hotel:demo_hyatt_shinjuku",
+      "display_name": "Demo Hyatt Shinjuku",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    },
+    {
+      "slug": "hotel:demo_hyatt_ueno",
+      "display_name": "Demo Hyatt Ueno",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    }
+  ],
+  "award_options": [
+    {
+      "slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_ginza",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 45000,
+      "cash_total_cents": 105000,
+      "value_basis_points": 23333,
+      "cash_quote_slug": "quote:cash:demo_hyatt_ginza:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-18T00:00:00Z",
+      "role": "best_value_before_balance_change"
+    },
+    {
+      "slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_shinjuku",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 30000,
+      "cash_total_cents": 54000,
+      "value_basis_points": 18000,
+      "cash_quote_slug": "quote:cash:demo_hyatt_shinjuku:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-18T00:00:00Z",
+      "role": "backup_after_balance_change"
+    },
+    {
+      "slug": "award:demo_hyatt_ueno:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_ueno",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 24000,
+      "cash_total_cents": 30000,
+      "value_basis_points": 12500,
+      "cash_quote_slug": "quote:cash:demo_hyatt_ueno:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-18T00:00:00Z",
+      "role": "poor_value_contrast"
+    }
+  ],
+  "scenarios": [
+    {
+      "slug": "scenario:initial_recommendation",
+      "balance_points": 75000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "expected_backup_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n"
+    },
+    {
+      "slug": "scenario:balance_change_replan",
+      "starting_balance_points": 75000,
+      "mutation": {
+        "balance_slug": "balance:user_mvp_demo:chase_ur",
+        "delta_points": -40000,
+        "new_balance_points": 35000,
+        "new_version": 2,
+        "reason": "User spent 40,000 Chase points."
+      },
+      "stale_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n"
+    }
+  ]
+}
