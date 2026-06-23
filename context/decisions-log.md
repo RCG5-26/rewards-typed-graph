@@ -39,6 +39,7 @@
 
 | ID | Date | Decision | Status | Canonical source |
 |---|---|---|---|---|
+| D028 | 2026-06-22 | GPFree landing conforms to the Malleable UI design system (tokens only — light/iris, SF Pro/Fira Code; no hardcoded hex/px/easing) | Accepted | [design-context.md](design-context.md), [design-system/README.md](../design-system/README.md), `components/gpfree/` |
 | D027 | 2026-06-18 | schema-final v3.1 spec + Phase A DDL authored | Accepted | [schema-final.md v3.1](../docs/architecture/schema-final.md), [ADR 0001](../docs/adr/0001-schema-lock.md), `schema/schema.sql` |
 | D026 | 2026-06-17 | Python subprocess contract (JSON I/O, no DB creds, configured timeout/size) | Accepted | [ADR 0007](../docs/adr/0007-contract-ownership-codegen.md) |
 | D025 | 2026-06-17 | `graph_mutations` user-scoped for MVP | Accepted | [ADR 0008](../docs/adr/0008-per-user-serialization-sse.md) |

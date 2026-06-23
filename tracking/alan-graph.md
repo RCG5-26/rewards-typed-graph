@@ -20,8 +20,6 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Cover the live `TransferPoints` service path against Postgres for Day 7 demo risk.
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
-- Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
-- Complete RCG-13 direct dependency invalidation: only directly dependent plan steps stale; unrelated and transitive step dependencies remain current.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

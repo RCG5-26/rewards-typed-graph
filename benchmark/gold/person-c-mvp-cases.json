@@ -1,0 +1,219 @@
+{
+  "benchmark_id": "person-c-mvp-redemption-v1",
+  "description": "MVP benchmark cases for the seeded Tokyo Hyatt redemption flow.",
+  "as_of": "2026-06-18T00:00:00Z",
+  "fixture_id": "person-c-mvp-tokyo-hyatt-v1",
+  "scoring_rules": {
+    "primary_metrics": [
+      "accuracy",
+      "strict_hallucination_rate",
+      "invalidation_correctness"
+    ],
+    "strict_hallucinations": [
+      "nonexistent_transfer_partner",
+      "wrong_transfer_ratio",
+      "award_not_in_tool_result",
+      "incorrect_point_balance",
+      "unsupported_hotel_or_program_rule"
+    ],
+    "baseline_rule": "Baselines may persist final plans for scoring, but may not use typed dependency edges or shared graph state internally."
+  },
+  "cases": [
+    {
+      "case_id": "mvp_001_initial_best_value",
+      "category": "normal_redemption",
+      "query": "What is the best Hyatt redemption for a 3-night Tokyo trip?",
+      "starting_balance_points": 75000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "accepted_award_slugs": [
+        "award:demo_hyatt_ginza:tokyo:3n"
+      ],
+      "required_checks": [
+        "uses_chase_to_hyatt_1_to_1",
+        "calculates_2_33_cpp",
+        "mentions_demo_hyatt_shinjuku_as_backup"
+      ],
+      "disqualifying_hallucinations": [
+        "names_non_seeded_hotel",
+        "claims_non_1_to_1_transfer_ratio"
+      ]
+    },
+    {
+      "case_id": "mvp_002_affordability_filter_35k",
+      "category": "normal_redemption",
+      "query": "I have 35,000 Chase points. What Tokyo Hyatt should I book for 3 nights?",
+      "starting_balance_points": 35000,
+      "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "accepted_award_slugs": [
+        "award:demo_hyatt_shinjuku:tokyo:3n"
+      ],
+      "required_checks": [
+        "rejects_45000_point_ginza_as_unaffordable",
+        "calculates_1_80_cpp"
+      ],
+      "disqualifying_hallucinations": [
+        "recommends_unaffordable_award"
+      ]
+    },
+    {
+      "case_id": "mvp_003_low_balance_cash_fallback",
+      "category": "cash_fallback",
+      "query": "I only have 20,000 Chase points. What is my best Tokyo Hyatt option?",
+      "starting_balance_points": 20000,
+      "expected_top_award_slug": null,
+      "expected_fallback": "cash",
+      "required_checks": [
+        "rejects_all_seeded_awards_as_unaffordable",
+        "does_not_invent_lower_award_price"
+      ],
+      "disqualifying_hallucinations": [
+        "claims_a_20000_point_tokyo_hyatt_award_exists"
+      ]
+    },
+    {
+      "case_id": "mvp_004_balance_change_replan",
+      "category": "invalidation",
+      "query": "I used 40,000 Chase points yesterday. Is my Tokyo Hyatt plan still good?",
+      "starting_balance_points": 75000,
+      "mutation": {
+        "delta_points": -40000,
+        "new_balance_points": 35000
+      },
+      "stale_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "required_checks": [
+        "marks_old_plan_stale",
+        "reruns_search_against_35000_balance",
+        "explains_balance_change"
+      ],
+      "disqualifying_hallucinations": [
+        "silently_reuses_old_plan"
+      ]
+    },
+    {
+      "case_id": "mvp_005_second_balance_change_no_award",
+      "category": "invalidation",
+      "query": "I spent another 20,000 Chase points. What happens to the backup plan?",
+      "starting_balance_points": 35000,
+      "mutation": {
+        "delta_points": -20000,
+        "new_balance_points": 15000
+      },
+      "stale_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "expected_top_award_slug": null,
+      "expected_fallback": "cash",
+      "required_checks": [
+        "marks_30000_point_shinjuku_plan_stale",
+        "does_not_recommend_24000_point_ueno_with_15000_balance"
+      ],
+      "disqualifying_hallucinations": [
+        "recommends_unaffordable_award"
+      ]
+    },
+    {
+      "case_id": "mvp_006_wrong_program_trap",
+      "category": "hallucination_trap",
+      "query": "Can I use my Chase points for a Marriott in Tokyo instead?",
+      "starting_balance_points": 75000,
+      "expected_top_award_slug": null,
+      "expected_response": "unsupported_by_seed_fixture",
+      "required_checks": [
+        "states_only_hyatt_is_seeded",
+        "does_not_name_marriott_transfer_path"
+      ],
+      "disqualifying_hallucinations": [
+        "claims_chase_to_marriott_transfer_exists",
+        "names_non_seeded_marriott_property"
+      ]
+    },
+    {
+      "case_id": "mvp_007_wrong_ratio_trap",
+      "category": "hallucination_trap",
+      "query": "If Chase transfers to Hyatt at 2:1, which Tokyo hotel should I pick?",
+      "starting_balance_points": 75000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "required_checks": [
+        "corrects_transfer_ratio_to_1_to_1",
+        "uses_seeded_45000_point_cost"
+      ],
+      "disqualifying_hallucinations": [
+        "accepts_2_to_1_ratio_as_fact"
+      ]
+    },
+    {
+      "case_id": "mvp_008_unavailable_top_option",
+      "category": "normal_redemption",
+      "query": "What should I book if Demo Hyatt Ginza is unavailable?",
+      "starting_balance_points": 75000,
+      "overrides": {
+        "award:demo_hyatt_ginza:tokyo:3n": {
+          "available": false
+        }
+      },
+      "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "required_checks": [
+        "filters_unavailable_ginza",
+        "does_not_recommend_unavailable_award"
+      ],
+      "disqualifying_hallucinations": [
+        "recommends_unavailable_award"
+      ]
+    },
+    {
+      "case_id": "mvp_009_all_awards_unavailable",
+      "category": "cash_fallback",
+      "query": "What should I do if no Tokyo Hyatt awards are available?",
+      "starting_balance_points": 75000,
+      "overrides": {
+        "award:demo_hyatt_ginza:tokyo:3n": {
+          "available": false
+        },
+        "award:demo_hyatt_shinjuku:tokyo:3n": {
+          "available": false
+        },
+        "award:demo_hyatt_ueno:tokyo:3n": {
+          "available": false
+        }
+      },
+      "expected_top_award_slug": null,
+      "expected_fallback": "cash",
+      "required_checks": [
+        "does_not_invent_availability",
+        "suggests_cash_fallback"
+      ],
+      "disqualifying_hallucinations": [
+        "claims_seeded_award_is_available"
+      ]
+    },
+    {
+      "case_id": "mvp_010_explanation_quality",
+      "category": "explanation_quality",
+      "query": "Why is Ginza better than Shinjuku?",
+      "starting_balance_points": 75000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "required_checks": [
+        "compares_2_33_cpp_to_1_80_cpp",
+        "mentions_ginza_costs_more_points",
+        "does_not_overclaim_hotel_quality"
+      ],
+      "disqualifying_hallucinations": [
+        "claims_amenities_not_in_seed_fixture"
+      ]
+    },
+    {
+      "case_id": "mvp_011_baseline_output_sink",
+      "category": "benchmark_integrity",
+      "query": "Run the Tokyo Hyatt query through the free-text baseline.",
+      "starting_balance_points": 75000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "required_checks": [
+        "baseline_uses_same_seeded_awards",
+        "baseline_persists_final_plan_only",
+        "baseline_does_not_use_dependency_edges"
+      ],
+      "disqualifying_hallucinations": [
+        "baseline_receives_extra_data_not_available_to_typed_graph_system"
+      ]
+    }
+  ]
+}

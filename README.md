@@ -24,6 +24,10 @@ This repo is the source of truth for daily coordination. Linear is an optional b
 - **[tracking/](tracking/)** — one self-tracking file per person.
 - **[docs/](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
 
+## Frontend (interim layout)
+
+The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy.
+
 ## Team and lanes
 
 | Person | Lane | Owns |
