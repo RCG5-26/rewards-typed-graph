@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Box-sizing, fonts, colors, and background come from the Malleable UI base
+   layer (design-system/global.css), imported after this file in app/layout.tsx
+   so its token-driven rules win over Tailwind's preflight. */
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}

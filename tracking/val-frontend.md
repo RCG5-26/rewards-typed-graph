@@ -7,11 +7,11 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 ## Today
 - Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
 - Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset. Components (Button/Card/Tag/CommandInput/Blob) are planned — build in the app from tokens. Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
+- GPFree cinematic landing **conformed to the design system** — re-themed off the bespoke dark/gold + Bodoni look to light surfaces, iris accent, SF Pro/Fira Code; every color/type/radius/shadow/motion value now references a token (no hardcoded hex/px/easing). Wired `global.css` at the app root + dropped `next/font`. Split into `components/gpfree/` (`cinema` engine hook + `HeroStage`/`HowItWorks`/`SiteFooter`).
 - Wireframes flow mapped (query → plan → sidebar → contrast view).
 - Continue demo shell scaffold + graph-mutation sidebar against mocked events (RCG-27, RCG-24).
 
 ## Next
-- Wire the shell to the design system: import `global.css` at app root, add the Tailwind preset, build surfaces from tokens (lifecycle nodes/chips off `--status-*`).
 - Auth: stand up **Clerk** sign-in (identity-only; [ADR 0006](../docs/adr/0006-clerk-identity-only.md)).
 - Match mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
 - Plan-node dependency view that lights up stale nodes (RCG-26).

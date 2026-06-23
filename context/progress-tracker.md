@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-22 by Raq
+**Last updated:** 2026-06-23 by Val (merged main — spec 05 + landing)
 
 ---
 
@@ -36,6 +36,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] `graph_mutations` contract alignment — 2026-06-21 — restored ADR 0008/main DDL shape and mapped write-path logging into `mutation_type` event rows.
 - [x] Live `TransferPoints` service coverage — 2026-06-21 — `V31GraphWriteService.transfer_points` now runs against real Postgres in CI for debit/credit, replay, and re-plan enqueue.
 - [x] Mutation adapter SQL hardening — 2026-06-21 — replaced dynamic target-table interpolation with hardcoded reference queries.
+- [x] GPFree landing → design-system conform — 2026-06-22 — re-themed the cinematic landing to Malleable UI tokens (light surfaces, iris accent, SF Pro/Fira Code); no hardcoded hex/px/easing; wired `global.css` + dropped `next/font`; split into `components/gpfree/` (cinema engine hook + HeroStage/HowItWorks/SiteFooter).
 - [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
 - [ ] [Unit / milestone] — [date] — [note]
 
