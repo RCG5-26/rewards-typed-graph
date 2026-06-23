@@ -2,21 +2,20 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23 by Codex
+**Last updated:** 2026-06-23 by Val (merged main — spec 05 + landing)
 
 ---
 
 ## Current phase
 
-**Phase:** [e.g. Schema lock | MVP build | Benchmark | Polish]  
-**Target date:** [YYYY-MM-DD] _(optional)_  
-**Active focus:** [one sentence — what the team is trying to finish *now*]
+**Phase:** MVP build  
+**Active focus:** Spec 05 orchestrator harness shipped; spec 02 graph-write path next (Alan)
 
 ---
 
 ## Current goal
 
-[The single outcome that defines "this week" or "this sprint."]
+Ship typed orchestrator loop with in-memory doubles so agent coordination is enforced in TypeScript before real DB adapters land.
 
 ---
 
@@ -24,7 +23,7 @@
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
-- [x] PR #2 plan lifecycle alignment — 2026-06-21 — preserved v3.1 lineage/revision semantics in MVP polymorphic storage.
+- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-22 — lifecycle error-handling hardening after code review (43 tests, typecheck clean). **Gotcha:** when `finalizeAgentRun(failed)` throws during cleanup, AgentRun may remain `running` — primary agent error is not overwritten. Documented in spec 05 §10.3 (lifecycle cleanup persistence).
 - [x] PR #2 operational schema alignment — 2026-06-21 — added user-scoped graph mutations, re-plan jobs, idempotency records, eval tables, and atomic transfer write path.
 - [x] PR #2 v3.1 operational naming alignment — 2026-06-21 — renamed operational columns to v3.1 vocabulary (`clerk_id`, `mutation_txn_id`, `source_plan_id`, `operation_type`, `result_reference`, lease fields).
 - [x] PR #2 canonical schema split — 2026-06-21 — restored v3.1 table-per-type as default and moved polymorphic storage to `schema/experimental/polymorphic/`.
@@ -37,7 +36,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] `graph_mutations` contract alignment — 2026-06-21 — restored ADR 0008/main DDL shape and mapped write-path logging into `mutation_type` event rows.
 - [x] Live `TransferPoints` service coverage — 2026-06-21 — `V31GraphWriteService.transfer_points` now runs against real Postgres in CI for debit/credit, replay, and re-plan enqueue.
 - [x] Mutation adapter SQL hardening — 2026-06-21 — replaced dynamic target-table interpolation with hardcoded reference queries.
-- [x] RCG-11 optimistic concurrency — 2026-06-23 — added read-set version validation and bounded retry handling to `V31GraphWriteService.transfer_points`.
+- [x] GPFree landing → design-system conform — 2026-06-22 — re-themed the cinematic landing to Malleable UI tokens (light surfaces, iris accent, SF Pro/Fira Code); no hardcoded hex/px/easing; wired `global.css` + dropped `next/font`; split into `components/gpfree/` (cinema engine hook + HeroStage/HowItWorks/SiteFooter).
 - [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
 - [ ] [Unit / milestone] — [date] — [note]
 
@@ -47,15 +46,15 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 | Item | Owner | Blocked on | Notes |
 |---|---|---|---|
-| [Task or feature spec ID] | [Name] | [nothing / dependency] | [short status] |
+| _(none — spec 05 complete)_ | | | |
 
 ---
 
 ## Next up
 
-1. [Next prioritized item]
-2. [Next prioritized item]
-3. [Next prioritized item]
+1. Spec 02 — real graph-write adapters behind `OrchestratorGraphWrite` / `AgentCommitFactory` (Alan)
+2. Phase A3 codegen — replace temporary `SpecialistMutation` union (ADR 0007)
+3. Spec 04/06 — Python specialist agents + subprocess launcher
 
 ---
 
@@ -94,7 +93,6 @@ Brief bullets from recent work sessions. Trim when stale.
 - 2026-06-21: Added a live Postgres integration test for `V31GraphWriteService.transfer_points` and wired it into the schema workflow.
 - 2026-06-21: Hardened state-dependency target lookup by removing f-string table interpolation from the v3.1 mutation adapter.
 - 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
-- 2026-06-23: Completed RCG-11 in the schema-lane adapter with `ReadSetEntry`, stale observed-version rejection, max-3 retry wrapper, and `TransferPoints` retry coverage.
 
 ---
 
