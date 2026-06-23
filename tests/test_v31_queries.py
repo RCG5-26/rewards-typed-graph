@@ -98,6 +98,23 @@ class V31QueryHelperTest(unittest.TestCase):
         self.assertNotIn(user_id, sql)
         self.assertEqual(params, (user_id, 2))
 
+    def test_find_redemption_paths_uses_bigint_for_ratio_accumulation(self):
+        connection = FakeConnection([])
+
+        find_redemption_paths(
+            connection,
+            user_id="00000000-0000-0000-0000-000000000001",
+            max_hops=2,
+        )
+
+        sql, _params = connection.executed[0]
+        compact_sql = " ".join(sql.split())
+        self.assertIn("10000::bigint AS effective_ratio_basis_points", compact_sql)
+        self.assertIn("paths.effective_ratio_basis_points::bigint", compact_sql)
+        self.assertIn("route.transfer_ratio_basis_points::bigint", compact_sql)
+        self.assertIn("/ 10000::bigint AS effective_ratio_basis_points", compact_sql)
+        self.assertNotIn("10000::integer AS effective_ratio_basis_points", compact_sql)
+
     def test_find_redemption_paths_rejects_excessive_max_hops(self):
         connection = FakeConnection([])
 

@@ -10,7 +10,7 @@ WITH RECURSIVE paths AS (
     user_balances.program_id AS source_program_id,
     user_balances.program_id AS current_program_id,
     0::integer AS hop_count,
-    10000::integer AS effective_ratio_basis_points,
+    10000::bigint AS effective_ratio_basis_points,
     0::integer AS transfer_time_days
   FROM user_balances
   WHERE user_balances.user_id = %s
@@ -24,9 +24,9 @@ WITH RECURSIVE paths AS (
     route.dest_program_id AS current_program_id,
     paths.hop_count + 1 AS hop_count,
     (
-      paths.effective_ratio_basis_points
-      * route.transfer_ratio_basis_points
-    ) / 10000 AS effective_ratio_basis_points,
+      paths.effective_ratio_basis_points::bigint
+      * route.transfer_ratio_basis_points::bigint
+    ) / 10000::bigint AS effective_ratio_basis_points,
     paths.transfer_time_days + COALESCE(route.transfer_time_days, 0)
       AS transfer_time_days
   FROM paths
