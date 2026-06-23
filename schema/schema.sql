@@ -641,6 +641,155 @@ AFTER UPDATE OF balance_points, version ON user_balances
 FOR EACH ROW
 EXECUTE FUNCTION mark_user_balance_dependents_stale_backstop();
 
+CREATE FUNCTION mark_direct_plan_dependents_stale(
+  p_user_id UUID,
+  p_target_table TEXT,
+  p_target_node_id UUID,
+  p_reason TEXT,
+  p_actor TEXT,
+  p_mutation_txn_id UUID
+)
+RETURNS TABLE (
+  source_plan_id UUID,
+  plan_lineage_id UUID
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH candidate_steps AS (
+    SELECT DISTINCT
+           ps.id,
+           ps.plan_id,
+           ps.plan_lineage_id,
+           ps.status AS old_status,
+           ps.version AS old_version
+      FROM plan_steps ps
+      JOIN plans p ON p.id = ps.plan_id
+      JOIN state_dependencies sd ON sd.plan_step_id = ps.id
+     WHERE p.user_id = p_user_id
+       AND p.status IN ('current', 'stale')
+       AND ps.status = 'current'
+       AND sd.target_table = p_target_table
+       AND sd.target_node_id = p_target_node_id
+       AND sd.target_table <> 'plan_steps'
+  ),
+  stale_steps AS (
+    UPDATE plan_steps ps
+       SET status = 'stale',
+           stale_reason = p_reason,
+           version = ps.version + 1,
+           updated_at = now()
+      FROM candidate_steps cs
+     WHERE ps.id = cs.id
+    RETURNING
+      ps.id,
+      ps.plan_id,
+      ps.plan_lineage_id,
+      cs.old_status,
+      cs.old_version,
+      ps.status AS new_status,
+      ps.version AS new_version
+  ),
+  stale_plans AS (
+    UPDATE plans p
+       SET status = 'stale',
+           stale_reason = p_reason,
+           version = p.version + 1,
+           updated_at = now()
+     WHERE p.user_id = p_user_id
+       AND p.status = 'current'
+       AND EXISTS (
+         SELECT 1
+           FROM stale_steps ss
+          WHERE ss.plan_id = p.id
+       )
+    RETURNING p.id, p.plan_lineage_id, p.version
+  ),
+  plan_logs AS (
+    INSERT INTO graph_mutations (
+      mutation_txn_id,
+      user_id,
+      plan_lineage_id,
+      plan_id,
+      mutation_type,
+      target_table,
+      target_node_id,
+      summary,
+      before,
+      after
+    )
+    SELECT
+      p_mutation_txn_id,
+      p_user_id,
+      stale_plans.plan_lineage_id,
+      stale_plans.id,
+      'MarkStale',
+      'plans',
+      stale_plans.id,
+      'Marked plan stale after direct dependency changed',
+      NULL,
+      jsonb_build_object(
+        'status',
+        'stale',
+        'reason',
+        p_reason,
+        'actor',
+        p_actor,
+        'version',
+        stale_plans.version
+      )
+      FROM stale_plans
+    RETURNING id
+  ),
+  step_logs AS (
+    INSERT INTO graph_mutations (
+      mutation_txn_id,
+      user_id,
+      plan_lineage_id,
+      plan_id,
+      mutation_type,
+      target_table,
+      target_node_id,
+      summary,
+      before,
+      after
+    )
+    SELECT
+      p_mutation_txn_id,
+      p_user_id,
+      stale_steps.plan_lineage_id,
+      stale_steps.plan_id,
+      'MarkStale',
+      'plan_steps',
+      stale_steps.id,
+      'Marked plan step stale after direct dependency changed',
+      jsonb_build_object(
+        'status',
+        stale_steps.old_status,
+        'version',
+        stale_steps.old_version
+      ),
+      jsonb_build_object(
+        'status',
+        stale_steps.new_status,
+        'reason',
+        p_reason,
+        'actor',
+        p_actor,
+        'version',
+        stale_steps.new_version
+      )
+      FROM stale_steps
+    RETURNING id
+  )
+  SELECT DISTINCT
+         stale_steps.plan_id,
+         stale_steps.plan_lineage_id
+    FROM stale_steps;
+END;
+$$;
+
 CREATE FUNCTION claim_replan_jobs(
   p_worker_id TEXT,
   p_limit INTEGER DEFAULT 10,
@@ -886,56 +1035,31 @@ BEGIN
     );
 
   FOR stale_plan IN
-    SELECT DISTINCT p.id, p.plan_lineage_id
-      FROM plans p
-      JOIN plan_steps ps ON ps.plan_id = p.id
-      JOIN state_dependencies sd ON sd.plan_step_id = ps.id
-     WHERE p.user_id = p_user_id
-       AND p.status = 'current'
-       AND sd.target_table = 'user_balances'
-       AND sd.target_node_id IN (p_source_balance_id, p_dest_balance_id)
+    SELECT DISTINCT
+           direct_stale_plan.source_plan_id AS id,
+           direct_stale_plan.plan_lineage_id
+      FROM (
+        SELECT *
+          FROM mark_direct_plan_dependents_stale(
+            p_user_id,
+            'user_balances',
+            p_source_balance_id,
+            'Balance dependency changed during TransferPoints',
+            p_actor,
+            v_mutation_txn_id
+          )
+        UNION
+        SELECT *
+          FROM mark_direct_plan_dependents_stale(
+            p_user_id,
+            'user_balances',
+            p_dest_balance_id,
+            'Balance dependency changed during TransferPoints',
+            p_actor,
+            v_mutation_txn_id
+          )
+      ) direct_stale_plan
   LOOP
-    UPDATE plans
-       SET status = 'stale',
-           stale_reason = 'Balance dependency changed during TransferPoints',
-           version = version + 1,
-           updated_at = now()
-     WHERE id = stale_plan.id
-       AND status = 'current';
-
-    UPDATE plan_steps
-       SET status = 'stale',
-           stale_reason = 'Balance dependency changed during TransferPoints',
-           version = version + 1,
-           updated_at = now()
-     WHERE plan_id = stale_plan.id
-       AND status = 'current';
-
-    INSERT INTO graph_mutations (
-      mutation_txn_id,
-      user_id,
-      plan_lineage_id,
-      plan_id,
-      mutation_type,
-      target_table,
-      target_node_id,
-      summary,
-      before,
-      after
-    )
-    VALUES (
-      v_mutation_txn_id,
-      p_user_id,
-      stale_plan.plan_lineage_id,
-      stale_plan.id,
-      'MarkStale',
-      'plans',
-      stale_plan.id,
-      'Marked plan stale after balance dependency changed during TransferPoints',
-      NULL,
-      jsonb_build_object('status', 'stale', 'actor', p_actor)
-    );
-
     INSERT INTO replan_jobs (
       user_id,
       plan_lineage_id,
