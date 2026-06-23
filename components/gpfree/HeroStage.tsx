@@ -429,7 +429,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
             </h2>
             <div data-line style={{ position: "relative", marginTop: "var(--space-6)", ...lineTr, transitionDelay: "0.16s" }}>
               <a
-                href="#"
+                href="#gpx-how"
                 className="gpx-cta-ink"
                 data-mag
                 style={{
@@ -489,7 +489,7 @@ export default function HeroStage({ scrollLength, showPoints, showGrain }: Props
 
         {/* ════ PERSISTENT GHOST CTA ════ */}
         <a
-          href="#"
+          href="#gpx-how"
           className="gpx-ghost"
           style={{
             position: "absolute",

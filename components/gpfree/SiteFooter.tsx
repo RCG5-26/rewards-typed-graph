@@ -39,7 +39,7 @@ export default function SiteFooter() {
               one scroll away.
             </h2>
             <a
-              href="#"
+              href="#gpx-how"
               className="gpx-cta-gilt"
               data-mag
               style={{
