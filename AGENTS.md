@@ -52,6 +52,17 @@ Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github
 
 ---
 
+## Before you finish (quality gates)
+
+Run these on every meaningful change before handing off or opening a PR:
+
+1. **Format** — `npm run format` (Prettier). Verify with `npm run format:check`; keep the diff formatting-clean. Config: [`.prettierrc.json`](.prettierrc.json) / [`.prettierignore`](.prettierignore).
+2. **Lint** — `npm run lint` (ESLint via `next lint`). Resolve any warnings you introduced.
+3. **Simplify** — do a simplification pass (reuse, dead code, right altitude) and apply the safe cleanups. Run the `/simplify` review on the diff.
+4. **Security review** — run `/security-review` on the branch diff. Check auth boundaries (Clerk identity-only, per [`docs/adr/0006-clerk-identity-only.md`](docs/adr/0006-clerk-identity-only.md)), per-user data scoping, input handling, and secrets. Never commit secrets or `.env*` files — only [`.env.example`](.env.example).
+
+---
+
 ## After meaningful changes
 
 Update [`context/progress-tracker.md`](context/progress-tracker.md):

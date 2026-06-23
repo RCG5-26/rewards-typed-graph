@@ -4,7 +4,7 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-22
+**Last updated:** 2026-06-23
 
 > **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
@@ -64,21 +64,19 @@ Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--t
 | Dependency view       | plan-node graph (RCG-26)                        | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded)                                                    |
 | Side-by-side contrast | head-to-head (RCG-45)                           | same scenario, typed-graph vs baselines, rendered in parallel columns                                                                                  |
 | Metrics panel         | benchmark display (RCG-46)                      | accuracy, hallucination, invalidation, token cost                                                                                                      |
-| Auth / sign-in        | gate (Clerk)                                    | Clerk identity-only sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md))                                                    |
-| Marketing landing     | GPFree cinematic landing (`components/gpfree/`) | scroll-driven hero + how-it-works + footer; **fully token-driven** (light surfaces, iris accent, SF Pro/Fira Code) — no hardcoded hex/px/easing (D028) |
+| Auth / sign-in        | `/sign-in` · `/sign-up` (Clerk)                 | Clerk identity-only, **Google-only** sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)); `middleware.ts` protects all non-public routes |
+| Marketing landing     | GPFree landing (`components/GPFreeHero.tsx`)    | self-contained dark hero with a pointer/gyro 3D card tilt + animated how-it-works + closing CTA; both CTAs → `/sign-in`. Ported from the design handoff (D029)        |
 
 ---
 
-## GPFree landing surface (`components/gpfree/`)
+## GPFree landing surface (`components/GPFreeHero.tsx`)
 
-The public landing conforms to the design system end-to-end (D028). Structure:
-`GPFreeHero` (composition + root) → `cinema.ts` (shared token styles + `useGpxCinema` scroll engine) → `HeroStage` / `HowItWorks` / `SiteFooter`.
+The public landing is a **single self-contained component** ported verbatim from the design handoff (D029) — a dark hero with a pointer/gyro-driven **3D card tilt**, floating points, an animated "how it works" stepper, and a closing CTA. The markup + CSS are injected as a static string and the original interaction script is ported into one `useEffect` scoped to the component root.
 
-- **Color** off `--color-bg` / `--color-surface*` / `--color-text-*` / `--color-accent*` / `--color-border*`; alpha variants via `color-mix(... var(--token) ...)`, never raw `rgba()`.
-- **Type** off `--font-display` (headings), `--font-sans` (body/CTA), `--font-mono` (labels/typewriters) + the `--text-*` / `--weight-*` / `--tracking-*` / `--leading-*` scales.
-- **Spacing / radii / shadows** off `--space-*` / `--radius-*` / `--shadow-*`; **motion** off `--ease-soft` / `--spring-settle` / `--duration-*`.
-- Engine-applied styles (active step tab, glow, progress bar) also write token values, so the imperative layer stays token-true.
-- Bespoke geometry (frame positions, illustration card sizes, viewport breakpoints) stays as literals — no token exists for one-off coordinates.
+- **Auth wiring:** both "start optimizing" CTAs link to `/sign-in` (Clerk). Hover is brightness-only — CTAs do **not** translate on hover (no magnetic pull).
+- **Motion:** `prefers-reduced-motion` is honored (tilt/parallax/float neutralized to a static resting transform).
+- **Token deviation (known):** unlike the rest of the app, this surface carries its **own scoped theme** — local CSS variables and literal hex/oklch values inside the component, not the shared `design-system/` tokens. It is intentionally pixel-faithful to the handoff rather than token-driven. If we later fold it into the design system, migrate its locals (`--bg`, `--iris`, `--tx*`, …) onto the semantic tokens.
+- **Removed:** the prior cinematic `components/gpfree/` hero (`HeroStage` / `cinema.ts` / `HowItWorks` / `SiteFooter`) and its `public/assets/frame-*.webp` scroll frames were deleted when this design replaced it.
 
 ---
 
@@ -100,7 +98,7 @@ The public landing conforms to the design system end-to-end (D028). Structure:
 | Plan-node dependency view | `[TBD]` (RCG-26)    | watch stale steps/revision; see new current revision promoted                                          | invalidation + replan lifecycle events       |
 | Head-to-head contrast     | `[TBD]` (RCG-45)    | run same scenario across architectures                                                                 | benchmark run output                         |
 | Benchmark numbers         | `[TBD]` (RCG-46)    | view accuracy / hallucination / invalidation / token cost                                              | benchmark results                            |
-| Sign-in                   | `[TBD]`             | authenticate                                                                                           | Clerk (identity-only; per-user demo persona) |
+| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only)                                                                            | Clerk (identity-only; per-user demo persona) |
 
 ---
 

@@ -84,7 +84,7 @@ const MARKUP = `
           Your points are<br>worth <em style="font-style:italic;font-weight:300;color:var(--iris-bright)">more</em><br>than you think
         </h1>
         <div style="display:flex;align-items:center;gap:22px;margin-top:38px;animation:gpxRise 1s var(--settle) .65s both">
-          <a href="${SIGN_IN_URL}" data-mag class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:14px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:16px 30px;border-radius:999px;box-shadow:0 10px 34px color-mix(in srgb, var(--iris) 40%, transparent), 0 0 0 1px color-mix(in srgb, var(--iris-bright) 60%, transparent)">
+          <a href="${SIGN_IN_URL}" class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:14px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:16px 30px;border-radius:999px;box-shadow:0 10px 34px color-mix(in srgb, var(--iris) 40%, transparent), 0 0 0 1px color-mix(in srgb, var(--iris-bright) 60%, transparent)">
             start optimizing <span style="font-size:14px">&rarr;</span>
           </a>
           <a href="#gpx-how" class="seehow" style="font-family:var(--fs);font-size:14px;letter-spacing:.02em;color:var(--tx2);text-decoration:none;border-bottom:1px solid var(--brd);padding-bottom:3px;transition:color .2s var(--soft),border-color .2s var(--soft)">see how it works</a>
@@ -308,7 +308,7 @@ const MARKUP = `
       <h2 style="margin:0;font-family:var(--fd);font-weight:300;font-size:clamp(38px,6vw,86px);line-height:1.02;letter-spacing:-0.04em;color:var(--tx1)">Go <em style="font-style:italic;font-weight:300;color:var(--iris-bright)">anywhere</em></h2>
       <p style="margin:26px auto 0;max-width:460px;font-family:var(--fs);font-size:16px;line-height:1.6;color:var(--tx2)">The points are already in your wallet. Let the agents turn them into the trip you keep putting off.</p>
       <div style="margin-top:40px;display:flex;justify-content:center">
-        <a href="${SIGN_IN_URL}" data-mag class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:15px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:18px 36px;border-radius:999px;box-shadow:0 14px 40px color-mix(in srgb,var(--iris) 42%,transparent), 0 0 0 1px color-mix(in srgb,var(--iris-bright) 60%,transparent)">start optimizing — free <span>&rarr;</span></a>
+        <a href="${SIGN_IN_URL}" class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:15px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:18px 36px;border-radius:999px;box-shadow:0 14px 40px color-mix(in srgb,var(--iris) 42%,transparent), 0 0 0 1px color-mix(in srgb,var(--iris-bright) 60%,transparent)">start optimizing — free <span>&rarr;</span></a>
       </div>
       <div style="margin-top:22px;font-family:var(--fm);font-size:11px;letter-spacing:.06em;color:var(--tx3)">no card numbers stored&nbsp;&nbsp;&middot;&nbsp;&nbsp;free to start&nbsp;&nbsp;&middot;&nbsp;&nbsp;2-minute setup</div>
     </div>
