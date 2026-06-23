@@ -2,7 +2,7 @@
 
 The shared source of truth for the sprint. Update your own row before standup. Keep it skimmable.
 
-**Live demo:** Mon June 29 (10 min) · **Today:** Day 5, Sun June 21 · **Phase:** Foundations — schema v3.1 + DDL on `main`; app lanes scaffolding on mocks; Phase A3 (contracts/codegen) in flight
+**Live demo:** Mon June 29 (10 min) · **Today:** Jun 23 · **Phase:** Integration sprint — hero path to green
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
 **Linear:** optional backbone (milestones + gates). This board is the daily driver. Task ids below map to `RCG-##` in Linear.
 
@@ -35,14 +35,14 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 ## Standup grid
 
 Update only your own row. Format: short phrases, not paragraphs.
-_Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits their own line at standup._
+_Rows reflect repo + Linear evidence — each owner confirms/edits their own line at standup._
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | Phase A3: JSON Schema contracts + codegen + operational write path + Postgres CI (PR #2) | Seed fixture stable IDs (RCG-8); dependency tracking (RCG-13); Postgres deploy (RCG-9) | nothing |
-| Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); **GPFree landing conformed to tokens** (light/iris, SF Pro, no hardcoded hex/px/easing); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
-| Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
-| Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05) | generated contracts for real wiring |
+| Alan · Graph | Phase A3 + PR #2 operational write path | RCG-11–14 (OCC, traversal, deps, mutation log) | nothing |
+| Val · Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
+| Michael · Redemption | Fixture-backed Tokyo planner + seeded award tool green | Offline scorer green (11/11 accuracy, 0 hallucinations, 2/2 invalidation); **RCG-21** graph-writer next | graph-write/MutationBatch for DB-backed writes |
+| Raq · Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 hero path wiring | Michael RCG-21 |
 
 ---
 
@@ -50,7 +50,8 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **App lanes (Val, Raq) → real contract wiring** — generated types land with PR #2 merge; mocks still OK until wired.
+- **Hero path not wired** — needs Michael **RCG-21** + Raq **RCG-28/29/32**.
+- **Person C DB writes** — planner/scorer offline green; graph-write path (spec 02) needed for RCG-21 persistence.
 
 ---
 
@@ -59,7 +60,8 @@ Raq clears these. Add a line when blocked, strike it when cleared.
 | Gate | Day | Date | Status | Owner |
 |---|---|---|---|---|
 | Schema v3.1 spec + DDL authored + locked | 1–2 | Jun 18 | ☑ done | Alan + Raq |
-| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7 | Jun 23 | ☐ open | Raq |
+| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7 | Jun 23 | ☐ **slipped** — recovery Jun 23–25 | Raq |
+| **MVP hero test green** | — | **Jun 25** | ☐ open | Raq + Michael |
 | Layer 4 GO / NO-GO | 10 | Jun 26 | ☐ open | Raq (lane: Michael) |
 | **Live demo** (10 min) | 13 | Jun 29 | ☐ open | all |
 
@@ -69,15 +71,15 @@ Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and be
 
 ## Phase timeline
 
-**Current: Jun 21 (Day 5)** — closing the Days 3–5 window, entering Days 5–7 integration.
+**Current: Jun 23** — integration sprint; Jun 25 MVP gate is the line.
 
 | Days | Dates | Focus |
 |---|---|---|
 | 1-3 | Jun 17-19 | ✅ Alan: v3.1 spec + DDL + CI. Raq: scope/board + schema lock. Val: Card API research, design system, wireframes. Michael: traversal planning. |
-| 3-5 | Jun 19-21 | ◀ **now** — Alan: Phase A3 contracts + start dependency tracking. Raq: orchestrator + harness on mocks; specs 02–06. Michael: paper-design + 30-query draft. Val: demo shell + sidebar on mocks. |
-| 5-7 | Jun 21-23 | Full Layer 1-3 integration, end-to-end demo path. Val: wire real streaming events. Michael: redemption agent + award-search fixture. |
-| 7-10 | Jun 23-26 | Benchmark runs across all three architectures. Michael builds + tunes both baselines. Layer 4 go/no-go at Day 10. |
-| 10-14 | Jun 26-29 | Demo polish. Head-to-head contrast UI. Adversarial verifier set only if Layer 4 landed. |
+| 3-5 | Jun 19-21 | ✅ Phase A3 contracts; design system; specs 02–06. Michael: Person C fixture planner/scorer (PR #14). |
+| 5-7 | Jun 21-23 | Integration sprint — hero path, orchestrator on `main`, Val landing on `main`. |
+| 7-10 | Jun 23-26 | Benchmark runs; baselines; Layer 4 go/no-go at Day 10. |
+| 10-14 | Jun 26-29 | Demo polish. Head-to-head contrast UI. |
 
 ---
 
