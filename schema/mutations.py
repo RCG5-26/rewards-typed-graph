@@ -8,11 +8,14 @@ experiments at schema.experimental.polymorphic.mutations.
 
 from __future__ import annotations
 
+import subprocess
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Optional, TypeVar
 
 from schema.types import GraphNode, validate_node
+
+T = TypeVar("T")
 
 
 class V31GraphWriteNotImplemented(RuntimeError):
@@ -29,6 +32,22 @@ class MutationValidationError(ValueError):
 
 class MutationCommitError(RuntimeError):
     """Raised when the database write boundary returns an impossible result."""
+
+
+MAX_OCC_RETRIES = 3
+
+
+@dataclass(frozen=True)
+class ReadSetEntry:
+    """Observed version for a graph row read before a mutation."""
+
+    target_table: str
+    target_node_id: str
+    observed_version: int
+
+
+class ConcurrencyConflictError(RuntimeError):
+    """Raised when an observed read-set version is stale."""
 
 
 @dataclass(frozen=True)
@@ -92,6 +111,7 @@ class TransferPointsRequest:
     dest_expected_version: int
     idempotency_key: str
     request_hash: str
+    read_set: tuple[ReadSetEntry, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -115,6 +135,94 @@ class V31GraphWriteService:
 
     def __init__(self, connection: Any):
         self.connection = connection
+
+    def validate_read_set(
+        self, user_id: str, read_set: Iterable[ReadSetEntry]
+    ) -> None:
+        """Reject stale or invalid observed versions before writing."""
+
+        with self.connection.cursor() as cursor:
+            self._validate_read_set_with_cursor(cursor, user_id, read_set)
+
+    def _validate_read_set_with_cursor(
+        self, cursor: Any, user_id: str, read_set: Iterable[ReadSetEntry]
+    ) -> None:
+        """Reject stale or invalid observed versions using the active cursor."""
+
+        errors = []
+        for entry in read_set:
+            if entry.target_table not in STATE_DEPENDENCY_TARGET_TABLES:
+                errors.append(
+                    f"ReadSet.target_table is not allowed: {entry.target_table}"
+                )
+                continue
+
+            if not entry.target_node_id:
+                errors.append("ReadSet.target_node_id is required")
+                continue
+
+            if entry.observed_version < 0:
+                errors.append("ReadSet.observed_version must be nonnegative")
+                continue
+
+            target = _fetch_target_reference(
+                cursor, entry.target_table, entry.target_node_id
+            )
+            if target is None:
+                errors.append(
+                    "ReadSet target does not exist: "
+                    f"{entry.target_table}:{entry.target_node_id}"
+                )
+                continue
+
+            _target_node_type, current_version, target_user_id = target
+            _expected_node_type, scoped_to_user = STATE_DEPENDENCY_TARGET_TABLES[
+                entry.target_table
+            ]
+            if (
+                scoped_to_user
+                and (target_user_id is None or str(target_user_id) != user_id)
+            ):
+                errors.append(
+                    "ReadSet target does not exist or is not visible to user "
+                    f"{user_id}"
+                )
+                continue
+
+            if current_version != entry.observed_version:
+                raise ConcurrencyConflictError(
+                    "read-set version conflict for "
+                    f"{entry.target_table}:{entry.target_node_id}; "
+                    f"observed {entry.observed_version}, current {current_version}"
+                )
+
+        if errors:
+            raise MutationValidationError(errors)
+
+    def with_occ_retry(
+        self,
+        operation: Callable[[], T],
+        retryable_errors: Iterable[str],
+    ) -> T:
+        """Retry only known optimistic-concurrency failures."""
+
+        retryable_messages = tuple(retryable_errors)
+        last_error_message: Optional[str] = None
+
+        for _attempt in range(MAX_OCC_RETRIES):
+            try:
+                return operation()
+            except (RuntimeError, subprocess.CalledProcessError) as error:
+                error_message = _retry_error_message(error)
+                if not any(
+                    message in error_message for message in retryable_messages
+                ):
+                    raise
+                last_error_message = error_message
+
+        raise ConcurrencyConflictError(
+            last_error_message or "optimistic concurrency conflict"
+        )
 
     def create_plan(self, request: CreatePlanRequest) -> str:
         """Validate and create a plan revision."""
@@ -331,30 +439,43 @@ class V31GraphWriteService:
         if errors:
             raise MutationValidationError(errors)
 
-        with self.connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                  source_balance_id,
-                  source_version,
-                  dest_balance_id,
-                  dest_version,
-                  idempotency_replayed
-                FROM transfer_points(%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    request.user_id,
-                    request.source_balance_id,
-                    request.dest_balance_id,
-                    request.amount_points,
-                    request.source_expected_version,
-                    request.dest_expected_version,
-                    request.idempotency_key,
-                    request.request_hash,
-                    request.actor,
-                ),
-            )
-            row = cursor.fetchone()
+        def commit_transfer() -> Optional[tuple[Any, ...]]:
+            with self.connection.cursor() as cursor:
+                _lock_user(cursor, request.user_id)
+                self._validate_read_set_with_cursor(
+                    cursor, request.user_id, request.read_set
+                )
+                cursor.execute(
+                    """
+                    SELECT
+                      source_balance_id,
+                      source_version,
+                      dest_balance_id,
+                      dest_version,
+                      idempotency_replayed
+                    FROM transfer_points(%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        request.user_id,
+                        request.source_balance_id,
+                        request.dest_balance_id,
+                        request.amount_points,
+                        request.source_expected_version,
+                        request.dest_expected_version,
+                        request.idempotency_key,
+                        request.request_hash,
+                        request.actor,
+                    ),
+                )
+                return cursor.fetchone()
+
+        row = self.with_occ_retry(
+            commit_transfer,
+            retryable_errors=(
+                "source balance version conflict",
+                "destination balance version conflict",
+            ),
+        )
 
         if row is None:
             raise MutationCommitError("TransferPoints returned no result")
@@ -470,6 +591,17 @@ def require_app_graph_write() -> None:
         "use schema.experimental.polymorphic.mutations only for the optional "
         "polymorphic experiment."
     )
+
+
+def _retry_error_message(error: BaseException) -> str:
+    parts = [str(error)]
+    if isinstance(error, subprocess.CalledProcessError):
+        for value in (error.stderr, error.output):
+            if value:
+                parts.append(
+                    value.decode() if isinstance(value, bytes) else str(value)
+                )
+    return "\n".join(parts)
 
 
 PLAN_TYPES = {
