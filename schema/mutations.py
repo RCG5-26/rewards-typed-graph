@@ -114,6 +114,22 @@ class TransferPointsRequest:
     read_set: tuple[ReadSetEntry, ...] = ()
 
 
+@dataclass(frozen=True)
+class PromotePlanRevisionRequest:
+    """Synchronously promote a re-plan: source plan -> superseded, close job.
+
+    Synchronous sibling of schema.sql ``promote_replan_job_success`` for the
+    no-worker re-plan path: the source revision must already be ``stale`` (or
+    still ``current``) and the new revision already ``current``.
+    """
+
+    actor: str
+    user_id: str
+    source_plan_id: str
+    new_plan_id: str
+    plan_lineage_id: str
+
+
 class V31GraphWriteService:
     """Small canonical graph-write adapter around v3.1 SQL functions."""
 
@@ -479,6 +495,113 @@ class V31GraphWriteService:
             "idempotency_replayed": idempotency_replayed,
         }
 
+    def promote_plan_revision(self, request: PromotePlanRevisionRequest) -> str:
+        """Promote a re-plan: source plan -> superseded, close the replan job.
+
+        Synchronous counterpart to schema.sql ``promote_replan_job_success``
+        (which is gated on the async worker lease). Assumes the new revision is
+        already ``current`` and the source revision is ``stale`` or ``current``.
+        """
+
+        errors = _validate_promote_plan_revision(request)
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if errors:
+                raise MutationValidationError(errors)
+
+            _lock_user(cursor, request.user_id)
+            # Re-read under the lock and re-validate to close the TOCTOU window:
+            # another writer could change plan status/references between the
+            # pre-lock validation above and the writes below.
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            drift_errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if drift_errors:
+                raise MutationCommitError(
+                    "PromotePlanRevision references changed during promotion"
+                )
+
+            cursor.execute(
+                """
+                UPDATE plans
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE id = %s
+                   AND status IN ('stale', 'current')
+                RETURNING id
+                """,
+                (request.source_plan_id,),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision source plan is not in a promotable state"
+                )
+
+            cursor.execute(
+                """
+                UPDATE plan_steps
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE plan_id = %s
+                   AND status = 'stale'
+                """,
+                (request.source_plan_id,),
+            )
+
+            _insert_graph_mutation(
+                cursor=cursor,
+                user_id=request.user_id,
+                plan_lineage_id=request.plan_lineage_id,
+                plan_id=request.source_plan_id,
+                mutation_type="PromotePlan",
+                target_table="plans",
+                target_node_id=request.source_plan_id,
+                summary="Promoted re-plan revision",
+                before=None,
+                after={
+                    "status": "superseded",
+                    "result_plan_id": request.new_plan_id,
+                    "actor": request.actor,
+                },
+            )
+
+            cursor.execute(
+                """
+                UPDATE replan_jobs
+                   SET status = 'completed',
+                       result_plan_id = %s,
+                       completed_at = now(),
+                       updated_at = now()
+                 WHERE source_plan_id = %s
+                   AND status IN ('pending', 'processing')
+                RETURNING source_plan_id
+                """,
+                (request.new_plan_id, request.source_plan_id),
+            )
+            if cursor.fetchone() is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision replan job is not pending/processing"
+                )
+
+        return str(request.source_plan_id)
+
 
 def require_app_graph_write() -> None:
     """Signal that callers must use the application graph-write implementation."""
@@ -680,6 +803,89 @@ def _validate_transfer_points(request: TransferPointsRequest) -> list[str]:
     return errors
 
 
+def _validate_promote_plan_revision(
+    request: PromotePlanRevisionRequest,
+) -> list[str]:
+    errors = _validate_actor_user(request.actor, request.user_id)
+
+    if not request.source_plan_id:
+        errors.append("PromotePlanRevision.source_plan_id is required")
+
+    if not request.new_plan_id:
+        errors.append("PromotePlanRevision.new_plan_id is required")
+
+    if not request.plan_lineage_id:
+        errors.append("PromotePlanRevision.plan_lineage_id is required")
+
+    if request.source_plan_id and request.source_plan_id == request.new_plan_id:
+        errors.append(
+            "PromotePlanRevision.source_plan_id and new_plan_id must differ"
+        )
+
+    return errors
+
+
+def _validate_promote_plan_references(
+    request: PromotePlanRevisionRequest,
+    source_plan: Optional[tuple[Any, Any, int, Any, Any]],
+    new_plan: Optional[tuple[Any, Any, int, Any, Any]],
+) -> list[str]:
+    errors = []
+
+    if source_plan is None:
+        errors.append(
+            "PromotePlanRevision.source_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        s_user, s_lineage, _s_revision, s_status, _s_supersedes = source_plan
+        if str(s_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(s_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id must belong to plan_lineage_id"
+            )
+        if s_status not in ("stale", "current"):
+            errors.append(
+                "PromotePlanRevision source plan must be 'stale' or 'current'"
+            )
+
+    if new_plan is None:
+        errors.append(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        n_user, n_lineage, n_revision, n_status, n_supersedes = new_plan
+        if str(n_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(n_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must belong to plan_lineage_id"
+            )
+        if str(n_supersedes) != request.source_plan_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must supersede source_plan_id"
+            )
+        if n_status != "current":
+            errors.append("PromotePlanRevision.new_plan_id must be 'current'")
+        if source_plan is not None:
+            source_revision = source_plan[2]
+            if n_revision <= source_revision:
+                errors.append(
+                    "PromotePlanRevision.new_plan_id revision must be greater "
+                    "than source revision"
+                )
+
+    return errors
+
+
 def _validate_actor_user(actor: str, user_id: str) -> list[str]:
     errors = []
 
@@ -778,6 +984,20 @@ def _fetch_plan(cursor: Any, plan_id: str) -> Optional[tuple[Any, Any, int]]:
     cursor.execute(
         """
         SELECT user_id, plan_lineage_id, revision_number
+          FROM plans
+         WHERE id = %s
+        """,
+        (plan_id,),
+    )
+    return cursor.fetchone()
+
+
+def _fetch_plan_promotion_row(
+    cursor: Any, plan_id: str
+) -> Optional[tuple[Any, Any, int, Any, Any]]:
+    cursor.execute(
+        """
+        SELECT user_id, plan_lineage_id, revision_number, status, supersedes_plan_id
           FROM plans
          WHERE id = %s
         """,

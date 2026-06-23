@@ -19,6 +19,7 @@ Owner map:
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -283,6 +284,17 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
         )
         self.assertEqual(prior_status, [("superseded",)])
 
+        self.assertEqual(
+            _psql_rows(
+                f"""
+                SELECT status, result_plan_id
+                  FROM replan_jobs
+                 WHERE source_plan_id = '{plan_v1.plan_id}'
+                """
+            ),
+            [("completed", plan_v2.plan_id)],
+        )
+
 
 class _PsqlConnection:
     def cursor(self):
@@ -322,6 +334,10 @@ def _psql_literal(value):
         return "true" if value else "false"
     if isinstance(value, int):
         return str(value)
+    if isinstance(value, (dict, list)):
+        # jsonb columns need valid JSON, not Python repr.
+        escaped = json.dumps(value).replace("'", "''")
+        return f"'{escaped}'"
     escaped = str(value).replace("'", "''")
     return f"'{escaped}'"
 
