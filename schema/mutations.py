@@ -94,6 +94,22 @@ class TransferPointsRequest:
     request_hash: str
 
 
+@dataclass(frozen=True)
+class PromotePlanRevisionRequest:
+    """Synchronously promote a re-plan: source plan -> superseded, close job.
+
+    Synchronous sibling of schema.sql ``promote_replan_job_success`` for the
+    no-worker re-plan path: the source revision must already be ``stale`` (or
+    still ``current``) and the new revision already ``current``.
+    """
+
+    actor: str
+    user_id: str
+    source_plan_id: str
+    new_plan_id: str
+    plan_lineage_id: str
+
+
 class V31GraphWriteService:
     """Small canonical graph-write adapter around v3.1 SQL functions."""
 
@@ -358,6 +374,83 @@ class V31GraphWriteService:
             "idempotency_replayed": idempotency_replayed,
         }
 
+    def promote_plan_revision(self, request: PromotePlanRevisionRequest) -> str:
+        """Promote a re-plan: source plan -> superseded, close the replan job.
+
+        Synchronous counterpart to schema.sql ``promote_replan_job_success``
+        (which is gated on the async worker lease). Assumes the new revision is
+        already ``current`` and the source revision is ``stale`` or ``current``.
+        """
+
+        errors = _validate_promote_plan_revision(request)
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            _lock_user(cursor, request.user_id)
+            cursor.execute(
+                """
+                UPDATE plans
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE id = %s
+                   AND status IN ('stale', 'current')
+                RETURNING id
+                """,
+                (request.source_plan_id,),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision source plan is not in a promotable state"
+                )
+
+            cursor.execute(
+                """
+                UPDATE plan_steps
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE plan_id = %s
+                   AND status = 'stale'
+                """,
+                (request.source_plan_id,),
+            )
+
+            _insert_graph_mutation(
+                cursor=cursor,
+                user_id=request.user_id,
+                plan_lineage_id=request.plan_lineage_id,
+                plan_id=request.source_plan_id,
+                mutation_type="PromotePlan",
+                target_table="plans",
+                target_node_id=request.source_plan_id,
+                summary="Promoted re-plan revision",
+                before=None,
+                after={
+                    "status": "superseded",
+                    "result_plan_id": request.new_plan_id,
+                    "actor": request.actor,
+                },
+            )
+
+            cursor.execute(
+                """
+                UPDATE replan_jobs
+                   SET status = 'completed',
+                       result_plan_id = %s,
+                       completed_at = now(),
+                       updated_at = now()
+                 WHERE source_plan_id = %s
+                   AND status IN ('pending', 'processing')
+                """,
+                (request.new_plan_id, request.source_plan_id),
+            )
+
+        return str(request.source_plan_id)
+
 
 def require_app_graph_write() -> None:
     """Signal that callers must use the application graph-write implementation."""
@@ -544,6 +637,28 @@ def _validate_transfer_points(request: TransferPointsRequest) -> list[str]:
 
     if not request.request_hash:
         errors.append("TransferPoints.request_hash is required")
+
+    return errors
+
+
+def _validate_promote_plan_revision(
+    request: PromotePlanRevisionRequest,
+) -> list[str]:
+    errors = _validate_actor_user(request.actor, request.user_id)
+
+    if not request.source_plan_id:
+        errors.append("PromotePlanRevision.source_plan_id is required")
+
+    if not request.new_plan_id:
+        errors.append("PromotePlanRevision.new_plan_id is required")
+
+    if not request.plan_lineage_id:
+        errors.append("PromotePlanRevision.plan_lineage_id is required")
+
+    if request.source_plan_id and request.source_plan_id == request.new_plan_id:
+        errors.append(
+            "PromotePlanRevision.source_plan_id and new_plan_id must differ"
+        )
 
     return errors
 

@@ -10,8 +10,21 @@ Until implemented, ``test_hero_end_to_end`` fails with ``NotImplementedError``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import uuid
+from dataclasses import asdict, dataclass
 from typing import Any, Protocol
+
+from schema.mutations import (
+    CreatePlanRequest,
+    CreatePlanStepRequest,
+    PromotePlanRevisionRequest,
+    RecordStateDependencyRequest,
+    TransferPointsRequest,
+    V31GraphWriteService,
+)
+
+# Stable demo IDs — mirror tests/integration/test_hero_moment.py and the seed.
+CHASE_BALANCE_ID = "00000000-0000-0000-0000-00000000d001"
 
 
 @dataclass(frozen=True)
@@ -61,9 +74,78 @@ def create_plan_from_query(
 
     Cut scope OK for Jun 25: hardcoded Tokyo path, deterministic reasoning, no LLM.
     """
-    raise NotImplementedError(
-        "Raq + Michael: wire orchestrator → redemption graph writer. "
-        "See tests/integration/test_hero_moment.py and context/feature-specs/05-orchestrator-harness.md"
+    service = V31GraphWriteService(connection)
+    plan_lineage_id = str(uuid.uuid4())
+
+    plan_id = service.create_plan(
+        CreatePlanRequest(
+            actor="orchestrator",
+            user_id=user_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+            query_text=query_text,
+            status="current",
+        )
+    )
+
+    redemption_step_id = service.create_plan_step(
+        CreatePlanStepRequest(
+            actor="redemption_agent",
+            user_id=user_id,
+            plan_id=plan_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+            step_order=1,
+            step_type="redemption_recommendation",
+            payload={
+                "reasoning": "World of Hyatt Cat 4 covers a 3-night Tokyo stay at 60k points.",
+                "program": "world-of-hyatt",
+                "nights": 3,
+                "points_required": 60000,
+            },
+            status="current",
+        )
+    )
+
+    service.create_plan_step(
+        CreatePlanStepRequest(
+            actor="redemption_agent",
+            user_id=user_id,
+            plan_id=plan_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+            step_order=2,
+            step_type="transfer_recommendation",
+            payload={
+                "reasoning": "Transfer 60k Chase UR to Hyatt (1:1) to fund the award.",
+                "action": "transfer_points",
+                "amount_points": 60000,
+            },
+            status="current",
+        )
+    )
+
+    service.record_state_dependency(
+        RecordStateDependencyRequest(
+            actor="redemption_agent",
+            user_id=user_id,
+            plan_step_id=redemption_step_id,
+            target_node_id=CHASE_BALANCE_ID,
+            target_node_type="UserBalance",
+            target_table="user_balances",
+            observed_version=1,
+            snapshot_value={"balance_points": 240000},
+            depended_property="balance_points",
+        )
+    )
+
+    return HeroPlanSnapshot(
+        plan_id=plan_id,
+        plan_lineage_id=plan_lineage_id,
+        revision_number=1,
+        status="current",
+        step_count=2,
+        dependency_count=1,
     )
 
 
@@ -84,7 +166,72 @@ def replan_after_balance_transfer(
 
     Returns the new current plan snapshot.
     """
-    raise NotImplementedError(
-        "Raq + Michael: implement synchronous re-plan after TransferPoints staleness. "
-        "See context/feature-specs/04-redemption-traversal.md Flow 2"
+    service = V31GraphWriteService(connection)
+
+    # Beat 2: mutate the balance. The DB cascade marks the dependent plan +
+    # steps stale and enqueues a replan_jobs row — we never message the plan.
+    service.transfer_points(TransferPointsRequest(**asdict(transfer)))
+
+    # Re-plan reuses the original NL query; the snapshot doesn't carry it.
+    query_text = _fetch_plan_query_text(connection, prior.plan_id)
+
+    next_revision = prior.revision_number + 1
+    plan_v2_id = service.create_plan(
+        CreatePlanRequest(
+            actor="orchestrator",
+            user_id=transfer.user_id,
+            plan_lineage_id=prior.plan_lineage_id,
+            revision_number=next_revision,
+            query_text=query_text,
+            status="current",
+            supersedes_plan_id=prior.plan_id,
+        )
     )
+
+    service.create_plan_step(
+        CreatePlanStepRequest(
+            actor="redemption_agent",
+            user_id=transfer.user_id,
+            plan_id=plan_v2_id,
+            plan_lineage_id=prior.plan_lineage_id,
+            revision_number=next_revision,
+            step_order=1,
+            step_type="redemption_recommendation",
+            payload={
+                "reasoning": "Balance already moved; book the Hyatt Tokyo award directly.",
+                "program": "world-of-hyatt",
+                "nights": 3,
+                "points_required": 60000,
+            },
+            status="current",
+        )
+    )
+
+    # Beat 3: source revision stale -> superseded, close the replan job.
+    service.promote_plan_revision(
+        PromotePlanRevisionRequest(
+            actor="orchestrator",
+            user_id=transfer.user_id,
+            source_plan_id=prior.plan_id,
+            new_plan_id=plan_v2_id,
+            plan_lineage_id=prior.plan_lineage_id,
+        )
+    )
+
+    return HeroPlanSnapshot(
+        plan_id=plan_v2_id,
+        plan_lineage_id=prior.plan_lineage_id,
+        revision_number=next_revision,
+        status="current",
+        step_count=1,
+        dependency_count=0,
+    )
+
+
+def _fetch_plan_query_text(connection: GraphConnection, plan_id: str) -> str:
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT query_text FROM plans WHERE id = %s", (plan_id,))
+        row = cursor.fetchone()
+    if not row:
+        raise ValueError(f"plan {plan_id} not found while re-planning")
+    return row[0]
