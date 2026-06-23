@@ -12,7 +12,7 @@
 
 **Branch:** `rcg-13-dependency-tracking`
 
-### Task 1: Cover Precise Stale-Step Behavior
+## Task 1: Cover Precise Stale-Step Behavior
 
 **Files:**
 - Modify: `tests/test_v31_mutations.py`
@@ -34,7 +34,7 @@ Run: `RUN_LIVE_POSTGRES_TESTS=1 python -m unittest tests.test_v31_mutations.V31G
 
 Expected: failure with current broad `UPDATE plan_steps ... WHERE plan_id = stale_plan.id`.
 
-### Task 2: Add Direct-Dependency SQL Helper
+## Task 2: Add Direct-Dependency SQL Helper
 
 **Files:**
 - Modify: `schema/schema.sql`
@@ -66,7 +66,7 @@ Run: `python -m unittest tests.test_schema_artifacts`
 
 Expected: pass, with live tests skipped unless opted in.
 
-### Task 3: Wire TransferPoints to the Helper
+## Task 3: Wire TransferPoints to the Helper
 
 **Files:**
 - Modify: `schema/schema.sql`
@@ -86,7 +86,7 @@ Run: `RUN_LIVE_POSTGRES_TESTS=1 python -m unittest tests.test_v31_mutations.V31G
 
 Expected: pass.
 
-### Task 4: Add Negative-Control Non-Transitive Test
+## Task 4: Add Negative-Control Non-Transitive Test
 
 **Files:**
 - Modify: `tests/test_schema_artifacts.py`
@@ -101,7 +101,7 @@ Run: `python -m unittest discover -s tests`
 
 Expected: non-live tests pass, live tests skipped unless opted in.
 
-### Task 5: Update Tracking
+## Task 5: Update Tracking
 
 **Files:**
 - Modify: `STATUS.md`
@@ -117,4 +117,3 @@ Change dependency-tracking status from not started to complete only after the pr
 Run: `python -m unittest discover -s tests`
 
 Expected: all non-live tests pass.
-

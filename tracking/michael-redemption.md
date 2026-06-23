@@ -5,14 +5,17 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Paper-design the redemption traversal logic (RCG-20). This does not wait on the schema lock.
+- RCG-20/31 executable slice is in place: Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11 benchmark cases, and offline scorer.
+- Tests prove initial recommendation, balance-change invalidation, cash fallback, award availability overrides, integer basis-point math, typed tool fragments, and scorer report output.
+- PR review fixes are addressed: fallback diagnostics are query-scoped, and invalidation scoring uses the Chase balance slug instead of fixture list position.
 
 ## Next
-- Redemption agent: multi-hop traversal + LLM tradeoff surfacing (RCG-21).
-- Award-search tool, fixture-based first, returning typed subgraph fragments (RCG-22).
+- Map planner output to graph-write MutationBatch once spec 02/contracts are ready (RCG-21).
+- Add fair single-agent and CrewAI-style baseline runners around the same fixture data and scorer report shape.
 
 ## Blocked on
-- nothing today (paper design); RCG-21 onward waits on schema lock + mutation layer
+- Database-backed RCG-21 writes wait on graph-write path, MutationBatch contract, and fragment merge contract.
+- Baseline model calls need the shared eval config/model budget decision.
 
 ---
 
