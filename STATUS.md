@@ -20,11 +20,11 @@ The shared source of truth for the sprint. Update your own row before standup. K
 | Canonical DDL committed ([`schema/schema.sql`](schema/schema.sql)) | ☑ done |
 | DDL validated on clean PostgreSQL 16 | ☑ done |
 | Shared types generated (`schema/types`) | ☑ done |
-| JSON Schema contracts + codegen (Phase A3, RCG-61) | ◐ in progress — **active schema-lane work** |
+| JSON Schema contracts + codegen (Phase A3, RCG-61) | ☑ done (PR #2) |
 | Dependency-tracking implementation (RCG-13) | ☐ not started |
 | Seed fixture committed, stable IDs (RCG-8) | ☐ not started |
 | All four lanes signed off on v3.1 (§13) | ☑ Alan ☑ Val ☑ Michael ☑ Raq ([ADR 0001](docs/adr/0001-schema-lock.md)) |
-| **Implementation wiring on real contracts** | ☐ gated — app lanes use mocks until generated types land |
+| **Implementation wiring on real contracts** | ◐ in progress — generated types in PR #2; app lanes wire next |
 
 **Architecture locked (v3.1):** plan revision lifecycle via `plans.status` / `plan_steps.status` (no `is_current`, no `plan_steps.is_stale`); durable `replan_jobs` with leases; `graph_mutations` as user-scoped audit/SSE replay only (not a work queue).
 
@@ -39,10 +39,10 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test; implement RCG-12 recursive traversal helper | nothing |
-| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
-| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
-| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
+| Alan · Graph | Phase A3: JSON Schema contracts + codegen + operational write path + Postgres CI (PR #2) | Seed fixture stable IDs (RCG-8); dependency tracking (RCG-13); Postgres deploy (RCG-9) | nothing |
+| Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); **GPFree landing conformed to tokens** (light/iris, SF Pro, no hardcoded hex/px/easing); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
+| Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
+| Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05) | generated contracts for real wiring |
 
 ---
 
@@ -50,8 +50,7 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **App lanes (Val, Raq) → real contract wiring** waits on Phase A3 generated contracts/types (Alan). Mocks unblock all lanes in the meantime.
-- **`raq/updates` PR** pending GitHub connector auth / manual `git push` (3 commits ready locally).
+- **App lanes (Val, Raq) → real contract wiring** — generated types land with PR #2 merge; mocks still OK until wired.
 
 ---
 

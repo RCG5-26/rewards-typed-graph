@@ -1,8 +1,11 @@
-gitignore# Node
+# Node
 node_modules/
 dist/
 .next/
 *.log
+
+# TypeScript build artifacts
+*.tsbuildinfo
 
 # Python
 __pycache__/

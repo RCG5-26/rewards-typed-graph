@@ -4,7 +4,7 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-06-22
 
 > **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
@@ -64,6 +64,20 @@ Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--t
 | Side-by-side contrast | head-to-head (RCG-45) | same scenario, typed-graph vs baselines, rendered in parallel columns |
 | Metrics panel | benchmark display (RCG-46) | accuracy, hallucination, invalidation, token cost |
 | Auth / sign-in | gate (Clerk) | Clerk identity-only sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)) |
+| Marketing landing | GPFree cinematic landing (`components/gpfree/`) | scroll-driven hero + how-it-works + footer; **fully token-driven** (light surfaces, iris accent, SF Pro/Fira Code) — no hardcoded hex/px/easing (D028) |
+
+---
+
+## GPFree landing surface (`components/gpfree/`)
+
+The public landing conforms to the design system end-to-end (D028). Structure:
+`GPFreeHero` (composition + root) → `cinema.ts` (shared token styles + `useGpxCinema` scroll engine) → `HeroStage` / `HowItWorks` / `SiteFooter`.
+
+- **Color** off `--color-bg` / `--color-surface*` / `--color-text-*` / `--color-accent*` / `--color-border*`; alpha variants via `color-mix(... var(--token) ...)`, never raw `rgba()`.
+- **Type** off `--font-display` (headings), `--font-sans` (body/CTA), `--font-mono` (labels/typewriters) + the `--text-*` / `--weight-*` / `--tracking-*` / `--leading-*` scales.
+- **Spacing / radii / shadows** off `--space-*` / `--radius-*` / `--shadow-*`; **motion** off `--ease-soft` / `--spring-settle` / `--duration-*`.
+- Engine-applied styles (active step tab, glow, progress bar) also write token values, so the imperative layer stays token-true.
+- Bespoke geometry (frame positions, illustration card sizes, viewport breakpoints) stays as literals — no token exists for one-off coordinates.
 
 ---
 
