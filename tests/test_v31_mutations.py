@@ -78,6 +78,7 @@ class FakeCursor:
             return
 
         if compact_sql.startswith("INSERT INTO graph_mutations"):
+            self.connection.graph_mutation_inserts += 1
             self.result = None
             return
 
@@ -90,6 +91,7 @@ class FakeCursor:
 class FakeConnection:
     def __init__(self):
         self.executed = []
+        self.graph_mutation_inserts = 0
         self.transfer_points_calls = []
         self.transfer_points_errors = []
         self.transfer_points_result = None
@@ -128,7 +130,7 @@ class V31GraphWriteServiceTest(unittest.TestCase):
                 ],
             )
 
-        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
+        self.assertEqual(connection.graph_mutation_inserts, 0)
 
     def test_occ_retry_returns_success_after_retryable_conflict(self):
         service = V31GraphWriteService(FakeConnection())
@@ -551,7 +553,16 @@ class V31GraphWriteServiceTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(result["source_version"], 2)
+        self.assertEqual(
+            result,
+            {
+                "source_balance_id": "00000000-0000-0000-0000-000000000002",
+                "source_version": 2,
+                "dest_balance_id": "00000000-0000-0000-0000-000000000003",
+                "dest_version": 3,
+                "idempotency_replayed": False,
+            },
+        )
         self.assertEqual(len(connection.transfer_points_calls), 3)
 
     def test_transfer_points_raises_when_sql_function_returns_no_result(self):

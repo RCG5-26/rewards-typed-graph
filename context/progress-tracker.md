@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23 by Val (merged main — spec 05 + landing)
+**Last updated:** 2026-06-23 by Codex
 
 ---
 
@@ -93,6 +93,7 @@ Brief bullets from recent work sessions. Trim when stale.
 - 2026-06-21: Added a live Postgres integration test for `V31GraphWriteService.transfer_points` and wired it into the schema workflow.
 - 2026-06-21: Hardened state-dependency target lookup by removing f-string table interpolation from the v3.1 mutation adapter.
 - 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
+- 2026-06-23: Repaired RCG-11 PR after merge-from-main dropped OCC exports; restored read-set validation/retry wiring on the current PR head and replayed the PostgreSQL workflow locally.
 
 ---
 
