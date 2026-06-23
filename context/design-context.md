@@ -57,15 +57,15 @@ Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--t
 
 ## Layout patterns
 
-| Pattern               | Where used                                      | Notes                                                                                                                                                  |
-| --------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| App shell             | demo shell                                      | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right)                                                                 |
-| Streaming sidebar     | mutation log (RCG-24/25)                        | append-only stream of typed mutations as agents coordinate                                                                                             |
-| Dependency view       | plan-node graph (RCG-26)                        | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded)                                                    |
-| Side-by-side contrast | head-to-head (RCG-45)                           | same scenario, typed-graph vs baselines, rendered in parallel columns                                                                                  |
-| Metrics panel         | benchmark display (RCG-46)                      | accuracy, hallucination, invalidation, token cost                                                                                                      |
-| Auth / sign-in        | `/sign-in` · `/sign-up` (Clerk)                 | Clerk identity-only, **Google-only** sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)); `middleware.ts` protects all non-public routes |
-| Marketing landing     | GPFree landing (`components/GPFreeHero.tsx`)    | self-contained dark hero with a pointer/gyro 3D card tilt + animated how-it-works + closing CTA; both CTAs → `/sign-in`. Ported from the design handoff (D029)        |
+| Pattern               | Where used                                   | Notes                                                                                                                                                                |
+| --------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App shell             | demo shell                                   | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right)                                                                               |
+| Streaming sidebar     | mutation log (RCG-24/25)                     | append-only stream of typed mutations as agents coordinate                                                                                                           |
+| Dependency view       | plan-node graph (RCG-26)                     | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded)                                                                  |
+| Side-by-side contrast | head-to-head (RCG-45)                        | same scenario, typed-graph vs baselines, rendered in parallel columns                                                                                                |
+| Metrics panel         | benchmark display (RCG-46)                   | accuracy, hallucination, invalidation, token cost                                                                                                                    |
+| Auth / sign-in        | `/sign-in` · `/sign-up` (Clerk)              | Clerk identity-only, **Google-only** sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)); `middleware.ts` protects all non-public routes |
+| Marketing landing     | GPFree landing (`components/GPFreeHero.tsx`) | self-contained dark hero with a pointer/gyro 3D card tilt + animated how-it-works + closing CTA; both CTAs → `/sign-in`. Ported from the design handoff (D029)       |
 
 ---
 
@@ -98,7 +98,7 @@ The public landing is a **single self-contained component** ported verbatim from
 | Plan-node dependency view | `[TBD]` (RCG-26)    | watch stale steps/revision; see new current revision promoted                                          | invalidation + replan lifecycle events       |
 | Head-to-head contrast     | `[TBD]` (RCG-45)    | run same scenario across architectures                                                                 | benchmark run output                         |
 | Benchmark numbers         | `[TBD]` (RCG-46)    | view accuracy / hallucination / invalidation / token cost                                              | benchmark results                            |
-| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only)                                                                            | Clerk (identity-only; per-user demo persona) |
+| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only)                                                                             | Clerk (identity-only; per-user demo persona) |
 
 ---
 

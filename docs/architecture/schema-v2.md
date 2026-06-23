@@ -391,7 +391,7 @@
 
 ---
 
-### 2.4 DEPENDS_ON — PlanStep → PlanStep _(intra-plan ordering and data dependencies)_
+### 2.4 DEPENDS*ON — PlanStep → PlanStep *(intra-plan ordering and data dependencies)\_
 
 | Property          | Type    | Notes                                 |
 | ----------------- | ------- | ------------------------------------- |
@@ -404,7 +404,7 @@
 
 ---
 
-### 2.5 DEPENDS_ON_STATE — PlanStep → (any node in world or personal graph) _(new in v2.0 — CRITICAL)_
+### 2.5 DEPENDS*ON_STATE — PlanStep → (any node in world or personal graph) *(new in v2.0 — CRITICAL)\_
 
 This is the edge type that makes the architectural claim real. It connects a plan step to the specific world or personal state nodes it relied on when it was generated.
 
@@ -462,19 +462,19 @@ No edge properties.
 
 ---
 
-### 2.12 HOLDS_BALANCE — User → UserBalance _(new in v2.0)_
+### 2.12 HOLDS*BALANCE — User → UserBalance *(new in v2.0)\_
 
 No edge properties. Navigational edge for the personal graph traversal pattern.
 
 ---
 
-### 2.13 HAS_STATUS — User → UserProgramStatus _(new in v2.0)_
+### 2.13 HAS*STATUS — User → UserProgramStatus *(new in v2.0)\_
 
 No edge properties. Navigational edge.
 
 ---
 
-### 2.14 PROPOSED_BY — MutationProposal → AgentRun _(new in v2.0)_
+### 2.14 PROPOSED*BY — MutationProposal → AgentRun *(new in v2.0)\_
 
 No edge properties. Audit trail.
 

@@ -45,7 +45,7 @@ The redemption agent turns a natural-language goal into a multi-step plan by tra
 ## Out of scope
 
 - The automatic re-plan trigger/loop and the durable queue (`replan_jobs`, RCG-57) — this spec produces the plan + dependencies; the loop consumes them.
-- The baselines and the **3-architecture benchmark harness** (single-agent + free-text vs. typed-graph; separate specs/tickets, RCG-33/35/36/37/40). Note: the **offline Person-C scorer** (`benchmark/person_c_scorer.py`) and its gold cases referenced in the touch list below are the RCG-20 fixture slice and *are* in scope here — they score this agent's output only and do not run the cross-architecture comparison.
+- The baselines and the **3-architecture benchmark harness** (single-agent + free-text vs. typed-graph; separate specs/tickets, RCG-33/35/36/37/40). Note: the **offline Person-C scorer** (`benchmark/person_c_scorer.py`) and its gold cases referenced in the touch list below are the RCG-20 fixture slice and _are_ in scope here — they score this agent's output only and do not run the cross-architecture comparison.
 - Real award availability (fixture-based for MVP).
 
 ---
