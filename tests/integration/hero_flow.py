@@ -5,7 +5,7 @@ Implement these functions to turn the hero integration test green:
 - ``create_plan_from_query`` — Raq (RCG-15/28) + Michael (RCG-21)
 - ``replan_after_balance_transfer`` — Raq + Michael (RCG-29)
 
-Until implemented, ``test_hero_end_to_end`` skips with a clear message.
+Until implemented, ``test_hero_end_to_end`` fails with ``NotImplementedError``.
 """
 
 from __future__ import annotations

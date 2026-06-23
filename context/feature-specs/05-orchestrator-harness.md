@@ -634,6 +634,8 @@ Lifecycle consequences of a failed commit (each named-tested in §16):
 
 It is **impossible for a failed commit to leave an `AgentRun` `completed`**, because `commit` rejects rather than returning a failure result, and the orchestrator only finalizes `completed` after `run()` resolves.
 
+**Lifecycle cleanup persistence (best-effort vs critical).** On the failure path the orchestrator first attempts `finalizeAgentRun(failed)` (best-effort — errors are recorded in `cleanupErrors` but do not block the primary failure), then **must** succeed at `transitionPlanStatus(failed)` before returning `PlanResult { status: "failed" }`. If `transitionPlanStatus(failed)` throws, the orchestrator propagates that error rather than returning a failed result while the plan remains `generating` in storage. When `finalizeAgentRun(failed)` itself throws during cleanup, the `AgentRun` may remain `running` with `error = null` even though the plan is transitioned to `failed` — the primary agent error is preserved and not overwritten. This is an accepted spec-compliant limitation for this unit (no retry/fallback); durable recovery belongs to spec 02's real adapters. See `context/progress-tracker.md` (Spec 05 gotcha).
+
 | Failure | Stub behavior | Real-path owner |
 |---|---|---|
 | Validation (malformed structure / unknown kind at boundary) | `CommitFailure("ValidationError")`, no record | spec 05 contract validation (§12) |

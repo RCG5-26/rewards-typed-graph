@@ -325,19 +325,17 @@ cd apps/api && npm test -- tests/orchestrator/orchestrator.test.ts --reporter=ve
 3. **Test doubles** — `InMemoryOrchestratorGraphWrite` fail-seams + command counters; `StubGraphSnapshotBuilder.setThrowOnBuild`; `ThrowingCommitFactory`; `setFailCheckpointOnNthRecord` for second-commit atomicity test.
 4. **`in-memory-commit.ts`** — `CreatePlanStep.planId` must match bound plan; no `mergeReadCheckpoint` on `OrchestratorGraphWrite` (checkpoint stays inside commit factory atomic block).
 
-### Tests added/updated
+### Tests added/updated (8 new — 32 → 40)
 
-- Lifecycle: createAgentRun throws, snapshot throws, commitFactory throws, finalize(completed) throws, finalize(failed) throws during agent cleanup, decomposition cleanup preserves `DecompositionInvalid` + records cleanup errors
-- Root unexpected key on decomposed query
-- `failCheckpointOnNthRecord(2)` rolls back only second commit
-- T11: SpecialistNamingPlanCommand proves agents cannot reach Plan-write via commit
-- T16: asserts `kind: "OwnershipError"`
+- **orchestrator.test.ts (+6):** createAgentRun throws, snapshot throws, commitFactory throws, finalize(completed) throws, finalize(failed) throws during agent cleanup, decomposition cleanup preserves `DecompositionInvalid` + records cleanup errors
+- **decomposition.test.ts (+1):** root unexpected key on decomposed query
+- **commit-ownership.test.ts (+1):** `failCheckpointOnNthRecord(2)` rolls back only second commit
 
 ### Validation
 
 ```bash
 cd apps/api && npm run typecheck && npm test
-# 43 passed, 0 type errors
+# 40 passed (32 baseline + 8 new), 0 type errors
 ```
 
 ### Explicitly not done (per user)
@@ -373,7 +371,7 @@ cd apps/api && npm run typecheck && npm test
 
 ---
 
-## Entry 006 — Spec 05 Post-Audit Fixes (2026-06-22)
+## Entry 007 — Spec 05 Post-Audit Fixes (2026-06-22)
 
 **Task:** Two medium-severity findings from the final verification audit (ce-code-review) required correction before merge.
 **Branch:** `Alan-branch-schema`
@@ -417,7 +415,7 @@ Three tests added to exercise the corrected fingerprinter on nested mutations (p
 
 ```bash
 cd apps/api && npm test
-# exit 0 — 35 tests passed (32 original + 3 new), 4 test files, 0 skipped
+# exit 0 — 43 tests passed (40 after Entry 006 + 3 nested-payload idempotency), 4 test files, 0 skipped
 
 cd apps/api && npm run typecheck
 # exit 0 — 0 errors

@@ -63,8 +63,12 @@ class LivePostgresMixin:
             self.skipTest("psql is required for live Postgres tests")
 
         database_name = os.environ.get("PGDATABASE", "")
-        if "test" not in database_name:
-            self.fail("live Postgres tests require PGDATABASE to include 'test'")
+        if not _is_safe_test_database_name(database_name):
+            self.fail(
+                "live Postgres tests require PGDATABASE to be a dedicated test database "
+                "(exact name 'test', prefix 'test_', or suffix '_test'; "
+                f"got {database_name!r})"
+            )
 
         _psql_exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
         _psql_file(SCHEMA_SQL_PATH)
@@ -239,14 +243,11 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
     def test_hero_end_to_end(self):
         connection = _PsqlConnection()
 
-        try:
-            plan_v1 = create_plan_from_query(
-                connection,
-                user_id=DEMO_USER_ID,
-                query_text=HERO_QUERY,
-            )
-        except NotImplementedError as exc:
-            self.skipTest(str(exc))
+        plan_v1 = create_plan_from_query(
+            connection,
+            user_id=DEMO_USER_ID,
+            query_text=HERO_QUERY,
+        )
 
         self.assertEqual(plan_v1.status, "current")
         self.assertEqual(plan_v1.revision_number, 1)
@@ -265,14 +266,11 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
             request_hash="hero-e2e-transfer-hash",
         )
 
-        try:
-            plan_v2 = replan_after_balance_transfer(
-                connection,
-                prior=plan_v1,
-                transfer=transfer,
-            )
-        except NotImplementedError as exc:
-            self.skipTest(str(exc))
+        plan_v2 = replan_after_balance_transfer(
+            connection,
+            prior=plan_v1,
+            transfer=transfer,
+        )
 
         self.assertEqual(plan_v2.plan_lineage_id, plan_v1.plan_lineage_id)
         self.assertEqual(plan_v2.revision_number, 2)
@@ -326,6 +324,15 @@ def _psql_literal(value):
         return str(value)
     escaped = str(value).replace("'", "''")
     return f"'{escaped}'"
+
+
+def _is_safe_test_database_name(name: str) -> bool:
+    """Reject substring false positives like 'contest' before destructive DDL."""
+    if not name:
+        return False
+    if name == "test":
+        return True
+    return name.endswith("_test") or name.startswith("test_")
 
 
 def _psql_file(path: Path) -> None:

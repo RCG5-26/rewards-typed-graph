@@ -23,7 +23,7 @@ Ship typed orchestrator loop with in-memory doubles so agent coordination is enf
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
-- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-22 — lifecycle error-handling hardening after code review (43 tests, typecheck clean). **Gotcha:** when `finalizeAgentRun(failed)` throws during cleanup, AgentRun may remain `running` — primary agent error is not overwritten.
+- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-22 — lifecycle error-handling hardening after code review (43 tests, typecheck clean). **Gotcha:** when `finalizeAgentRun(failed)` throws during cleanup, AgentRun may remain `running` — primary agent error is not overwritten. Documented in spec 05 §10.3 (lifecycle cleanup persistence).
 - [x] PR #2 operational schema alignment — 2026-06-21 — added user-scoped graph mutations, re-plan jobs, idempotency records, eval tables, and atomic transfer write path.
 - [x] PR #2 v3.1 operational naming alignment — 2026-06-21 — renamed operational columns to v3.1 vocabulary (`clerk_id`, `mutation_txn_id`, `source_plan_id`, `operation_type`, `result_reference`, lease fields).
 - [x] PR #2 canonical schema split — 2026-06-21 — restored v3.1 table-per-type as default and moved polymorphic storage to `schema/experimental/polymorphic/`.

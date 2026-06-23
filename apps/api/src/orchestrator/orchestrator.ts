@@ -75,9 +75,17 @@ async function failInvocation(params: {
     );
   }
 
-  await recordCleanupError(params.cleanupErrors, "transitionPlanStatus(failed)", () =>
-    params.graphWrite.transitionPlanStatus({ planId: params.planId, toStatus: "failed" }),
-  );
+  try {
+    await params.graphWrite.transitionPlanStatus({ planId: params.planId, toStatus: "failed" });
+  } catch (err) {
+    const transitionError = errorMessage(err, "unknown error");
+    params.cleanupErrors.push(`transitionPlanStatus(failed): ${transitionError}`);
+    const detail =
+      params.cleanupErrors.length > 0
+        ? `; cleanup errors: ${params.cleanupErrors.join("; ")}`
+        : "";
+    throw new Error(`failed to persist plan failure: ${transitionError}${detail}`);
+  }
 
   return {
     planId: params.planId,
