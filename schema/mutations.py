@@ -387,6 +387,16 @@ class V31GraphWriteService:
             raise MutationValidationError(errors)
 
         with self.connection.cursor() as cursor:
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if errors:
+                raise MutationValidationError(errors)
+
             _lock_user(cursor, request.user_id)
             cursor.execute(
                 """
@@ -663,6 +673,67 @@ def _validate_promote_plan_revision(
     return errors
 
 
+def _validate_promote_plan_references(
+    request: PromotePlanRevisionRequest,
+    source_plan: Optional[tuple[Any, Any, int, Any, Any]],
+    new_plan: Optional[tuple[Any, Any, int, Any, Any]],
+) -> list[str]:
+    errors = []
+
+    if source_plan is None:
+        errors.append(
+            "PromotePlanRevision.source_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        s_user, s_lineage, _s_revision, s_status, _s_supersedes = source_plan
+        if str(s_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(s_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id must belong to plan_lineage_id"
+            )
+        if s_status not in ("stale", "current"):
+            errors.append(
+                "PromotePlanRevision source plan must be 'stale' or 'current'"
+            )
+
+    if new_plan is None:
+        errors.append(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        n_user, n_lineage, n_revision, n_status, n_supersedes = new_plan
+        if str(n_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(n_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must belong to plan_lineage_id"
+            )
+        if str(n_supersedes) != request.source_plan_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must supersede source_plan_id"
+            )
+        if n_status != "current":
+            errors.append("PromotePlanRevision.new_plan_id must be 'current'")
+        if source_plan is not None:
+            source_revision = source_plan[2]
+            if n_revision <= source_revision:
+                errors.append(
+                    "PromotePlanRevision.new_plan_id revision must be greater "
+                    "than source revision"
+                )
+
+    return errors
+
+
 def _validate_actor_user(actor: str, user_id: str) -> list[str]:
     errors = []
 
@@ -761,6 +832,20 @@ def _fetch_plan(cursor: Any, plan_id: str) -> Optional[tuple[Any, Any, int]]:
     cursor.execute(
         """
         SELECT user_id, plan_lineage_id, revision_number
+          FROM plans
+         WHERE id = %s
+        """,
+        (plan_id,),
+    )
+    return cursor.fetchone()
+
+
+def _fetch_plan_promotion_row(
+    cursor: Any, plan_id: str
+) -> Optional[tuple[Any, Any, int, Any, Any]]:
+    cursor.execute(
+        """
+        SELECT user_id, plan_lineage_id, revision_number, status, supersedes_plan_id
           FROM plans
          WHERE id = %s
         """,

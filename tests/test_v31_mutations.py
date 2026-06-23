@@ -42,6 +42,14 @@ class FakeCursor:
             self.result = self.connection.transfer_points_result
             return
 
+        if compact_sql.startswith(
+            "SELECT user_id, plan_lineage_id, revision_number, status, "
+            "supersedes_plan_id FROM plans"
+        ):
+            plan_id = params[0]
+            self.result = self.connection.promotion_plans.get(plan_id)
+            return
+
         if compact_sql.startswith("SELECT user_id, plan_lineage_id, revision_number FROM plans"):
             plan_id = params[0]
             self.result = self.connection.plans.get(plan_id)
@@ -99,6 +107,7 @@ class FakeConnection:
         self.create_plan_step_result = None
         self.record_state_dependency_result = None
         self.promote_source_result = None
+        self.promotion_plans = {}
 
     def cursor(self):
         return FakeCursor(self)
@@ -471,21 +480,13 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertEqual(connection.executed, [])
 
     def test_promote_plan_revision_supersedes_and_logs_after_validation(self):
-        connection = FakeConnection()
-        connection.promote_source_result = ("00000000-0000-0000-0000-000000000020",)
+        connection = _promotable_connection()
+        connection.promote_source_result = (_PROMOTE_SOURCE_ID,)
         service = V31GraphWriteService(connection)
 
-        result = service.promote_plan_revision(
-            PromotePlanRevisionRequest(
-                actor="orchestrator",
-                user_id="00000000-0000-0000-0000-000000000001",
-                source_plan_id="00000000-0000-0000-0000-000000000020",
-                new_plan_id="00000000-0000-0000-0000-000000000021",
-                plan_lineage_id="00000000-0000-0000-0000-000000000010",
-            )
-        )
+        result = service.promote_plan_revision(_promote_request())
 
-        self.assertEqual(result, "00000000-0000-0000-0000-000000000020")
+        self.assertEqual(result, _PROMOTE_SOURCE_ID)
         self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "UPDATE plans"))
         self.assertTrue(_any_sql(connection, "UPDATE replan_jobs"))
@@ -493,36 +494,149 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         graph_sql, graph_params = _first_sql(connection, "INSERT INTO graph_mutations")
         self.assertEqual(
             graph_params[4:7],
-            (
-                "PromotePlan",
-                "plans",
-                "00000000-0000-0000-0000-000000000020",
-            ),
+            ("PromotePlan", "plans", _PROMOTE_SOURCE_ID),
         )
         after = graph_params[9]
         self.assertEqual(after["status"], "superseded")
-        self.assertEqual(after["result_plan_id"], "00000000-0000-0000-0000-000000000021")
+        self.assertEqual(after["result_plan_id"], _PROMOTE_NEW_ID)
 
     def test_promote_plan_revision_raises_when_source_not_promotable(self):
-        connection = FakeConnection()
+        # References are valid, but the source UPDATE matches no row (e.g. a
+        # concurrent status change between fetch and write) -> commit error.
+        connection = _promotable_connection()
         connection.promote_source_result = None
         service = V31GraphWriteService(connection)
 
         with self.assertRaises(MutationCommitError) as raised:
-            service.promote_plan_revision(
-                PromotePlanRevisionRequest(
-                    actor="orchestrator",
-                    user_id="00000000-0000-0000-0000-000000000001",
-                    source_plan_id="00000000-0000-0000-0000-000000000020",
-                    new_plan_id="00000000-0000-0000-0000-000000000021",
-                    plan_lineage_id="00000000-0000-0000-0000-000000000010",
-                )
-            )
+            service.promote_plan_revision(_promote_request())
 
         self.assertEqual(
             str(raised.exception),
             "PromotePlanRevision source plan is not in a promotable state",
         )
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
+
+    def test_promote_plan_revision_rejects_missing_new_plan_before_mutation(self):
+        connection = _promotable_connection()
+        del connection.promotion_plans[_PROMOTE_NEW_ID]
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            "to user 00000000-0000-0000-0000-000000000001",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_user(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            "00000000-0000-0000-0000-0000000000ff",
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            "to user 00000000-0000-0000-0000-000000000001",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_lineage(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            "00000000-0000-0000-0000-0000000000ee",
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must belong to plan_lineage_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_supersedes(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            "00000000-0000-0000-0000-0000000000dd",
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must supersede source_plan_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_not_current(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "generating",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must be 'current'",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_source_plan_wrong_lineage(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_SOURCE_ID] = (
+            _PROMOTE_USER_ID,
+            "00000000-0000-0000-0000-0000000000cc",
+            1,
+            "stale",
+            None,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.source_plan_id must belong to plan_lineage_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def _assert_no_promote_mutation(self, connection):
+        """After a failed validation, no lock, write, or audit row may execute."""
+        self.assertFalse(_any_sql(connection, "pg_advisory_xact_lock"))
+        self.assertFalse(_any_sql(connection, "UPDATE plans"))
+        self.assertFalse(_any_sql(connection, "UPDATE replan_jobs"))
         self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
 
 
@@ -761,6 +875,38 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
             ],
         )
         self.assertEqual(_psql_rows("SELECT count(*) FROM replan_jobs"), [(1,)])
+
+
+_PROMOTE_USER_ID = "00000000-0000-0000-0000-000000000001"
+_PROMOTE_LINEAGE_ID = "00000000-0000-0000-0000-000000000010"
+_PROMOTE_SOURCE_ID = "00000000-0000-0000-0000-000000000020"
+_PROMOTE_NEW_ID = "00000000-0000-0000-0000-000000000021"
+
+
+def _promote_request():
+    return PromotePlanRevisionRequest(
+        actor="orchestrator",
+        user_id=_PROMOTE_USER_ID,
+        source_plan_id=_PROMOTE_SOURCE_ID,
+        new_plan_id=_PROMOTE_NEW_ID,
+        plan_lineage_id=_PROMOTE_LINEAGE_ID,
+    )
+
+
+def _promotable_connection():
+    """A FakeConnection seeded with a valid stale source + current successor."""
+    connection = FakeConnection()
+    connection.promotion_plans = {
+        _PROMOTE_SOURCE_ID: (_PROMOTE_USER_ID, _PROMOTE_LINEAGE_ID, 1, "stale", None),
+        _PROMOTE_NEW_ID: (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        ),
+    }
+    return connection
 
 
 def _any_sql(connection, snippet):

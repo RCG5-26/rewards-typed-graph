@@ -284,6 +284,17 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
         )
         self.assertEqual(prior_status, [("superseded",)])
 
+        self.assertEqual(
+            _psql_rows(
+                f"""
+                SELECT status, result_plan_id
+                  FROM replan_jobs
+                 WHERE source_plan_id = '{plan_v1.plan_id}'
+                """
+            ),
+            [("completed", plan_v2.plan_id)],
+        )
+
 
 class _PsqlConnection:
     def cursor(self):
