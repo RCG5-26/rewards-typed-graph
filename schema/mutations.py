@@ -8,6 +8,7 @@ experiments at schema.experimental.polymorphic.mutations.
 
 from __future__ import annotations
 
+import subprocess
 import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, Optional, TypeVar
@@ -124,54 +125,60 @@ class V31GraphWriteService:
     ) -> None:
         """Reject stale or invalid observed versions before writing."""
 
-        errors = []
         with self.connection.cursor() as cursor:
-            for entry in read_set:
-                if entry.target_table not in STATE_DEPENDENCY_TARGET_TABLES:
-                    errors.append(
-                        f"ReadSet.target_table is not allowed: {entry.target_table}"
-                    )
-                    continue
+            self._validate_read_set_with_cursor(cursor, user_id, read_set)
 
-                if not entry.target_node_id:
-                    errors.append("ReadSet.target_node_id is required")
-                    continue
+    def _validate_read_set_with_cursor(
+        self, cursor: Any, user_id: str, read_set: Iterable[ReadSetEntry]
+    ) -> None:
+        """Reject stale or invalid observed versions using the active cursor."""
 
-                if entry.observed_version < 0:
-                    errors.append("ReadSet.observed_version must be nonnegative")
-                    continue
-
-                target = _fetch_target_reference(
-                    cursor, entry.target_table, entry.target_node_id
+        errors = []
+        for entry in read_set:
+            if entry.target_table not in STATE_DEPENDENCY_TARGET_TABLES:
+                errors.append(
+                    f"ReadSet.target_table is not allowed: {entry.target_table}"
                 )
-                if target is None:
-                    errors.append(
-                        "ReadSet target does not exist: "
-                        f"{entry.target_table}:{entry.target_node_id}"
-                    )
-                    continue
+                continue
 
-                _target_node_type, current_version, target_user_id = target
-                _expected_node_type, scoped_to_user = STATE_DEPENDENCY_TARGET_TABLES[
-                    entry.target_table
-                ]
-                if (
-                    scoped_to_user
-                    and target_user_id is not None
-                    and str(target_user_id) != user_id
-                ):
-                    errors.append(
-                        "ReadSet target does not exist or is not visible to user "
-                        f"{user_id}"
-                    )
-                    continue
+            if not entry.target_node_id:
+                errors.append("ReadSet.target_node_id is required")
+                continue
 
-                if current_version != entry.observed_version:
-                    raise ConcurrencyConflictError(
-                        "read-set version conflict for "
-                        f"{entry.target_table}:{entry.target_node_id}; "
-                        f"observed {entry.observed_version}, current {current_version}"
-                    )
+            if entry.observed_version < 0:
+                errors.append("ReadSet.observed_version must be nonnegative")
+                continue
+
+            target = _fetch_target_reference(
+                cursor, entry.target_table, entry.target_node_id
+            )
+            if target is None:
+                errors.append(
+                    "ReadSet target does not exist: "
+                    f"{entry.target_table}:{entry.target_node_id}"
+                )
+                continue
+
+            _target_node_type, current_version, target_user_id = target
+            _expected_node_type, scoped_to_user = STATE_DEPENDENCY_TARGET_TABLES[
+                entry.target_table
+            ]
+            if (
+                scoped_to_user
+                and (target_user_id is None or str(target_user_id) != user_id)
+            ):
+                errors.append(
+                    "ReadSet target does not exist or is not visible to user "
+                    f"{user_id}"
+                )
+                continue
+
+            if current_version != entry.observed_version:
+                raise ConcurrencyConflictError(
+                    "read-set version conflict for "
+                    f"{entry.target_table}:{entry.target_node_id}; "
+                    f"observed {entry.observed_version}, current {current_version}"
+                )
 
         if errors:
             raise MutationValidationError(errors)
@@ -184,17 +191,22 @@ class V31GraphWriteService:
         """Retry only known optimistic-concurrency failures."""
 
         retryable_messages = tuple(retryable_errors)
-        last_error: Optional[RuntimeError] = None
+        last_error_message: Optional[str] = None
 
         for _attempt in range(MAX_OCC_RETRIES):
             try:
                 return operation()
-            except RuntimeError as error:
-                if not any(message in str(error) for message in retryable_messages):
+            except (RuntimeError, subprocess.CalledProcessError) as error:
+                error_message = _retry_error_message(error)
+                if not any(
+                    message in error_message for message in retryable_messages
+                ):
                     raise
-                last_error = error
+                last_error_message = error_message
 
-        raise ConcurrencyConflictError(str(last_error))
+        raise ConcurrencyConflictError(
+            last_error_message or "optimistic concurrency conflict"
+        )
 
     def create_plan(self, request: CreatePlanRequest) -> str:
         """Validate and create a plan revision."""
@@ -411,10 +423,12 @@ class V31GraphWriteService:
         if errors:
             raise MutationValidationError(errors)
 
-        self.validate_read_set(request.user_id, request.read_set)
-
         def commit_transfer() -> Optional[tuple[Any, ...]]:
             with self.connection.cursor() as cursor:
+                _lock_user(cursor, request.user_id)
+                self._validate_read_set_with_cursor(
+                    cursor, request.user_id, request.read_set
+                )
                 cursor.execute(
                     """
                     SELECT
@@ -474,6 +488,17 @@ def require_app_graph_write() -> None:
         "use schema.experimental.polymorphic.mutations only for the optional "
         "polymorphic experiment."
     )
+
+
+def _retry_error_message(error: BaseException) -> str:
+    parts = [str(error)]
+    if isinstance(error, subprocess.CalledProcessError):
+        for value in (error.stderr, error.output):
+            if value:
+                parts.append(
+                    value.decode() if isinstance(value, bytes) else str(value)
+                )
+    return "\n".join(parts)
 
 
 PLAN_TYPES = {

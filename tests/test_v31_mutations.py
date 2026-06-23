@@ -132,6 +132,38 @@ class V31GraphWriteServiceTest(unittest.TestCase):
 
         self.assertEqual(connection.graph_mutation_inserts, 0)
 
+    def test_read_set_rejects_scoped_target_without_owner_before_version_compare(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000040": (
+                "UserBalance",
+                3,
+                None,
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.validate_read_set(
+                user_id="00000000-0000-0000-0000-000000000001",
+                read_set=[
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000040",
+                        observed_version=2,
+                    )
+                ],
+            )
+
+        self.assertEqual(
+            raised.exception.errors,
+            [
+                "ReadSet target does not exist or is not visible to user "
+                "00000000-0000-0000-0000-000000000001"
+            ],
+        )
+        self.assertEqual(connection.graph_mutation_inserts, 0)
+
     def test_occ_retry_returns_success_after_retryable_conflict(self):
         service = V31GraphWriteService(FakeConnection())
         attempts = []
@@ -140,6 +172,28 @@ class V31GraphWriteServiceTest(unittest.TestCase):
             attempts.append("try")
             if len(attempts) < 2:
                 raise RuntimeError("source balance version conflict")
+            return "committed"
+
+        result = service.with_occ_retry(
+            attempt,
+            retryable_errors=("source balance version conflict",),
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(len(attempts), 2)
+
+    def test_occ_retry_returns_success_after_postgres_called_process_conflict(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            if len(attempts) < 2:
+                raise subprocess.CalledProcessError(
+                    1,
+                    ["psql"],
+                    stderr="ERROR: source balance version conflict",
+                )
             return "committed"
 
         result = service.with_occ_retry(
@@ -524,6 +578,51 @@ class V31GraphWriteServiceTest(unittest.TestCase):
 
         self.assertEqual(connection.transfer_points_calls, [])
 
+    def test_transfer_points_validates_read_set_after_user_lock_before_sql_function(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000002": (
+                "UserBalance",
+                1,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        connection.transfer_points_result = (
+            "00000000-0000-0000-0000-000000000002",
+            2,
+            "00000000-0000-0000-0000-000000000003",
+            3,
+            False,
+        )
+        service = V31GraphWriteService(connection)
+
+        service.transfer_points(
+            TransferPointsRequest(
+                actor="wallet_agent",
+                user_id="00000000-0000-0000-0000-000000000001",
+                source_balance_id="00000000-0000-0000-0000-000000000002",
+                dest_balance_id="00000000-0000-0000-0000-000000000003",
+                amount_points=60000,
+                source_expected_version=1,
+                dest_expected_version=2,
+                idempotency_key="transfer-1",
+                request_hash="hash-1",
+                read_set=(
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000002",
+                        observed_version=1,
+                    ),
+                ),
+            )
+        )
+
+        lock_index = _sql_index(connection, "SELECT pg_advisory_xact_lock")
+        read_set_index = _sql_index(connection, "SELECT node_type, version, user_id")
+        transfer_index = _sql_index(connection, "source_balance_id")
+        self.assertLess(lock_index, read_set_index)
+        self.assertLess(read_set_index, transfer_index)
+
     def test_transfer_points_retries_retryable_version_conflict(self):
         connection = FakeConnection()
         connection.transfer_points_errors = [
@@ -832,6 +931,13 @@ def _first_sql(connection, snippet):
     for sql, params in connection.executed:
         if snippet in sql:
             return sql, params
+    raise AssertionError(f"SQL fragment not executed: {snippet}")
+
+
+def _sql_index(connection, snippet):
+    for index, (sql, _params) in enumerate(connection.executed):
+        if snippet in sql:
+            return index
     raise AssertionError(f"SQL fragment not executed: {snippet}")
 
 
