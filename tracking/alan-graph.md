@@ -22,9 +22,9 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
 - Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
+- Lock the RCG-8 demo seed fixture with stable IDs for five cards, three programs, and 240k points.
 
 ## Next
-- Lock the seed fixture with stable IDs (RCG-8).
 - Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
 - Add recursive traversal/query helpers (RCG-12).
 
@@ -48,7 +48,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-6 | Draft schema spec (node/edge types, attrs, versioning, validation) | Day 1 | reviewed; feeds the lock |
 | RCG-5 | Schema lock (co-own with Raq) | Day 1 | all four lanes sign off |
 | RCG-7 | Canonical schema artifact (DDL + TS/Python types) | Day 1 | committed; both stacks validate against it |
-| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | committed |
+| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | fixture + loader + tests committed |
 | RCG-9 | Postgres v3.1 table-per-type schema (version cols, FKs) | Day 1-5 | migrations run clean |
 | RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5 | invalid mutations rejected before commit |
 | RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry) | Day 1-5 | stale-version commit rejected; retries bounded |

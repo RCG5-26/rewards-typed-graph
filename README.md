@@ -48,4 +48,4 @@ Four layers over Postgres (Postgres only, no Neo4j):
 
 ## Scope (MVP)
 
-Manually-entered wallet, 20 pre-seeded cards, one real external tool (cash-price lookup), fixture-based award availability. Demo-grade proof of concept, not a consumer product.
+Manually-entered wallet, a locked five-card demo seed across three programs, one real external tool (cash-price lookup), fixture-based award availability. Demo-grade proof of concept, not a consumer product.

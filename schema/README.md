@@ -11,6 +11,10 @@ These files are the machine-usable schema artifacts for the MVP described in
   contract.
 - `types.py` imports generated Python constants and adds lightweight validators
   for node and edge payloads.
+- `../fixtures/demo-seed.json` is the RCG-8 demo seed fixture with stable IDs
+  for the five-card / three-program / 240k-point bootstrap persona.
+- `../scripts/load_seed.py` loads that fixture into a database that already has
+  `schema.sql` applied.
 
 Regenerate contract artifacts after editing `contracts/graph.schema.json`:
 
@@ -60,8 +64,21 @@ dependent current plans and plan steps stale without enqueuing re-plan jobs.
 adapter for RCG-10. It validates plan creation, plan-step creation, state
 dependency recording, and `TransferPoints` before executing write SQL.
 
+## Demo Seed
+
+Load the RCG-8 demo seed after applying `schema.sql`:
+
+```bash
+python3 scripts/load_seed.py fixtures/demo-seed.json
+```
+
+The fixture is idempotent by stable UUID primary keys. It includes the hero demo
+user, five held cards, three reward programs, three balances totaling 240,000
+points, the Chase-to-Hyatt transfer route, and the Tokyo goal used by the hero
+flow tests.
+
 ## Still Not Fully Implemented
 
-- `seed.sql` fixture with stable IDs for the demo user, cards, programs,
-  balances, goal, plan query, plan step, and dependency edges.
+- Broader world catalog seed coverage from schema-final §11: about 20 cards and
+  top MCC categories. RCG-8 locks the demo bootstrap slice only.
 - Retry/backoff orchestration around optimistic update conflicts.

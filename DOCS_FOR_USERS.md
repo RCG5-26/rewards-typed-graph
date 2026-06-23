@@ -6,6 +6,7 @@ Rewards Agent is a demo project for planning credit-card rewards redemptions. It
 
 - Read the sprint board in `STATUS.md`.
 - Inspect the locked data model in `docs/architecture/schema-final.md`.
+- Inspect the fixed demo wallet: five cards, three reward programs, and 240,000 total points for the Tokyo trip scenario.
 - Review Person C's first redemption scenario: a seeded Tokyo Hyatt trip using Chase Ultimate Rewards points.
 - Run the Person C planner tests with:
 
@@ -34,3 +35,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added tests covering recommendation, fallback, invalidation, and benchmark cases.
 - Added an offline benchmark scorer for Person C's seeded cases.
 - Fallback explanations now stay focused on awards that match the current trip.
+- Added the fixed demo wallet seed used by the hero flow.
