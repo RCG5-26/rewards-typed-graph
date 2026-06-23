@@ -1,52 +1,94 @@
-# Progress Tracker - Rewards Agent
+# Progress Tracker — Rewards Typed Graph (RCG)
 
-> **AI working memory.** Read this first each session; update it as the last step of any change.
-> Authoritative for "where we are," but defers to the locked docs on any conflict: `docs/architecture/schema-final.md`, `docs/adr/`, and Linear win. Keep this file lean; older history lives in [`progress-archive.md`](progress-archive.md).
+> Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-23 — merge PR #14 (Person C scorer) onto `main`
 
 ---
 
-## Current state (read first)
+## Current phase
 
-- **Phase:** Foundations / integration. Schema v3.1 is locked; generated schema artifacts and the operational mutation work from PR #2 are on `main`.
-- **Active focus:** wire the Layer 1-3 demo path against real graph-write contracts while keeping app lanes moving on mocks where contracts are still settling.
-- **Demo:** 2026-06-29, 10 minutes live. **Day 7 gate:** end-to-end Layer 1-3 path plus live re-plan working on the persona.
-- **Repo reality:** there is no full app scaffold yet. Schema/contracts, design-system tokens, and the Person C fixture-backed redemption planner/scorer now exist.
-- **How to run Person C slice:** `python -m unittest discover -s tests -v`; optional scorer report: `python -m benchmark.person_c_scorer --pretty`.
+**Phase:** MVP build (integration sprint)  
+**Active focus:** Wire hero path (RCG-28/29/32); Michael RCG-21 graph-writer; Person C offline planner/scorer landed (PR #14)
 
-## In flight / next up
+---
 
-Agent orientation only - per-ticket status of record is Linear project **RCG**.
+## Current goal
 
-| Unit | Ticket | Owner | Files (expected) | Done when | Blocked on |
-|---|---|---|---|---|---|
-| Seed fixture (persona, 20 cards, routes) | RCG-8 | Alan | `schema/seed.sql` | loads with stable IDs | RCG-7 |
-| Dependency tracking (`state_dependencies` + staleness) | RCG-13 | Alan | schema/write path | balance change marks steps stale | RCG-10 |
-| Orchestrator + agent harness | RCG-15 | Raq | TBD | agents commit via the one write path | generated contracts for real wiring |
-| Demo shell + mutation sidebar | RCG-24/27 | Val | app/design-system paths | shell and sidebar run on mock events, then real SSE | real payload wiring |
-| Redemption planner + scorer prototype | RCG-20/21/22/31/34/38 | Michael | `agents/redemption/`, `fixtures/person-c-mvp-seed.json`, `benchmark/`, `tests/` | maps to graph-write contracts and baseline runners | RCG-10/MutationBatch; eval config |
+`test_hero_end_to_end` green by EOD Jun 25; Person C planner/scorer feeds RCG-21 graph-writer.
 
-## Open questions / things an agent should know
+---
 
-- `schema/schema.sql` is canonical with `docs/architecture/schema-final.md`; additive-only schema changes need the ADR/sign-off path.
-- Linear owner labels read `Person A/B/C`; the name legend is Alan = A, Val = B, Michael = C, Raq = D/lead.
-- Layer 4 (ingestion + verifier) is **cut-by-default** (ADR 0003). Build it only if the Day 10 go/no-go flips it on.
-- Person C database-backed writes remain blocked until the graph-write/MutationBatch and fragment-merge contracts are ready.
+## Completed
 
-## Recently completed (newest first)
+_Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
-- **2026-06-23** - Person C PR review fixes: branch rebased onto `origin/main`; cash-fallback diagnostics now stay scoped to matching awards; invalidation scoring looks up the Chase balance by slug instead of list position.
-- **2026-06-22** - Person C executable slice added: Tokyo Hyatt fixture aligned to schema-final terminology, deterministic redemption planner, seeded award-search graph fragment tool, 11-case benchmark execution tests, and offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path scores 11/11 accuracy, 0 strict hallucinations, and 2/2 invalidation.
-- **2026-06-21** - PR #2 schema/contract work landed on `main`: v3.1 generated artifacts, operational mutation/write-path coverage, user-scoped `graph_mutations`, `replan_jobs`, idempotency records, eval tables, and PostgreSQL schema tests.
-- **2026-06-21** - Val's design-system tokens, fonts, Tailwind preset, and status/design-context docs landed on `main`; components remain app work.
-- **2026-06-20/21** - Linear board reconciled to ADRs 0002/0003 and the v3.1 closeout: Ruijing removed, single-agent baseline moved to Raq, eval harness set as Raq DRI, and RCG-52 through RCG-61 added.
-- **2026-06-18** - **Schema locked (v3.1); ADR 0001 Accepted.** Architecture closeout added plan lineage/revisions, `graph_mutations`, `replan_jobs`, `idempotency_records`, per-user advisory locks, hosted-runtime topology, and contract codegen ADRs.
-- **2026-06-17** - Repo and coordination scaffold plus Linear project **RCG** created. ADR 0002 retained the research apparatus; ADR 0003 locked the four-person team and Layer 4 cut-by-default.
+- [x] **Person C offline slice (PR #14)** — 2026-06-23 — Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
+- [x] PR #13 — GPFree marketing landing (Val) — 2026-06-23 — merged to `main`.
+- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-23 — merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean.
+- [x] Hero moment test skeleton — 2026-06-22 — `tests/integration/test_hero_moment.py` + `hero_flow.py` seams.
+- [x] PR #2 operational schema alignment — 2026-06-21 — user-scoped graph mutations, re-plan jobs, idempotency, eval tables, atomic transfer write path.
+- [x] RCG-10 canonical mutation layer — 2026-06-21 — `V31GraphWriteService` for plan, plan-step, state-dependency, `TransferPoints`.
+- [x] Phase A3 JSON Schema + codegen (RCG-61) — 2026-06-21 — `schema/contracts/` + generated types in PR #2.
+- [x] GPFree landing → design-system conform — 2026-06-22 — Val; tokens + `components/gpfree/`.
 
-## Pointers (follow; do not duplicate)
+---
 
-- Product: [`project-overview.md`](project-overview.md); architecture and invariants: [`architecture-context.md`](architecture-context.md)
-- Schema: [`../docs/architecture/schema-final.md`](../docs/architecture/schema-final.md); DDL: [`../schema/schema.sql`](../schema/schema.sql)
-- Decisions: [`../docs/adr/`](../docs/adr/); index: [`decisions-log.md`](decisions-log.md)
-- Daily board: [`../STATUS.md`](../STATUS.md); per-person tracking: [`../tracking/`](../tracking/)
+## In progress
+
+| Item | Owner | Blocked on | Notes |
+|---|---|---|---|
+| **RCG-21** redemption graph-writer | Michael | spec 02 / MutationBatch | Map PR #14 planner output → `V31GraphWriteService` |
+| **RCG-28/29/32** hero path | Raq | Michael RCG-21 | `hero_flow.py` Beats 1–3 |
+| **RCG-11–14** graph infrastructure | Alan | — | OCC, traversal, deps, mutation log |
+| **RCG-24/27/26** demo UI on mocks | Val | Alan RCG-14 event shape | Parallel to hero |
+
+---
+
+## Next up
+
+1. **RCG-21** — Michael maps planner → graph-write (unblocks hero Beat 1)
+2. **RCG-28/29/32** — Raq wires `hero_flow` end-to-end
+3. Spec 02 — real graph-write adapters (Alan)
+4. Baseline runners (Michael) — post-hero
+
+---
+
+## Open questions
+
+| # | Question | Owner | Status |
+|---|---|---|---|
+| 1 | Hosted platform choice | Raq | open |
+| 2 | Eval config / model budget for baselines | Michael + Raq | open |
+| 3 | ADR 0004 storage-only compromise sign-off | Alan/Raq | resolved → polymorphic experimental only |
+
+---
+
+## Gates / milestones
+
+| Gate | Date | Status | Criteria |
+|---|---|---|---|
+| Schema v3.1 lock | 2026-06-18 | ☑ done | ADR 0001 |
+| Person C offline scorer | 2026-06-23 | ☑ done | PR #14; 11/11 on fixture cases |
+| MVP hero green | 2026-06-25 | ☐ open | `test_hero_end_to_end` passes |
+| Live demo (10 min) | 2026-06-29 | ☐ open | Hosted URL + demo script |
+
+---
+
+## Session notes _(optional — scratch pad)_
+
+- 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer + conflict resolution in STATUS/progress-tracker.
+- 2026-06-23: PR #15 + PR #13 on `main`; hero integration test skeleton in place.
+- 2026-06-22: Person C executable slice: `agents/redemption/`, `benchmark/person_c_scorer.py`, 11 eval cases.
+
+**Run Person C tests:** `python -m unittest discover -s tests -v`  
+**Scorer report:** `python -m benchmark.person_c_scorer --pretty`
+
+---
+
+## Related
+
+- Feature specs: [`feature-specs/`](feature-specs/)
+- Decisions: [`decisions-log.md`](decisions-log.md)
+- Team board: [`../STATUS.md`](../STATUS.md)
+- Person C docs: [`../docs/implementation/person-c-redemption-traversal.md`](../docs/implementation/person-c-redemption-traversal.md)
