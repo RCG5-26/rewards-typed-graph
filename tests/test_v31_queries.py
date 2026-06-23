@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from schema.queries import RedemptionPath, find_redemption_paths
@@ -97,6 +98,39 @@ class V31QueryHelperTest(unittest.TestCase):
         self.assertNotIn(user_id, sql)
         self.assertEqual(params, (user_id, 2))
 
+    def test_find_redemption_paths_rejects_excessive_max_hops(self):
+        connection = FakeConnection([])
+
+        with self.assertRaisesRegex(ValueError, "max_hops must be at most 4"):
+            find_redemption_paths(
+                connection,
+                user_id="00000000-0000-0000-0000-000000000001",
+                max_hops=5,
+            )
+
+        self.assertEqual(connection.executed, [])
+
+    def test_live_postgres_setup_rejects_non_test_database_before_reset(self):
+        original_environ = os.environ.copy()
+        os.environ["RUN_LIVE_POSTGRES_TESTS"] = "1"
+        os.environ["PGDATABASE"] = "rewards_prod"
+        try:
+            with mock.patch("tests.test_v31_queries.shutil.which", return_value="psql"):
+                with mock.patch(
+                    "tests.test_v31_queries._psql_exec",
+                    side_effect=AssertionError("reset attempted"),
+                ):
+                    with self.assertRaisesRegex(
+                        AssertionError,
+                        "live Postgres tests require PGDATABASE to include 'test'",
+                    ):
+                        LiveV31QueryHelperTest(
+                            "test_find_redemption_paths_returns_two_hop_live_route"
+                        ).setUp()
+        finally:
+            os.environ.clear()
+            os.environ.update(original_environ)
+
 
 class LiveV31QueryHelperTest(unittest.TestCase):
     def setUp(self):
@@ -104,6 +138,10 @@ class LiveV31QueryHelperTest(unittest.TestCase):
             self.skipTest("set RUN_LIVE_POSTGRES_TESTS=1 to run live Postgres tests")
         if shutil.which("psql") is None:
             self.skipTest("psql is required for live Postgres tests")
+
+        database_name = os.environ.get("PGDATABASE", "")
+        if "test" not in database_name:
+            self.fail("live Postgres tests require PGDATABASE to include 'test'")
 
         _psql_exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
         _psql_file(SCHEMA_SQL_PATH)

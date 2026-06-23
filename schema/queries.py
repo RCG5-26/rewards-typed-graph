@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+MAX_REDEMPTION_PATH_HOPS = 4
+
 _FIND_REDEMPTION_PATHS_SQL = """
 WITH RECURSIVE paths AS (
   SELECT
@@ -81,6 +83,8 @@ def find_redemption_paths(
         raise ValueError("user_id is required")
     if max_hops < 0:
         raise ValueError("max_hops must be nonnegative")
+    if max_hops > MAX_REDEMPTION_PATH_HOPS:
+        raise ValueError(f"max_hops must be at most {MAX_REDEMPTION_PATH_HOPS}")
 
     with connection.cursor() as cursor:
         cursor.execute(_FIND_REDEMPTION_PATHS_SQL, (user_id, max_hops))
