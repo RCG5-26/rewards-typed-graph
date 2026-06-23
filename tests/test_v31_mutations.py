@@ -95,6 +95,10 @@ class FakeCursor:
             self.result = self.connection.promote_source_result
             return
 
+        if compact_sql.startswith("UPDATE replan_jobs SET status = 'completed'"):
+            self.result = self.connection.promote_job_result
+            return
+
         self.result = None
 
     def fetchone(self):
@@ -115,6 +119,7 @@ class FakeConnection:
         self.create_plan_step_result = None
         self.record_state_dependency_result = None
         self.promote_source_result = None
+        self.promote_job_result = None
         self.promotion_plans = {}
 
     def cursor(self):
@@ -733,7 +738,7 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertTrue(_any_sql(connection, "UPDATE plans"))
         self.assertTrue(_any_sql(connection, "UPDATE replan_jobs"))
         self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
-        graph_sql, graph_params = _first_sql(connection, "INSERT INTO graph_mutations")
+        _graph_sql, graph_params = _first_sql(connection, "INSERT INTO graph_mutations")
         self.assertEqual(
             graph_params[4:7],
             ("PromotePlan", "plans", _PROMOTE_SOURCE_ID),
@@ -741,6 +746,20 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         after = graph_params[9]
         self.assertEqual(after["status"], "superseded")
         self.assertEqual(after["result_plan_id"], _PROMOTE_NEW_ID)
+
+    def test_promote_plan_revision_raises_when_replan_job_missing(self):
+        connection = _promotable_connection()
+        connection.promote_source_result = (_PROMOTE_SOURCE_ID,)
+        connection.promote_job_result = None
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationCommitError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision replan job is not pending/processing",
+            str(raised.exception),
+        )
 
     def test_promote_plan_revision_raises_when_source_not_promotable(self):
         # References are valid, but the source UPDATE matches no row (e.g. a
@@ -1213,6 +1232,7 @@ def _promotable_connection():
             _PROMOTE_SOURCE_ID,
         ),
     }
+    connection.promote_job_result = (_PROMOTE_SOURCE_ID,)
     return connection
 
 

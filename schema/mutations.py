@@ -519,6 +519,21 @@ class V31GraphWriteService:
                 raise MutationValidationError(errors)
 
             _lock_user(cursor, request.user_id)
+            # Re-read under the lock and re-validate to close the TOCTOU window:
+            # another writer could change plan status/references between the
+            # pre-lock validation above and the writes below.
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            drift_errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if drift_errors:
+                raise MutationCommitError(
+                    "PromotePlanRevision references changed during promotion"
+                )
+
             cursor.execute(
                 """
                 UPDATE plans
@@ -576,9 +591,14 @@ class V31GraphWriteService:
                        updated_at = now()
                  WHERE source_plan_id = %s
                    AND status IN ('pending', 'processing')
+                RETURNING source_plan_id
                 """,
                 (request.new_plan_id, request.source_plan_id),
             )
+            if cursor.fetchone() is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision replan job is not pending/processing"
+                )
 
         return str(request.source_plan_id)
 
