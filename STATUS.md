@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | Phase A3: JSON Schema contracts + codegen + operational write path + Postgres CI (PR #2) | Seed fixture stable IDs (RCG-8); dependency tracking (RCG-13); Postgres deploy (RCG-9) | nothing |
+| Alan · Graph | Phase A3: JSON Schema contracts + codegen + operational write path + Postgres CI (PR #2); RCG-9 reconciled to v3.1 table-per-type on main | Seed fixture stable IDs (RCG-8); dependency tracking (RCG-13); Spec 02 graph-write wiring | nothing |
 | Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); **GPFree landing conformed to tokens** (light/iris, SF Pro, no hardcoded hex/px/easing); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
 | Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
 | Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05) | generated contracts for real wiring |
@@ -102,7 +102,7 @@ Append one line per real decision. (Historical v2 open items resolved in schema-
 
 ## Risk watch (per lane)
 
-- **Board lags code:** Alan's DDL/types/CI shipped but several Linear tickets (e.g. RCG-7/9) are still Backlog — reconcile ticket statuses at standup so the board reflects reality.
+- **Board lags code:** Alan's DDL/types/CI shipped; RCG-9 is reconciled as v3.1 table-per-type in repo. Update Linear status/title at standup if it still says single-table JSONB.
 - **Alan — dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
 - **Val — demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
 - **Michael — weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.

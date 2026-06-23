@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23 by Val (merged main — spec 05 + landing)
+**Last updated:** 2026-06-23 by Codex (RCG-9 reconciliation against main)
 
 ---
 
@@ -23,6 +23,7 @@ Ship typed orchestrator loop with in-memory doubles so agent coordination is enf
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
+- [x] RCG-9 reconciliation — 2026-06-23 — treated the Linear single-table JSONB title as stale; canonical `schema/schema.sql` remains v3.1 table-per-type under ADR 0001, with polymorphic `nodes`/`edges` kept experimental-only.
 - [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-22 — lifecycle error-handling hardening after code review (43 tests, typecheck clean). **Gotcha:** when `finalizeAgentRun(failed)` throws during cleanup, AgentRun may remain `running` — primary agent error is not overwritten. Documented in spec 05 §10.3 (lifecycle cleanup persistence).
 - [x] PR #2 operational schema alignment — 2026-06-21 — added user-scoped graph mutations, re-plan jobs, idempotency records, eval tables, and atomic transfer write path.
 - [x] PR #2 v3.1 operational naming alignment — 2026-06-21 — renamed operational columns to v3.1 vocabulary (`clerk_id`, `mutation_txn_id`, `source_plan_id`, `operation_type`, `result_reference`, lease fields).
@@ -64,6 +65,7 @@ _Unresolved ambiguities. Link to feature spec or decision if applicable._
 
 | # | Question | Owner | Status |
 |---|---|---|---|
+| 3 | Does RCG-9 require canonical single-table JSONB `nodes`/`edges`? | Alan/Raq | resolved → use ADR 0001 v3.1 table-per-type; if single-table storage is desired, accept a superseding ADR first |
 | 2 | Does ADR 0004 storage-only compromise have all-four lane sign-off? | Alan/Raq | resolved → no; polymorphic path is experimental only |
 | 1 | [Question] | [Name] | open / resolved → see decisions-log |
 
@@ -81,6 +83,7 @@ _Unresolved ambiguities. Link to feature spec or decision if applicable._
 
 Brief bullets from recent work sessions. Trim when stale.
 
+- 2026-06-23: Reconciled RCG-9 against current `main`; canonical Postgres remains v3.1 table-per-type and the single-table JSONB `nodes`/`edges` implementation stays experimental-only pending a superseding ADR.
 - 2026-06-21: Completed TDD-covered RCG-10 schema-lane mutation adapter in `schema/mutations.py` for plan, plan-step, state-dependency, and `TransferPoints` writes.
 - 2026-06-21: PR #2 briefly explored polymorphic storage with v3.1 lifecycle-compatible names, then restored v3.1 as canonical when all-lane sign-off was not available.
 - 2026-06-21: Canonical path restored to v3.1 table-per-type; polymorphic artifacts preserved only under `schema/experimental/polymorphic/`.
