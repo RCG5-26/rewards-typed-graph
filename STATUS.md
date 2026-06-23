@@ -1,12 +1,49 @@
 # Team Status Board
 
-The shared source of truth for the sprint. Update your own row before standup. Keep it skimmable.
+**Weekly snapshot** for standup, gates, and blockers. **Raq (lead) syncs this** from [`tracking/`](tracking/) + **Linear** before standup — lane owners do **not** edit this file in feature PRs.
 
-**Live demo:** Mon June 29 (10 min) · **Today:** Day 5, Sun June 21 · **Phase:** Foundations — schema v3.1 + DDL on `main`; app lanes scaffolding on mocks; Phase A3 (contracts/codegen) in flight
+| Where | Who | Cadence |
+|---|---|---|
+| **Linear** (RCG-##) | Each person | Daily — live task board |
+| **`tracking/<lane>.md`** | Each person | Daily — tiny PR, merge same day |
+| **`STATUS.md` (this file)** | Lead | Before standup / gates |
+| **`context/progress-tracker.md`** | Lead | When a spec or PR lands |
+
+**Live demo:** Mon June 29 (10 min) · **Today:** Jun 23 · **Phase:** **Integration sprint** — hero path to green; everything else is secondary until MVP gate passes
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
-**Linear:** optional backbone (milestones + gates). This board is the daily driver. Task ids below map to `RCG-##` in Linear.
+**Linear:** live daily board (RCG tickets). This file is the **weekly repo snapshot** for gates and standup.
 
 **Team:** Alan (A · Graph) · Val (B · Frontend) · Michael (C · Redemption/Eval + Layer 4) · Raq (D · Orchestrator, owner/lead)
+
+---
+
+## Integration sprint (Jun 23–25) — **only priority**
+
+**MVP proof (EOD Jun 25):** this command passes on shared Postgres:
+
+```bash
+RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_test \
+  python3 -m unittest tests.integration.test_hero_moment.HeroMomentIntegrationTest.test_hero_end_to_end -v
+```
+
+Full plan: [`docs/meetings/sprint-plan-jun25-27.md`](docs/meetings/sprint-plan-jun25-27.md)
+
+| Owner | Deliverable | Due | Done when |
+|---|---|---|---|
+| **Alan** | RCG-8 seed + loader | **Jun 23 EOD** | `python3 scripts/load_seed.py fixtures/demo-seed.json` loads Tokyo persona |
+| **Alan** | Shared `DATABASE_URL` / docker-compose (or hosted PG) | **Jun 23 EOD** | One connection string in team doc |
+| **Alan** | RCG-13 staleness on hero path | **Jun 24** | `test_transfer_marks_dependent_plan_stale` passes (already close) |
+| **Michael** | RCG-21 redemption graph-writer | **Jun 24** | `create_plan_step` + `record_state_dependency` via write service |
+| **Michael** | Rebase/fix PR #14 | **Jun 23** | No blockers on merging or building on top |
+| **Raq** | ~~Merge PR #15 (spec 05)~~ ☑ done | **Jun 23** | Orchestrator harness on `main` |
+| **Raq** | `hero_flow.create_plan_from_query()` | **Jun 24** | Beat 1: query → plan + deps in Postgres |
+| **Raq + Michael** | `hero_flow.replan_after_balance_transfer()` | **Jun 25** | Beat 2–3: stale → revision 2 `current` |
+| **Val** | ~~Merge PR #13~~ ☑ done | **Jun 23** | Landing on `main` |
+| **Val** | Plan view + stale styling | **Jun 25–26** | Mock stale events OK until SSE lands |
+
+**Paused until hero green:** 30-query benchmark draft, Layer 4, contrast UI, baseline tuning, new DDL.
+
+**Accountability:** Update your **`tracking/<lane>.md`** + **Linear** daily (even if blocked). No update = we assume you are blocked — say so explicitly. The lead syncs this grid before standup.
 
 ---
 
@@ -34,15 +71,14 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 
 ## Standup grid
 
-Update only your own row. Format: short phrases, not paragraphs.
-_Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits their own line at standup._
+**Lead-maintained** — synced from [`tracking/`](tracking/) + Linear before standup. Format: short phrases, not paragraphs.
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | Phase A3: JSON Schema contracts + codegen + operational write path + Postgres CI (PR #2) | Seed fixture stable IDs (RCG-8); dependency tracking (RCG-13); Postgres deploy (RCG-9) | nothing |
-| Val · Frontend | Card API research; **design system landed** (`design-system/` — tokens, fonts, Tailwind preset; components TBD in app); **GPFree landing conformed to tokens** (light/iris, SF Pro, no hardcoded hex/px/easing); wireframes mapped; design-context + status docs updated | Demo shell scaffold + sidebar on mock events against tokens (RCG-27, RCG-24) | generated contracts for real payload wiring (Phase A3) |
-| Michael · Redemption | kickoff; benchmark + traversal planning | Paper-design redemption traversal (RCG-20); draft 30-query set + ground-truth spec (RCG-33) | stable schema interface (mocks OK) |
-| Raq · Orchestrator (owner, lead) | schema → v3.1 lock; Linear board built + reconciled; feature-spec system + specs 02–06; process/onboarding docs; `raq/updates` committed | Scaffold orchestrator + agent harness on mocks (RCG-15, spec 05) | generated contracts for real wiring |
+| Alan · Graph | _sync from tracking_ | RCG-8 seed + shared PG URL | _none / say what_ |
+| Val · Frontend | PR #13 merged (landing on `main`) | Plan view + stale styling on mocks | _none / say what_ |
+| Michael · Redemption | _sync from tracking_ | RCG-21 graph-writer → hero Beat 1 | _none / say what_ |
+| Raq · Orchestrator (owner, lead) | PR #15 + PR #13 merged; status workflow | Wire `create_plan_from_query` (Beat 1) | Alan seed + Michael RCG-21 |
 
 ---
 
@@ -50,7 +86,8 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **App lanes (Val, Raq) → real contract wiring** — generated types land with PR #2 merge; mocks still OK until wired.
+- ~~**App lanes → real contract wiring**~~ — PR #2 merged; **hero integration** is the blocker now.
+- **Hero path not wired** — needs Alan RCG-8 + Michael RCG-21 + Raq `hero_flow` (see Integration sprint above).
 
 ---
 
@@ -59,7 +96,8 @@ Raq clears these. Add a line when blocked, strike it when cleared.
 | Gate | Day | Date | Status | Owner |
 |---|---|---|---|---|
 | Schema v3.1 spec + DDL authored + locked | 1–2 | Jun 18 | ☑ done | Alan + Raq |
-| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7 | Jun 23 | ☐ open | Raq |
+| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7 | Jun 23 | ☐ **slipped** — recovery sprint Jun 23–25 | Raq |
+| **MVP hero test green** | — | **Jun 25** | ☐ open | Raq + Michael |
 | Layer 4 GO / NO-GO | 10 | Jun 26 | ☐ open | Raq (lane: Michael) |
 | **Live demo** (10 min) | 13 | Jun 29 | ☐ open | all |
 
@@ -69,7 +107,7 @@ Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and be
 
 ## Phase timeline
 
-**Current: Jun 21 (Day 5)** — closing the Days 3–5 window, entering Days 5–7 integration.
+**Current: Jun 23** — integration sprint; Jun 25 MVP gate is the line in the sand.
 
 | Days | Dates | Focus |
 |---|---|---|

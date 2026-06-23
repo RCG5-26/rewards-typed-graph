@@ -2,9 +2,10 @@
 
 **Lane:** demo shell, the graph-mutation streaming sidebar, plan-node "lighting up" on invalidation, the baseline contrast UI, demo polish. **You make the invisible coordination visible. The architectural claim is half rendered as a UI element.**
 
-Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
+Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this file only) — merge same day. Update **Linear** (RCG-##) to match. **Do not** edit `STATUS.md` in feature PRs — the lead syncs the standup grid from `tracking/` + Linear.
 
 ## Today
+- PR #13 **merged** — GPFree cinematic landing on `main` (design-system conform, Next.js at repo root).
 - Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
 - Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset. Components (Button/Card/Tag/CommandInput/Blob) are planned — build in the app from tokens. Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
 - GPFree cinematic landing **conformed to the design system** — re-themed off the bespoke dark/gold + Bodoni look to light surfaces, iris accent, SF Pro/Fira Code; every color/type/radius/shadow/motion value now references a token (no hardcoded hex/px/easing). Wired `global.css` at the app root + dropped `next/font`. Split into `components/gpfree/` (`cinema` engine hook + `HeroStage`/`HowItWorks`/`SiteFooter`).

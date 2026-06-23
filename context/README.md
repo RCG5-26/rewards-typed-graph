@@ -51,5 +51,5 @@ Reusable context templates for any software project. Fill these in at project ki
 | Need | Add |
 |---|---|
 | Formal ADRs | [`docs/adr/`](../docs/adr/) — one file per major decision; always linked from [`decisions-log.md`](decisions-log.md) |
-| Team coordination | `STATUS.md` + `tracking/` (sprint repos) |
+| Team coordination | Linear (daily) + `tracking/` (daily) + `STATUS.md` (lead snapshot) — see [`AGENTS.md`](../AGENTS.md) |
 | Interview prep | Personal `STUDY_GUIDE.md` (gitignored, not in context/) |

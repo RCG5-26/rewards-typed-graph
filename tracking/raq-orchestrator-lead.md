@@ -2,7 +2,7 @@
 
 **Lane:** orchestrator (NL query to graph operations), wallet agent, earning agent, cross-lane integration + API surface, agent harness. **Plus (ADR 0003): single-agent baseline + eval-harness DRI.** As owner and lead, you unblock everyone else first and own the integration surface that touches every other agent.
 
-Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
+Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this file only) — merge same day. Update **Linear** (RCG-##) to match. As lead, sync [`STATUS.md`](../STATUS.md) from `tracking/` + Linear before standup; update [`progress-tracker.md`](../context/progress-tracker.md) when specs/PRs land.
 
 ## Today
 - Scaffold the orchestrator + agent harness on mocks (RCG-15, [spec 05](../context/feature-specs/05-orchestrator-harness.md)) — builds against the locked interface; stub the write path until spec 02 lands.
@@ -48,7 +48,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-51 | Contingency: clean demo path with Layer 4 cut | Day 10-14 | open |
 
 ## Owner / lead responsibilities (beyond my lane)
-- Clear the Active Blockers list in STATUS.md every standup; reconcile Linear statuses that lag the code.
+- Clear the Active Blockers list in STATUS.md every standup; **sync the standup grid** from `tracking/` + Linear; reconcile Linear statuses that lag the code.
 - Own schema change control: after lock, any change goes through me and is checked against existing `state_dependencies` first.
 - Run the PR/merge flow (CodeRabbit + `main` ruleset); connect the GitHub connector.
 - Make the Day 7 and Day 10 calls. Day 7 slips → cut scope, do not extend.
