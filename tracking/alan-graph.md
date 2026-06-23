@@ -21,11 +21,11 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
+- Implement RCG-12 recursive traversal/query helper with focused and opt-in live PostgreSQL coverage.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).
 - Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
-- Add recursive traversal/query helpers (RCG-12).
 
 ## Blocked on
 - nothing
