@@ -15,6 +15,14 @@ from agents.redemption.award_tool import search_seed_awards
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_PATH = ROOT / "fixtures" / "person-c-mvp-seed.json"
 BENCHMARK_PATH = ROOT / "benchmark" / "gold" / "person-c-mvp-cases.json"
+DEMO_BALANCE_SLUG = "balance:user_mvp_demo:chase_ur"
+
+
+def _balance_by_slug(fixture: dict, balance_slug: str) -> dict:
+    for balance in fixture["balances"]:
+        if balance["slug"] == balance_slug:
+            return balance
+    raise ValueError(f"unknown balance slug: {balance_slug}")
 
 
 class PersonCRedemptionPlannerTests(unittest.TestCase):
@@ -47,7 +55,7 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
             "balance:user_mvp_demo:chase_ur",
             -40000,
         )
-        updated_balance = updated_fixture["balances"][0]
+        updated_balance = _balance_by_slug(updated_fixture, DEMO_BALANCE_SLUG)
 
         stale_steps = find_stale_steps_for_balance(original_plan, updated_balance)
         self.assertEqual([step["step_order"] for step in stale_steps], [1, 2, 3])
@@ -66,8 +74,10 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
         self.assertIsNone(plan["chosen_award_slug"])
         self.assertEqual(plan["fallback"], "cash")
         self.assertEqual(plan["ranked_awards"], [])
+        rejected_options = plan["rejected_options"]
+        self.assertGreater(len(rejected_options), 0)
         self.assertTrue(
-            all("unaffordable" in option["reasons"] for option in plan["rejected_options"])
+            all("unaffordable" in option["reasons"] for option in rejected_options)
         )
 
     def test_cash_fallback_rejections_stay_scoped_to_query_awards(self) -> None:
@@ -173,7 +183,9 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                 fixture = self.fixture
                 if "mutation" in case:
                     fixture = copy.deepcopy(self.fixture)
-                    fixture["balances"][0]["balance_points"] = case["starting_balance_points"]
+                    _balance_by_slug(fixture, DEMO_BALANCE_SLUG)["balance_points"] = case[
+                        "starting_balance_points"
+                    ]
                     fixture = apply_balance_delta(
                         fixture,
                         "balance:user_mvp_demo:chase_ur",
