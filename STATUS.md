@@ -21,7 +21,7 @@ The shared source of truth for the sprint. Update your own row before standup. K
 | DDL validated on clean PostgreSQL 16 | ☑ done |
 | Shared types generated (`schema/types`) | ☑ done |
 | JSON Schema contracts + codegen (Phase A3, RCG-61) | ◐ in progress — **active schema-lane work** |
-| Dependency-tracking implementation (RCG-13) | ☐ not started |
+| Dependency-tracking implementation (RCG-13) | ☑ done — direct plan-step invalidation only; no transitive propagation |
 | Seed fixture committed, stable IDs (RCG-8) | ☐ not started |
 | All four lanes signed off on v3.1 (§13) | ☑ Alan ☑ Val ☑ Michael ☑ Raq ([ADR 0001](docs/adr/0001-schema-lock.md)) |
 | **Implementation wiring on real contracts** | ☐ gated — app lanes use mocks until generated types land |
@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test | nothing |
+| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test; complete RCG-13 direct dependency invalidation | nothing |
 | Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
 | Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
 | Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
