@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence as of Jun 21 — each owner confirms/edits 
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test | nothing |
+| Alan · Graph | kickoff | Restore PR #2 canonical schema to v3.1 table-per-type; tighten re-plan/idempotency/staleness guards; align `graph_mutations` with ADR 0008; harden mutation adapter SQL; validate `stale_plan_steps` via live PG16 contract test; complete RCG-11 OCC read-set/retry coverage | nothing |
 | Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
 | Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
 | Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |

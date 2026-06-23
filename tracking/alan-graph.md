@@ -21,6 +21,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
+- Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

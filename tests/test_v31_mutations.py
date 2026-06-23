@@ -5,10 +5,13 @@ import unittest
 from pathlib import Path
 
 from schema.mutations import (
+    ConcurrencyConflictError,
     CreatePlanRequest,
     CreatePlanStepRequest,
+    MAX_OCC_RETRIES,
     MutationCommitError,
     MutationValidationError,
+    ReadSetEntry,
     RecordStateDependencyRequest,
     TransferPointsRequest,
     V31GraphWriteService,
@@ -38,6 +41,8 @@ class FakeCursor:
             "SELECT source_balance_id, source_version, dest_balance_id"
         ):
             self.connection.transfer_points_calls.append(params)
+            if self.connection.transfer_points_errors:
+                raise self.connection.transfer_points_errors.pop(0)
             self.result = self.connection.transfer_points_result
             return
 
@@ -86,6 +91,7 @@ class FakeConnection:
     def __init__(self):
         self.executed = []
         self.transfer_points_calls = []
+        self.transfer_points_errors = []
         self.transfer_points_result = None
         self.plans = {}
         self.plan_steps = {}
@@ -99,6 +105,65 @@ class FakeConnection:
 
 
 class V31GraphWriteServiceTest(unittest.TestCase):
+    def test_read_set_rejects_stale_user_balance_before_write(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000040": (
+                "UserBalance",
+                3,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.validate_read_set(
+                user_id="00000000-0000-0000-0000-000000000001",
+                read_set=[
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000040",
+                        observed_version=2,
+                    )
+                ],
+            )
+
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
+
+    def test_occ_retry_returns_success_after_retryable_conflict(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            if len(attempts) < 2:
+                raise RuntimeError("source balance version conflict")
+            return "committed"
+
+        result = service.with_occ_retry(
+            attempt,
+            retryable_errors=("source balance version conflict",),
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(len(attempts), 2)
+
+    def test_occ_retry_stops_after_three_attempts(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            raise RuntimeError("source balance version conflict")
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.with_occ_retry(
+                attempt,
+                retryable_errors=("source balance version conflict",),
+            )
+
+        self.assertEqual(len(attempts), MAX_OCC_RETRIES)
+
     def test_create_plan_rejects_invalid_status_before_sql(self):
         connection = FakeConnection()
         service = V31GraphWriteService(connection)
@@ -421,6 +486,73 @@ class V31GraphWriteServiceTest(unittest.TestCase):
                 )
             ],
         )
+
+    def test_transfer_points_rejects_stale_read_set_before_sql_function(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000002": (
+                "UserBalance",
+                2,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.transfer_points(
+                TransferPointsRequest(
+                    actor="wallet_agent",
+                    user_id="00000000-0000-0000-0000-000000000001",
+                    source_balance_id="00000000-0000-0000-0000-000000000002",
+                    dest_balance_id="00000000-0000-0000-0000-000000000003",
+                    amount_points=60000,
+                    source_expected_version=1,
+                    dest_expected_version=2,
+                    idempotency_key="transfer-1",
+                    request_hash="hash-1",
+                    read_set=(
+                        ReadSetEntry(
+                            target_table="user_balances",
+                            target_node_id="00000000-0000-0000-0000-000000000002",
+                            observed_version=1,
+                        ),
+                    ),
+                )
+            )
+
+        self.assertEqual(connection.transfer_points_calls, [])
+
+    def test_transfer_points_retries_retryable_version_conflict(self):
+        connection = FakeConnection()
+        connection.transfer_points_errors = [
+            RuntimeError("source balance version conflict"),
+            RuntimeError("source balance version conflict"),
+        ]
+        connection.transfer_points_result = (
+            "00000000-0000-0000-0000-000000000002",
+            2,
+            "00000000-0000-0000-0000-000000000003",
+            3,
+            False,
+        )
+        service = V31GraphWriteService(connection)
+
+        result = service.transfer_points(
+            TransferPointsRequest(
+                actor="wallet_agent",
+                user_id="00000000-0000-0000-0000-000000000001",
+                source_balance_id="00000000-0000-0000-0000-000000000002",
+                dest_balance_id="00000000-0000-0000-0000-000000000003",
+                amount_points=60000,
+                source_expected_version=1,
+                dest_expected_version=2,
+                idempotency_key="transfer-1",
+                request_hash="hash-1",
+            )
+        )
+
+        self.assertEqual(result["source_version"], 2)
+        self.assertEqual(len(connection.transfer_points_calls), 3)
 
     def test_transfer_points_raises_when_sql_function_returns_no_result(self):
         connection = FakeConnection()
