@@ -730,6 +730,13 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                 'Live World of Hyatt',
                 'hotel',
                 'points'
+              ),
+              (
+                '00000000-0000-0000-0000-00000000b003',
+                'live-united-mileageplus',
+                'Live United MileagePlus',
+                'airline',
+                'miles'
               );
 
             INSERT INTO transfers_to (
@@ -768,6 +775,28 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                 '00000000-0000-0000-0000-00000000b002',
                 0,
                 1
+              ),
+              (
+                '00000000-0000-0000-0000-00000000d003',
+                '00000000-0000-0000-0000-00000000a001',
+                '00000000-0000-0000-0000-00000000b003',
+                80000,
+                1
+              );
+
+            INSERT INTO user_program_statuses (
+              id,
+              user_id,
+              program_id,
+              status_tier,
+              version
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000d101',
+              '00000000-0000-0000-0000-00000000a001',
+              '00000000-0000-0000-0000-00000000b003',
+              'silver',
+              1
               );
 
             INSERT INTO plans (
@@ -806,6 +835,16 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
               'transfer_recommendation',
               'current',
               '{"claim": "Transfer Chase points to Hyatt."}'
+            ),
+            (
+              '00000000-0000-0000-0000-00000000f002',
+              '00000000-0000-0000-0000-00000000e001',
+              '00000000-0000-0000-0000-00000000e000',
+              1,
+              2,
+              'redemption_recommendation',
+              'current',
+              '{"claim": "Use United status for seat selection."}'
             );
 
             INSERT INTO state_dependencies (
@@ -827,6 +866,16 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
               'balance_points',
               1,
               '{"balance_points": 240000}'
+            ),
+            (
+              '00000000-0000-0000-0000-00000000f102',
+              '00000000-0000-0000-0000-00000000f002',
+              '00000000-0000-0000-0000-00000000d101',
+              'UserProgramStatus',
+              'user_program_statuses',
+              'status_tier',
+              1,
+              '{"status_tier": "silver"}'
             );
             """
         )
@@ -868,20 +917,35 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
             [
                 ("00000000-0000-0000-0000-00000000d001", 180000, 2),
                 ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+                ("00000000-0000-0000-0000-00000000d003", 80000, 1),
             ],
         )
         self.assertEqual(
             _psql_rows(
                 """
-                SELECT p.status, ps.status, count(rj.id)
+                SELECT p.status, ps.id::text, ps.status, count(rj.id)
                   FROM plans p
                   JOIN plan_steps ps ON ps.plan_id = p.id
                   LEFT JOIN replan_jobs rj ON rj.source_plan_id = p.id
                  WHERE p.id = '00000000-0000-0000-0000-00000000e001'
-                 GROUP BY p.status, ps.status
+                 GROUP BY p.status, ps.id, ps.status
+                 ORDER BY ps.id
                 """
             ),
-            [("stale", "stale", 1)],
+            [
+                (
+                    "stale",
+                    "00000000-0000-0000-0000-00000000f001",
+                    "stale",
+                    1,
+                ),
+                (
+                    "stale",
+                    "00000000-0000-0000-0000-00000000f002",
+                    "current",
+                    1,
+                ),
+            ],
         )
         self.assertEqual(
             _psql_rows(
@@ -892,7 +956,7 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                  ORDER BY mutation_type
                 """
             ),
-            [("MarkStale", 1), ("TransferPoints", 2)],
+            [("MarkStale", 2), ("TransferPoints", 2)],
         )
 
         replayed = service.transfer_points(request)
@@ -918,6 +982,7 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
             [
                 ("00000000-0000-0000-0000-00000000d001", 180000, 2),
                 ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+                ("00000000-0000-0000-0000-00000000d003", 80000, 1),
             ],
         )
         self.assertEqual(_psql_rows("SELECT count(*) FROM replan_jobs"), [(1,)])

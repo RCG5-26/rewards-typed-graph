@@ -245,6 +245,14 @@ class SchemaArtifactsTest(unittest.TestCase):
         )
         self.assertIn("AFTER UPDATE OF balance_points, version ON user_balances", schema_sql)
 
+    def test_default_schema_sql_marks_direct_dependents_only(self):
+        schema_sql = SCHEMA_SQL_PATH.read_text(encoding="utf-8")
+        transfer_sql = schema_sql[schema_sql.index("CREATE FUNCTION transfer_points") :]
+
+        self.assertIn("CREATE FUNCTION mark_direct_plan_dependents_stale", schema_sql)
+        self.assertIn("mark_direct_plan_dependents_stale(", transfer_sql)
+        self.assertNotIn("WHERE plan_id = stale_plan.id", transfer_sql)
+
     def test_transfer_functions_reject_in_progress_idempotency_records(self):
         schema_paths = (
             SCHEMA_SQL_PATH,
@@ -469,6 +477,150 @@ class SchemaArtifactsLivePostgresTest(unittest.TestCase):
                     0,
                     1,
                 )
+            ],
+        )
+
+    def test_user_balance_backstop_does_not_transitively_stale_plan_step_dependents(self):
+        _psql_exec(
+            """
+            INSERT INTO users (id, clerk_id, email)
+            VALUES (
+              '00000000-0000-0000-0000-000000000001',
+              'clerk_non_transitive',
+              'non-transitive@example.com'
+            );
+
+            INSERT INTO reward_programs (
+              id,
+              slug,
+              name,
+              program_kind,
+              currency_name
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000101',
+              'non-transitive-program',
+              'Non-Transitive Program',
+              'issuer_transferable',
+              'points'
+            );
+
+            INSERT INTO user_balances (
+              id,
+              user_id,
+              program_id,
+              balance_points,
+              version
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000301',
+              '00000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000101',
+              240000,
+              1
+            );
+
+            INSERT INTO plans (
+              id,
+              user_id,
+              plan_lineage_id,
+              revision_number,
+              query_text,
+              status
+            )
+            VALUES (
+              '00000000-0000-0000-0000-000000000401',
+              '00000000-0000-0000-0000-000000000001',
+              '00000000-0000-0000-0000-000000000400',
+              1,
+              'Find the best Tokyo redemption.',
+              'current'
+            );
+
+            INSERT INTO plan_steps (
+              id,
+              plan_id,
+              plan_lineage_id,
+              revision_number,
+              step_order,
+              step_type,
+              status,
+              payload
+            )
+            VALUES
+              (
+                '00000000-0000-0000-0000-000000000501',
+                '00000000-0000-0000-0000-000000000401',
+                '00000000-0000-0000-0000-000000000400',
+                1,
+                1,
+                'transfer_recommendation',
+                'current',
+                '{"claim": "Transfer points to a hotel partner."}'
+              ),
+              (
+                '00000000-0000-0000-0000-000000000502',
+                '00000000-0000-0000-0000-000000000401',
+                '00000000-0000-0000-0000-000000000400',
+                1,
+                2,
+                'redemption_recommendation',
+                'current',
+                '{"claim": "Book after the transfer step."}'
+              );
+
+            INSERT INTO state_dependencies (
+              id,
+              plan_step_id,
+              target_node_id,
+              target_node_type,
+              target_table,
+              depended_property,
+              observed_version,
+              snapshot_value
+            )
+            VALUES
+              (
+                '00000000-0000-0000-0000-000000000601',
+                '00000000-0000-0000-0000-000000000501',
+                '00000000-0000-0000-0000-000000000301',
+                'UserBalance',
+                'user_balances',
+                'balance_points',
+                1,
+                '{"balance_points": 240000}'
+              ),
+              (
+                '00000000-0000-0000-0000-000000000602',
+                '00000000-0000-0000-0000-000000000502',
+                '00000000-0000-0000-0000-000000000501',
+                'PlanStep',
+                'plan_steps',
+                'status',
+                0,
+                '{"status": "current"}'
+              );
+
+            UPDATE user_balances
+               SET balance_points = 230000,
+                   version = version + 1
+             WHERE id = '00000000-0000-0000-0000-000000000301';
+            """
+        )
+
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT p.status, ps.id::text, ps.status
+                  FROM plans p
+                  JOIN plan_steps ps ON ps.plan_id = p.id
+                 WHERE p.id = '00000000-0000-0000-0000-000000000401'
+                 ORDER BY ps.id
+                """
+            ),
+            [
+                ("stale", "00000000-0000-0000-0000-000000000501", "stale"),
+                ("stale", "00000000-0000-0000-0000-000000000502", "current"),
             ],
         )
 
