@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OrchestrationError } from "../../src/orchestrator/contracts";
 import { validateDecomposedQuery } from "../../src/orchestrator/decomposition";
 import { Orchestrator } from "../../src/orchestrator/orchestrator";
-import {
-  FakeEarningAgent,
-  FakeRedemptionAgent,
-  FakeWalletAgent,
-} from "../helpers/fake-agents";
+import { FakeEarningAgent, FakeRedemptionAgent, FakeWalletAgent } from "../helpers/fake-agents";
 import { RawDecomposer } from "../helpers/fake-decomposer";
 import { InMemoryAgentCommitFactory } from "../helpers/in-memory-commit";
 import { InMemoryOrchestratorGraphWrite } from "../helpers/in-memory-graph-write";
@@ -16,11 +12,14 @@ describe("decomposition validation", () => {
   it("rejects an unknown agentType in decomposer output", () => {
     expect(() =>
       validateDecomposedQuery({
-        invocations: [{ agentType: "unknown_agent", operation: { kind: "assess_wallet", agentType: "wallet_agent", programIds: ["p1"] } }],
+        invocations: [
+          {
+            agentType: "unknown_agent",
+            operation: { kind: "assess_wallet", agentType: "wallet_agent", programIds: ["p1"] },
+          },
+        ],
       }),
-    ).toThrowError(
-      expect.objectContaining({ kind: "DecompositionInvalid" }),
-    );
+    ).toThrowError(expect.objectContaining({ kind: "DecompositionInvalid" }));
   });
 
   it("rejects an unknown operation kind", () => {
@@ -33,9 +32,7 @@ describe("decomposition validation", () => {
           },
         ],
       }),
-    ).toThrowError(
-      expect.objectContaining({ kind: "DecompositionInvalid" }),
-    );
+    ).toThrowError(expect.objectContaining({ kind: "DecompositionInvalid" }));
   });
 
   it("rejects an invocation whose agentType does not match its operation", () => {
@@ -52,9 +49,7 @@ describe("decomposition validation", () => {
           },
         ],
       }),
-    ).toThrowError(
-      expect.objectContaining({ kind: "DecompositionInvalid" }),
-    );
+    ).toThrowError(expect.objectContaining({ kind: "DecompositionInvalid" }));
   });
 
   it("rejects an operation kind not valid for the declared agent", () => {
@@ -73,9 +68,7 @@ describe("decomposition validation", () => {
           },
         ],
       }),
-    ).toThrowError(
-      expect.objectContaining({ kind: "DecompositionInvalid" }),
-    );
+    ).toThrowError(expect.objectContaining({ kind: "DecompositionInvalid" }));
   });
 
   it("rejects an unexpected free-text key on an invocation or operation", () => {
@@ -93,9 +86,7 @@ describe("decomposition validation", () => {
           },
         ],
       }),
-    ).toThrowError(
-      expect.objectContaining({ kind: "DecompositionInvalid" }),
-    );
+    ).toThrowError(expect.objectContaining({ kind: "DecompositionInvalid" }));
   });
 
   it("rejects an empty invocation sequence", () => {

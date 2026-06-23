@@ -1,7 +1,4 @@
-import type {
-  AgentContext,
-  SpecialistAgentType,
-} from "../agents/contracts";
+import type { AgentContext, SpecialistAgentType } from "../agents/contracts";
 import type {
   OrchestratorDeps,
   OrchestratorGraphWrite,
@@ -81,9 +78,7 @@ async function failInvocation(params: {
     const transitionError = errorMessage(err, "unknown error");
     params.cleanupErrors.push(`transitionPlanStatus(failed): ${transitionError}`);
     const detail =
-      params.cleanupErrors.length > 0
-        ? `; cleanup errors: ${params.cleanupErrors.join("; ")}`
-        : "";
+      params.cleanupErrors.length > 0 ? `; cleanup errors: ${params.cleanupErrors.join("; ")}` : "";
     throw new Error(`failed to persist plan failure: ${transitionError}${detail}`);
   }
 

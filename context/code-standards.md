@@ -21,15 +21,18 @@
 _Fill for your stack. Delete sections that don't apply._
 
 ### TypeScript / JavaScript
+
 - Strict mode: [yes/no]
 - Avoid `any`; validate external input at boundaries.
 - Prefer `interface` for object contracts.
 
 ### Python
+
 - Type hints on public functions.
 - [Formatter: ruff/black] · [Linter: …]
 
 ### Other
+
 - [Stack-specific rules]
 
 ---
@@ -37,11 +40,13 @@ _Fill for your stack. Delete sections that don't apply._
 ## Framework conventions
 
 ### [e.g. Next.js / React]
+
 - Default to [Server Components / server handlers / …].
 - Client-only code only when [browser hooks, realtime, etc.].
 - [Routing conventions]
 
 ### [e.g. API layer]
+
 - Validate input before business logic.
 - Auth/authz before mutations.
 - Consistent error response shape (see `design-context.md`).
@@ -74,10 +79,10 @@ _Fill for your stack. Delete sections that don't apply._
 
 ## File organization
 
-| Directory | Purpose |
-|---|---|
-| `[path]` | [responsibility] |
-| `[path]` | [responsibility] |
+| Directory | Purpose          |
+| --------- | ---------------- |
+| `[path]`  | [responsibility] |
+| `[path]`  | [responsibility] |
 
 **Naming:** [files, components, routes — kebab-case, PascalCase, etc.]
 

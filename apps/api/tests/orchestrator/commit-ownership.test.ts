@@ -8,7 +8,9 @@ import {
 import { InMemoryAgentCommitFactory } from "../helpers/in-memory-commit";
 import { InMemoryOrchestratorGraphWrite } from "../helpers/in-memory-graph-write";
 
-function createCommit(agentType: "wallet_agent" | "earning_agent" | "redemption_agent" = "wallet_agent") {
+function createCommit(
+  agentType: "wallet_agent" | "earning_agent" | "redemption_agent" = "wallet_agent",
+) {
   const graphWrite = new InMemoryOrchestratorGraphWrite();
   const factory = new InMemoryAgentCommitFactory(graphWrite);
   const agentRun = {
@@ -312,7 +314,12 @@ describe("commit ownership", () => {
         },
         snapshot: {
           userBalances: [
-            { id: "balance-chase-ur", programId: "program-chase-ur", balancePoints: 85000, version: 2 },
+            {
+              id: "balance-chase-ur",
+              programId: "program-chase-ur",
+              balancePoints: 85000,
+              version: 2,
+            },
           ],
           userGoals: [],
           userProgramStatuses: [],

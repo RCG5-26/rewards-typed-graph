@@ -15,11 +15,13 @@ The v2 meeting doc established eight locked decisions and B1–B5 / I1–I5 reso
 ## Decision
 
 **Storage & types (unchanged from v2 lock)**
+
 - PostgreSQL, **table-per-type** physical layout, `node_type` discriminator, three tiers via `graph_tier`.
 - Money in integer cents; ratios in integer basis points; no floats. `toBasisPoints()` / `fromBasisPoints()` ship Day 1.
 - OCC via integer `version` on mutable tables.
 
 **The eight locked decisions from v2** (ratified; override only with cause + new ADR)
+
 1. MCC-mapped category hierarchy, seed top 50
 2. `TransferBonus` as its own node; no bonus fields on `TransferPartner`
 3. Integer basis points everywhere
@@ -32,6 +34,7 @@ The v2 meeting doc established eight locked decisions and B1–B5 / I1–I5 reso
 **v2 review resolutions (B1–B5, I1–I5)** — ratified as written in the v2 prep doc.
 
 **v3.1 closeout additions** (see [schema-final v3.1](../architecture/schema-final.md) §changelog)
+
 - `plan_lineage_id` + revision model; `plans.status` lifecycle; no `is_current` / `is_stale` booleans (ADR [0005](0005-plan-lineage-replan-jobs.md)).
 - `graph_mutations` (audit + SSE replay), `replan_jobs` (durable queue with leases), `idempotency_records` (scoped dedup).
 - Per-user `pg_advisory_xact_lock` before graph-write + mutation insert (ADR [0008](0008-per-user-serialization-sse.md)).
@@ -46,5 +49,5 @@ The v2 meeting doc established eight locked decisions and B1–B5 / I1–I5 reso
 
 ## Sign-off
 
-- [x] Alan  [x] Raq  [x] Michael  [x] Val
+- [x] Alan [x] Raq [x] Michael [x] Val
 - Accepted on: **2026-06-18**

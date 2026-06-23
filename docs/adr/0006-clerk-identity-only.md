@@ -12,19 +12,23 @@ The demo needs real sign-in without building authorization product features. Mul
 ## Decision
 
 **Clerk scope: identity only**
+
 - Sign-in / sign-up via Clerk; API verifies JWT → maps to `users.clerk_id`.
 - **No** Clerk organizations, roles, invitations, or admin UI in MVP.
 
 **Data ownership**
+
 - World graph: shared seed; read-only in app paths.
 - Personal + plan graph: scoped by authenticated `user_id` on all mutable rows.
 - Demo persona = **bootstrap template** cloned on first login — not one global mutable user shared by all sessions.
 
 **Reset behavior**
+
 - **Per-user reset** (authenticated): deletes or restores only that user's personal and plan state; world seed unchanged; ordinary demo feature, not admin tooling.
 - **Global reset** (optional stretch): requires separate `ADMIN_RESET_SECRET`; not ordinary user behavior.
 
 **Eval path**
+
 - No Clerk; fixture user on ephemeral eval DB.
 
 ## Consequences

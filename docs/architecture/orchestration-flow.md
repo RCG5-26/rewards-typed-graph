@@ -12,13 +12,13 @@
 
 The mutation-ownership matrix (schema §6.2) is the anti-collision rule: each writer owns a disjoint slice, so concurrent agents never fight for the same row.
 
-| Actor | Reads | May write |
-|---|---|---|
-| Orchestrator | world + personal + plan graph | `plans`, `targets` |
-| Wallet agent | personal graph | personal-tier nodes (`user_balances`, `user_program_statuses`, `user_goals`) |
-| Earning agent | world + personal | its own `plan_steps` contributions |
-| Redemption agent | world + personal + plan | `plan_steps`, `state_dependencies` |
-| Graph-write service | — | `graph_mutations`, `replan_jobs`, `idempotency_records`, staleness propagation |
+| Actor               | Reads                         | May write                                                                      |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| Orchestrator        | world + personal + plan graph | `plans`, `targets`                                                             |
+| Wallet agent        | personal graph                | personal-tier nodes (`user_balances`, `user_program_statuses`, `user_goals`)   |
+| Earning agent       | world + personal              | its own `plan_steps` contributions                                             |
+| Redemption agent    | world + personal + plan       | `plan_steps`, `state_dependencies`                                             |
+| Graph-write service | —                             | `graph_mutations`, `replan_jobs`, `idempotency_records`, staleness propagation |
 
 Every agent also opens its own `agent_runs` row (audit, `last_read_versions`, token count).
 
@@ -95,7 +95,7 @@ sequenceDiagram
     G-->>S: SSE PlanReplanned
 ```
 
-Why this is the differentiator: a flat rules table can answer a fresh query, but it cannot know that an *existing* plan depended on the balance that just moved. Here the `state_dependencies` edges make that knowledge structural, so invalidation and re-plan happen without anyone re-checking by hand or routing a message (schema §4.4, §6.4-6.5).
+Why this is the differentiator: a flat rules table can answer a fresh query, but it cannot know that an _existing_ plan depended on the balance that just moved. Here the `state_dependencies` edges make that knowledge structural, so invalidation and re-plan happen without anyone re-checking by hand or routing a message (schema §4.4, §6.4-6.5).
 
 ---
 

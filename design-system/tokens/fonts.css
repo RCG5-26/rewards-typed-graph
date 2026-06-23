@@ -13,68 +13,81 @@
 
 /* ── SF Pro Text ── */
 @font-face {
-  font-family: 'SF Pro Text';
+  font-family: "SF Pro Text";
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
-  src: local('SF Pro Text'),
-       local('.SFNSText');
+  src: local("SF Pro Text"), local(".SFNSText");
   /* Add app static-dir url() (e.g. public/fonts/) for non-Apple fallback */
 }
 
 /* ── SF Pro Display ── */
 @font-face {
-  font-family: 'SF Pro Display';
+  font-family: "SF Pro Display";
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
-  src: local('SF Pro Display'),
-       local('.SFNSDisplay');
+  src: local("SF Pro Display"), local(".SFNSDisplay");
   /* Add app static-dir url() (e.g. public/fonts/) for non-Apple fallback */
 }
 
 /* ── Fira Code (CDN) ── */
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-weight: 300;
   font-style: normal;
   font-display: swap;
-  src: local('Fira Code Light'), local('FiraCode-Light'),
-       url('https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-300-normal.woff2') format('woff2');
+  src:
+    local("Fira Code Light"),
+    local("FiraCode-Light"),
+    url("https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-300-normal.woff2")
+      format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  src: local('Fira Code'), local('FiraCode-Regular'),
-       url('https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-400-normal.woff2') format('woff2');
+  src:
+    local("Fira Code"),
+    local("FiraCode-Regular"),
+    url("https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-400-normal.woff2")
+      format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-weight: 500;
   font-style: normal;
   font-display: swap;
-  src: local('Fira Code Medium'), local('FiraCode-Medium'),
-       url('https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-500-normal.woff2') format('woff2');
+  src:
+    local("Fira Code Medium"),
+    local("FiraCode-Medium"),
+    url("https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-500-normal.woff2")
+      format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-weight: 600;
   font-style: normal;
   font-display: swap;
-  src: local('Fira Code SemiBold'), local('FiraCode-SemiBold'),
-       url('https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-600-normal.woff2') format('woff2');
+  src:
+    local("Fira Code SemiBold"),
+    local("FiraCode-SemiBold"),
+    url("https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-600-normal.woff2")
+      format("woff2");
 }
 
 @font-face {
-  font-family: 'Fira Code';
+  font-family: "Fira Code";
   font-weight: 700;
   font-style: normal;
   font-display: swap;
-  src: local('Fira Code Bold'), local('FiraCode-Bold'),
-       url('https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-700-normal.woff2') format('woff2');
+  src:
+    local("Fira Code Bold"),
+    local("FiraCode-Bold"),
+    url("https://cdn.jsdelivr.net/npm/@fontsource/fira-code@5/files/fira-code-latin-700-normal.woff2")
+      format("woff2");
 }
