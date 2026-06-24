@@ -82,8 +82,14 @@ interface BaseCreatePlanStep {
 }
 
 export type CreatePlanStepMutation =
-  | (BaseCreatePlanStep & { readonly stepType: "card_assignment"; readonly payload: CardAssignmentPayload })
-  | (BaseCreatePlanStep & { readonly stepType: "spend_analysis"; readonly payload: SpendAnalysisPayload })
+  | (BaseCreatePlanStep & {
+      readonly stepType: "card_assignment";
+      readonly payload: CardAssignmentPayload;
+    })
+  | (BaseCreatePlanStep & {
+      readonly stepType: "spend_analysis";
+      readonly payload: SpendAnalysisPayload;
+    })
   | (BaseCreatePlanStep & {
       readonly stepType: "redemption_recommendation";
       readonly payload: RedemptionRecommendationPayload;

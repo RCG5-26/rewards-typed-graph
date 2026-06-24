@@ -40,8 +40,8 @@ World tier: `Card`, `Program`, `MerchantCategory`. Personal tier: `User`, `Balan
 
 **A3. Two modeling questions to settle now. [DECIDE]**
 
-- *Transfer partner: node type or role?* Recommendation: programs are nodes; "transfer partner" is a **role expressed by a `TRANSFERS_TO` edge** between two `Program` nodes, not a separate type. Avoids a redundant entity.
-- *Balance: first-class node or property on a (User, Program) pair?* Recommendation: **first-class `Balance` node.** Dependency tracking needs something concrete to point at and to version. A balance buried as a JSON property on `User` cannot be a dependency target without tracking the whole `User` node, which over-invalidates. This is the node Hero Moment 1 mutates.
+- _Transfer partner: node type or role?_ Recommendation: programs are nodes; "transfer partner" is a **role expressed by a `TRANSFERS_TO` edge** between two `Program` nodes, not a separate type. Avoids a redundant entity.
+- _Balance: first-class node or property on a (User, Program) pair?_ Recommendation: **first-class `Balance` node.** Dependency tracking needs something concrete to point at and to version. A balance buried as a JSON property on `User` cannot be a dependency target without tracking the whole `User` node, which over-invalidates. This is the node Hero Moment 1 mutates.
 
 **A4. Program subtyping. [CLEAR CALL]**
 `Program.kind` enum: `transferable` (Chase UR, Amex MR), `airline`, `hotel`, `cashback`. Needed so the redemption agent knows what can transfer where. Freeze the enum.
@@ -193,4 +193,4 @@ The schema is locked when every lane can answer yes:
 - [ ] Redemption/Eval (Person C): the redemption agent's traversal targets, the tool fragment contract, and the gold-corpus ratio representation are fixed.
 - [ ] Frontend/Demo (Person B): the mutation-log event shape and the plan-node/dependency-edge shape are fixed enough to render.
 
-Date locked: ________   Recorded in: canonical schema artifact (RCG-7) + seed fixture (RCG-8)
+Date locked: **\_\_\_\_** Recorded in: canonical schema artifact (RCG-7) + seed fixture (RCG-8)

@@ -12,10 +12,12 @@ The demo sidebar shows coordination events live via Server-Sent Events. Clients 
 ## Decision
 
 **`graph_mutations` role**
+
 - Append-only **audit + SSE replay log** — not a work queue (work queue = `replan_jobs`).
 - `event_id` (bigserial) monotonic within the table; used for `GET /mutations?after=`.
 
 **MVP visibility**
+
 - Every row requires `user_id NOT NULL`.
 - User-scoped only: no global Layer 4 / world-seed events in the sidebar for MVP.
 - SSE handler filters `WHERE user_id = authenticated_user`.
@@ -33,10 +35,12 @@ SELECT pg_advisory_xact_lock(hashtextextended('graph_write:' || $user_id::text, 
 - Does **not** guarantee global cross-user ordering by `event_id`.
 
 **Client recovery**
+
 - REST graph endpoints are **source of truth** for application state.
 - SSE is observability only; on gap or reconnect, client catches up via REST + `after=` cursor.
 
 **Transport**
+
 - Server-Sent Events from long-lived API process (ADR [0004](0004-runtime-topology.md)); no WebSocket server in MVP.
 
 ## Consequences

@@ -39,8 +39,8 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-8 seed fixture locked | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
-| Val - Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
+| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-8 seed fixture locked with shared-loader default; RCG-9 reconciled to v3.1 table-per-type | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
+| Val - Frontend | **GPFree landing merged** (PR #13); design system | **Clerk Google-only auth** (`/sign-in`, middleware) + landing redesign (3D card); then demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
 | Michael - Redemption | Offline scorer green; RCG-21 graph-writer bridge landed locally | RCG-21 branch synced with latest `main`; baseline runners next after hero path verification | eval config / model budget for baselines; live hero proof needs `psql` + test DB |
 | Raq - Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 live Postgres hero path verification | live Postgres gate |
 
@@ -78,7 +78,7 @@ Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and be
 |---|---|---|
 | 1-3 | Jun 17-19 | Done: Alan v3.1 spec + DDL + CI; Raq scope/board + schema lock; Val Card API research/design system/wireframes; Michael traversal planning. |
 | 3-5 | Jun 19-21 | Done: Phase A3 contracts; design system; specs 02-06; Michael Person C fixture planner/scorer (PR #14). |
-| 5-7 | Jun 21-23 | Integration sprint - hero path, orchestrator on `main`, Val landing on `main`, RCG-21 bridge landed locally. |
+| 5-7 | Jun 21-23 | Integration sprint - hero path, orchestrator on `main`, Val landing/auth work on `main`, RCG-21 bridge landed locally. |
 | 7-10 | Jun 23-26 | Benchmark runs; baselines; Layer 4 go/no-go at Day 10. |
 | 10-14 | Jun 26-29 | Demo polish. Head-to-head contrast UI. |
 
@@ -98,6 +98,9 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 20 | Team = 4 (Ruijing out); Layer 4 cut-by-default; eval harness = whole-team, **Raq DRI**; single-agent baseline to Raq | team | [ADR 0003](docs/adr/0003-team-four-eval-ownership.md); Linear reconciled |
 | Jun 21 | Design system landed (`design-system/`: tokens, fonts, Tailwind preset; components TBD in app) | Val | lifecycle status tokens map 1:1 to `plans.status`/`plan_steps.status`; no hardcoded hex; see [design-context](context/design-context.md) |
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map | Raq | `context/feature-specs/` |
+| Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`) | Val | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local` (`.env.example` committed) |
+| Jun 23 | Landing replaced with self-contained 3D-card hero (D029); old `components/gpfree/` cinematic hero + frame assets removed | Val | ported from handoff; carries its own scoped theme (not design-system tokens) - see [design-context](context/design-context.md) |
+| Jun 23 | Prettier added as formatter (`npm run format`) + AGENTS.md quality gates (format/lint/simplify/security review) | Val | ESLint already present; `eslint-config-prettier` wired |
 | | _Cash-price provider_ | | open |
 | | _Hosted platform choice_ | | open |
 
@@ -105,7 +108,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 
 ## Risk watch (per lane)
 
-- **Board lags code:** Alan's DDL/types/CI shipped but several Linear tickets (e.g. RCG-7/9) are still Backlog; reconcile ticket statuses at standup so the board reflects reality.
+- **Board lags code:** Alan's DDL/types/CI shipped; RCG-9 is reconciled as v3.1 table-per-type in repo. Update Linear status/title at standup if it still says single-table JSONB.
 - **Alan - dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
 - **Val - demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
 - **Michael - weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.

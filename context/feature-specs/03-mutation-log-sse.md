@@ -35,12 +35,12 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 ## Event model (decided)
 
-| Choice | Decision |
-|---|---|
-| Granularity | **One SSE event per `graph_mutations` row** — not a transaction-level envelope grouping multiple rows |
-| Cursor / ordering | **`event_id` = `graph_mutations.id`** (bigserial). No separate `seq` column — per-user monotonic order when §6.3 advisory lock held |
-| Field names | Wire JSON mirrors DDL columns (`mutation_type`, `target_table`, `target_node_id`, `before`/`after`, …). `operation_type` is idempotency-only, not SSE |
-| OCC `version` | Lives inside `before`/`after` jsonb for versioned tables (e.g. `user_balances`), not a top-level SSE field |
+| Choice            | Decision                                                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Granularity       | **One SSE event per `graph_mutations` row** — not a transaction-level envelope grouping multiple rows                                                 |
+| Cursor / ordering | **`event_id` = `graph_mutations.id`** (bigserial). No separate `seq` column — per-user monotonic order when §6.3 advisory lock held                   |
+| Field names       | Wire JSON mirrors DDL columns (`mutation_type`, `target_table`, `target_node_id`, `before`/`after`, …). `operation_type` is idempotency-only, not SSE |
+| OCC `version`     | Lives inside `before`/`after` jsonb for versioned tables (e.g. `user_balances`), not a top-level SSE field                                            |
 
 ---
 
@@ -71,13 +71,13 @@ Define the `graph_mutations` event shape and the per-user Server-Sent-Events str
 
 ## Files / modules (expected touch list)
 
-| Path | Change |
-|---|---|
-| `schema/contracts/mutation-event.schema.json` | **exists** — canonical event JSON Schema |
-| `packages/schema-ts/` (generated) | add — TS type from schema when codegen wired |
-| `src/api/stream.*` | create — SSE endpoint + replay |
-| `src/mock/mutation-stream.*` | create — schema-shaped mock generator |
-| `tests/api/stream.*` | create — ordering + replay tests |
+| Path                                          | Change                                       |
+| --------------------------------------------- | -------------------------------------------- |
+| `schema/contracts/mutation-event.schema.json` | **exists** — canonical event JSON Schema     |
+| `packages/schema-ts/` (generated)             | add — TS type from schema when codegen wired |
+| `src/api/stream.*`                            | create — SSE endpoint + replay               |
+| `src/mock/mutation-stream.*`                  | create — schema-shaped mock generator        |
+| `tests/api/stream.*`                          | create — ordering + replay tests             |
 
 ---
 
@@ -103,7 +103,7 @@ npm test -- api/stream
 
 ## Open questions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | Row-level vs transaction envelope? | — | **Resolved:** one SSE event per `graph_mutations` row; `event_id` = `id` |
-| 2 | Consumer sign-off on field list | yes (Ready gate) | Val — review `mutation-event.schema.json` |
+| #   | Question                           | Blocking?        | Resolution                                                               |
+| --- | ---------------------------------- | ---------------- | ------------------------------------------------------------------------ |
+| 1   | Row-level vs transaction envelope? | —                | **Resolved:** one SSE event per `graph_mutations` row; `event_id` = `id` |
+| 2   | Consumer sign-off on field list    | yes (Ready gate) | Val — review `mutation-event.schema.json`                                |

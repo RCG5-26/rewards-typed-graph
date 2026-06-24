@@ -1,35 +1,38 @@
 :root {
   /* ── Spring easings ── */
-  --spring-snappy:  cubic-bezier(0.34, 1.56, 0.64, 1.00); /* @kind other */
-  --spring-bounce:  cubic-bezier(0.34, 1.40, 0.64, 1.00); /* @kind other */
-  --spring-gentle:  cubic-bezier(0.34, 1.20, 0.64, 1.00); /* @kind other */
-  --spring-settle:  cubic-bezier(0.25, 0.46, 0.45, 0.94); /* @kind other */
-  --spring-in:      cubic-bezier(0.55, 0.00, 1.00, 0.45); /* @kind other */
-  --spring-out:     cubic-bezier(0.00, 0.55, 0.45, 1.00); /* @kind other */
+  --spring-snappy: cubic-bezier(0.34, 1.56, 0.64, 1); /* @kind other */
+  --spring-bounce: cubic-bezier(0.34, 1.4, 0.64, 1); /* @kind other */
+  --spring-gentle: cubic-bezier(0.34, 1.2, 0.64, 1); /* @kind other */
+  --spring-settle: cubic-bezier(0.25, 0.46, 0.45, 0.94); /* @kind other */
+  --spring-in: cubic-bezier(0.55, 0, 1, 0.45); /* @kind other */
+  --spring-out: cubic-bezier(0, 0.55, 0.45, 1); /* @kind other */
 
   /* ── Standard easing (non-spring, for opacity/color only) ── */
-  --ease-soft: cubic-bezier(0.4, 0.0, 0.2, 1.0); /* @kind other */
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
 
   /* ── Duration scale ── */
-  --duration-instant:  80ms;   /* @kind other */
-  --duration-fast:     150ms;  /* @kind other */
-  --duration-base:     280ms;  /* @kind other */
-  --duration-slow:     450ms;  /* @kind other */
-  --duration-xslow:    700ms;  /* @kind other */
-  --duration-breathe:  4200ms; /* @kind other */
+  --duration-instant: 80ms; /* @kind other */
+  --duration-fast: 150ms; /* @kind other */
+  --duration-base: 280ms; /* @kind other */
+  --duration-slow: 450ms; /* @kind other */
+  --duration-xslow: 700ms; /* @kind other */
+  --duration-breathe: 4200ms; /* @kind other */
 
   /* ── Named transitions ── */
-  --transition-color:    color var(--duration-fast) var(--ease-soft),
-                         background-color var(--duration-fast) var(--ease-soft); /* @kind other */
-  --transition-opacity:  opacity var(--duration-base) var(--ease-soft); /* @kind other */
-  --transition-pop:      transform var(--duration-slow) var(--spring-snappy),
-                         opacity var(--duration-base) var(--ease-soft); /* @kind other */
-  --transition-collapse: transform var(--duration-slow) var(--spring-bounce),
-                         height var(--duration-slow) var(--spring-bounce); /* @kind other */
+  --transition-color:
+    color var(--duration-fast) var(--ease-soft),
+    background-color var(--duration-fast) var(--ease-soft); /* @kind other */
+  --transition-opacity: opacity var(--duration-base) var(--ease-soft); /* @kind other */
+  --transition-pop:
+    transform var(--duration-slow) var(--spring-snappy),
+    opacity var(--duration-base) var(--ease-soft); /* @kind other */
+  --transition-collapse:
+    transform var(--duration-slow) var(--spring-bounce),
+    height var(--duration-slow) var(--spring-bounce); /* @kind other */
 
   /* ── Jelly deformation ── */
   /* Applied via JS during drag; these are reference values */
   --jelly-stretch-x: 0.97; /* @kind other */
-  --jelly-squish-x:  1.06; /* @kind other */
-  --jelly-squish-y:  0.94; /* @kind other */
+  --jelly-squish-x: 1.06; /* @kind other */
+  --jelly-squish-y: 0.94; /* @kind other */
 }

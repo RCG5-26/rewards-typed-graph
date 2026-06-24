@@ -1,6 +1,6 @@
 # AI & Development Workflow — [Project Name]
 
-> How to build incrementally with humans and AI agents. Context files define *what*; this file defines *how we work*.
+> How to build incrementally with humans and AI agents. Context files define _what_; this file defines _how we work_.
 
 ---
 
@@ -8,7 +8,7 @@
 
 - **Spec-driven:** implement against `context/` files and `feature-specs/` — do not invent product behavior.
 - **Incremental:** small, verifiable steps over large speculative changes.
-- **Docs follow code:** when implementation changes architecture, scope, or rules, update context *before* moving on.
+- **Docs follow code:** when implementation changes architecture, scope, or rules, update context _before_ moving on.
 
 ---
 
@@ -86,30 +86,30 @@ If anything in the spec is ambiguous, stop and add an **Open question** — do n
 
 **One source of truth per fact** — everything else links to it, never copies it:
 
-| Fact | Lives in |
-|---|---|
-| Product scope / intent | `project-overview.md` |
-| Data model + contracts | `../docs/architecture/schema-final.md` + `../schema/contracts/` |
-| Architecture boundaries / invariants | `architecture-context.md` |
-| Decisions (index + durable) | `decisions-log.md` + `../docs/adr/` |
-| Tasks + status (system of record) | Linear (**RCG**) |
-| What to build (a unit) | `feature-specs/NN-*.md` |
-| Current narrative / AI memory | `progress-tracker.md` (+ `progress-archive.md`) |
-| Daily board | `../STATUS.md` |
+| Fact                                 | Lives in                                                        |
+| ------------------------------------ | --------------------------------------------------------------- |
+| Product scope / intent               | `project-overview.md`                                           |
+| Data model + contracts               | `../docs/architecture/schema-final.md` + `../schema/contracts/` |
+| Architecture boundaries / invariants | `architecture-context.md`                                       |
+| Decisions (index + durable)          | `decisions-log.md` + `../docs/adr/`                             |
+| Tasks + status (system of record)    | Linear (**RCG**)                                                |
+| What to build (a unit)               | `feature-specs/NN-*.md`                                         |
+| Current narrative / AI memory        | `progress-tracker.md` (+ `progress-archive.md`)                 |
+| Daily board                          | `../STATUS.md`                                                  |
 
 **Two rules:** (1) link, don't duplicate — a copy is a future contradiction; (2) on any conflict, the locked docs (`schema-final.md`, `../docs/adr/`) and Linear win over the narrative docs.
 
 Update the relevant file when you change:
 
-| Change type | Update |
-|---|---|
-| Product scope or flows | `project-overview.md` |
-| Boundaries, storage, invariants | `architecture-context.md` |
-| UI tokens, API contracts | `design-context.md` |
-| Conventions | `code-standards.md` |
-| Architectural choice | Row in [`decisions-log.md`](decisions-log.md); new [`docs/adr/`](../docs/adr/) file if expensive to reverse |
-| Phase / completion | `progress-tracker.md` |
-| New failure mode discovered | `risks-and-failure-modes.md` |
+| Change type                     | Update                                                                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Product scope or flows          | `project-overview.md`                                                                                       |
+| Boundaries, storage, invariants | `architecture-context.md`                                                                                   |
+| UI tokens, API contracts        | `design-context.md`                                                                                         |
+| Conventions                     | `code-standards.md`                                                                                         |
+| Architectural choice            | Row in [`decisions-log.md`](decisions-log.md); new [`docs/adr/`](../docs/adr/) file if expensive to reverse |
+| Phase / completion              | `progress-tracker.md`                                                                                       |
+| New failure mode discovered     | `risks-and-failure-modes.md`                                                                                |
 
 `progress-tracker.md` must reflect **actual** state, not intended state.
 

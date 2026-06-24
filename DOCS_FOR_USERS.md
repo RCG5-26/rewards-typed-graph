@@ -7,6 +7,18 @@ Rewards Agent is a demo project for planning credit-card rewards redemptions. It
 - Read the sprint board in `STATUS.md`.
 - Inspect the locked data model in `docs/architecture/schema-final.md`.
 - Inspect the fixed demo wallet: five cards, three reward programs, and 240,000 total points for the Tokyo trip scenario.
+- Load the shared demo rewards data into a test database after the schema is applied:
+
+```bash
+python scripts/load_seed.py fixtures/demo-seed.json
+```
+
+- For isolated local tests only, include the fixed demo person with:
+
+```bash
+python scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+```
+
 - Review Person C's first redemption scenario: a seeded Tokyo Hyatt trip using Chase Ultimate Rewards points.
 - Write that seeded redemption plan into the project database as a current plan with plan steps and dependency records.
 - Run the Person C planner tests with:
@@ -36,5 +48,5 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added tests covering recommendation, fallback, invalidation, and benchmark cases.
 - Added an offline benchmark scorer for Person C's seeded cases.
 - Fallback explanations now stay focused on awards that match the current trip.
-- Added the fixed demo wallet seed used by the hero flow.
+- Added the fixed demo seed used by the hero flow. The seed loader now loads shared rewards data by default, and the fixed demo person is opt-in for isolated tests.
 - Added database-backed writing for the seeded redemption plan, including plan steps and balance dependencies.
