@@ -1,5 +1,5 @@
 {
-  "_note": "Mock GET /mutations response (array == SSE 'data' payloads, one per graph_mutations row). Event shape matches schema/contracts/mutation-event.schema.json. Order: plan v1 gen (txn1) \u2192 Hero Moment 1 balance change + stale (txn2, one transaction) \u2192 re-plan v2 + atomic promotion (txn3). Drive the sidebar + stale-node view from this; for SSE, emit each as: 'id: <event_id>\\nevent: graph_mutation\\ndata: <json>\\n\\n'.",
+  "_note": "Mock GET /mutations response (array == SSE 'data' payloads, one per graph_mutations row). Event shape matches schema/contracts/mutation-event.schema.json. mutation_type values here are a narrative for UI legibility — live API may emit different strings (e.g. MarkStale vs MarkPlanStale); key off the schema and tolerate unknown types. Order: plan v1 gen (txn1) → Hero Moment 1 balance change + stale (txn2, one transaction) → re-plan v2 + atomic promotion (txn3). Drive the sidebar + stale-node view from this; for SSE, emit each as: 'id: <event_id>\\nevent: graph_mutation\\ndata: <json>\\n\\n'. Pair with fixtures/mock-plan.json: after POST /plans use createPlan; after POST /balance-transfer render balanceTransfer.currentPlan (no poll).",
   "events": [
     {
       "event_id": "1",

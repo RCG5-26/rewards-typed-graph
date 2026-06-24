@@ -1,6 +1,6 @@
 # 07 — API service (HTTP surface for the demo shell)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Owner:** Raq (RCG-18)
 - **Depends on:** RCG-15 (orchestrator, done) · RCG-14/59 (mutation REST+SSE routes, done) · RCG-21 (redemption writer, done) · RCG-8 (seed, done) · RCG-28/29 (hero flow green — in progress)
 - **Related flows:** [`orchestration-flow.md`](../../docs/architecture/orchestration-flow.md) (happy path + hero moment); [`design-context.md`](../design-context.md) (API/event contracts)
@@ -35,9 +35,18 @@ Stand up the one HTTP service the Next.js demo shell talks to. Today the backend
 The contract below is **stable regardless of implementation** — Val codes against these shapes immediately and only swaps the base URL when the service ships. Two implementation paths (DRI picks — see Open questions):
 
 - **(A) TS-native:** implement a Postgres-backed `OrchestratorDeps` (`graphWrite`/`snapshotBuilder` over `pg`; redemption step via the planner). Highest fidelity to `apps/api/src/orchestrator`; most new code.
-- **(B) Reuse the Python plan-builder (recommended for Fri):** the TS Hono service owns auth + CORS + mounts the **already-built** `/mutations` routes with a real `pg` client; `POST /plans` and `POST /balance-transfer` invoke the existing Python `create_plan_from_query` / `replan_after_balance_transfer` (the same code the hero test exercises) via a thin bridge. The redemption logic is already Python + Postgres, so this reaches real data fastest.
+- **(B) Reuse the Python plan-builder (chosen — see §Implementation decision):** the TS Hono service owns auth + CORS + mounts the **already-built** `/mutations` routes with a real `pg` client; `POST /plans` and `POST /balance-transfer` invoke the existing Python `create_plan_from_query` / `replan_after_balance_transfer` (the same code the hero test exercises) via a thin bridge. The redemption logic is already Python + Postgres, so this reaches real data fastest.
 
 The mutation routes already exist (`createMutationRoutes(client)` → `GET /mutations`, `GET /mutations/stream`; auth via `c.get("userId")`). This spec **mounts** them; it does not rewrite them.
+
+### Implementation decision (chosen 2026-06-24)
+
+**Option B**, via a **`psql`-subprocess Python bridge**, behind a typed `PlanService` port:
+
+- **Why a subprocess, not a Python DB driver:** `psycopg` is **not installed**; the verified hero seam (`tests/integration/hero_flow.py` + `test_hero_moment.py`) talks to Postgres through a tiny `psql`-subprocess connection adapter. The bridge reuses that exact proven path — reliability over purity for the one-day demo. Do **not** swap in `psycopg` mid-sprint.
+- **`PlanService` port** (`apps/api/src/plans/service.ts`): the Hono plan routes depend on this interface, so they are unit-tested with an in-memory fake (no DB, like the orchestrator + mutation routes). Production impl `BridgePlanService` spawns `apps/api/bridge/hero_bridge.py` (one process per request) and parses a `{ ok, data | error }` JSON envelope.
+- **One projection source of truth:** the Python bridge owns *both* reads and writes and returns the view model below, so the DB→view projection lives in one place. TS only shells out and maps `error.code` → HTTP status.
+- **Known debt:** the bridge imports the seam from `tests/integration/`. Post-demo, graduate `hero_flow.py` + `redemption_graph_writer.py` into a non-test package (e.g. `agents/hero/`); the bridge import is the only line to change.
 
 ---
 
@@ -55,8 +64,8 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
 
 ### `POST /plans`
 - **Body:** `{ "query": "Best way to get to Tokyo in October?" }`
-- **Response 202:** `{ "planId": "uuid", "planLineageId": "uuid", "status": "generating" }`
-- Generation runs async; the shell opens `/mutations/stream` to watch steps land, then loads `GET /plans/:planId`. (Synchronous `200` with the full plan is an acceptable fallback — see Open questions.)
+- **Response 200 (synchronous — resolved for Jun 25 demo):** the full plan body (same shape as `GET /plans/:planId` below), already `status: "current"`. The bridge builds + commits the plan in-request, so there is no `generating` window to poll.
+- The shell still opens `/mutations/stream` to render the per-step writes as they land, but renders the plan from this response directly.
 - **Errors:** 400 (empty query), 401.
 
 ### `GET /plans/:planId`
@@ -89,10 +98,17 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
 
 ### `POST /balance-transfer`  *(Hero Moment 1 trigger)*
 - **Body:** `{ "sourceProgramId": "uuid", "destProgramId": "uuid", "amountPoints": 5000 }`
-- **Effect:** `transfer_points` (debit/credit with OCC) → writes the corresponding `graph_mutations` rows → marks the current plan + steps `stale` → enqueues a `replan_jobs` row, all in one transaction; the re-plan promotes revision 2 to `current`.
-- **Response 202:** `{ "planLineageId": "uuid", "staledPlanId": "uuid", "replanJobId": "uuid" }`
-- The shell watches `/mutations/stream` for the stale → re-plan events, then loads `GET /plans/current?lineageId=`.
-- **Errors:** 400 (same source/dest, non-positive amount, no active route), 409 (version conflict / insufficient balance), 401.
+- **Program → balance resolution:** the bridge resolves each `programId` to the caller's `user_balances` row (id + current `version`) before mutating, so the client passes stable program ids, not balance ids. Unknown program for the user → `404`.
+- **Effect (synchronous — resolved for Jun 25 demo):** in one request the bridge runs the verified `replan_after_balance_transfer` seam: `transfer_points` (debit/credit with OCC) → writes `graph_mutations` rows → marks the current plan + steps `stale` → claims + runs the `replan_jobs` row → promotes revision 2 to `current`. No background worker; the re-plan completes before the response returns.
+- **Response 200:** `{ "planLineageId": "uuid", "staledPlanId": "uuid", "replanJobId": "uuid", "currentPlan": { …full plan body, revision 2, status "current"… } }`
+- The shell watches `/mutations/stream` for the stale → re-plan events for the live effect, but renders revision 2 from `currentPlan` directly.
+- **Errors:** 400 (same source/dest, non-positive amount, no active route), 409 (version conflict / insufficient balance), 404 (unknown program for user), 401.
+
+### `POST /demo/reset`  *(presenter safety net)*
+- **Purpose:** restore the caller's persona to its pristine seeded state between demo run-throughs, so Hero Moment 1 can be re-triggered without a DB rebuild. Idempotent.
+- **Effect:** re-clones the seed persona for the caller (balances, and clears the caller's plans / plan_steps / replan_jobs / graph_mutations for the run) so a fresh `POST /plans` + `POST /balance-transfer` reproduces the hero flow.
+- **Response 200:** same body as `GET /session` (`{ "userId", "clerkId", "seeded": true }`).
+- **Errors:** 401.
 
 ### `GET /mutations?after=<cursor>`  *(REST — source of truth)*
 - **Response 200:** array of mutation events (catch-up since `cursor`; `cursor` = `event_id`). Already implemented.
@@ -117,6 +133,7 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
   "committed_at": "2026-06-20T12:00:00Z"
 }
 ```
+> **Mock vs live `mutation_type`:** the `mutation_type` strings in `fixtures/mock-mutation-events.json` are a *narrative* of the hero flow chosen for UI legibility. The live values emitted by the write service (e.g. `TransferPoints`, `MarkStale`, and the `CreatePlan*` writes) are the source of truth; the canonical set is `mutation-event.schema.json`. UI must key off the schema, not the mock's exact strings, and tolerate types it doesn't recognize.
 
 ### CORS
 Allow the Next app origin (`CORS_ORIGIN`); allow headers `Authorization`, `Last-Event-ID`, `Content-Type`; expose SSE.
@@ -127,13 +144,17 @@ Allow the Next app origin (`CORS_ORIGIN`); allow headers `Authorization`, `Last-
 
 | Path | Change |
 |---|---|
-| `apps/api/src/server.ts` | create — Hono app: `pg` pool, Clerk auth middleware, CORS, mount mutation + plan routes, `@hono/node-server` `serve()` |
-| `apps/api/src/auth/clerk.ts` | create — verify Clerk token → `userId`; ensure-seeded (bootstrap clone) |
-| `apps/api/src/plans/routes.ts` | create — `POST /plans`, `GET /plans/:id`, `GET /plans/current`, `POST /balance-transfer` |
-| `apps/api/src/plans/service.ts` | create — plan-builder bridge (option A TS deps, or option B Python `create_plan_from_query` / `replan_after_balance_transfer`) |
-| `apps/api/package.json` | add `dev` + `start` scripts; deps `@hono/node-server`, `pg`, `@clerk/backend` |
-| `.env.example` | add `DATABASE_URL`, `CLERK_SECRET_KEY`, `API_PORT`, `CORS_ORIGIN` |
-| `fixtures/mock-plan.json`, `fixtures/mock-mutation-events.json` | create — filled samples matching these shapes, so Val builds on realistic mocks today |
+| `apps/api/src/server.ts` | create — Hono app: `pg` pool, Clerk auth middleware (+ `AUTH_DEV_USER_ID` local bypass), CORS, mount mutation + plan routes, `@hono/node-server` `serve()` |
+| `apps/api/src/http/auth.ts` | create — `getAuthenticatedUserId(c)` shared helper (401 if unset) |
+| `apps/api/src/plans/types.ts` | create — `PlanView` / `PlanStepView` / `SessionView` view-model + input/result types |
+| `apps/api/src/plans/service.ts` | create — `PlanService` port + `PlanServiceError` (`validation`/`not_found`/`conflict`) |
+| `apps/api/src/plans/routes.ts` | create — `GET /session`, `POST /plans`, `GET /plans/:id`, `GET /plans/current`, `POST /balance-transfer`, `POST /demo/reset` against `PlanService` |
+| `apps/api/src/plans/bridge-service.ts` | create — `BridgePlanService` (option B): spawn `bridge/hero_bridge.py`, parse `{ok,data\|error}`, map `error.code` → `PlanServiceError` |
+| `apps/api/src/plans/routes.test.ts` | create — vitest with in-memory fake `PlanService` (no DB) |
+| `apps/api/bridge/hero_bridge.py` | create — `psql`-subprocess CLI; reuses `tests/integration` hero seam; one projection of the `PlanView` for reads + writes |
+| `apps/api/package.json` | add `dev` + `start` scripts; deps `@hono/node-server`, `@clerk/backend`; devDep `tsx` |
+| `.env.example` | add `DATABASE_URL`, `CLERK_SECRET_KEY`, `API_PORT`, `CORS_ORIGIN`, `AUTH_DEV_USER_ID` |
+| `fixtures/mock-plan.json`, `fixtures/mock-mutation-events.json` | done — filled samples matching these shapes, so Val builds on realistic mocks today |
 
 _Agent: do not touch files outside this list unless the spec is updated first._
 
@@ -150,10 +171,12 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 - [ ] `npm --prefix apps/api run dev` boots the API on `$API_PORT` against the docker-compose Postgres (`scripts/dev-db-setup.sh`).
 - [ ] `GET /session` with a valid Clerk token returns `userId` and seeds the persona (idempotent on repeat).
-- [ ] `POST /plans {"query": …}` → `202 {planId}`; within a few seconds `GET /plans/:planId` returns `status: "current"` with ≥1 step carrying `reasoning` + `dependsOn`.
+- [ ] `POST /plans {"query": …}` → `200` with `status: "current"` and ≥1 step carrying `reasoning` + `dependsOn` (synchronous; no poll).
 - [ ] `GET /mutations/stream` emits `graph_mutation` events for that plan's writes; `GET /mutations?after=` replays them.
-- [ ] `POST /balance-transfer` marks the prior plan `stale` and a new `current` revision appears; `GET /plans/current?lineageId=` returns revision 2.
-- [ ] `401` without a token; `400` on empty query / bad cursor; `404` on unknown plan; CORS preflight from the Next origin passes.
+- [ ] `POST /balance-transfer` → `200` with `currentPlan` (revision 2, `current`); the prior plan is `stale` and `GET /plans/current?lineageId=` returns revision 2.
+- [ ] `POST /demo/reset` restores the persona so the hero flow can be re-run; idempotent.
+- [ ] `401` without a token; `400` on empty query / bad cursor; `404` on unknown plan / program; `409` on insufficient balance; CORS preflight from the Next origin passes.
+- [ ] `npm --prefix apps/api test` is green: plan routes unit-tested via an in-memory fake `PlanService` (status codes + error mapping), no DB required.
 - [ ] No invariant from `architecture-context.md` violated (typed mutations only; OCC respected).
 
 ---
@@ -181,14 +204,19 @@ curl -N localhost:$API_PORT/mutations/stream -H "Authorization: Bearer $TOKEN"
 
 | # | Question | Blocking? | Resolution |
 |---|---|---|---|
-| 1 | Implementation **A (TS-native deps)** vs **B (reuse Python plan-builder)** | no (contract is identical) | DRI (Raq) — recommend **B** for Fri |
-| 2 | `POST /plans` **async (202 + stream)** vs **synchronous (200 + full plan)** | no | recommend async for the live-sidebar effect; sync acceptable if time-tight |
+| 1 | Implementation **A (TS-native deps)** vs **B (reuse Python plan-builder)** | no (contract is identical) | **Resolved 2026-06-24: B**, via `psql`-subprocess bridge — see §Implementation decision |
+| 2 | `POST /plans` **async (202 + stream)** vs **synchronous (200 + full plan)** | no | **Resolved 2026-06-24: synchronous `200` + full plan** for the Jun 25 demo (no `generating` poll window); `/mutations/stream` still drives the live sidebar |
 | 3 | Token transport: Bearer vs cookie | no | recommend Bearer via Clerk `getToken()` |
 
 ---
 
 ## Completion notes _(fill when done)_
 
-- **Completed:** [YYYY-MM-DD]
-- **PR / commit:** [link]
-- **Deviations from spec:** [none / describe]
+- **Completed:** [YYYY-MM-DD] _(in progress — implemented on `raq/demo-mocks` / PR #29)_
+- **PR / commit:** PR #29 (`raq/demo-mocks`)
+- **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (75 tests) + `typecheck` green. Live smoke against docker Postgres: session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job `completed`) → current-plan → demo-reset → re-run all pass.
+- **Deviations from spec:**
+  - **Sync over async:** `POST /plans` returns `200` + full plan and `POST /balance-transfer` returns `200` + `currentPlan` (resolved Open question #2) — no `generating`/`202` poll window for the Jun 25 demo.
+  - **psql-subprocess bridge, not a Python DB driver:** `psycopg` is absent, so the bridge reuses the hero gate's `psql`-subprocess adapter (see §Implementation decision).
+  - **Test-resident seam import:** `bridge/hero_bridge.py` imports `tests/integration/hero_flow.py`; graduate to a non-test package post-demo.
+  - **Live server boot not auto-verified here:** `tsx`'s IPC pipe is sandbox-incompatible; verify `npm --prefix apps/api run dev` boots locally (typecheck + route tests cover the wiring).
