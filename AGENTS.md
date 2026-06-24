@@ -33,11 +33,17 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` require a passing **CodeRabbit** commit status check only — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
+Pull requests targeting `main` are enforced by the repository ruleset **main — protected** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)). Direct pushes to `main` are not allowed.
+
+**Required before merge:**
+
+1. **One approving review** from someone other than the PR author (stale approvals are dismissed when new commits are pushed).
+2. **Passing status checks:** `CodeRabbit` (automatic review via [`.coderabbit.yaml`](.coderabbit.yaml); `fail_commit_status: true` if review is skipped) and `apply-schema` (PostgreSQL 16 schema integration workflow).
+3. Branch must be **up to date** with `main` (strict required-status-checks policy).
 
 CodeRabbit posts review comments and may request changes when it finds issues. Manual review trigger: `@coderabbitai review`.
 
-Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
+Lead (Raq) or another teammate must approve graph/integration PRs before merge — do not self-merge.
 
 ---
 
