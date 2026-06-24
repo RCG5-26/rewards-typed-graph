@@ -12,6 +12,8 @@ from typing import Any
 
 TableSpec = tuple[str, str, tuple[str, ...], set[str]]
 
+PSQL_TIMEOUT_SECONDS = 30
+
 
 WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
     (
@@ -201,6 +203,7 @@ def apply_seed(sql: str) -> None:
         check=True,
         text=True,
         env=os.environ.copy(),
+        timeout=PSQL_TIMEOUT_SECONDS,
     )
 
 
