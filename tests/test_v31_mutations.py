@@ -5,10 +5,14 @@ import unittest
 from pathlib import Path
 
 from schema.mutations import (
+    ConcurrencyConflictError,
     CreatePlanRequest,
     CreatePlanStepRequest,
+    MAX_OCC_RETRIES,
     MutationCommitError,
     MutationValidationError,
+    PromotePlanRevisionRequest,
+    ReadSetEntry,
     RecordStateDependencyRequest,
     TransferPointsRequest,
     V31GraphWriteService,
@@ -38,7 +42,17 @@ class FakeCursor:
             "SELECT source_balance_id, source_version, dest_balance_id"
         ):
             self.connection.transfer_points_calls.append(params)
+            if self.connection.transfer_points_errors:
+                raise self.connection.transfer_points_errors.pop(0)
             self.result = self.connection.transfer_points_result
+            return
+
+        if compact_sql.startswith(
+            "SELECT user_id, plan_lineage_id, revision_number, status, "
+            "supersedes_plan_id FROM plans"
+        ):
+            plan_id = params[0]
+            self.result = self.connection.promotion_plans.get(plan_id)
             return
 
         if compact_sql.startswith("SELECT user_id, plan_lineage_id, revision_number FROM plans"):
@@ -73,7 +87,16 @@ class FakeCursor:
             return
 
         if compact_sql.startswith("INSERT INTO graph_mutations"):
+            self.connection.graph_mutation_inserts += 1
             self.result = None
+            return
+
+        if compact_sql.startswith("UPDATE plans SET status = 'superseded'"):
+            self.result = self.connection.promote_source_result
+            return
+
+        if compact_sql.startswith("UPDATE replan_jobs SET status = 'completed'"):
+            self.result = self.connection.promote_job_result
             return
 
         self.result = None
@@ -85,7 +108,9 @@ class FakeCursor:
 class FakeConnection:
     def __init__(self):
         self.executed = []
+        self.graph_mutation_inserts = 0
         self.transfer_points_calls = []
+        self.transfer_points_errors = []
         self.transfer_points_result = None
         self.plans = {}
         self.plan_steps = {}
@@ -93,12 +118,128 @@ class FakeConnection:
         self.create_plan_result = None
         self.create_plan_step_result = None
         self.record_state_dependency_result = None
+        self.promote_source_result = None
+        self.promote_job_result = None
+        self.promotion_plans = {}
 
     def cursor(self):
         return FakeCursor(self)
 
 
 class V31GraphWriteServiceTest(unittest.TestCase):
+    def test_read_set_rejects_stale_user_balance_before_write(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000040": (
+                "UserBalance",
+                3,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.validate_read_set(
+                user_id="00000000-0000-0000-0000-000000000001",
+                read_set=[
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000040",
+                        observed_version=2,
+                    )
+                ],
+            )
+
+        self.assertEqual(connection.graph_mutation_inserts, 0)
+
+    def test_read_set_rejects_scoped_target_without_owner_before_version_compare(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000040": (
+                "UserBalance",
+                3,
+                None,
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.validate_read_set(
+                user_id="00000000-0000-0000-0000-000000000001",
+                read_set=[
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000040",
+                        observed_version=2,
+                    )
+                ],
+            )
+
+        self.assertEqual(
+            raised.exception.errors,
+            [
+                "ReadSet target does not exist or is not visible to user "
+                "00000000-0000-0000-0000-000000000001"
+            ],
+        )
+        self.assertEqual(connection.graph_mutation_inserts, 0)
+
+    def test_occ_retry_returns_success_after_retryable_conflict(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            if len(attempts) < 2:
+                raise RuntimeError("source balance version conflict")
+            return "committed"
+
+        result = service.with_occ_retry(
+            attempt,
+            retryable_errors=("source balance version conflict",),
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(len(attempts), 2)
+
+    def test_occ_retry_returns_success_after_postgres_called_process_conflict(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            if len(attempts) < 2:
+                raise subprocess.CalledProcessError(
+                    1,
+                    ["psql"],
+                    stderr="ERROR: source balance version conflict",
+                )
+            return "committed"
+
+        result = service.with_occ_retry(
+            attempt,
+            retryable_errors=("source balance version conflict",),
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(len(attempts), 2)
+
+    def test_occ_retry_stops_after_three_attempts(self):
+        service = V31GraphWriteService(FakeConnection())
+        attempts = []
+
+        def attempt():
+            attempts.append("try")
+            raise RuntimeError("source balance version conflict")
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.with_occ_retry(
+                attempt,
+                retryable_errors=("source balance version conflict",),
+            )
+
+        self.assertEqual(len(attempts), MAX_OCC_RETRIES)
+
     def test_create_plan_rejects_invalid_status_before_sql(self):
         connection = FakeConnection()
         service = V31GraphWriteService(connection)
@@ -422,6 +563,127 @@ class V31GraphWriteServiceTest(unittest.TestCase):
             ],
         )
 
+    def test_transfer_points_rejects_stale_read_set_before_sql_function(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000002": (
+                "UserBalance",
+                2,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(ConcurrencyConflictError):
+            service.transfer_points(
+                TransferPointsRequest(
+                    actor="wallet_agent",
+                    user_id="00000000-0000-0000-0000-000000000001",
+                    source_balance_id="00000000-0000-0000-0000-000000000002",
+                    dest_balance_id="00000000-0000-0000-0000-000000000003",
+                    amount_points=60000,
+                    source_expected_version=1,
+                    dest_expected_version=2,
+                    idempotency_key="transfer-1",
+                    request_hash="hash-1",
+                    read_set=(
+                        ReadSetEntry(
+                            target_table="user_balances",
+                            target_node_id="00000000-0000-0000-0000-000000000002",
+                            observed_version=1,
+                        ),
+                    ),
+                )
+            )
+
+        self.assertEqual(connection.transfer_points_calls, [])
+
+    def test_transfer_points_validates_read_set_after_user_lock_before_sql_function(self):
+        connection = FakeConnection()
+        connection.user_balances = {
+            "00000000-0000-0000-0000-000000000002": (
+                "UserBalance",
+                1,
+                "00000000-0000-0000-0000-000000000001",
+            )
+        }
+        connection.transfer_points_result = (
+            "00000000-0000-0000-0000-000000000002",
+            2,
+            "00000000-0000-0000-0000-000000000003",
+            3,
+            False,
+        )
+        service = V31GraphWriteService(connection)
+
+        service.transfer_points(
+            TransferPointsRequest(
+                actor="wallet_agent",
+                user_id="00000000-0000-0000-0000-000000000001",
+                source_balance_id="00000000-0000-0000-0000-000000000002",
+                dest_balance_id="00000000-0000-0000-0000-000000000003",
+                amount_points=60000,
+                source_expected_version=1,
+                dest_expected_version=2,
+                idempotency_key="transfer-1",
+                request_hash="hash-1",
+                read_set=(
+                    ReadSetEntry(
+                        target_table="user_balances",
+                        target_node_id="00000000-0000-0000-0000-000000000002",
+                        observed_version=1,
+                    ),
+                ),
+            )
+        )
+
+        lock_index = _sql_index(connection, "SELECT pg_advisory_xact_lock")
+        read_set_index = _sql_index(connection, "SELECT node_type, version, user_id")
+        transfer_index = _sql_index(connection, "source_balance_id")
+        self.assertLess(lock_index, read_set_index)
+        self.assertLess(read_set_index, transfer_index)
+
+    def test_transfer_points_retries_retryable_version_conflict(self):
+        connection = FakeConnection()
+        connection.transfer_points_errors = [
+            RuntimeError("source balance version conflict"),
+            RuntimeError("source balance version conflict"),
+        ]
+        connection.transfer_points_result = (
+            "00000000-0000-0000-0000-000000000002",
+            2,
+            "00000000-0000-0000-0000-000000000003",
+            3,
+            False,
+        )
+        service = V31GraphWriteService(connection)
+
+        result = service.transfer_points(
+            TransferPointsRequest(
+                actor="wallet_agent",
+                user_id="00000000-0000-0000-0000-000000000001",
+                source_balance_id="00000000-0000-0000-0000-000000000002",
+                dest_balance_id="00000000-0000-0000-0000-000000000003",
+                amount_points=60000,
+                source_expected_version=1,
+                dest_expected_version=2,
+                idempotency_key="transfer-1",
+                request_hash="hash-1",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "source_balance_id": "00000000-0000-0000-0000-000000000002",
+                "source_version": 2,
+                "dest_balance_id": "00000000-0000-0000-0000-000000000003",
+                "dest_version": 3,
+                "idempotency_replayed": False,
+            },
+        )
+        self.assertEqual(len(connection.transfer_points_calls), 3)
+
     def test_transfer_points_raises_when_sql_function_returns_no_result(self):
         connection = FakeConnection()
         service = V31GraphWriteService(connection)
@@ -442,6 +704,201 @@ class V31GraphWriteServiceTest(unittest.TestCase):
             )
 
         self.assertEqual(str(raised.exception), "TransferPoints returned no result")
+
+    def test_promote_plan_revision_rejects_same_source_and_new_before_sql(self):
+        connection = FakeConnection()
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(
+                PromotePlanRevisionRequest(
+                    actor="orchestrator",
+                    user_id="00000000-0000-0000-0000-000000000001",
+                    source_plan_id="00000000-0000-0000-0000-000000000020",
+                    new_plan_id="00000000-0000-0000-0000-000000000020",
+                    plan_lineage_id="00000000-0000-0000-0000-000000000010",
+                )
+            )
+
+        self.assertIn(
+            "PromotePlanRevision.source_plan_id and new_plan_id must differ",
+            raised.exception.errors,
+        )
+        self.assertEqual(connection.executed, [])
+
+    def test_promote_plan_revision_supersedes_and_logs_after_validation(self):
+        connection = _promotable_connection()
+        connection.promote_source_result = (_PROMOTE_SOURCE_ID,)
+        service = V31GraphWriteService(connection)
+
+        result = service.promote_plan_revision(_promote_request())
+
+        self.assertEqual(result, _PROMOTE_SOURCE_ID)
+        self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
+        self.assertTrue(_any_sql(connection, "UPDATE plans"))
+        self.assertTrue(_any_sql(connection, "UPDATE replan_jobs"))
+        self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
+        _graph_sql, graph_params = _first_sql(connection, "INSERT INTO graph_mutations")
+        self.assertEqual(
+            graph_params[4:7],
+            ("PromotePlan", "plans", _PROMOTE_SOURCE_ID),
+        )
+        after = graph_params[9]
+        self.assertEqual(after["status"], "superseded")
+        self.assertEqual(after["result_plan_id"], _PROMOTE_NEW_ID)
+
+    def test_promote_plan_revision_raises_when_replan_job_missing(self):
+        connection = _promotable_connection()
+        connection.promote_source_result = (_PROMOTE_SOURCE_ID,)
+        connection.promote_job_result = None
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationCommitError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision replan job is not pending/processing",
+            str(raised.exception),
+        )
+
+    def test_promote_plan_revision_raises_when_source_not_promotable(self):
+        # References are valid, but the source UPDATE matches no row (e.g. a
+        # concurrent status change between fetch and write) -> commit error.
+        connection = _promotable_connection()
+        connection.promote_source_result = None
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationCommitError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertEqual(
+            str(raised.exception),
+            "PromotePlanRevision source plan is not in a promotable state",
+        )
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
+
+    def test_promote_plan_revision_rejects_missing_new_plan_before_mutation(self):
+        connection = _promotable_connection()
+        del connection.promotion_plans[_PROMOTE_NEW_ID]
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            "to user 00000000-0000-0000-0000-000000000001",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_user(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            "00000000-0000-0000-0000-0000000000ff",
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            "to user 00000000-0000-0000-0000-000000000001",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_lineage(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            "00000000-0000-0000-0000-0000000000ee",
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must belong to plan_lineage_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_wrong_supersedes(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            "00000000-0000-0000-0000-0000000000dd",
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must supersede source_plan_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_new_plan_not_current(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_NEW_ID] = (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "generating",
+            _PROMOTE_SOURCE_ID,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.new_plan_id must be 'current'",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def test_promote_plan_revision_rejects_source_plan_wrong_lineage(self):
+        connection = _promotable_connection()
+        connection.promotion_plans[_PROMOTE_SOURCE_ID] = (
+            _PROMOTE_USER_ID,
+            "00000000-0000-0000-0000-0000000000cc",
+            1,
+            "stale",
+            None,
+        )
+        service = V31GraphWriteService(connection)
+
+        with self.assertRaises(MutationValidationError) as raised:
+            service.promote_plan_revision(_promote_request())
+
+        self.assertIn(
+            "PromotePlanRevision.source_plan_id must belong to plan_lineage_id",
+            raised.exception.errors,
+        )
+        self._assert_no_promote_mutation(connection)
+
+    def _assert_no_promote_mutation(self, connection):
+        """After a failed validation, no lock, write, or audit row may execute."""
+        self.assertFalse(_any_sql(connection, "pg_advisory_xact_lock"))
+        self.assertFalse(_any_sql(connection, "UPDATE plans"))
+        self.assertFalse(_any_sql(connection, "UPDATE replan_jobs"))
+        self.assertFalse(_any_sql(connection, "INSERT INTO graph_mutations"))
 
 
 class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
@@ -488,6 +945,13 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                 'Live World of Hyatt',
                 'hotel',
                 'points'
+              ),
+              (
+                '00000000-0000-0000-0000-00000000b003',
+                'live-united-mileageplus',
+                'Live United MileagePlus',
+                'airline',
+                'miles'
               );
 
             INSERT INTO transfers_to (
@@ -526,6 +990,28 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                 '00000000-0000-0000-0000-00000000b002',
                 0,
                 1
+              ),
+              (
+                '00000000-0000-0000-0000-00000000d003',
+                '00000000-0000-0000-0000-00000000a001',
+                '00000000-0000-0000-0000-00000000b003',
+                80000,
+                1
+              );
+
+            INSERT INTO user_program_statuses (
+              id,
+              user_id,
+              program_id,
+              status_tier,
+              version
+            )
+            VALUES (
+              '00000000-0000-0000-0000-00000000d101',
+              '00000000-0000-0000-0000-00000000a001',
+              '00000000-0000-0000-0000-00000000b003',
+              'silver',
+              1
               );
 
             INSERT INTO plans (
@@ -564,6 +1050,16 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
               'transfer_recommendation',
               'current',
               '{"claim": "Transfer Chase points to Hyatt."}'
+            ),
+            (
+              '00000000-0000-0000-0000-00000000f002',
+              '00000000-0000-0000-0000-00000000e001',
+              '00000000-0000-0000-0000-00000000e000',
+              1,
+              2,
+              'redemption_recommendation',
+              'current',
+              '{"claim": "Use United status for seat selection."}'
             );
 
             INSERT INTO state_dependencies (
@@ -585,6 +1081,16 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
               'balance_points',
               1,
               '{"balance_points": 240000}'
+            ),
+            (
+              '00000000-0000-0000-0000-00000000f102',
+              '00000000-0000-0000-0000-00000000f002',
+              '00000000-0000-0000-0000-00000000d101',
+              'UserProgramStatus',
+              'user_program_statuses',
+              'status_tier',
+              1,
+              '{"status_tier": "silver"}'
             );
             """
         )
@@ -626,20 +1132,35 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
             [
                 ("00000000-0000-0000-0000-00000000d001", 180000, 2),
                 ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+                ("00000000-0000-0000-0000-00000000d003", 80000, 1),
             ],
         )
         self.assertEqual(
             _psql_rows(
                 """
-                SELECT p.status, ps.status, count(rj.id)
+                SELECT p.status, ps.id::text, ps.status, count(rj.id)
                   FROM plans p
                   JOIN plan_steps ps ON ps.plan_id = p.id
                   LEFT JOIN replan_jobs rj ON rj.source_plan_id = p.id
                  WHERE p.id = '00000000-0000-0000-0000-00000000e001'
-                 GROUP BY p.status, ps.status
+                 GROUP BY p.status, ps.id, ps.status
+                 ORDER BY ps.id
                 """
             ),
-            [("stale", "stale", 1)],
+            [
+                (
+                    "stale",
+                    "00000000-0000-0000-0000-00000000f001",
+                    "stale",
+                    1,
+                ),
+                (
+                    "stale",
+                    "00000000-0000-0000-0000-00000000f002",
+                    "current",
+                    1,
+                ),
+            ],
         )
         self.assertEqual(
             _psql_rows(
@@ -650,7 +1171,7 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
                  ORDER BY mutation_type
                 """
             ),
-            [("MarkStale", 1), ("TransferPoints", 2)],
+            [("MarkStale", 2), ("TransferPoints", 2)],
         )
 
         replayed = service.transfer_points(request)
@@ -676,9 +1197,43 @@ class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):
             [
                 ("00000000-0000-0000-0000-00000000d001", 180000, 2),
                 ("00000000-0000-0000-0000-00000000d002", 60000, 2),
+                ("00000000-0000-0000-0000-00000000d003", 80000, 1),
             ],
         )
         self.assertEqual(_psql_rows("SELECT count(*) FROM replan_jobs"), [(1,)])
+
+
+_PROMOTE_USER_ID = "00000000-0000-0000-0000-000000000001"
+_PROMOTE_LINEAGE_ID = "00000000-0000-0000-0000-000000000010"
+_PROMOTE_SOURCE_ID = "00000000-0000-0000-0000-000000000020"
+_PROMOTE_NEW_ID = "00000000-0000-0000-0000-000000000021"
+
+
+def _promote_request():
+    return PromotePlanRevisionRequest(
+        actor="orchestrator",
+        user_id=_PROMOTE_USER_ID,
+        source_plan_id=_PROMOTE_SOURCE_ID,
+        new_plan_id=_PROMOTE_NEW_ID,
+        plan_lineage_id=_PROMOTE_LINEAGE_ID,
+    )
+
+
+def _promotable_connection():
+    """A FakeConnection seeded with a valid stale source + current successor."""
+    connection = FakeConnection()
+    connection.promotion_plans = {
+        _PROMOTE_SOURCE_ID: (_PROMOTE_USER_ID, _PROMOTE_LINEAGE_ID, 1, "stale", None),
+        _PROMOTE_NEW_ID: (
+            _PROMOTE_USER_ID,
+            _PROMOTE_LINEAGE_ID,
+            2,
+            "current",
+            _PROMOTE_SOURCE_ID,
+        ),
+    }
+    connection.promote_job_result = (_PROMOTE_SOURCE_ID,)
+    return connection
 
 
 def _any_sql(connection, snippet):
@@ -689,6 +1244,13 @@ def _first_sql(connection, snippet):
     for sql, params in connection.executed:
         if snippet in sql:
             return sql, params
+    raise AssertionError(f"SQL fragment not executed: {snippet}")
+
+
+def _sql_index(connection, snippet):
+    for index, (sql, _params) in enumerate(connection.executed):
+        if snippet in sql:
+            return index
     raise AssertionError(f"SQL fragment not executed: {snippet}")
 
 

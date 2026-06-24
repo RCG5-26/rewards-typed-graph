@@ -8,11 +8,14 @@ experiments at schema.experimental.polymorphic.mutations.
 
 from __future__ import annotations
 
+import subprocess
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Optional, TypeVar
 
 from schema.types import GraphNode, validate_node
+
+T = TypeVar("T")
 
 
 class V31GraphWriteNotImplemented(RuntimeError):
@@ -29,6 +32,22 @@ class MutationValidationError(ValueError):
 
 class MutationCommitError(RuntimeError):
     """Raised when the database write boundary returns an impossible result."""
+
+
+MAX_OCC_RETRIES = 3
+
+
+@dataclass(frozen=True)
+class ReadSetEntry:
+    """Observed version for a graph row read before a mutation."""
+
+    target_table: str
+    target_node_id: str
+    observed_version: int
+
+
+class ConcurrencyConflictError(RuntimeError):
+    """Raised when an observed read-set version is stale."""
 
 
 @dataclass(frozen=True)
@@ -92,6 +111,23 @@ class TransferPointsRequest:
     dest_expected_version: int
     idempotency_key: str
     request_hash: str
+    read_set: tuple[ReadSetEntry, ...] = ()
+
+
+@dataclass(frozen=True)
+class PromotePlanRevisionRequest:
+    """Synchronously promote a re-plan: source plan -> superseded, close job.
+
+    Synchronous sibling of schema.sql ``promote_replan_job_success`` for the
+    no-worker re-plan path: the source revision must already be ``stale`` (or
+    still ``current``) and the new revision already ``current``.
+    """
+
+    actor: str
+    user_id: str
+    source_plan_id: str
+    new_plan_id: str
+    plan_lineage_id: str
 
 
 class V31GraphWriteService:
@@ -99,6 +135,94 @@ class V31GraphWriteService:
 
     def __init__(self, connection: Any):
         self.connection = connection
+
+    def validate_read_set(
+        self, user_id: str, read_set: Iterable[ReadSetEntry]
+    ) -> None:
+        """Reject stale or invalid observed versions before writing."""
+
+        with self.connection.cursor() as cursor:
+            self._validate_read_set_with_cursor(cursor, user_id, read_set)
+
+    def _validate_read_set_with_cursor(
+        self, cursor: Any, user_id: str, read_set: Iterable[ReadSetEntry]
+    ) -> None:
+        """Reject stale or invalid observed versions using the active cursor."""
+
+        errors = []
+        for entry in read_set:
+            if entry.target_table not in STATE_DEPENDENCY_TARGET_TABLES:
+                errors.append(
+                    f"ReadSet.target_table is not allowed: {entry.target_table}"
+                )
+                continue
+
+            if not entry.target_node_id:
+                errors.append("ReadSet.target_node_id is required")
+                continue
+
+            if entry.observed_version < 0:
+                errors.append("ReadSet.observed_version must be nonnegative")
+                continue
+
+            target = _fetch_target_reference(
+                cursor, entry.target_table, entry.target_node_id
+            )
+            if target is None:
+                errors.append(
+                    "ReadSet target does not exist: "
+                    f"{entry.target_table}:{entry.target_node_id}"
+                )
+                continue
+
+            _target_node_type, current_version, target_user_id = target
+            _expected_node_type, scoped_to_user = STATE_DEPENDENCY_TARGET_TABLES[
+                entry.target_table
+            ]
+            if (
+                scoped_to_user
+                and (target_user_id is None or str(target_user_id) != user_id)
+            ):
+                errors.append(
+                    "ReadSet target does not exist or is not visible to user "
+                    f"{user_id}"
+                )
+                continue
+
+            if current_version != entry.observed_version:
+                raise ConcurrencyConflictError(
+                    "read-set version conflict for "
+                    f"{entry.target_table}:{entry.target_node_id}; "
+                    f"observed {entry.observed_version}, current {current_version}"
+                )
+
+        if errors:
+            raise MutationValidationError(errors)
+
+    def with_occ_retry(
+        self,
+        operation: Callable[[], T],
+        retryable_errors: Iterable[str],
+    ) -> T:
+        """Retry only known optimistic-concurrency failures."""
+
+        retryable_messages = tuple(retryable_errors)
+        last_error_message: Optional[str] = None
+
+        for _attempt in range(MAX_OCC_RETRIES):
+            try:
+                return operation()
+            except (RuntimeError, subprocess.CalledProcessError) as error:
+                error_message = _retry_error_message(error)
+                if not any(
+                    message in error_message for message in retryable_messages
+                ):
+                    raise
+                last_error_message = error_message
+
+        raise ConcurrencyConflictError(
+            last_error_message or "optimistic concurrency conflict"
+        )
 
     def create_plan(self, request: CreatePlanRequest) -> str:
         """Validate and create a plan revision."""
@@ -315,30 +439,43 @@ class V31GraphWriteService:
         if errors:
             raise MutationValidationError(errors)
 
-        with self.connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT
-                  source_balance_id,
-                  source_version,
-                  dest_balance_id,
-                  dest_version,
-                  idempotency_replayed
-                FROM transfer_points(%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    request.user_id,
-                    request.source_balance_id,
-                    request.dest_balance_id,
-                    request.amount_points,
-                    request.source_expected_version,
-                    request.dest_expected_version,
-                    request.idempotency_key,
-                    request.request_hash,
-                    request.actor,
-                ),
-            )
-            row = cursor.fetchone()
+        def commit_transfer() -> Optional[tuple[Any, ...]]:
+            with self.connection.cursor() as cursor:
+                _lock_user(cursor, request.user_id)
+                self._validate_read_set_with_cursor(
+                    cursor, request.user_id, request.read_set
+                )
+                cursor.execute(
+                    """
+                    SELECT
+                      source_balance_id,
+                      source_version,
+                      dest_balance_id,
+                      dest_version,
+                      idempotency_replayed
+                    FROM transfer_points(%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        request.user_id,
+                        request.source_balance_id,
+                        request.dest_balance_id,
+                        request.amount_points,
+                        request.source_expected_version,
+                        request.dest_expected_version,
+                        request.idempotency_key,
+                        request.request_hash,
+                        request.actor,
+                    ),
+                )
+                return cursor.fetchone()
+
+        row = self.with_occ_retry(
+            commit_transfer,
+            retryable_errors=(
+                "source balance version conflict",
+                "destination balance version conflict",
+            ),
+        )
 
         if row is None:
             raise MutationCommitError("TransferPoints returned no result")
@@ -358,6 +495,113 @@ class V31GraphWriteService:
             "idempotency_replayed": idempotency_replayed,
         }
 
+    def promote_plan_revision(self, request: PromotePlanRevisionRequest) -> str:
+        """Promote a re-plan: source plan -> superseded, close the replan job.
+
+        Synchronous counterpart to schema.sql ``promote_replan_job_success``
+        (which is gated on the async worker lease). Assumes the new revision is
+        already ``current`` and the source revision is ``stale`` or ``current``.
+        """
+
+        errors = _validate_promote_plan_revision(request)
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if errors:
+                raise MutationValidationError(errors)
+
+            _lock_user(cursor, request.user_id)
+            # Re-read under the lock and re-validate to close the TOCTOU window:
+            # another writer could change plan status/references between the
+            # pre-lock validation above and the writes below.
+            source_plan = _fetch_plan_promotion_row(cursor, request.source_plan_id)
+            new_plan = _fetch_plan_promotion_row(cursor, request.new_plan_id)
+            drift_errors = _validate_promote_plan_references(
+                request=request,
+                source_plan=source_plan,
+                new_plan=new_plan,
+            )
+            if drift_errors:
+                raise MutationCommitError(
+                    "PromotePlanRevision references changed during promotion"
+                )
+
+            cursor.execute(
+                """
+                UPDATE plans
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE id = %s
+                   AND status IN ('stale', 'current')
+                RETURNING id
+                """,
+                (request.source_plan_id,),
+            )
+            row = cursor.fetchone()
+
+            if row is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision source plan is not in a promotable state"
+                )
+
+            cursor.execute(
+                """
+                UPDATE plan_steps
+                   SET status = 'superseded',
+                       version = version + 1,
+                       updated_at = now()
+                 WHERE plan_id = %s
+                   AND status = 'stale'
+                """,
+                (request.source_plan_id,),
+            )
+
+            _insert_graph_mutation(
+                cursor=cursor,
+                user_id=request.user_id,
+                plan_lineage_id=request.plan_lineage_id,
+                plan_id=request.source_plan_id,
+                mutation_type="PromotePlan",
+                target_table="plans",
+                target_node_id=request.source_plan_id,
+                summary="Promoted re-plan revision",
+                before=None,
+                after={
+                    "status": "superseded",
+                    "result_plan_id": request.new_plan_id,
+                    "actor": request.actor,
+                },
+            )
+
+            cursor.execute(
+                """
+                UPDATE replan_jobs
+                   SET status = 'completed',
+                       result_plan_id = %s,
+                       completed_at = now(),
+                       updated_at = now()
+                 WHERE source_plan_id = %s
+                   AND status IN ('pending', 'processing')
+                RETURNING source_plan_id
+                """,
+                (request.new_plan_id, request.source_plan_id),
+            )
+            if cursor.fetchone() is None:
+                raise MutationCommitError(
+                    "PromotePlanRevision replan job is not pending/processing"
+                )
+
+        return str(request.source_plan_id)
+
 
 def require_app_graph_write() -> None:
     """Signal that callers must use the application graph-write implementation."""
@@ -367,6 +611,17 @@ def require_app_graph_write() -> None:
         "use schema.experimental.polymorphic.mutations only for the optional "
         "polymorphic experiment."
     )
+
+
+def _retry_error_message(error: BaseException) -> str:
+    parts = [str(error)]
+    if isinstance(error, subprocess.CalledProcessError):
+        for value in (error.stderr, error.output):
+            if value:
+                parts.append(
+                    value.decode() if isinstance(value, bytes) else str(value)
+                )
+    return "\n".join(parts)
 
 
 PLAN_TYPES = {
@@ -548,6 +803,89 @@ def _validate_transfer_points(request: TransferPointsRequest) -> list[str]:
     return errors
 
 
+def _validate_promote_plan_revision(
+    request: PromotePlanRevisionRequest,
+) -> list[str]:
+    errors = _validate_actor_user(request.actor, request.user_id)
+
+    if not request.source_plan_id:
+        errors.append("PromotePlanRevision.source_plan_id is required")
+
+    if not request.new_plan_id:
+        errors.append("PromotePlanRevision.new_plan_id is required")
+
+    if not request.plan_lineage_id:
+        errors.append("PromotePlanRevision.plan_lineage_id is required")
+
+    if request.source_plan_id and request.source_plan_id == request.new_plan_id:
+        errors.append(
+            "PromotePlanRevision.source_plan_id and new_plan_id must differ"
+        )
+
+    return errors
+
+
+def _validate_promote_plan_references(
+    request: PromotePlanRevisionRequest,
+    source_plan: Optional[tuple[Any, Any, int, Any, Any]],
+    new_plan: Optional[tuple[Any, Any, int, Any, Any]],
+) -> list[str]:
+    errors = []
+
+    if source_plan is None:
+        errors.append(
+            "PromotePlanRevision.source_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        s_user, s_lineage, _s_revision, s_status, _s_supersedes = source_plan
+        if str(s_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(s_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.source_plan_id must belong to plan_lineage_id"
+            )
+        if s_status not in ("stale", "current"):
+            errors.append(
+                "PromotePlanRevision source plan must be 'stale' or 'current'"
+            )
+
+    if new_plan is None:
+        errors.append(
+            "PromotePlanRevision.new_plan_id does not exist or is not visible "
+            f"to user {request.user_id}"
+        )
+    else:
+        n_user, n_lineage, n_revision, n_status, n_supersedes = new_plan
+        if str(n_user) != request.user_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id does not exist or is not "
+                f"visible to user {request.user_id}"
+            )
+        if str(n_lineage) != request.plan_lineage_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must belong to plan_lineage_id"
+            )
+        if str(n_supersedes) != request.source_plan_id:
+            errors.append(
+                "PromotePlanRevision.new_plan_id must supersede source_plan_id"
+            )
+        if n_status != "current":
+            errors.append("PromotePlanRevision.new_plan_id must be 'current'")
+        if source_plan is not None:
+            source_revision = source_plan[2]
+            if n_revision <= source_revision:
+                errors.append(
+                    "PromotePlanRevision.new_plan_id revision must be greater "
+                    "than source revision"
+                )
+
+    return errors
+
+
 def _validate_actor_user(actor: str, user_id: str) -> list[str]:
     errors = []
 
@@ -646,6 +984,20 @@ def _fetch_plan(cursor: Any, plan_id: str) -> Optional[tuple[Any, Any, int]]:
     cursor.execute(
         """
         SELECT user_id, plan_lineage_id, revision_number
+          FROM plans
+         WHERE id = %s
+        """,
+        (plan_id,),
+    )
+    return cursor.fetchone()
+
+
+def _fetch_plan_promotion_row(
+    cursor: Any, plan_id: str
+) -> Optional[tuple[Any, Any, int, Any, Any]]:
+    cursor.execute(
+        """
+        SELECT user_id, plan_lineage_id, revision_number, status, supersedes_plan_id
           FROM plans
          WHERE id = %s
         """,
