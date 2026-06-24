@@ -46,11 +46,7 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isNonEmptyStringArray(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((item) => isNonEmptyString(item))
-  );
+  return Array.isArray(value) && value.length > 0 && value.every((item) => isNonEmptyString(item));
 }
 
 function invalid(message: string, detail?: Readonly<Record<string, unknown>>): never {
@@ -90,10 +86,7 @@ function parseRedemptionOperation(raw: Record<string, unknown>): RedemptionTrave
   if (!isNonEmptyString(raw.goalType) || !USER_GOAL_TYPES.includes(raw.goalType as UserGoalType)) {
     invalid("redemption operation requires valid goalType");
   }
-  if (
-    raw.targetRedemptionOptionId !== null &&
-    !isNonEmptyString(raw.targetRedemptionOptionId)
-  ) {
+  if (raw.targetRedemptionOptionId !== null && !isNonEmptyString(raw.targetRedemptionOptionId)) {
     invalid("redemption operation has invalid targetRedemptionOptionId");
   }
   if (!isNonEmptyStringArray(raw.sourceProgramIds)) {
@@ -111,10 +104,7 @@ function parseRedemptionOperation(raw: Record<string, unknown>): RedemptionTrave
 function parseOperation(
   agentType: SpecialistAgentType,
   raw: Record<string, unknown>,
-):
-  | WalletAssessmentOperation
-  | EarningRecommendationOperation
-  | RedemptionTraversalOperation {
+): WalletAssessmentOperation | EarningRecommendationOperation | RedemptionTraversalOperation {
   const kind = raw.kind;
   if (typeof kind !== "string") invalid("operation kind must be a string");
 
@@ -123,7 +113,8 @@ function parseOperation(
       if (kind !== "assess_wallet") invalid("wallet_agent requires assess_wallet operation");
       return parseWalletOperation(raw);
     case "earning_agent":
-      if (kind !== "recommend_earning") invalid("earning_agent requires recommend_earning operation");
+      if (kind !== "recommend_earning")
+        invalid("earning_agent requires recommend_earning operation");
       return parseEarningOperation(raw);
     case "redemption_agent":
       if (kind !== "traverse_redemption") {
@@ -141,7 +132,10 @@ function parseInvocation(raw: unknown): AgentInvocation {
   if (!isRecord(raw)) invalid("invocation must be an object");
   if (!hasOnlyKeys(raw, INVOCATION_KEYS)) invalid("invocation has unexpected keys");
   const agentType = raw.agentType;
-  if (!isNonEmptyString(agentType) || !SPECIALIST_AGENT_TYPES.includes(agentType as SpecialistAgentType)) {
+  if (
+    !isNonEmptyString(agentType) ||
+    !SPECIALIST_AGENT_TYPES.includes(agentType as SpecialistAgentType)
+  ) {
     invalid("unknown agentType");
   }
   if (!isRecord(raw.operation)) invalid("operation must be an object");

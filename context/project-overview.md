@@ -142,12 +142,12 @@ What the team must demonstrate by end of sprint (not current completion state):
 
 ## Glossary
 
-| Term | Meaning in this project |
-|---|---|
-| Typed graph mutation | A schema-validated change to the shared graph; the only way agents communicate. |
-| World graph | Shared reference data: cards, programs, and transfer routes. |
-| Personal graph | A user's balances, loyalty status, and goals. |
-| Plan graph | The generated plan, as steps linked back to the state they relied on. |
-| State dependency | A recorded link from a plan step to the state it used. |
-| Structural invalidation | Marking plan steps stale when the state they relied on changes. |
-| Baseline | A comparison architecture (single-agent or free-text multi-agent) run on the same queries. |
+| Term                    | Meaning in this project                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| Typed graph mutation    | A schema-validated change to the shared graph; the only way agents communicate.            |
+| World graph             | Shared reference data: cards, programs, and transfer routes.                               |
+| Personal graph          | A user's balances, loyalty status, and goals.                                              |
+| Plan graph              | The generated plan, as steps linked back to the state they relied on.                      |
+| State dependency        | A recorded link from a plan step to the state it used.                                     |
+| Structural invalidation | Marking plan steps stale when the state they relied on changes.                            |
+| Baseline                | A comparison architecture (single-agent or free-text multi-agent) run on the same queries. |

@@ -68,17 +68,22 @@ def create_plan_from_query(
             plan_lineage_id=plan_lineage_id,
             revision_number=1,
             query_text=query_text,
-            status="current",
+            status="generating",
         )
     )
-    write_redemption_steps(
-        connection,
-        user_id=user_id,
-        plan_id=plan_id,
-        query_text=query_text,
-        plan_lineage_id=plan_lineage_id,
-        revision_number=1,
-    )
+    try:
+        write_redemption_steps(
+            connection,
+            user_id=user_id,
+            plan_id=plan_id,
+            query_text=query_text,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+        )
+        _promote_generating_plan_to_current(connection, plan_id)
+    except Exception:
+        _mark_generating_plan_failed(connection, plan_id)
+        raise
     return _plan_snapshot(connection, plan_id)
 
 
@@ -164,6 +169,24 @@ def _mark_generating_plan_failed(connection: GraphConnection, plan_id: str) -> N
             """,
             (plan_id,),
         )
+
+
+def _promote_generating_plan_to_current(connection: GraphConnection, plan_id: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE plans
+               SET status = 'current',
+                   version = version + 1,
+                   updated_at = now()
+             WHERE id = %s
+               AND status = 'generating'
+            RETURNING id
+            """,
+            (plan_id,),
+        )
+        if cursor.fetchone() is None:
+            raise RuntimeError(f"plan not in generating state before promotion: {plan_id}")
 
 
 def _plan_snapshot(connection: GraphConnection, plan_id: str) -> HeroPlanSnapshot:

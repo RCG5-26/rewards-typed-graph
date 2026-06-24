@@ -42,13 +42,13 @@ A spec is **Ready** when another developer or agent could implement it without a
 
 ## Active specs
 
-| ID | Spec | Status | Owner | Linear | Depends on |
-|---|---|---|---|---|---|
-| 01 | design-system _(planned)_ | Draft | Val | — | none |
-| 02 | [graph write path](02-graph-write-path.md) | Draft | Alan | RCG-10/11/13/14/58/59 | RCG-7, RCG-9 |
-| 03 | [mutation log + SSE contract](03-mutation-log-sse.md) | Draft | Alan / Val | RCG-14, RCG-25 | 02 |
-| 04 | [redemption traversal](04-redemption-traversal.md) | Draft | Michael | RCG-20, RCG-21 | 02, RCG-22/23 |
-| 05 | [orchestrator + agent harness](05-orchestrator-harness.md) | Draft | Raq | RCG-15 | 02 (interface) |
-| 06 | [wallet + earning agents](06-wallet-and-earning-agents.md) | Draft | Raq | RCG-16, RCG-17 | 02, 05 |
+| ID  | Spec                                                       | Status | Owner      | Linear                | Depends on     |
+| --- | ---------------------------------------------------------- | ------ | ---------- | --------------------- | -------------- |
+| 01  | design-system _(planned)_                                  | Draft  | Val        | —                     | none           |
+| 02  | [graph write path](02-graph-write-path.md)                 | Draft  | Alan       | RCG-10/11/13/14/58/59 | RCG-7, RCG-9   |
+| 03  | [mutation log + SSE contract](03-mutation-log-sse.md)      | Draft  | Alan / Val | RCG-14, RCG-25        | 02             |
+| 04  | [redemption traversal](04-redemption-traversal.md)         | Draft  | Michael    | RCG-20, RCG-21        | 02, RCG-22/23  |
+| 05  | [orchestrator + agent harness](05-orchestrator-harness.md) | Draft  | Raq        | RCG-15                | 02 (interface) |
+| 06  | [wallet + earning agents](06-wallet-and-earning-agents.md) | Draft  | Raq        | RCG-16, RCG-17        | 02, 05         |
 
 _Update this table as specs are added. Numbers are stable ids; sequence by `Depends on`._

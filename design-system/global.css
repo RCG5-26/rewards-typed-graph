@@ -7,7 +7,7 @@
    Do not import this in individual components — import `styles.css`
    (tokens only) if a component bundle needs the variables in isolation.
 */
-@import './styles.css';
+@import "./styles.css";
 
 *,
 *::before,
@@ -34,14 +34,23 @@ body {
 }
 
 /* Display face for headings; opt sub-trees into mono with .font-mono. */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-display);
   font-weight: var(--weight-light);
   letter-spacing: var(--tracking-tight);
   margin: 0;
 }
 
-code, pre, kbd, samp, .font-mono {
+code,
+pre,
+kbd,
+samp,
+.font-mono {
   font-family: var(--font-mono);
 }
 

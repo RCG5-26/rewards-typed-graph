@@ -12,6 +12,7 @@ The sprint needs one deployable demo and a separate eval path. Choices about whe
 ## Decision
 
 **Modular monolith deploy shape**
+
 - `apps/web` — Next.js frontend.
 - `apps/api` — Hono + TypeScript; long-lived process owning orchestration, graph-write/query, SSE, replan worker, and Python subprocess launcher.
 - `agents/` — Python specialist modules invoked as subprocesses (no separate deployable).
@@ -32,6 +33,7 @@ The sprint needs one deployable demo and a separate eval path. Choices about whe
 | PostgreSQL | **Managed database** (Railway, Render, Fly, Neon, Supabase, etc.) — not a co-located app container with ephemeral disk |
 
 **Eval / benchmark**
+
 - Runs local or in CI only.
 - Uses `DATABASE_URL_EVAL` pointing at an **ephemeral** database per run.
 - Never writes the demo database (ADR [0002](0002-mvp-scope-trim.md)).

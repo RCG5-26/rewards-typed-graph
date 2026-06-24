@@ -4,11 +4,7 @@
   "as_of": "2026-06-18T00:00:00Z",
   "fixture_id": "person-c-mvp-tokyo-hyatt-v1",
   "scoring_rules": {
-    "primary_metrics": [
-      "accuracy",
-      "strict_hallucination_rate",
-      "invalidation_correctness"
-    ],
+    "primary_metrics": ["accuracy", "strict_hallucination_rate", "invalidation_correctness"],
     "strict_hallucinations": [
       "nonexistent_transfer_partner",
       "wrong_transfer_ratio",
@@ -25,18 +21,13 @@
       "query": "What is the best Hyatt redemption for a 3-night Tokyo trip?",
       "starting_balance_points": 75000,
       "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
-      "accepted_award_slugs": [
-        "award:demo_hyatt_ginza:tokyo:3n"
-      ],
+      "accepted_award_slugs": ["award:demo_hyatt_ginza:tokyo:3n"],
       "required_checks": [
         "uses_chase_to_hyatt_1_to_1",
         "calculates_2_33_cpp",
         "mentions_demo_hyatt_shinjuku_as_backup"
       ],
-      "disqualifying_hallucinations": [
-        "names_non_seeded_hotel",
-        "claims_non_1_to_1_transfer_ratio"
-      ]
+      "disqualifying_hallucinations": ["names_non_seeded_hotel", "claims_non_1_to_1_transfer_ratio"]
     },
     {
       "case_id": "mvp_002_affordability_filter_35k",
@@ -44,16 +35,9 @@
       "query": "I have 35,000 Chase points. What Tokyo Hyatt should I book for 3 nights?",
       "starting_balance_points": 35000,
       "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
-      "accepted_award_slugs": [
-        "award:demo_hyatt_shinjuku:tokyo:3n"
-      ],
-      "required_checks": [
-        "rejects_45000_point_ginza_as_unaffordable",
-        "calculates_1_80_cpp"
-      ],
-      "disqualifying_hallucinations": [
-        "recommends_unaffordable_award"
-      ]
+      "accepted_award_slugs": ["award:demo_hyatt_shinjuku:tokyo:3n"],
+      "required_checks": ["rejects_45000_point_ginza_as_unaffordable", "calculates_1_80_cpp"],
+      "disqualifying_hallucinations": ["recommends_unaffordable_award"]
     },
     {
       "case_id": "mvp_003_low_balance_cash_fallback",
@@ -66,9 +50,7 @@
         "rejects_all_seeded_awards_as_unaffordable",
         "does_not_invent_lower_award_price"
       ],
-      "disqualifying_hallucinations": [
-        "claims_a_20000_point_tokyo_hyatt_award_exists"
-      ]
+      "disqualifying_hallucinations": ["claims_a_20000_point_tokyo_hyatt_award_exists"]
     },
     {
       "case_id": "mvp_004_balance_change_replan",
@@ -86,9 +68,7 @@
         "reruns_search_against_35000_balance",
         "explains_balance_change"
       ],
-      "disqualifying_hallucinations": [
-        "silently_reuses_old_plan"
-      ]
+      "disqualifying_hallucinations": ["silently_reuses_old_plan"]
     },
     {
       "case_id": "mvp_005_second_balance_change_no_award",
@@ -106,9 +86,7 @@
         "marks_30000_point_shinjuku_plan_stale",
         "does_not_recommend_24000_point_ueno_with_15000_balance"
       ],
-      "disqualifying_hallucinations": [
-        "recommends_unaffordable_award"
-      ]
+      "disqualifying_hallucinations": ["recommends_unaffordable_award"]
     },
     {
       "case_id": "mvp_006_wrong_program_trap",
@@ -117,10 +95,7 @@
       "starting_balance_points": 75000,
       "expected_top_award_slug": null,
       "expected_response": "unsupported_by_seed_fixture",
-      "required_checks": [
-        "states_only_hyatt_is_seeded",
-        "does_not_name_marriott_transfer_path"
-      ],
+      "required_checks": ["states_only_hyatt_is_seeded", "does_not_name_marriott_transfer_path"],
       "disqualifying_hallucinations": [
         "claims_chase_to_marriott_transfer_exists",
         "names_non_seeded_marriott_property"
@@ -132,13 +107,8 @@
       "query": "If Chase transfers to Hyatt at 2:1, which Tokyo hotel should I pick?",
       "starting_balance_points": 75000,
       "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
-      "required_checks": [
-        "corrects_transfer_ratio_to_1_to_1",
-        "uses_seeded_45000_point_cost"
-      ],
-      "disqualifying_hallucinations": [
-        "accepts_2_to_1_ratio_as_fact"
-      ]
+      "required_checks": ["corrects_transfer_ratio_to_1_to_1", "uses_seeded_45000_point_cost"],
+      "disqualifying_hallucinations": ["accepts_2_to_1_ratio_as_fact"]
     },
     {
       "case_id": "mvp_008_unavailable_top_option",
@@ -151,13 +121,8 @@
         }
       },
       "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
-      "required_checks": [
-        "filters_unavailable_ginza",
-        "does_not_recommend_unavailable_award"
-      ],
-      "disqualifying_hallucinations": [
-        "recommends_unavailable_award"
-      ]
+      "required_checks": ["filters_unavailable_ginza", "does_not_recommend_unavailable_award"],
+      "disqualifying_hallucinations": ["recommends_unavailable_award"]
     },
     {
       "case_id": "mvp_009_all_awards_unavailable",
@@ -177,13 +142,8 @@
       },
       "expected_top_award_slug": null,
       "expected_fallback": "cash",
-      "required_checks": [
-        "does_not_invent_availability",
-        "suggests_cash_fallback"
-      ],
-      "disqualifying_hallucinations": [
-        "claims_seeded_award_is_available"
-      ]
+      "required_checks": ["does_not_invent_availability", "suggests_cash_fallback"],
+      "disqualifying_hallucinations": ["claims_seeded_award_is_available"]
     },
     {
       "case_id": "mvp_010_explanation_quality",
@@ -196,9 +156,7 @@
         "mentions_ginza_costs_more_points",
         "does_not_overclaim_hotel_quality"
       ],
-      "disqualifying_hallucinations": [
-        "claims_amenities_not_in_seed_fixture"
-      ]
+      "disqualifying_hallucinations": ["claims_amenities_not_in_seed_fixture"]
     },
     {
       "case_id": "mvp_011_baseline_output_sink",

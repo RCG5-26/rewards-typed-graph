@@ -5,7 +5,8 @@
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
 ## Today
-- Reconcile RCG-9 against current main: canonical Postgres is v3.1 table-per-type; the Linear single-table JSONB title is stale unless a new ADR supersedes ADR 0001.
+
+- Build the postgres database and deploy it. Deployment options are up to the discretion of implementer (RCG-9)
 - Align PR #2 plan lifecycle with v3.1 lineage/revision semantics.
 - Add v3.1 operational tables/write paths flagged by PR #2 review.
 - Align PR #2 operational table/column names with v3.1 vocabulary.
@@ -26,10 +27,13 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Harden the RCG-8 loader so shared world seed is the default and demo persona rows are explicit local/eval opt-in.
 
 ## Next
+
+- Lock the seed fixture with stable IDs (RCG-8).
 - Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
 - Add recursive traversal/query helpers (RCG-12).
 
 ## Blocked on
+
 - nothing
 
 ---
@@ -58,7 +62,9 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-14 | Append-only mutation/event log (powers sidebar + audit) | Day 1-5 | every commit logged; Val can subscribe |
 
 ## My open schema decisions to drive
-A1 storage model is closed by ADR 0001; RCG-9 uses the locked v3.1 table-per-type DDL. Remaining watch items: B4 rational ratios, C2 concurrency version vs effective-dating, D2 observed-version placement, D3 staleness computed vs stored, E3 retry numbers, E4 mutation ownership matrix.
+
+A1 storage model · A3 transfer-partner-as-role + balance-as-node · B4 rational ratios · C2 concurrency version vs effective-dating · D2 observed-version placement · D3 staleness computed vs stored · E3 retry numbers · E4 mutation ownership matrix.
 
 ## My risk
+
 Dependency-tracking scope creep. Hold the cut: plan nodes only, explicit reads only, no transitive propagation, 200-300 lines. Postgres serializable isolation handles concurrent writes at this scale; document the locking strategy so Michael knows the consistency model.

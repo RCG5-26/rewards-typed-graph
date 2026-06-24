@@ -33,7 +33,7 @@ function stableFingerprint(mutation: SpecialistMutation): string {
   return JSON.stringify(mutation, (_, val: unknown) =>
     val !== null && typeof val === "object" && !Array.isArray(val)
       ? Object.fromEntries(Object.entries(val as Record<string, unknown>).sort())
-      : val
+      : val,
   );
 }
 
@@ -70,7 +70,10 @@ function validateCreatePlanStep(mutation: CreatePlanStepMutation): void {
         !isNonEmptyString(mutation.payload.spendCategoryId) ||
         !isNonEmptyString(mutation.payload.recommendedCardId)
       ) {
-        throw new CommitFailure("ValidationError", "spend_analysis requires spendCategoryId and recommendedCardId");
+        throw new CommitFailure(
+          "ValidationError",
+          "spend_analysis requires spendCategoryId and recommendedCardId",
+        );
       }
       break;
     case "redemption_recommendation":
@@ -97,7 +100,10 @@ function validateCreatePlanStep(mutation: CreatePlanStepMutation): void {
       break;
     default: {
       const _exhaustive: never = mutation;
-      throw new CommitFailure("ValidationError", `unknown stepType: ${(_exhaustive as CreatePlanStepMutation).stepType}`);
+      throw new CommitFailure(
+        "ValidationError",
+        `unknown stepType: ${(_exhaustive as CreatePlanStepMutation).stepType}`,
+      );
     }
   }
 }
@@ -109,7 +115,10 @@ function validateMutationStructure(mutation: SpecialistMutation): void {
     "RecordStateDependency",
   ];
   if (!knownKinds.includes(mutation.kind)) {
-    throw new CommitFailure("ValidationError", `unknown mutation kind: ${(mutation as { kind: string }).kind}`);
+    throw new CommitFailure(
+      "ValidationError",
+      `unknown mutation kind: ${(mutation as { kind: string }).kind}`,
+    );
   }
 
   switch (mutation.kind) {
@@ -128,7 +137,10 @@ function validateMutationStructure(mutation: SpecialistMutation): void {
         !Number.isInteger(mutation.observedVersion) ||
         mutation.observedVersion < 0
       ) {
-        throw new CommitFailure("ValidationError", "RecordStateDependency requires planStepId, targetNodeId, observedVersion");
+        throw new CommitFailure(
+          "ValidationError",
+          "RecordStateDependency requires planStepId, targetNodeId, observedVersion",
+        );
       }
       if (
         mutation.target.targetNodeType !== "UserBalance" &&
@@ -139,7 +151,10 @@ function validateMutationStructure(mutation: SpecialistMutation): void {
       break;
     default: {
       const _exhaustive: never = mutation;
-      throw new CommitFailure("ValidationError", `unhandled mutation: ${(_exhaustive as SpecialistMutation).kind}`);
+      throw new CommitFailure(
+        "ValidationError",
+        `unhandled mutation: ${(_exhaustive as SpecialistMutation).kind}`,
+      );
     }
   }
 }
@@ -192,10 +207,7 @@ export class InMemoryAgentCommitFactory implements AgentCommitFactory {
         );
       }
 
-      if (
-        input.mutation.kind === "CreatePlanStep" &&
-        input.mutation.planId !== planId
-      ) {
+      if (input.mutation.kind === "CreatePlanStep" && input.mutation.planId !== planId) {
         throw new CommitFailure(
           "ValidationError",
           "CreatePlanStep planId does not match bound plan",
@@ -206,7 +218,10 @@ export class InMemoryAgentCommitFactory implements AgentCommitFactory {
       const prior = this.idempotencyStore.get(input.idempotencyKey);
       if (prior) {
         if (prior.fingerprint !== fingerprint) {
-          throw new CommitFailure("IdempotencyConflict", "idempotency key reused with different request");
+          throw new CommitFailure(
+            "IdempotencyConflict",
+            "idempotency key reused with different request",
+          );
         }
         return { ...prior.result, idempotencyReplayed: true };
       }

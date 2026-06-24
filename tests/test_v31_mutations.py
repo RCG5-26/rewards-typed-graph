@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import unittest
+import json
 from pathlib import Path
 
 from schema.mutations import (
@@ -358,6 +359,13 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(plan_step_id, "00000000-0000-0000-0000-000000000030")
+        _, step_params = _first_sql(connection, "INSERT INTO plan_steps")
+        payload_param = step_params[6]
+        self.assertIsInstance(payload_param, str)
+        self.assertEqual(
+            json.loads(payload_param),
+            {"claim": "Transfer Chase points to Hyatt"},
+        )
         self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "INSERT INTO plan_steps"))
         self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))

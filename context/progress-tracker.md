@@ -41,9 +41,9 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 | Item | Owner | Blocked on | Notes |
 |---|---|---|---|
-| **RCG-28/29/32** hero path | Raq | live Postgres verification | `hero_flow.py` Beats 1-3 now wired through RCG-21 graph-writer |
+| **RCG-28/29/32** hero path | Raq | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
 | **RCG-11-14** graph infrastructure | Alan | - | OCC, traversal, deps, mutation log |
-| **RCG-24/27/26** demo UI on mocks | Val | Alan RCG-14 event shape | Parallel to hero |
+| **RCG-24/27/26** demo UI on mocks | Val | Alan RCG-14 event shape | Clerk auth on `main`; parallel to hero |
 
 ---
 
@@ -72,7 +72,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 |---|---|---|---|
 | Schema v3.1 lock | 2026-06-18 | done | ADR 0001 |
 | Person C offline scorer | 2026-06-23 | done | PR #14; 11/11 on fixture cases |
-| RCG-21 graph-writer bridge | 2026-06-24 | done locally | Unit tests green after latest `main` merge; live hero test skipped unless Postgres env and `psql` are enabled |
+| RCG-21 graph-writer bridge | 2026-06-24 | in PR #27 | Unit tests green; live hero test with docker-compose |
 | MVP hero green | 2026-06-25 | open | `test_hero_end_to_end` passes with live Postgres |
 | Live demo (10 min) | 2026-06-29 | open | Hosted URL + demo script |
 

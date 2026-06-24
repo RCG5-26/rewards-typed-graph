@@ -12,10 +12,12 @@ TypeScript API, Python agents, and the frontend must agree on mutation shapes, s
 ## Decision
 
 **Two authoritative artifacts**
+
 1. **JSON Schema** in `schema/contracts/` — API requests/responses, `MutationBatch`, agent invocation limits, tool payloads, benchmark fixtures, SSE event shape.
 2. **SQL DDL** in `schema/schema.sql` — persistence only.
 
 **Generated consumers (no manual duplication)**
+
 - TypeScript: `packages/schema-ts/` generated from JSON Schema.
 - Python: `agents/schema_py/` generated from JSON Schema.
 - CI diff gate: generated output must match schema on every PR touching contracts.
@@ -29,6 +31,7 @@ TypeScript API, Python agents, and the frontend must agree on mutation shapes, s
 | SSE event envelope | Alan + Val |
 
 **Python subprocess operational contract** (enforced by `launcher.ts`, documented in `agent-invocation.json`)
+
 - `spawn()` without shell; JSON stdin → single JSON document on stdout.
 - Exit codes: `0` success, `1` validation, `2` timeout, other = unexpected.
 - Configured execution timeout and maximum output size; exceed → validation failure.
@@ -36,6 +39,7 @@ TypeScript API, Python agents, and the frontend must agree on mutation shapes, s
 - stderr = logs only; sanitized before persistence.
 
 **Agent read boundary**
+
 - Python agents receive scoped snapshot JSON from graph-query only; no direct SQL.
 
 ## Consequences

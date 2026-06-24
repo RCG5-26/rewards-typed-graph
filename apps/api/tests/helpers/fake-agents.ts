@@ -1,8 +1,4 @@
-import type {
-  Agent,
-  AgentContext,
-  SpecialistMutation,
-} from "../../src/agents/contracts";
+import type { Agent, AgentContext, SpecialistMutation } from "../../src/agents/contracts";
 
 export class FakeWalletAgent implements Agent<"wallet_agent"> {
   readonly agentType = "wallet_agent" as const;

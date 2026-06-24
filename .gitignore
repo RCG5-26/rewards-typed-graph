@@ -19,6 +19,7 @@ venv/
 .env.*
 !.env.example
 *.local
+!.env.example
 
 # DB
 *.sqlite
@@ -33,3 +34,6 @@ venv/
 scratch/
 *.tmp
 STUDY_GUIDE.md
+
+# clerk configuration (can include secrets)
+/.clerk/
