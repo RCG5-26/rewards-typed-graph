@@ -26,8 +26,6 @@ WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
             "issuer",
             "program_kind",
             "currency_name",
-            "min_redemption_points",
-            "points_expire_months",
             "is_active",
         ),
         set(),
@@ -53,7 +51,7 @@ WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
     (
         "spend_categories",
         "spend_categories",
-        ("id", "slug", "name", "parent_id", "mcc_codes"),
+        ("id", "slug", "name", "mcc_codes"),
         set(),
     ),
     (
@@ -65,8 +63,6 @@ WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
             "dest_program_id",
             "transfer_ratio_basis_points",
             "transfer_time_days",
-            "valid_from",
-            "valid_until",
             "is_active",
             "version",
         ),
@@ -82,8 +78,6 @@ WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
             "cpp_basis_points",
             "min_points",
             "description",
-            "valid_from",
-            "valid_until",
         ),
         set(),
     ),
@@ -102,7 +96,6 @@ WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
             "spend_category_id",
             "earn_rate_basis_points",
             "earn_type",
-            "cap_amount_cents",
         ),
         set(),
     ),
@@ -215,8 +208,8 @@ def _insert_statement(
 ) -> str:
     column_sql = ", ".join(columns)
     row_sql = ",\n  ".join(
-        _row_sql(row, columns, jsonb_columns)
-        for row in rows
+        _row_sql(row, columns, jsonb_columns, table_name=table_name, row_index=index)
+        for index, row in enumerate(rows)
     )
     update_sql = ", ".join(
         f"{column} = EXCLUDED.{column}"
@@ -235,11 +228,20 @@ def _row_sql(
     row: dict[str, Any],
     columns: tuple[str, ...],
     jsonb_columns: set[str],
+    *,
+    table_name: str,
+    row_index: int,
 ) -> str:
-    values = [
-        _literal(row.get(column), as_jsonb=column in jsonb_columns)
-        for column in columns
-    ]
+    values = []
+    for column in columns:
+        if column not in row:
+            row_id = row.get("id", "<unknown>")
+            raise ValueError(
+                "Fixture row missing required column "
+                f"{column!r} for table {table_name!r} "
+                f"(row index {row_index}, id={row_id!r})"
+            )
+        values.append(_literal(row[column], as_jsonb=column in jsonb_columns))
     return "(" + ", ".join(values) + ")"
 
 
