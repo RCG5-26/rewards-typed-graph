@@ -127,7 +127,7 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
         )
 
     accuracy_correct = _accuracy_correct(plan, case)
-    hallucination_issues = _hallucination_issues(base_fixture, plan, case)
+    hallucination_issues = _hallucination_issues(fixture, plan, case)
     if invalidation_correct is not None:
         invalidation_correct = invalidation_correct and accuracy_correct
 

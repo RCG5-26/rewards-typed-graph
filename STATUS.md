@@ -41,7 +41,7 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 |---|---|---|---|
 | Alan - Graph | Phase A3 + PR #2 operational write path; RCG-8 seed fixture locked | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
 | Val - Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
-| Michael - Redemption | Offline scorer green; RCG-21 graph-writer bridge landed locally | Baseline runners next after hero path verification | eval config / model budget for baselines |
+| Michael - Redemption | Offline scorer green; RCG-21 graph-writer bridge landed locally | RCG-21 branch synced with latest `main`; baseline runners next after hero path verification | eval config / model budget for baselines; live hero proof needs `psql` + test DB |
 | Raq - Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 live Postgres hero path verification | live Postgres gate |
 
 ---
@@ -50,7 +50,7 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **MVP hero live verification** - `hero_flow.py` is wired through RCG-21, but `test_hero_end_to_end` still needs a live PostgreSQL run with `RUN_LIVE_POSTGRES_TESTS=1`.
+- **MVP hero live verification** - `hero_flow.py` is wired through RCG-21, but `test_hero_end_to_end` still needs a live PostgreSQL run with `RUN_LIVE_POSTGRES_TESTS=1`; current local env lacks `psql`.
 - **Baseline model budget** - Michael/Raq still need eval config and model budget decisions.
 
 ---
