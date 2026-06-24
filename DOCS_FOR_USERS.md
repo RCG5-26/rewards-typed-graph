@@ -8,6 +8,7 @@ Rewards Agent is a demo project for planning credit-card rewards redemptions. It
 - Inspect the locked data model in `docs/architecture/schema-final.md`.
 - Inspect the fixed demo wallet: five cards, three reward programs, and 240,000 total points for the Tokyo trip scenario.
 - Review Person C's first redemption scenario: a seeded Tokyo Hyatt trip using Chase Ultimate Rewards points.
+- Write that seeded redemption plan into the project database as a current plan with plan steps and dependency records.
 - Run the Person C planner tests with:
 
 ```bash
@@ -20,13 +21,13 @@ python -m unittest discover -s tests -v
 python -m benchmark.person_c_scorer --pretty
 ```
 
-The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, detect when a Chase balance change makes the old plan stale, and choose the next valid option. It does not yet write to a real database.
+The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision.
 
 ## Current Limitations
 
 - This is not a consumer product and does not connect to real bank accounts.
 - Award and cash prices are seeded fixture data, not live travel prices.
-- Database-backed plan writing is waiting on the graph-write path and shared mutation contracts.
+- The database-backed hero flow still needs a live PostgreSQL test database to verify the full transfer and re-plan cycle.
 
 ## Recent Changes
 
@@ -36,3 +37,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added an offline benchmark scorer for Person C's seeded cases.
 - Fallback explanations now stay focused on awards that match the current trip.
 - Added the fixed demo wallet seed used by the hero flow.
+- Added database-backed writing for the seeded redemption plan, including plan steps and balance dependencies.

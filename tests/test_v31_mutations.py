@@ -46,6 +46,18 @@ class FakeCursor:
             self.result = self.connection.transfer_points_result
             return
 
+        if compact_sql.startswith("WITH claimable AS"):
+            self.connection.claim_replan_job_calls.append(params)
+            self.result = self.connection.claim_replan_job_result
+            return
+
+        if compact_sql.startswith(
+            "SELECT job_id, source_plan_id, result_plan_id FROM promote_replan_job_success"
+        ):
+            self.connection.promote_replan_job_calls.append(params)
+            self.result = self.connection.promote_replan_job_result
+            return
+
         if compact_sql.startswith("SELECT user_id, plan_lineage_id, revision_number FROM plans"):
             plan_id = params[0]
             self.result = self.connection.plans.get(plan_id)
@@ -95,6 +107,10 @@ class FakeConnection:
         self.transfer_points_calls = []
         self.transfer_points_errors = []
         self.transfer_points_result = None
+        self.claim_replan_job_calls = []
+        self.claim_replan_job_result = None
+        self.promote_replan_job_calls = []
+        self.promote_replan_job_result = None
         self.plans = {}
         self.plan_steps = {}
         self.user_balances = {}
@@ -684,6 +700,68 @@ class V31GraphWriteServiceTest(unittest.TestCase):
             )
 
         self.assertEqual(str(raised.exception), "TransferPoints returned no result")
+
+    def test_claim_replan_job_for_source_updates_exact_job_scope(self):
+        connection = FakeConnection()
+        connection.claim_replan_job_result = (
+            "00000000-0000-0000-0000-000000000070",
+        )
+        service = V31GraphWriteService(connection)
+
+        job_id = service.claim_replan_job_for_source(
+            user_id="00000000-0000-0000-0000-000000000001",
+            plan_lineage_id="00000000-0000-0000-0000-000000000010",
+            source_plan_id="00000000-0000-0000-0000-000000000020",
+            worker_id="worker-1",
+        )
+
+        self.assertEqual(job_id, "00000000-0000-0000-0000-000000000070")
+        self.assertTrue(_any_sql(connection, "UPDATE replan_jobs job"))
+        self.assertEqual(
+            connection.claim_replan_job_calls,
+            [
+                (
+                    "00000000-0000-0000-0000-000000000001",
+                    "00000000-0000-0000-0000-000000000010",
+                    "00000000-0000-0000-0000-000000000020",
+                    "worker-1",
+                )
+            ],
+        )
+
+    def test_promote_replan_job_success_delegates_to_atomic_sql_function(self):
+        connection = FakeConnection()
+        connection.promote_replan_job_result = (
+            "00000000-0000-0000-0000-000000000070",
+            "00000000-0000-0000-0000-000000000020",
+            "00000000-0000-0000-0000-000000000021",
+        )
+        service = V31GraphWriteService(connection)
+
+        result = service.promote_replan_job_success(
+            job_id="00000000-0000-0000-0000-000000000070",
+            worker_id="worker-1",
+            result_plan_id="00000000-0000-0000-0000-000000000021",
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "job_id": "00000000-0000-0000-0000-000000000070",
+                "source_plan_id": "00000000-0000-0000-0000-000000000020",
+                "result_plan_id": "00000000-0000-0000-0000-000000000021",
+            },
+        )
+        self.assertEqual(
+            connection.promote_replan_job_calls,
+            [
+                (
+                    "00000000-0000-0000-0000-000000000070",
+                    "worker-1",
+                    "00000000-0000-0000-0000-000000000021",
+                )
+            ],
+        )
 
 
 class V31GraphWriteServiceLivePostgresTest(unittest.TestCase):

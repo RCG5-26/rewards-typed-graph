@@ -8,6 +8,7 @@ experiments at schema.experimental.polymorphic.mutations.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import uuid
 from dataclasses import dataclass
@@ -231,7 +232,7 @@ class V31GraphWriteService:
                   raw_output,
                   summary
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
                 RETURNING id, version
                 """,
                 (
@@ -243,7 +244,7 @@ class V31GraphWriteService:
                     request.status,
                     request.plan_type,
                     request.benchmark_query_id,
-                    request.raw_output,
+                    _json_param(request.raw_output),
                     request.summary,
                 ),
             )
@@ -300,7 +301,7 @@ class V31GraphWriteService:
                   payload,
                   status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s)
                 RETURNING id, version
                 """,
                 (
@@ -310,7 +311,7 @@ class V31GraphWriteService:
                     request.supersedes_plan_step_id,
                     request.step_order,
                     request.step_type,
-                    request.payload,
+                    _json_param(request.payload),
                     request.status,
                 ),
             )
@@ -374,7 +375,7 @@ class V31GraphWriteService:
                   observed_version,
                   snapshot_value
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
                 RETURNING id, 0
                 """,
                 (
@@ -384,7 +385,7 @@ class V31GraphWriteService:
                     request.target_table,
                     request.depended_property,
                     request.observed_version,
-                    request.snapshot_value,
+                    _json_param(request.snapshot_value),
                 ),
             )
             row = cursor.fetchone()
@@ -477,6 +478,104 @@ class V31GraphWriteService:
             "dest_balance_id": str(dest_balance_id),
             "dest_version": dest_version,
             "idempotency_replayed": idempotency_replayed,
+        }
+
+    def claim_replan_job_for_source(
+        self,
+        *,
+        user_id: str,
+        plan_lineage_id: str,
+        source_plan_id: str,
+        worker_id: str,
+    ) -> str:
+        """Claim one pending re-plan job for a known stale source revision."""
+
+        errors = _validate_replan_job_claim(
+            user_id=user_id,
+            plan_lineage_id=plan_lineage_id,
+            source_plan_id=source_plan_id,
+            worker_id=worker_id,
+        )
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                WITH claimable AS (
+                  SELECT id
+                    FROM replan_jobs
+                   WHERE user_id = %s
+                     AND plan_lineage_id = %s
+                     AND source_plan_id = %s
+                     AND available_at <= now()
+                     AND attempt_count < max_attempts
+                     AND (
+                       status = 'pending'
+                       OR (status = 'processing' AND lease_expires_at < now())
+                     )
+                   ORDER BY created_at
+                   LIMIT 1
+                   FOR UPDATE SKIP LOCKED
+                )
+                UPDATE replan_jobs job
+                   SET status = 'processing',
+                       locked_at = now(),
+                       locked_by = %s,
+                       lease_expires_at = now() + interval '30 seconds',
+                       attempt_count = attempt_count + 1,
+                       updated_at = now()
+                  FROM claimable
+                 WHERE job.id = claimable.id
+                RETURNING job.id
+                """,
+                (user_id, plan_lineage_id, source_plan_id, worker_id),
+            )
+            row = cursor.fetchone()
+
+        if row is None:
+            raise MutationCommitError(
+                f"no pending replan job for source plan: {source_plan_id}"
+            )
+        return str(row[0])
+
+    def promote_replan_job_success(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        result_plan_id: str,
+    ) -> Dict[str, str]:
+        """Atomically promote a generated revision and complete its job."""
+
+        errors = _validate_replan_job_promotion(
+            job_id=job_id,
+            worker_id=worker_id,
+            result_plan_id=result_plan_id,
+        )
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT job_id, source_plan_id, result_plan_id
+                  FROM promote_replan_job_success(%s, %s, %s)
+                """,
+                (job_id, worker_id, result_plan_id),
+            )
+            row = cursor.fetchone()
+
+        if row is None:
+            raise MutationCommitError(
+                f"replan job promotion returned no result: {job_id}"
+            )
+
+        returned_job_id, source_plan_id, returned_result_plan_id = row
+        return {
+            "job_id": str(returned_job_id),
+            "source_plan_id": str(source_plan_id),
+            "result_plan_id": str(returned_result_plan_id),
         }
 
 
@@ -680,6 +779,37 @@ def _validate_transfer_points(request: TransferPointsRequest) -> list[str]:
     return errors
 
 
+def _validate_replan_job_claim(
+    *,
+    user_id: str,
+    plan_lineage_id: str,
+    source_plan_id: str,
+    worker_id: str,
+) -> list[str]:
+    errors = _validate_actor_user(worker_id, user_id)
+    if not plan_lineage_id:
+        errors.append("ReplanJob.plan_lineage_id is required")
+    if not source_plan_id:
+        errors.append("ReplanJob.source_plan_id is required")
+    return errors
+
+
+def _validate_replan_job_promotion(
+    *,
+    job_id: str,
+    worker_id: str,
+    result_plan_id: str,
+) -> list[str]:
+    errors = []
+    if not job_id:
+        errors.append("ReplanJob.id is required")
+    if not worker_id:
+        errors.append("worker_id is required")
+    if not result_plan_id:
+        errors.append("ReplanJob.result_plan_id is required")
+    return errors
+
+
 def _validate_actor_user(actor: str, user_id: str) -> list[str]:
     errors = []
 
@@ -876,7 +1006,7 @@ def _insert_graph_mutation(
           before,
           after
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
         """,
         (
             str(uuid.uuid4()),
@@ -887,7 +1017,13 @@ def _insert_graph_mutation(
             target_table,
             target_node_id,
             summary,
-            before,
-            after,
+            _json_param(before),
+            _json_param(after),
         ),
     )
+
+
+def _json_param(value: Optional[Dict[str, Any]]) -> Optional[str]:
+    if value is None:
+        return None
+    return json.dumps(value, sort_keys=True)

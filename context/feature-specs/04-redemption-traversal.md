@@ -1,12 +1,12 @@
 # 04 — Redemption agent traversal (the hero)
 
-- **Status:** Draft
+- **Status:** In progress - RCG-21 graph-writer bridge landed locally; live Postgres hero gate pending
 - **Owner:** Michael · **Lane:** Redemption/Eval
 - **Linear:** RCG-20 (paper design), RCG-21 (implementation)
 - **Depends on:** 02 (graph write path), schema-final v3.1, RCG-22/23 (graph-typed tools / `external_quotes`)
 - **Related flows:** [Flow 1: Create a rewards plan](../project-overview.md), [Flow 2: Update state and automatically re-plan](../project-overview.md)
 
-**Prototype note:** RCG-20 now has an executable fixture-backed slice under `agents/redemption/` with Tokyo seed data, tests, and an offline scorer under `benchmark/`. The database-backed RCG-21 implementation remains blocked on spec 02 and MutationBatch/fragment merge contracts.
+**Prototype note:** RCG-20 has an executable fixture-backed slice under `agents/redemption/` with Tokyo seed data, tests, and an offline scorer under `benchmark/`. RCG-21 now maps planner output to `V31GraphWriteService` for `plans`, `plan_steps`, and `state_dependencies`; live Postgres hero verification remains the next integration gate.
 
 ---
 
