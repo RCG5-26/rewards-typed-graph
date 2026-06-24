@@ -31,7 +31,11 @@ const eventRow: GraphMutationRow = {
   committed_at: "2026-06-23T12:00:00.000Z",
 };
 
-function createTestApp(rows: GraphMutationRow[] = [eventRow]) {
+function createTestApp(
+  rows: GraphMutationRow[] = [eventRow],
+  options: { authenticated?: boolean } = {},
+) {
+  const { authenticated = true } = options;
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const client = {
     async query(sql: string, params: unknown[]) {
@@ -41,13 +45,21 @@ function createTestApp(rows: GraphMutationRow[] = [eventRow]) {
   };
   const app = new Hono<MutationRouteEnv>();
 
-  app.use("*", async (c, next) => {
-    c.set("userId", "00000000-0000-0000-0000-000000000002");
-    await next();
-  });
+  if (authenticated) {
+    app.use("*", async (c, next) => {
+      c.set("userId", "00000000-0000-0000-0000-000000000002");
+      await next();
+    });
+  }
   app.route("/", createMutationRoutes(client, { pollIntervalMs: null }));
 
   return { app, calls };
+}
+
+function compileMutationEventValidator() {
+  const ajv = new Ajv2020({ allErrors: true });
+  addFormats(ajv);
+  return ajv.compile(mutationEventSchema);
 }
 
 describe("mutation routes", () => {
@@ -56,22 +68,36 @@ describe("mutation routes", () => {
   });
 
   it("returns replayed mutation events as JSON", async () => {
+    const validate = compileMutationEventValidator();
     const { app, calls } = createTestApp();
 
     const response = await app.request("/mutations?after=123");
+    const events = (await response.json()) as unknown[];
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([
+    expect(events).toEqual([
       expect.objectContaining({
         event_id: "124",
         mutation_type: "TransferPoints",
       }),
     ]);
+    for (const event of events) {
+      expect(validate(event), JSON.stringify(validate.errors)).toBe(true);
+    }
     expect(calls[0]?.params).toEqual([
       "00000000-0000-0000-0000-000000000002",
       123,
       100,
     ]);
+  });
+
+  it("rejects unauthenticated REST mutation replay", async () => {
+    const { app, calls } = createTestApp([eventRow], { authenticated: false });
+
+    const response = await app.request("/mutations?after=123");
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
   });
 
   it.each(["abc", "Infinity", "1.5", String(Number.MAX_SAFE_INTEGER + 1)])(
@@ -124,10 +150,17 @@ describe("mutation routes", () => {
     ]);
   });
 
+  it("rejects unauthenticated SSE mutation stream", async () => {
+    const { app, calls } = createTestApp([eventRow], { authenticated: false });
+
+    const response = await app.request("/mutations/stream");
+
+    expect(response.status).toBe(401);
+    expect(calls).toHaveLength(0);
+  });
+
   it("streams mutation events that validate against the JSON Schema contract", async () => {
-    const ajv = new Ajv2020({ allErrors: true });
-    addFormats(ajv);
-    const validate = ajv.compile(mutationEventSchema);
+    const validate = compileMutationEventValidator();
     const { app } = createTestApp();
 
     const response = await app.request("/mutations/stream", {
