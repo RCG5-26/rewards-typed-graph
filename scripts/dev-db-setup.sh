@@ -22,7 +22,7 @@ fi
 
 docker compose up -d postgres
 
-echo "Waiting for Postgres at ${DATABASE_URL}..."
+echo "Waiting for Postgres to become ready..."
 ready=0
 for _ in $(seq 1 30); do
   if psql "$DATABASE_URL" -c "SELECT 1" >/dev/null 2>&1; then

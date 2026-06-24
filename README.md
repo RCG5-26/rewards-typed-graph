@@ -45,6 +45,7 @@ Run the hero gate test (requires seed + schema):
 
 ```bash
 source .env
+export RUN_LIVE_POSTGRES_TESTS=1
 python3 -m unittest tests.integration.test_hero_moment -v
 ```
 

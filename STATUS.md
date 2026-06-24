@@ -2,7 +2,7 @@
 
 The shared source of truth for the sprint. Update your own row before standup. Keep it skimmable.
 
-**Live demo:** Mon June 29 (10 min) - **Today:** Jun 23 - **Phase:** Integration sprint - hero path to green
+**Live demo:** Mon June 29 (10 min) - **Today:** Jun 24 - **Phase:** Integration sprint - hero path to green
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
 **Linear:** optional backbone (milestones + gates). This board is the daily driver. Task ids below map to `RCG-##` in Linear.
 
