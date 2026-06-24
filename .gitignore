@@ -17,6 +17,7 @@ venv/
 # Env + secrets (never commit these)
 .env
 .env.*
+!.env.example
 *.local
 
 # DB

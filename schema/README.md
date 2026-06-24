@@ -66,11 +66,21 @@ dependency recording, and `TransferPoints` before executing write SQL.
 
 ## Demo Seed
 
-Load the RCG-8 demo seed after applying `schema.sql`:
+One-command local setup (RCG-9): starts Postgres via Docker, applies schema, loads persona.
 
 ```bash
+cp .env.example .env
+./scripts/dev-db-setup.sh
+```
+
+Or manually after `schema.sql` is applied:
+
+```bash
+source .env   # DATABASE_URL=postgresql://rewards:rewards@localhost:5432/rewards_test
 python3 scripts/load_seed.py fixtures/demo-seed.json
 ```
+
+`load_seed.py` reads `DATABASE_URL` when set; otherwise uses libpq env vars (`PGHOST`, etc.).
 
 The fixture is idempotent by stable UUID primary keys. It includes the hero demo
 user, five held cards, three reward programs, three balances totaling 240,000

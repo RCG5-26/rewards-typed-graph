@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -165,11 +166,21 @@ def build_seed_sql(fixture: dict[str, Any]) -> str:
 
 
 def apply_seed(sql: str) -> None:
+    """Apply generated seed SQL via psql.
+
+    Uses ``DATABASE_URL`` when set (``postgresql://...``), otherwise libpq
+    env vars (``PGHOST``, ``PGDATABASE``, etc.).
+    """
+    command = ["psql", "--set", "ON_ERROR_STOP=1"]
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        command.append(database_url)
     subprocess.run(
-        ["psql", "--set", "ON_ERROR_STOP=1"],
+        command,
         input=sql,
         check=True,
         text=True,
+        env=os.environ.copy(),
     )
 
 

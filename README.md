@@ -24,6 +24,32 @@ This repo is the source of truth for daily coordination. Linear is an optional b
 - **[tracking/](tracking/)** — one self-tracking file per person.
 - **[docs/](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
 
+## Local database setup (RCG-9)
+
+Shared Postgres for hero integration tests and seed loading:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres          # or: ./scripts/dev-db-setup.sh (starts + loads)
+./scripts/dev-db-setup.sh              # reset schema, apply DDL, load demo persona
+```
+
+Verify the demo persona loaded:
+
+```bash
+source .env
+psql "$DATABASE_URL" -c "SELECT count(*) FROM user_balances;"
+```
+
+Run the hero gate test (requires seed + schema):
+
+```bash
+source .env
+python3 -m unittest tests.integration.test_hero_moment -v
+```
+
+Reset the database volume: `docker compose down -v`.
+
 ## Frontend (interim layout)
 
 The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy.
