@@ -75,7 +75,7 @@ The public landing is a **single self-contained component** ported verbatim from
 
 - **Auth wiring:** both "start optimizing" CTAs link to `/sign-in` (Clerk). Hover is brightness-only — CTAs do **not** translate on hover (no magnetic pull).
 - **Motion:** `prefers-reduced-motion` is honored (tilt/parallax/float neutralized to a static resting transform).
-- **Token deviation (known):** unlike the rest of the app, this surface carries its **own scoped theme** — local CSS variables and literal hex/oklch values inside the component, not the shared `design-system/` tokens. It is intentionally pixel-faithful to the handoff rather than token-driven. If we later fold it into the design system, migrate its locals (`--bg`, `--iris`, `--tx*`, …) onto the semantic tokens.
+- **Token deviation (explicit, temporary exception):** this surface is a **deliberate, scoped carve-out from the global "No hardcoded hex/px" rule** (§Theme & tokens / §Typography). It carries its **own scoped theme** — local CSS variables and literal hex/oklch values inside the component, not the shared `design-system/` tokens — to stay pixel-faithful to the handoff. The exception applies **only** to `components/GPFreeHero.tsx`; everywhere else the no-hardcoded-hex rule still holds. Planned resolution: when this is folded into the design system, migrate its locals (`--bg`, `--iris`, `--tx*`, …) onto the semantic tokens and drop the carve-out.
 - **Removed:** the prior cinematic `components/gpfree/` hero (`HeroStage` / `cinema.ts` / `HowItWorks` / `SiteFooter`) and its `public/assets/frame-*.webp` scroll frames were deleted when this design replaced it.
 
 ---

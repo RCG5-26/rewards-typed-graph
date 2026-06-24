@@ -44,6 +44,9 @@ const STYLE = `
 #gpx-hero .cta{transition:filter .2s var(--soft)}
 #gpx-hero .cta:hover{filter:brightness(1.08)}
 #gpx-hero .seehow:hover{color:var(--tx1);border-color:var(--brd-2)}
+/* Branded cursor: hollow iris ring (hotspot centered). Applied to children too
+   so it stays consistent over links/CTAs instead of reverting to the pointer. */
+#gpx-hero, #gpx-hero *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='9' fill='none' stroke='%238E96F2' stroke-width='2'/%3E%3C/svg%3E") 14 14, auto}
 @media (max-width:980px){
   #gpx-hero [data-herogrid]{grid-template-columns:1fr !important;gap:48px !important;text-align:center;justify-items:center}
   #gpx-hero [data-herocopy]{align-items:center !important;max-width:560px}
@@ -55,7 +58,7 @@ const STYLE = `
   #gpx-hero [data-stage]{height:340px !important}
 }
 @media (prefers-reduced-motion:reduce){
-  #gpx-hero [data-root] *{animation-duration:.001ms !important;animation-iteration-count:1 !important}
+  #gpx-hero, #gpx-hero *{animation-duration:.001ms !important;animation-iteration-count:1 !important}
 }
 `;
 
