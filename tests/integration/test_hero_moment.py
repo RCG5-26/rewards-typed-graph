@@ -79,7 +79,12 @@ class LivePostgresMixin:
         """Prefer Alan's seed loader; fall back to inline Tokyo MVP rows."""
         if LOAD_SEED_SCRIPT.is_file() and DEMO_SEED_PATH.is_file():
             subprocess.run(
-                ["python3", str(LOAD_SEED_SCRIPT), str(DEMO_SEED_PATH)],
+                [
+                    "python3",
+                    str(LOAD_SEED_SCRIPT),
+                    str(DEMO_SEED_PATH),
+                    "--include-demo-persona",
+                ],
                 env=os.environ.copy(),
                 check=True,
                 cwd=REPO_ROOT,

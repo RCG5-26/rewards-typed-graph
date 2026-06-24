@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-24 - RCG-8 and RCG-9 reconciled with latest main
+**Last updated:** 2026-06-24 - RCG-8 loader defaults to shared seed; RCG-9 on main
 
 ---
 
@@ -24,7 +24,7 @@
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
 - [x] **Person C offline slice (PR #14)** — 2026-06-23 — Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
-- [x] **RCG-8 demo seed fixture** — 2026-06-23 — `fixtures/demo-seed.json` + `scripts/load_seed.py` lock stable IDs for 5 cards, 3 programs, 240,000 points, Chase-to-Hyatt/United transfer routes, and the Tokyo hero goal.
+- [x] **RCG-8 demo seed fixture** — 2026-06-23 — `fixtures/demo-seed.json` + `scripts/load_seed.py` lock stable IDs for 5 cards, 3 programs, 240,000 points, Chase-to-Hyatt/United transfer routes, and the Tokyo hero goal; the loader applies shared world seed by default and requires an explicit local/eval opt-in for demo persona rows.
 - [x] PR #13 — GPFree marketing landing (Val) — 2026-06-23 — merged to `main`.
 - [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-23 — merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean.
 - [x] Hero moment test skeleton — 2026-06-22 — `tests/integration/test_hero_moment.py` + `hero_flow.py` seams.
@@ -79,6 +79,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Session notes _(optional — scratch pad)_
 
+- 2026-06-24: Hardened RCG-8 loader review path: default seed is shared world data only; fixed demo persona rows are opt-in for isolated local/eval databases.
 - 2026-06-24: Reconciled RCG-9 branch with current `main`; canonical Postgres remains v3.1 table-per-type and single-table JSONB `nodes`/`edges` stay experimental-only pending a superseding ADR.
 - 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer + conflict resolution in STATUS/progress-tracker.
 - 2026-06-23: Added RCG-8 canonical demo seed fixture and loader; default tests lock fixture counts, stable IDs, point total, and hero transfer route.

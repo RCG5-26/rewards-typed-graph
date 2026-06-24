@@ -23,6 +23,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
 - Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
 - Lock the RCG-8 demo seed fixture with stable IDs for five cards, three programs, and 240k points.
+- Harden the RCG-8 loader so shared world seed is the default and demo persona rows are explicit local/eval opt-in.
 
 ## Next
 - Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
@@ -48,7 +49,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-6 | Draft schema spec (node/edge types, attrs, versioning, validation) | Day 1 | reviewed; feeds the lock |
 | RCG-5 | Schema lock (co-own with Raq) | Day 1 | all four lanes sign off |
 | RCG-7 | Canonical schema artifact (DDL + TS/Python types) | Day 1 | committed; both stacks validate against it |
-| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | fixture + loader + tests committed |
+| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | fixture + shared loader + opt-in persona tests committed |
 | RCG-9 | Postgres v3.1 table-per-type schema (Linear single-table JSONB title is stale) | Day 1-5 | canonical migrations run clean; `nodes`/`edges` stay experimental-only |
 | RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5 | invalid mutations rejected before commit |
 | RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry) | Day 1-5 | stale-version commit rejected; retries bounded |

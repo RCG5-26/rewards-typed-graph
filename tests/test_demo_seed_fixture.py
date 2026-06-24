@@ -19,6 +19,7 @@ HYATT_PROGRAM_ID = "00000000-0000-0000-0000-00000000b002"
 UNITED_PROGRAM_ID = "00000000-0000-0000-0000-00000000b003"
 CHASE_BALANCE_ID = "00000000-0000-0000-0000-00000000d001"
 HYATT_BALANCE_ID = "00000000-0000-0000-0000-00000000d002"
+TOKYO_GOAL_ID = "00000000-0000-0000-0000-00000000d301"
 
 
 class DemoSeedFixtureTest(unittest.TestCase):
@@ -95,17 +96,43 @@ class DemoSeedFixtureTest(unittest.TestCase):
             10000,
         )
 
-    def test_loader_generates_idempotent_sql_without_generated_ids(self):
+    def test_fixture_locks_tokyo_october_goal(self):
+        goals = {goal["id"]: goal for goal in self.fixture["user_goals"]}
+        goal = goals[TOKYO_GOAL_ID]
+
+        self.assertEqual(goal["user_id"], DEMO_USER_ID)
+        self.assertEqual(goal["goal_type"], "specific_redemption")
+        self.assertEqual(goal["target_program_id"], HYATT_PROGRAM_ID)
+        self.assertEqual(goal["target_location"], "Tokyo")
+        self.assertEqual(goal["target_date"], "2026-10-15")
+        self.assertEqual(goal["payload"]["nights"], 3)
+        self.assertEqual(goal["payload"]["preferred_program_slug"], "program:hyatt")
+
+    def test_loader_defaults_to_shared_world_seed_only(self):
         loader = _load_seed_module()
         sql = loader.build_seed_sql(self.fixture)
 
-        self.assertIn("INSERT INTO users", sql)
         self.assertIn("INSERT INTO credit_cards", sql)
-        self.assertIn("INSERT INTO user_balances", sql)
+        self.assertIn("INSERT INTO reward_programs", sql)
+        self.assertIn("INSERT INTO transfers_to", sql)
+        self.assertIn("INSERT INTO earns", sql)
         self.assertIn("ON CONFLICT (id) DO UPDATE", sql)
         self.assertNotIn("gen_random_uuid()", sql)
         self.assertNotIn("mcc_codes = EXCLUDED.mcc_codes::jsonb", sql)
         self.assertIn("ARRAY[3000, 3351, 3501, 4511, 4722]", sql)
+        self.assertNotIn("INSERT INTO users", sql)
+        self.assertNotIn("INSERT INTO user_balances", sql)
+        self.assertNotIn("INSERT INTO user_goals", sql)
+        self.assertNotIn(DEMO_USER_ID, sql)
+        self.assertNotIn(CHASE_BALANCE_ID, sql)
+
+    def test_loader_can_include_demo_persona_for_isolated_tests(self):
+        loader = _load_seed_module()
+        sql = loader.build_seed_sql(self.fixture, include_demo_persona=True)
+
+        self.assertIn("INSERT INTO users", sql)
+        self.assertIn("INSERT INTO user_balances", sql)
+        self.assertIn("INSERT INTO user_goals", sql)
         self.assertIn(DEMO_USER_ID, sql)
         self.assertIn(CHASE_BALANCE_ID, sql)
         self.assertIn(HYATT_BALANCE_ID, sql)
@@ -131,7 +158,8 @@ class DemoSeedFixtureLivePostgresTest(unittest.TestCase):
 
     def test_seed_applies_idempotently_and_preserves_demo_wallet(self):
         sql = _load_seed_module().build_seed_sql(
-            json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
+            json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8")),
+            include_demo_persona=True,
         )
         _psql_exec(sql)
         _psql_exec(sql)

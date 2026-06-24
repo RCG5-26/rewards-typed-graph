@@ -12,9 +12,10 @@ These files are the machine-usable schema artifacts for the MVP described in
 - `types.py` imports generated Python constants and adds lightweight validators
   for node and edge payloads.
 - `../fixtures/demo-seed.json` is the RCG-8 demo seed fixture with stable IDs
-  for the five-card / three-program / 240k-point bootstrap persona.
-- `../scripts/load_seed.py` loads that fixture into a database that already has
-  `schema.sql` applied.
+  for the shared rewards data and five-card / three-program / 240k-point
+  bootstrap persona template.
+- `../scripts/load_seed.py` loads the shared rewards seed into a database that
+  already has `schema.sql` applied.
 
 Regenerate contract artifacts after editing `contracts/graph.schema.json`:
 
@@ -66,16 +67,27 @@ dependency recording, and `TransferPoints` before executing write SQL.
 
 ## Demo Seed
 
-Load the RCG-8 demo seed after applying `schema.sql`:
+Load the shared RCG-8 world seed after applying `schema.sql`:
 
 ```bash
 python3 scripts/load_seed.py fixtures/demo-seed.json
 ```
 
-The fixture is idempotent by stable UUID primary keys. It includes the hero demo
-user, five held cards, three reward programs, three balances totaling 240,000
-points, the Chase-to-Hyatt transfer route, and the Tokyo goal used by the hero
-flow tests.
+The loader is idempotent by stable UUID primary keys. By default it loads shared
+reward programs, cards, earn rates, redemption options, and both 1:1 Chase
+Ultimate Rewards transfer routes: Chase-to-Hyatt and Chase-to-United.
+
+For isolated local or eval databases that need the fixed demo persona rows, opt
+in explicitly:
+
+```bash
+python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+```
+
+Do not use `--include-demo-persona` for the shared app database; use the
+first-login bootstrap path to clone the fixture rows for each signed-in Clerk
+user. The persona template includes the five held cards, three balances totaling
+240,000 points, and the October Tokyo Hyatt goal used by the hero flow tests.
 
 ## Still Not Fully Implemented
 
