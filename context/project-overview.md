@@ -98,7 +98,7 @@ Rewards Agent is a personalized credit-card rewards planning assistant. Instead 
 
 - Layers 1–3: the typed knowledge graph (world, personal, plan), the specialist agents, and dependency tracking with graph-typed tools.
 - A demo interface that presents the plan and streams graph mutations live.
-- A fixed demo persona and a limited pre-seeded dataset (about 20 cards and their transfer routes).
+- A fixed demo persona and a locked seed slice: five cards, three programs, 240k points, and transfer routes for the Tokyo hero flow.
 - One real external tool (cash-price lookup); award availability is fixture-based.
 - The research benchmark: the three architectures, the shared query set, and the scored metrics.
 

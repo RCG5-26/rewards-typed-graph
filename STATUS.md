@@ -107,7 +107,7 @@ Append one line per real decision. (Historical v2 open items resolved in schema-
 
 ## Risk watch (per lane)
 
-- **Board lags code:** Alan's DDL/types/CI shipped but several Linear tickets (e.g. RCG-7/9) are still Backlog — reconcile ticket statuses at standup so the board reflects reality.
+- **Board lags code:** Alan's DDL/types/CI shipped; RCG-9 is reconciled as v3.1 table-per-type in repo. Update Linear status/title at standup if it still says single-table JSONB.
 - **Alan — dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
 - **Val — demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
 - **Michael — weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.

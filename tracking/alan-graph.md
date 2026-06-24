@@ -23,6 +23,8 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
 - Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
+- Lock the RCG-8 demo seed fixture with stable IDs for five cards, three programs, and 240k points.
+- Harden the RCG-8 loader so shared world seed is the default and demo persona rows are explicit local/eval opt-in.
 
 ## Next
 

@@ -603,9 +603,10 @@ See `schema/schema.sql`. Highlights:
 
 ## 11. Seed fixture
 
-- 20 `credit_cards` + programs; Chase UR + Amex MR transfer routes (Tokyo: Hyatt, United, ANA).
-- Top ~50 MCC `spend_categories`.
-- **Bootstrap template** (not one global user): 5 cards, ~240k points, Tokyo October goal — cloned per Clerk user on first login.
+- **RCG-8 demo bootstrap fixture:** `fixtures/demo-seed.json` + `scripts/load_seed.py` locks 5 cards, 3 programs, 240,000 points, a Tokyo October goal, and stable UUIDs for the hero flow.
+- Chase UR transfer routes for the RCG-8 slice: Hyatt and United at 1:1.
+- Broader seed expansion remains additive: about 20 `credit_cards` + programs, Chase UR + Amex MR transfer routes (Tokyo: Hyatt, United, ANA), and top ~50 MCC `spend_categories`.
+- **Bootstrap template** (not one global mutable user): clone the demo personal graph per Clerk user on first login.
 
 ---
 
