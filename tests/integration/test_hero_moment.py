@@ -357,9 +357,18 @@ def _is_safe_test_database_name(name: str) -> bool:
     return name.endswith("_test") or name.startswith("test_")
 
 
+def _psql_command(*extra: str) -> list[str]:
+    """Build a psql argv list honoring DATABASE_URL and suppressing command tags."""
+    command = ["psql", "--set", "ON_ERROR_STOP=1", "--quiet", *extra]
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        command.append(database_url)
+    return command
+
+
 def _psql_file(path: Path) -> None:
     subprocess.run(
-        ["psql", "--set", "ON_ERROR_STOP=1", "--file", str(path)],
+        _psql_command("--file", str(path)),
         env=os.environ.copy(),
         check=True,
         stdout=subprocess.PIPE,
@@ -370,7 +379,7 @@ def _psql_file(path: Path) -> None:
 
 def _psql_exec(sql: str) -> None:
     subprocess.run(
-        ["psql", "--set", "ON_ERROR_STOP=1"],
+        _psql_command(),
         input=sql,
         env=os.environ.copy(),
         check=True,
@@ -382,17 +391,14 @@ def _psql_exec(sql: str) -> None:
 
 def _psql_rows(sql: str):
     result = subprocess.run(
-        [
-            "psql",
-            "--set",
-            "ON_ERROR_STOP=1",
+        _psql_command(
             "--no-align",
             "--tuples-only",
             "--field-separator",
             "\x1f",
             "--record-separator",
             "\x1e",
-        ],
+        ),
         input=sql,
         env=os.environ.copy(),
         check=True,

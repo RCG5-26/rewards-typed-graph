@@ -9,15 +9,17 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - RCG-20/31 executable slice is in place: Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11 benchmark cases, and offline scorer.
 - Tests prove initial recommendation, balance-change invalidation, cash fallback, award availability overrides, integer basis-point math, typed tool fragments, and scorer report output.
 - PR review fixes are addressed: fallback diagnostics are query-scoped, and invalidation scoring uses the Chase balance slug instead of fixture list position.
+- RCG-21 graph-writer bridge is in place: planner output writes `plans`, `plan_steps`, and `state_dependencies` through `V31GraphWriteService`, and `hero_flow.py` is wired for synchronous revision-2 promotion.
+- RCG-21 branch is synced with latest `main`; non-live test suite is green, with live Postgres tests still skipped in environments without `psql`.
 
 ## Next
 
-- Map planner output to graph-write MutationBatch once spec 02/contracts are ready (RCG-21).
+- Support Raq on live Postgres hero verification if the RCG-28/29/32 path exposes redemption-writer gaps.
 - Add fair single-agent and CrewAI-style baseline runners around the same fixture data and scorer report shape.
 
 ## Blocked on
 
-- Database-backed RCG-21 writes wait on graph-write path, MutationBatch contract, and fragment merge contract.
+- Full hero proof needs a live Postgres run of `test_hero_end_to_end`.
 - Baseline model calls need the shared eval config/model budget decision.
 
 ---

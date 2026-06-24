@@ -1,6 +1,6 @@
 # Person C Redemption Traversal Plan
 
-This is the RCG-20 paper design and executable fixture-backed prototype for the first redemption path. It aligns to schema-final v3.1 where contracts exist and stays short of database writes until the graph-write path and MutationBatch contracts are ready.
+This is the RCG-20 paper design and executable fixture-backed prototype for the first redemption path. It aligns to schema-final v3.1 where contracts exist; RCG-21 now maps the seeded planner output into database-backed plan steps and dependencies through `V31GraphWriteService`.
 
 ## Done And Correct
 
@@ -124,12 +124,11 @@ Merge rule:
 
 ## Remaining Integration Questions
 
-Person C cannot safely finish database-backed RCG-21 until these are settled:
+Person C has a database-backed RCG-21 bridge for plan steps and balance dependencies. These integration questions remain outside that bridge:
 
 - What is the exact graph fragment envelope accepted by the merge path?
-- What is the final MutationBatch shape for creating `plan_steps` and `state_dependencies`?
 - How should merged `external_quotes` be referenced from plan step payloads before world-fact invalidation exists?
-- What stable seed slugs will Alan commit for Chase, Hyatt, the demo user, and the Tokyo options?
+- What stable seed slugs will be used for future Tokyo options beyond the current hero seed?
 
 ## Implementation Order
 
@@ -138,8 +137,9 @@ Person C cannot safely finish database-backed RCG-21 until these are settled:
 3. Done: add the seeded award tool returning typed graph fragments.
 4. Done: prove balance-change invalidation in memory from recorded balance dependencies.
 5. Done: add offline benchmark scoring for the typed fixture path.
-6. Next: map plan drafts to graph-write MutationBatch once spec 02 is ready.
-7. Next: add fair baseline runners against the same scorer/report shape.
+6. Done: map plan drafts to `V31GraphWriteService` (`plans`, `plan_steps`, `state_dependencies`) for RCG-21.
+7. Next: run the live Postgres hero path and fix any integration gaps.
+8. Next: add fair baseline runners against the same scorer/report shape.
 
 ## Verification
 

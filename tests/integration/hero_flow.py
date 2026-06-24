@@ -1,30 +1,22 @@
-"""Hero flow API — integration seam for Jun 25 gate.
+"""Hero flow API: integration seam for the Jun 25 gate.
 
-Implement these functions to turn the hero integration test green:
-
-- ``create_plan_from_query`` — Raq (RCG-15/28) + Michael (RCG-21)
-- ``replan_after_balance_transfer`` — Raq + Michael (RCG-29)
-
-Until implemented, ``test_hero_end_to_end`` fails with ``NotImplementedError``.
+The test module owns the live Postgres harness. This file keeps the orchestration
+surface tiny: create a plan from the deterministic redemption writer, then
+perform the synchronous re-plan path used by the hero gate.
 """
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from schema.mutations import (
     CreatePlanRequest,
-    CreatePlanStepRequest,
-    PromotePlanRevisionRequest,
-    RecordStateDependencyRequest,
     TransferPointsRequest,
     V31GraphWriteService,
 )
-
-# Stable demo IDs — mirror tests/integration/test_hero_moment.py and the seed.
-CHASE_BALANCE_ID = "00000000-0000-0000-0000-00000000d001"
+from tests.integration.redemption_graph_writer import write_redemption_steps
 
 
 @dataclass(frozen=True)
@@ -37,6 +29,7 @@ class HeroPlanSnapshot:
     status: str
     step_count: int
     dependency_count: int
+    query_text: str
 
 
 @dataclass(frozen=True)
@@ -64,19 +57,10 @@ def create_plan_from_query(
     user_id: str,
     query_text: str,
 ) -> HeroPlanSnapshot:
-    """Beat 1: NL query → current plan revision with steps + state_dependencies.
+    """Beat 1: NL query to current plan revision with dependencies."""
 
-    Expected wiring (MVP):
-    1. Orchestrator creates plan (status ``generating`` → ``current``).
-    2. Redemption agent reads graph/seed, writes ``plan_steps`` + ``state_dependencies``
-       via ``V31GraphWriteService`` only.
-    3. Returns snapshot for assertions.
-
-    Cut scope OK for Jun 25: hardcoded Tokyo path, deterministic reasoning, no LLM.
-    """
     service = V31GraphWriteService(connection)
     plan_lineage_id = str(uuid.uuid4())
-
     plan_id = service.create_plan(
         CreatePlanRequest(
             actor="orchestrator",
@@ -84,69 +68,23 @@ def create_plan_from_query(
             plan_lineage_id=plan_lineage_id,
             revision_number=1,
             query_text=query_text,
-            status="current",
+            status="generating",
         )
     )
-
-    redemption_step_id = service.create_plan_step(
-        CreatePlanStepRequest(
-            actor="redemption_agent",
+    try:
+        write_redemption_steps(
+            connection,
             user_id=user_id,
             plan_id=plan_id,
+            query_text=query_text,
             plan_lineage_id=plan_lineage_id,
             revision_number=1,
-            step_order=1,
-            step_type="redemption_recommendation",
-            payload={
-                "reasoning": "World of Hyatt Cat 4 covers a 3-night Tokyo stay at 60k points.",
-                "program": "world-of-hyatt",
-                "nights": 3,
-                "points_required": 60000,
-            },
-            status="current",
         )
-    )
-
-    service.create_plan_step(
-        CreatePlanStepRequest(
-            actor="redemption_agent",
-            user_id=user_id,
-            plan_id=plan_id,
-            plan_lineage_id=plan_lineage_id,
-            revision_number=1,
-            step_order=2,
-            step_type="transfer_recommendation",
-            payload={
-                "reasoning": "Transfer 60k Chase UR to Hyatt (1:1) to fund the award.",
-                "action": "transfer_points",
-                "amount_points": 60000,
-            },
-            status="current",
-        )
-    )
-
-    service.record_state_dependency(
-        RecordStateDependencyRequest(
-            actor="redemption_agent",
-            user_id=user_id,
-            plan_step_id=redemption_step_id,
-            target_node_id=CHASE_BALANCE_ID,
-            target_node_type="UserBalance",
-            target_table="user_balances",
-            observed_version=1,
-            snapshot_value={"balance_points": 240000},
-            depended_property="balance_points",
-        )
-    )
-
-    return HeroPlanSnapshot(
-        plan_id=plan_id,
-        plan_lineage_id=plan_lineage_id,
-        revision_number=1,
-        status="current",
-        step_count=2,
-        dependency_count=1,
-    )
+        _promote_generating_plan_to_current(connection, plan_id)
+    except Exception:
+        _mark_generating_plan_failed(connection, plan_id)
+        raise
+    return _plan_snapshot(connection, plan_id)
 
 
 def replan_after_balance_transfer(
@@ -155,83 +93,142 @@ def replan_after_balance_transfer(
     prior: HeroPlanSnapshot,
     transfer: BalanceTransferSpec,
 ) -> HeroPlanSnapshot:
-    """Beat 2 + 3: transfer → stale detection → new current revision.
+    """Beat 2 and 3: transfer, stale prior revision, then promote revision 2."""
 
-    Expected wiring (MVP):
-    1. Call ``V31GraphWriteService.transfer_points`` (wallet agent optional).
-    2. Assert prior plan/step statuses become ``stale`` (or read ``stale_plan_steps``).
-    3. Invoke redemption again for same ``plan_lineage_id`` with ``revision_number + 1``;
-       mark prior plan ``superseded``, new plan ``current``.
-    4. ``replan_jobs`` worker optional — synchronous re-plan is fine for Jun 25.
-
-    Returns the new current plan snapshot.
-    """
     service = V31GraphWriteService(connection)
-
-    # Beat 2: mutate the balance. The DB cascade marks the dependent plan +
-    # steps stale and enqueues a replan_jobs row — we never message the plan.
-    service.transfer_points(TransferPointsRequest(**asdict(transfer)))
-
-    # Re-plan reuses the original NL query; the snapshot doesn't carry it.
-    query_text = _fetch_plan_query_text(connection, prior.plan_id)
-
-    next_revision = prior.revision_number + 1
-    plan_v2_id = service.create_plan(
-        CreatePlanRequest(
-            actor="orchestrator",
+    service.transfer_points(
+        TransferPointsRequest(
+            actor=transfer.actor,
             user_id=transfer.user_id,
-            plan_lineage_id=prior.plan_lineage_id,
-            revision_number=next_revision,
-            query_text=query_text,
-            status="current",
-            supersedes_plan_id=prior.plan_id,
+            source_balance_id=transfer.source_balance_id,
+            dest_balance_id=transfer.dest_balance_id,
+            amount_points=transfer.amount_points,
+            source_expected_version=transfer.source_expected_version,
+            dest_expected_version=transfer.dest_expected_version,
+            idempotency_key=transfer.idempotency_key,
+            request_hash=transfer.request_hash,
         )
     )
 
-    service.create_plan_step(
-        CreatePlanStepRequest(
-            actor="redemption_agent",
-            user_id=transfer.user_id,
-            plan_id=plan_v2_id,
-            plan_lineage_id=prior.plan_lineage_id,
-            revision_number=next_revision,
-            step_order=1,
-            step_type="redemption_recommendation",
-            payload={
-                "reasoning": "Balance already moved; book the Hyatt Tokyo award directly.",
-                "program": "world-of-hyatt",
-                "nights": 3,
-                "points_required": 60000,
-            },
-            status="current",
-        )
-    )
-
-    # Beat 3: source revision stale -> superseded, close the replan job.
-    service.promote_plan_revision(
-        PromotePlanRevisionRequest(
-            actor="orchestrator",
-            user_id=transfer.user_id,
-            source_plan_id=prior.plan_id,
-            new_plan_id=plan_v2_id,
-            plan_lineage_id=prior.plan_lineage_id,
-        )
-    )
-
-    return HeroPlanSnapshot(
-        plan_id=plan_v2_id,
+    worker_id = "hero-flow-sync-worker"
+    job_id = service.claim_replan_job_for_source(
+        user_id=transfer.user_id,
         plan_lineage_id=prior.plan_lineage_id,
-        revision_number=next_revision,
-        status="current",
-        step_count=1,
-        dependency_count=0,
+        source_plan_id=prior.plan_id,
+        worker_id=worker_id,
     )
+    result_plan_id: str | None = None
+    try:
+        result_plan_id = service.create_plan(
+            CreatePlanRequest(
+                actor="orchestrator",
+                user_id=transfer.user_id,
+                plan_lineage_id=prior.plan_lineage_id,
+                revision_number=prior.revision_number + 1,
+                supersedes_plan_id=prior.plan_id,
+                query_text=prior.query_text,
+                status="generating",
+            )
+        )
+        write_redemption_steps(
+            connection,
+            user_id=transfer.user_id,
+            plan_id=result_plan_id,
+            query_text=prior.query_text,
+            plan_lineage_id=prior.plan_lineage_id,
+            revision_number=prior.revision_number + 1,
+            step_status="proposed",
+        )
+        service.promote_replan_job_success(
+            job_id=job_id,
+            worker_id=worker_id,
+            result_plan_id=result_plan_id,
+        )
+    except Exception as exc:
+        service.fail_replan_job(
+            user_id=transfer.user_id,
+            job_id=job_id,
+            worker_id=worker_id,
+            error=str(exc),
+        )
+        if result_plan_id is not None:
+            _mark_generating_plan_failed(connection, result_plan_id)
+        raise
+    return _plan_snapshot(connection, result_plan_id)
 
 
-def _fetch_plan_query_text(connection: GraphConnection, plan_id: str) -> str:
+def _mark_generating_plan_failed(connection: GraphConnection, plan_id: str) -> None:
     with connection.cursor() as cursor:
-        cursor.execute("SELECT query_text FROM plans WHERE id = %s", (plan_id,))
+        cursor.execute(
+            """
+            UPDATE plans
+               SET status = 'failed',
+                   updated_at = now()
+             WHERE id = %s
+               AND status = 'generating'
+            """,
+            (plan_id,),
+        )
+
+
+def _promote_generating_plan_to_current(connection: GraphConnection, plan_id: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE plans
+               SET status = 'current',
+                   version = version + 1,
+                   updated_at = now()
+             WHERE id = %s
+               AND status = 'generating'
+            RETURNING id
+            """,
+            (plan_id,),
+        )
+        if cursor.fetchone() is None:
+            raise RuntimeError(f"plan not in generating state before promotion: {plan_id}")
+
+
+def _plan_snapshot(connection: GraphConnection, plan_id: str) -> HeroPlanSnapshot:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT
+              p.id,
+              p.plan_lineage_id,
+              p.revision_number,
+              p.status,
+              p.query_text,
+              count(DISTINCT ps.id),
+              count(sd.id)
+            FROM plans p
+            LEFT JOIN plan_steps ps ON ps.plan_id = p.id
+            LEFT JOIN state_dependencies sd ON sd.plan_step_id = ps.id
+            WHERE p.id = %s
+            GROUP BY p.id, p.plan_lineage_id, p.revision_number, p.status, p.query_text
+            """,
+            (plan_id,),
+        )
         row = cursor.fetchone()
-    if not row:
-        raise ValueError(f"plan {plan_id} not found while re-planning")
-    return row[0]
+
+    if row is None:
+        raise RuntimeError(f"plan not found after write: {plan_id}")
+
+    (
+        found_plan_id,
+        plan_lineage_id,
+        revision_number,
+        status,
+        query_text,
+        step_count,
+        dependency_count,
+    ) = row
+    return HeroPlanSnapshot(
+        plan_id=str(found_plan_id),
+        plan_lineage_id=str(plan_lineage_id),
+        revision_number=int(revision_number),
+        status=str(status),
+        step_count=int(step_count),
+        dependency_count=int(dependency_count),
+        query_text=str(query_text),
+    )

@@ -67,11 +67,21 @@ dependency recording, and `TransferPoints` before executing write SQL.
 
 ## Demo Seed
 
-Load the shared RCG-8 world seed after applying `schema.sql`:
+One-command local setup (RCG-9): starts Postgres via Docker, applies schema, loads shared world seed.
 
 ```bash
+cp .env.example .env
+./scripts/dev-db-setup.sh
+```
+
+Or manually after `schema.sql` is applied:
+
+```bash
+source .env   # DATABASE_URL=postgresql://rewards:rewards@localhost:5432/rewards_test
 python3 scripts/load_seed.py fixtures/demo-seed.json
 ```
+
+`load_seed.py` reads `DATABASE_URL` when set; otherwise uses libpq env vars (`PGHOST`, etc.).
 
 The loader is idempotent by stable UUID primary keys. By default it loads shared
 reward programs, cards, earn rates, redemption options, and both 1:1 Chase
