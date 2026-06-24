@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-24 — PR #27: RCG-8 seed + RCG-9 dev Postgres + RCG-21 graph writer
+**Last updated:** 2026-06-24 — RCG-8 on main; PR #27 adds RCG-9 dev Postgres + RCG-21 graph writer
 
 ---
 
@@ -25,15 +25,15 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 - [x] **RCG-9 dev Postgres** — 2026-06-24 — `docker-compose.yml`, `.env.example`, `scripts/dev-db-setup.sh`; team `DATABASE_URL` (PR #27).
 - [x] **RCG-21 redemption graph-writer** — 2026-06-24 — `redemption_graph_writer.py` maps planner → `V31GraphWriteService`; hero flow uses replan job path (PR #27).
-- [x] **Person C offline slice (PR #14)** - 2026-06-23 - Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
-- [x] **RCG-8 demo seed fixture** - 2026-06-23 - `fixtures/demo-seed.json` + `scripts/load_seed.py` lock stable IDs for 5 cards, 3 programs, 240,000 points, Chase-to-Hyatt/United transfer routes, and the Tokyo hero goal.
-- [x] PR #13 - GPFree marketing landing (Val) - 2026-06-23 - merged to `main`.
-- [x] Spec 05 - Orchestrator + agent harness (RCG-15) - 2026-06-23 - merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean.
-- [x] Hero moment test skeleton - 2026-06-22 - `tests/integration/test_hero_moment.py` + `hero_flow.py` seams.
-- [x] PR #2 operational schema alignment - 2026-06-21 - user-scoped graph mutations, re-plan jobs, idempotency, eval tables, atomic transfer write path.
-- [x] RCG-10 canonical mutation layer - 2026-06-21 - `V31GraphWriteService` for plan, plan-step, state-dependency, `TransferPoints`.
-- [x] Phase A3 JSON Schema + codegen (RCG-61) - 2026-06-21 - `schema/contracts/` + generated types in PR #2.
-- [x] GPFree landing to design-system conform - 2026-06-22 - Val; tokens + `components/gpfree/`.
+- [x] **Person C offline slice (PR #14)** — 2026-06-23 — Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
+- [x] **RCG-8 demo seed fixture** — 2026-06-23 — `fixtures/demo-seed.json` + `scripts/load_seed.py` lock stable IDs for 5 cards, 3 programs, 240,000 points, Chase-to-Hyatt/United transfer routes, and the Tokyo hero goal; loader applies shared world seed by default and requires explicit opt-in for demo persona rows.
+- [x] PR #13 — GPFree marketing landing (Val) — 2026-06-23 — merged to `main`.
+- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-23 — merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean.
+- [x] Hero moment test skeleton — 2026-06-22 — `tests/integration/test_hero_moment.py` + `hero_flow.py` seams.
+- [x] PR #2 operational schema alignment — 2026-06-21 — user-scoped graph mutations, re-plan jobs, idempotency, eval tables, atomic transfer write path.
+- [x] RCG-10 canonical mutation layer — 2026-06-21 — `V31GraphWriteService` for plan, plan-step, state-dependency, `TransferPoints`.
+- [x] Phase A3 JSON Schema + codegen (RCG-61) — 2026-06-21 — `schema/contracts/` + generated types in PR #2.
+- [x] GPFree landing → design-system conform — 2026-06-22 — Val; tokens + `components/gpfree/`.
 
 ---
 
@@ -80,11 +80,12 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Session notes _(optional — scratch pad)_
 
-- 2026-06-24: PR #27 combines RCG-8 seed, RCG-9 docker dev DB, and RCG-21 graph-writer on latest `main`.
+- 2026-06-24: PR #27 adds RCG-9 docker dev DB + RCG-21 graph-writer on latest `main` (RCG-8 already merged).
+- 2026-06-24: Hardened RCG-8 loader review path: default seed is shared world data only; fixed demo persona rows are opt-in for isolated local/eval databases.
 - 2026-06-24: Reconciled RCG-9 with `main`; canonical Postgres remains v3.1 table-per-type.
 - 2026-06-23: RCG-21 graph-writer bridge — Person C planner writes through `V31GraphWriteService`.
 - 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer.
-- 2026-06-23: Added RCG-8 canonical demo seed fixture and loader.
+- 2026-06-23: Added RCG-8 canonical demo seed fixture and loader; default tests lock fixture counts, stable IDs, point total, and hero transfer route.
 - 2026-06-23: PR #15 + PR #13 on `main`; hero integration test skeleton in place.
 - 2026-06-22: Person C executable slice: `agents/redemption/`, `benchmark/person_c_scorer.py`, 11 eval cases.
 

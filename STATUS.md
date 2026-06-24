@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | RCG-11–13 merged; RCG-9 reconciled; RCG-8 seed + docker dev DB (PR #27) | RCG-14 mutation log | nothing |
+| Alan · Graph | RCG-8 seed merged; RCG-9 reconciled to v3.1 table-per-type; RCG-11–13 merged | RCG-14 mutation log | nothing |
 | Val · Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
 | Michael · Redemption | Offline scorer green; RCG-21 graph-writer in PR #27 | Baseline runners after hero gate | eval config / model budget |
 | Raq · Orchestrator (owner, lead) | Took over RCG-8/9; PR #27 open | Merge #27 + live hero verification | teammate PR approval |

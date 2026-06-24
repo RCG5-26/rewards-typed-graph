@@ -42,7 +42,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE
 echo "Applying schema/schema.sql..."
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/schema.sql
 
-echo "Loading demo persona (RCG-8)..."
-python3 scripts/load_seed.py fixtures/demo-seed.json
+echo "Loading demo seed with persona (RCG-8)..."
+python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
 
 echo "Done. Verify with: psql \"\$DATABASE_URL\" -c \"SELECT count(*) FROM user_balances;\""

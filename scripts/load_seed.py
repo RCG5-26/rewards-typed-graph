@@ -10,13 +10,10 @@ from pathlib import Path
 from typing import Any
 
 
-TABLE_SPECS: tuple[tuple[str, str, tuple[str, ...], set[str]], ...] = (
-    (
-        "users",
-        "users",
-        ("id", "clerk_id", "email", "display_name"),
-        set(),
-    ),
+TableSpec = tuple[str, str, tuple[str, ...], set[str]]
+
+
+WORLD_TABLE_SPECS: tuple[TableSpec, ...] = (
     (
         "reward_programs",
         "reward_programs",
@@ -95,6 +92,29 @@ TABLE_SPECS: tuple[tuple[str, str, tuple[str, ...], set[str]], ...] = (
         set(),
     ),
     (
+        "earns",
+        "earns",
+        (
+            "id",
+            "credit_card_id",
+            "spend_category_id",
+            "earn_rate_basis_points",
+            "earn_type",
+            "cap_amount_cents",
+        ),
+        set(),
+    ),
+)
+
+
+DEMO_PERSONA_TABLE_SPECS: tuple[TableSpec, ...] = (
+    (
+        "users",
+        "users",
+        ("id", "clerk_id", "email", "display_name"),
+        set(),
+    ),
+    (
         "user_balances",
         "user_balances",
         ("id", "user_id", "program_id", "balance_points", "source", "version"),
@@ -134,19 +154,6 @@ TABLE_SPECS: tuple[tuple[str, str, tuple[str, ...], set[str]], ...] = (
         ("id", "user_id", "credit_card_id", "opened_date", "is_primary"),
         set(),
     ),
-    (
-        "earns",
-        "earns",
-        (
-            "id",
-            "credit_card_id",
-            "spend_category_id",
-            "earn_rate_basis_points",
-            "earn_type",
-            "cap_amount_cents",
-        ),
-        set(),
-    ),
 )
 
 
@@ -154,9 +161,22 @@ def load_fixture(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def build_seed_sql(fixture: dict[str, Any]) -> str:
+def build_seed_sql(
+    fixture: dict[str, Any],
+    *,
+    include_demo_persona: bool = False,
+) -> str:
+    """Build idempotent seed SQL.
+
+    Personal demo rows are opt-in for isolated local/eval databases. The app
+    bootstrap path should clone the fixture for each Clerk user instead.
+    """
     statements = ["BEGIN;"]
-    for fixture_key, table_name, columns, jsonb_columns in TABLE_SPECS:
+    table_specs = WORLD_TABLE_SPECS
+    if include_demo_persona:
+        table_specs = WORLD_TABLE_SPECS + DEMO_PERSONA_TABLE_SPECS
+
+    for fixture_key, table_name, columns, jsonb_columns in table_specs:
         rows = fixture.get(fixture_key, [])
         if not rows:
             continue
@@ -249,9 +269,21 @@ def main() -> int:
         action="store_true",
         help="Print generated SQL instead of applying it with psql.",
     )
+    parser.add_argument(
+        "--include-demo-persona",
+        action="store_true",
+        help=(
+            "Also load the fixed demo user, balances, goals, statuses, and held "
+            "cards. Use only for isolated local/eval databases; production "
+            "bootstrap should clone the fixture per signed-in user."
+        ),
+    )
     args = parser.parse_args()
 
-    sql = build_seed_sql(load_fixture(args.fixture))
+    sql = build_seed_sql(
+        load_fixture(args.fixture),
+        include_demo_persona=args.include_demo_persona,
+    )
     if args.print_sql:
         print(sql, end="")
         return 0
