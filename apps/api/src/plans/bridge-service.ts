@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
@@ -55,7 +56,11 @@ export class BridgePlanService implements PlanService {
     this.pythonBin = options.pythonBin ?? process.env.PYTHON_BIN ?? "python3";
     this.cwd = options.cwd ?? REPO_ROOT;
     this.scriptPath = options.scriptPath ?? BRIDGE_SCRIPT;
-    this.env = options.env ?? process.env;
+    const baseEnv = options.env ?? process.env;
+    this.env = {
+      ...baseEnv,
+      PYTHONPATH: [REPO_ROOT, baseEnv.PYTHONPATH].filter(Boolean).join(path.delimiter),
+    };
   }
 
   async getSession(userId: string): Promise<SessionView> {
