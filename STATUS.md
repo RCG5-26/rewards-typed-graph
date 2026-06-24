@@ -21,7 +21,7 @@ The shared source of truth for the sprint. Update your own row before standup. K
 | DDL validated on clean PostgreSQL 16 | done |
 | Shared types generated (`schema/types`) | done |
 | JSON Schema contracts + codegen (Phase A3, RCG-61) | done (PR #2) |
-| Dependency-tracking implementation (RCG-13) | not started |
+| Dependency-tracking implementation (RCG-13) | ☑ done |
 | Seed fixture committed, stable IDs (RCG-8) | done |
 | All four lanes signed off on v3.1 | done: Alan, Val, Michael, Raq ([ADR 0001](docs/adr/0001-schema-lock.md)) |
 | **Implementation wiring on real contracts** | in progress - RCG-21 graph-writer bridge landed locally; app lanes wire next |
@@ -39,10 +39,10 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-8 seed fixture locked | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
-| Val - Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
-| Michael - Redemption | Offline scorer green; RCG-21 graph-writer bridge landed locally | RCG-21 branch synced with latest `main`; baseline runners next after hero path verification | eval config / model budget for baselines; live hero proof needs `psql` + test DB |
-| Raq - Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 live Postgres hero path verification | live Postgres gate |
+| Alan · Graph | RCG-11–13 merged; RCG-9 reconciled; RCG-8 seed + docker dev DB (PR #27) | RCG-14 mutation log | nothing |
+| Val · Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
+| Michael · Redemption | Offline scorer green; RCG-21 graph-writer in PR #27 | Baseline runners after hero gate | eval config / model budget |
+| Raq · Orchestrator (owner, lead) | Took over RCG-8/9; PR #27 open | Merge #27 + live hero verification | teammate PR approval |
 
 ---
 
@@ -50,8 +50,8 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **MVP hero live verification** - `hero_flow.py` is wired through RCG-21, but `test_hero_end_to_end` still needs a live PostgreSQL run with `RUN_LIVE_POSTGRES_TESTS=1`; current local env lacks `psql`.
-- **Baseline model budget** - Michael/Raq still need eval config and model budget decisions.
+- **MVP hero live verification** — PR #27 adds docker-compose + `dev-db-setup.sh`; run `test_hero_end_to_end` after merge.
+- **Baseline model budget** — Michael/Raq still need eval config and model budget decisions.
 
 ---
 
@@ -105,13 +105,13 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 
 ## Risk watch (per lane)
 
-- **Board lags code:** Alan's DDL/types/CI shipped but several Linear tickets (e.g. RCG-7/9) are still Backlog; reconcile ticket statuses at standup so the board reflects reality.
-- **Alan - dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
-- **Val - demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
-- **Michael - weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.
-- **Michael / Raq - eval load:** Michael carries redemption + benchmark + CrewAI baseline; Raq carries the eval-harness DRI + single-agent baseline on top of orchestration. Protect the hero + the Day 7 path first.
-- **Michael - Layer 4 timeline:** hard go/no-go Day 10. If not converging, cut cleanly. A half-working ingestion agent that corrupts the graph is worse than none.
-- **All - Phase A3 contracts:** app lanes may use mocks until JSON Schema + codegen land.
+- **Board lags code:** Alan's DDL/types/CI shipped; RCG-9 reconciled as v3.1 table-per-type. Update Linear if tickets still say single-table JSONB.
+- **Alan — dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
+- **Val — demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
+- **Michael — weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.
+- **Michael / Raq — eval load:** Michael carries redemption + benchmark + CrewAI baseline; Raq carries the eval-harness DRI + single-agent baseline on top of orchestration. Protect the hero + the Day 7 path first.
+- **Michael — Layer 4 timeline:** hard go/no-go Day 10. If not converging, cut cleanly. A half-working ingestion agent that corrupts the graph is worse than none.
+- **All — Phase A3 contracts:** app lanes may use mocks until JSON Schema + codegen land.
 
 ---
 
