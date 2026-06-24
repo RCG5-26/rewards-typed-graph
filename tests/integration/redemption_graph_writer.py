@@ -18,6 +18,9 @@ from schema.mutations import (
     V31GraphWriteService,
 )
 
+# Planner input uses Person C's award/trip fixture shape (`trip_request`,
+# `award_options`, etc.). Postgres hero setup loads `fixtures/demo-seed.json`
+# separately via load_seed.py; balances come from the live DB snapshot.
 DEFAULT_FIXTURE_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "person-c-mvp-seed.json"
 )
