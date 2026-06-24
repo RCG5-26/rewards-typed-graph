@@ -22,7 +22,7 @@ The shared source of truth for the sprint. Update your own row before standup. K
 | Shared types generated (`schema/types`) | ☑ done |
 | JSON Schema contracts + codegen (Phase A3, RCG-61) | ☑ done (PR #2) |
 | Dependency-tracking implementation (RCG-13) | ☐ not started |
-| Seed fixture committed, stable IDs (RCG-8) | ☐ not started |
+| Seed fixture committed, stable IDs (RCG-8) | ☑ done |
 | All four lanes signed off on v3.1 (§13) | ☑ Alan ☑ Val ☑ Michael ☑ Raq ([ADR 0001](docs/adr/0001-schema-lock.md)) |
 | **Implementation wiring on real contracts** | ◐ in progress — generated types in PR #2; app lanes wire next |
 
@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence — each owner confirms/edits their own lin
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-9 reconciled to v3.1 table-per-type | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
+| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-8 seed fixture locked with shared-loader default; RCG-9 reconciled to v3.1 table-per-type | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
 | Val · Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
 | Michael · Redemption | Fixture-backed Tokyo planner + seeded award tool green | Offline scorer green (11/11 accuracy, 0 hallucinations, 2/2 invalidation); **RCG-21** graph-writer next | graph-write/MutationBatch for DB-backed writes |
 | Raq · Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 hero path wiring | Michael RCG-21 |
