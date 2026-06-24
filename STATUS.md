@@ -39,10 +39,10 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | RCG-8 seed merged; RCG-9 reconciled; RCG-11–13 merged | RCG-14 mutation log | nothing |
-| Val · Frontend | **Clerk Google-only auth merged** (PR #22); 3D landing | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
-| Michael · Redemption | Offline scorer green; RCG-21 graph-writer in PR #27 | Baseline runners after hero gate | eval config / model budget |
-| Raq · Orchestrator (owner, lead) | CodeRabbit fixes on PR #27; merge main | Merge #27 + live hero verification | teammate PR approval |
+| Alan · Graph | RCG-14 mutation replay/SSE scaffold | Verify spec 03 / RCG-14/25 compliance; harden SSE polling/cursors; tighten mutation route auth/schema coverage; raise Hono floor for security advisories | nothing |
+| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
+| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
+| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
 
 ---
 

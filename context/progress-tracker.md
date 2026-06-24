@@ -23,17 +23,27 @@
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
-- [x] **RCG-9 dev Postgres** — 2026-06-24 — `docker-compose.yml`, `.env.example`, `scripts/dev-db-setup.sh`; team `DATABASE_URL` (PR #27).
-- [x] **RCG-21 redemption graph-writer** — 2026-06-24 — `redemption_graph_writer.py` maps planner → `V31GraphWriteService`; hero flow uses replan job path (PR #27).
-- [x] **Person C offline slice (PR #14)** — 2026-06-23 — Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
-- [x] **RCG-8 demo seed fixture** — 2026-06-23 — `fixtures/demo-seed.json` + `scripts/load_seed.py` lock stable IDs for 5 cards, 3 programs, 240,000 points, Chase-to-Hyatt/United transfer routes, and the Tokyo hero goal; loader applies shared world seed by default and requires explicit opt-in for demo persona rows.
-- [x] PR #13 — GPFree marketing landing (Val) — 2026-06-23 — merged to `main`.
-- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-23 — merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean.
-- [x] Hero moment test skeleton — 2026-06-22 — `tests/integration/test_hero_moment.py` + `hero_flow.py` seams.
-- [x] PR #2 operational schema alignment — 2026-06-21 — user-scoped graph mutations, re-plan jobs, idempotency, eval tables, atomic transfer write path.
-- [x] RCG-10 canonical mutation layer — 2026-06-21 — `V31GraphWriteService` for plan, plan-step, state-dependency, `TransferPoints`.
-- [x] Phase A3 JSON Schema + codegen (RCG-61) — 2026-06-21 — `schema/contracts/` + generated types in PR #2.
-- [x] GPFree landing → design-system conform — 2026-06-22 — Val; tokens + `components/gpfree/`.
+- [x] PR #2 plan lifecycle alignment — 2026-06-21 — preserved v3.1 lineage/revision semantics in MVP polymorphic storage.
+- [x] PR #2 operational schema alignment — 2026-06-21 — added user-scoped graph mutations, re-plan jobs, idempotency records, eval tables, and atomic transfer write path.
+- [x] PR #2 v3.1 operational naming alignment — 2026-06-21 — renamed operational columns to v3.1 vocabulary (`clerk_id`, `mutation_txn_id`, `source_plan_id`, `operation_type`, `result_reference`, lease fields).
+- [x] PR #2 canonical schema split — 2026-06-21 — restored v3.1 table-per-type as default and moved polymorphic storage to `schema/experimental/polymorphic/`.
+- [x] Re-plan promotion lineage guard — 2026-06-21 — `promote_replan_job_success` rejects result plans that do not directly supersede the source plan.
+- [x] Re-plan claim attempt cap — 2026-06-21 — `claim_replan_jobs` skips jobs whose attempts reached `max_attempts`.
+- [x] Transfer idempotency in-progress guard — 2026-06-21 — `transfer_points` rejects duplicate calls while the matching idempotency key is `in_progress`.
+- [x] Transfer idempotency upsert claim — 2026-06-21 — canonical `transfer_points` claims idempotency records with `INSERT ... ON CONFLICT DO UPDATE` before lock-read/replay checks.
+- [x] RCG-10 canonical mutation layer — 2026-06-21 — `V31GraphWriteService` validates plan, plan-step, state-dependency, and `TransferPoints` mutations before write SQL.
+- [x] v3.1 staleness DDL drift fix — 2026-06-21 — removed `plan_steps.staled_at` and restored the `user_balances` trigger backstop without job enqueue.
+- [x] `graph_mutations` contract alignment — 2026-06-21 — restored ADR 0008/main DDL shape and mapped write-path logging into `mutation_type` event rows.
+- [x] Live `TransferPoints` service coverage — 2026-06-21 — `V31GraphWriteService.transfer_points` now runs against real Postgres in CI for debit/credit, replay, and re-plan enqueue.
+- [x] Mutation adapter SQL hardening — 2026-06-21 — replaced dynamic target-table interpolation with hardcoded reference queries.
+- [x] RCG-14 SSE polling hardening — 2026-06-23 — serialized mutation-stream polling and caught poll failures to avoid cursor races/unhandled rejections.
+- [x] Mutation replay cursor validation — 2026-06-23 — `GET /mutations` and SSE replay reject invalid cursors before repository queries.
+- [x] RCG-14 API manifest merge — 2026-06-24 — preserved `@rewards-agent/api` metadata/tooling while adding Hono/Postgres/AJV dependencies.
+- [x] RCG-14/25 spec 03 compliance pass — 2026-06-24 — added stream-boundary coverage for schema-valid SSE payloads and replay frames.
+- [x] Mutation routes review follow-up — 2026-06-24 — REST replay events now validate against `mutationEventSchema`; route tests cover missing-user rejection.
+- [x] Hono security range hardening — 2026-06-24 — raised API manifest floor to `^4.12.27` for Hono path/static-file advisories.
+- [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
+- [ ] [Unit / milestone] — [date] — [note]
 
 ---
 
@@ -80,17 +90,26 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Session notes _(optional — scratch pad)_
 
-- 2026-06-24: PR #27 adds RCG-9 docker dev DB + RCG-21 graph-writer on latest `main` (RCG-8 already merged).
-- 2026-06-24: Hardened RCG-8 loader review path: default seed is shared world data only; fixed demo persona rows are opt-in for isolated local/eval databases.
-- 2026-06-24: Reconciled RCG-9 with `main`; canonical Postgres remains v3.1 table-per-type.
-- 2026-06-23: RCG-21 graph-writer bridge — Person C planner writes through `V31GraphWriteService`.
-- 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer.
-- 2026-06-23: Added RCG-8 canonical demo seed fixture and loader; default tests lock fixture counts, stable IDs, point total, and hero transfer route.
-- 2026-06-23: PR #15 + PR #13 on `main`; hero integration test skeleton in place.
-- 2026-06-22: Person C executable slice: `agents/redemption/`, `benchmark/person_c_scorer.py`, 11 eval cases.
+Brief bullets from recent work sessions. Trim when stale.
 
-**Run Person C tests:** `python -m unittest discover -s tests -v`
-**Scorer report:** `python -m benchmark.person_c_scorer --pretty`
+- 2026-06-21: Completed TDD-covered RCG-10 schema-lane mutation adapter in `schema/mutations.py` for plan, plan-step, state-dependency, and `TransferPoints` writes.
+- 2026-06-21: PR #2 briefly explored polymorphic storage with v3.1 lifecycle-compatible names, then restored v3.1 as canonical when all-lane sign-off was not available.
+- 2026-06-21: Canonical path restored to v3.1 table-per-type; polymorphic artifacts preserved only under `schema/experimental/polymorphic/`.
+- 2026-06-21: Added direct-successor validation to atomic re-plan promotion and covered invalid lineage in PostgreSQL integration.
+- 2026-06-21: Added max-attempt enforcement to re-plan job claiming and covered exhausted jobs in PostgreSQL integration.
+- 2026-06-21: Added `in_progress` idempotency handling to canonical and experimental `transfer_points` functions with regression coverage.
+- 2026-06-21: Replaced canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim and focused schema-artifact regression.
+- 2026-06-21: Aligned canonical DDL with v3.1 status-only plan-step staleness and restored a direct-update `user_balances` staleness trigger backstop.
+- 2026-06-21: Restored `docs/` from current `origin/main` and aligned `graph_mutations` DDL/write logging with ADR 0008 for Val sidebar compatibility.
+- 2026-06-21: Added a live Postgres integration test for `V31GraphWriteService.transfer_points` and wired it into the schema workflow.
+- 2026-06-21: Hardened state-dependency target lookup by removing f-string table interpolation from the v3.1 mutation adapter.
+- 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
+- 2026-06-23: Added an RCG-14 regression for overlapping SSE polls and guarded the mutation stream poll loop against concurrent cursor updates.
+- 2026-06-23: Added route-boundary validation for mutation replay cursors and regression coverage for invalid REST/SSE cursors.
+- 2026-06-24: Merged RCG-14 API dependencies into the existing `@rewards-agent/api` manifest instead of replacing the orchestrator package setup.
+- 2026-06-24: Verified spec 03 / RCG-14/25 checklist against the mutation API and added route-level SSE payload/replay compliance coverage.
+- 2026-06-24: Addressed mutation-route review nits with schema validation on REST replay payloads and unauthenticated REST/SSE route coverage.
+- 2026-06-24: Bumped the declared Hono dependency range to `^4.12.27`; production `npm audit --omit=dev` reports no vulnerabilities.
 
 ---
 

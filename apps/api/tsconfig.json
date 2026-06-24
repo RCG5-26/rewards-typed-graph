@@ -1,11 +1,14 @@
 {
   "compilerOptions": {
-    "strict": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "rootDir": ".",
-    "skipLibCheck": true
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src/**/*", "tests/**/*"]
 }

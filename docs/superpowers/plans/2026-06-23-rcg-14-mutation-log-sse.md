@@ -21,7 +21,7 @@
 - Create: `apps/api/package.json`
 - Create: `apps/api/tsconfig.json`
 
-- [ ] **Step 1: Add minimal API test tooling**
+- [x] **Step 1: Add minimal API test tooling**
 
 Create `apps/api/package.json` with scripts:
 
@@ -44,17 +44,17 @@ Create `apps/api/package.json` with scripts:
 }
 ```
 
-- [ ] **Step 2: Write mapper test**
+- [x] **Step 2: Write mapper test**
 
 Test that `toMutationEvent(row)` conforms to `schema/contracts/mutation-event.schema.json`, including all required fields and transformations: `id -> event_id`, string representations for bigint/UUID fields, and the canonical event fields `mutation_txn_id`, `user_id`, `plan_lineage_id`, `plan_id`, `agent_run_id`, `mutation_type`, `target_table`, `target_node_id`, `summary`, `before`, `after`, `committed_at`.
 
-- [ ] **Step 3: Run focused test**
+- [x] **Step 3: Run focused test**
 
 Run: `npm --prefix apps/api test -- events.test.ts`
 
 Expected: failure until mapper exists.
 
-- [ ] **Step 4: Implement mapper**
+- [x] **Step 4: Implement mapper**
 
 Implement `toMutationEvent(row)` with no field renames other than `id -> event_id`. Convert `bigint`, `number`, and decimal string IDs to string.
 
@@ -65,7 +65,7 @@ Implement `toMutationEvent(row)` with no field renames other than `id -> event_i
 - Create: `apps/api/src/mutations/repository.ts`
 - Create: `apps/api/src/mutations/repository.test.ts`
 
-- [ ] **Step 1: Write repository SQL test**
+- [x] **Step 1: Write repository SQL test**
 
 With a fake `query(sql, params)` client, assert `listMutationEvents(client, userId, after)` executes:
 
@@ -80,13 +80,13 @@ SELECT id, mutation_txn_id, user_id, plan_lineage_id, plan_id, agent_run_id,
  LIMIT $3
 ```
 
-- [ ] **Step 2: Run repository test**
+- [x] **Step 2: Run repository test**
 
 Run: `npm --prefix apps/api test -- repository.test.ts`
 
 Expected: failure until repository exists.
 
-- [ ] **Step 3: Implement repository**
+- [x] **Step 3: Implement repository**
 
 Use parameterized queries only. Default `after` to `0` and `limit` to `100`.
 
@@ -106,15 +106,15 @@ Use parameterized queries only. Default `after` to `0` and `limit` to `100`.
 
 Test `GET /mutations?after=123` returns JSON events, and `GET /mutations/stream` returns `text/event-stream` frames whose `id:` is `event_id`.
 
-- [ ] **Step 2: Implement auth seam**
+- [x] **Step 2: Implement auth seam**
 
 Define a small `getAuthenticatedUserId(c)` helper that reads `c.get("userId")`. Clerk verification can replace that seam in the orchestrator branch without changing route logic.
 
-- [ ] **Step 3: Implement REST route**
+- [x] **Step 3: Implement REST route**
 
 Call `listMutationEvents(pool, userId, after)` and return the mapped events.
 
-- [ ] **Step 4: Implement SSE route**
+- [x] **Step 4: Implement SSE route**
 
 On connect, parse `Last-Event-ID`, replay rows with `id > cursor`, then poll every second for new rows. Send frames:
 
@@ -134,15 +134,15 @@ Stop polling when the request aborts.
 - Modify: `apps/api/src/mutations/events.test.ts`
 - Modify: `apps/api/package.json`
 
-- [ ] **Step 1: Add validator dependency**
+- [x] **Step 1: Add validator dependency**
 
 Add `ajv` to `devDependencies`.
 
-- [ ] **Step 2: Add schema validation test**
+- [x] **Step 2: Add schema validation test**
 
 Load `schema/contracts/mutation-event.schema.json` and assert a mapped fixture event validates.
 
-- [ ] **Step 3: Run API checks**
+- [x] **Step 3: Run API checks**
 
 Run: `npm --prefix apps/api test`
 
@@ -159,11 +159,11 @@ Expected: TypeScript passes.
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`
 
-- [ ] **Step 1: Record RCG-14 completion**
+- [x] **Step 1: Record RCG-14 completion**
 
 Add a completed line only after event mapping, REST replay, SSE stream, and schema validation tests exist.
 
-- [ ] **Step 2: Final verification**
+- [x] **Step 2: Final verification**
 
 Run: `python -m unittest discover -s tests`
 
