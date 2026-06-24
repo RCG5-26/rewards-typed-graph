@@ -23,6 +23,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import unittest
 import uuid
 from pathlib import Path
@@ -80,7 +81,7 @@ class LivePostgresMixin:
         if LOAD_SEED_SCRIPT.is_file() and DEMO_SEED_PATH.is_file():
             subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     str(LOAD_SEED_SCRIPT),
                     str(DEMO_SEED_PATH),
                     "--include-demo-persona",

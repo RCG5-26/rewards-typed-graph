@@ -108,23 +108,41 @@ class DemoSeedFixtureTest(unittest.TestCase):
         self.assertEqual(goal["payload"]["nights"], 3)
         self.assertEqual(goal["payload"]["preferred_program_slug"], "program:hyatt")
 
-    def test_loader_defaults_to_shared_world_seed_only(self):
+    def test_loader_default_table_specs_are_shared_world_seed_only(self):
+        loader = _load_seed_module()
+        default_tables = {table_name for _, table_name, _, _ in loader.WORLD_TABLE_SPECS}
+
+        self.assertGreaterEqual(
+            default_tables,
+            {
+                "reward_programs",
+                "credit_cards",
+                "spend_categories",
+                "transfers_to",
+                "redemption_options",
+                "redeems_via",
+                "earns",
+            },
+        )
+        self.assertFalse(
+            {
+                "users",
+                "user_balances",
+                "user_program_statuses",
+                "user_goals",
+                "holds",
+            }
+            & default_tables
+        )
+
+    def test_loader_generates_idempotent_sql_without_generated_ids(self):
         loader = _load_seed_module()
         sql = loader.build_seed_sql(self.fixture)
 
-        self.assertIn("INSERT INTO credit_cards", sql)
-        self.assertIn("INSERT INTO reward_programs", sql)
-        self.assertIn("INSERT INTO transfers_to", sql)
-        self.assertIn("INSERT INTO earns", sql)
         self.assertIn("ON CONFLICT (id) DO UPDATE", sql)
         self.assertNotIn("gen_random_uuid()", sql)
         self.assertNotIn("mcc_codes = EXCLUDED.mcc_codes::jsonb", sql)
         self.assertIn("ARRAY[3000, 3351, 3501, 4511, 4722]", sql)
-        self.assertNotIn("INSERT INTO users", sql)
-        self.assertNotIn("INSERT INTO user_balances", sql)
-        self.assertNotIn("INSERT INTO user_goals", sql)
-        self.assertNotIn(DEMO_USER_ID, sql)
-        self.assertNotIn(CHASE_BALANCE_ID, sql)
 
     def test_loader_can_include_demo_persona_for_isolated_tests(self):
         loader = _load_seed_module()
@@ -155,6 +173,28 @@ class DemoSeedFixtureLivePostgresTest(unittest.TestCase):
 
         _psql_exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;")
         _psql_file(SCHEMA_SQL_PATH)
+
+    def test_default_seed_applies_without_personal_demo_rows(self):
+        sql = _load_seed_module().build_seed_sql(
+            json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
+        )
+        _psql_exec(sql)
+        _psql_exec(sql)
+
+        self.assertEqual(
+            _psql_rows(
+                """
+                SELECT
+                  (SELECT count(*) FROM credit_cards),
+                  (SELECT count(*) FROM reward_programs),
+                  (SELECT count(*) FROM transfers_to),
+                  (SELECT count(*) FROM users),
+                  (SELECT count(*) FROM user_balances),
+                  (SELECT count(*) FROM user_goals)
+                """
+            ),
+            [(5, 3, 2, 0, 0, 0)],
+        )
 
     def test_seed_applies_idempotently_and_preserves_demo_wallet(self):
         sql = _load_seed_module().build_seed_sql(
