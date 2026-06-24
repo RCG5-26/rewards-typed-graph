@@ -2,13 +2,13 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23 — merge PR #14 (Person C scorer) onto `main`
+**Last updated:** 2026-06-24 - RCG-9 reconciled with latest main
 
 ---
 
 ## Current phase
 
-**Phase:** MVP build (integration sprint)  
+**Phase:** MVP build (integration sprint)
 **Active focus:** Wire hero path (RCG-28/29/32); Michael RCG-21 graph-writer; Person C offline planner/scorer landed (PR #14)
 
 ---
@@ -61,6 +61,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 | 1 | Hosted platform choice | Raq | open |
 | 2 | Eval config / model budget for baselines | Michael + Raq | open |
 | 3 | ADR 0004 storage-only compromise sign-off | Alan/Raq | resolved → polymorphic experimental only |
+| 4 | Does RCG-9 require canonical single-table JSONB `nodes`/`edges`? | Alan/Raq | resolved to ADR 0001 v3.1 table-per-type; a single-table storage model would need a superseding ADR |
 
 ---
 
@@ -77,11 +78,12 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Session notes _(optional — scratch pad)_
 
+- 2026-06-24: Reconciled RCG-9 branch with current `main`; canonical Postgres remains v3.1 table-per-type and single-table JSONB `nodes`/`edges` stay experimental-only pending a superseding ADR.
 - 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer + conflict resolution in STATUS/progress-tracker.
 - 2026-06-23: PR #15 + PR #13 on `main`; hero integration test skeleton in place.
 - 2026-06-22: Person C executable slice: `agents/redemption/`, `benchmark/person_c_scorer.py`, 11 eval cases.
 
-**Run Person C tests:** `python -m unittest discover -s tests -v`  
+**Run Person C tests:** `python -m unittest discover -s tests -v`
 **Scorer report:** `python -m benchmark.person_c_scorer --pretty`
 
 ---

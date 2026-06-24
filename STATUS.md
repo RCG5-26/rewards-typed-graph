@@ -39,7 +39,7 @@ _Rows reflect repo + Linear evidence — each owner confirms/edits their own lin
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | Phase A3 + PR #2 operational write path | RCG-11–14 (OCC, traversal, deps, mutation log) | nothing |
+| Alan - Graph | Phase A3 + PR #2 operational write path; RCG-9 reconciled to v3.1 table-per-type | RCG-11-14 (OCC, traversal, deps, mutation log) | nothing |
 | Val · Frontend | **GPFree landing merged** (PR #13); design system | Demo shell + sidebar on mocks (RCG-27, RCG-24) | generated contracts for real payload wiring |
 | Michael · Redemption | Fixture-backed Tokyo planner + seeded award tool green | Offline scorer green (11/11 accuracy, 0 hallucinations, 2/2 invalidation); **RCG-21** graph-writer next | graph-write/MutationBatch for DB-backed writes |
 | Raq · Orchestrator (owner, lead) | Spec 05 merged (PR #15); hero test skeleton | RCG-28/29/32 hero path wiring | Michael RCG-21 |
@@ -104,7 +104,7 @@ Append one line per real decision. (Historical v2 open items resolved in schema-
 
 ## Risk watch (per lane)
 
-- **Board lags code:** Alan's DDL/types/CI shipped but several Linear tickets (e.g. RCG-7/9) are still Backlog — reconcile ticket statuses at standup so the board reflects reality.
+- **Board lags code:** Alan's DDL/types/CI shipped; RCG-9 is reconciled as v3.1 table-per-type in repo. Update Linear status/title at standup if it still says single-table JSONB.
 - **Alan — dependency-tracking scope creep:** hold the MVP cut. Plan nodes only, explicit reads only, no transitive. Document the locking strategy for Michael.
 - **Val — demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
 - **Michael — weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.
