@@ -500,6 +500,7 @@ class V31GraphWriteService:
             raise MutationValidationError(errors)
 
         with self.connection.cursor() as cursor:
+            _lock_user(cursor, user_id)
             cursor.execute(
                 """
                 WITH claimable AS (

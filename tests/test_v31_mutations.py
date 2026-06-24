@@ -716,7 +716,11 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(job_id, "00000000-0000-0000-0000-000000000070")
+        self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "UPDATE replan_jobs job"))
+        lock_index = _sql_index(connection, "SELECT pg_advisory_xact_lock")
+        claim_index = _sql_index(connection, "WITH claimable AS")
+        self.assertLess(lock_index, claim_index)
         self.assertEqual(
             connection.claim_replan_job_calls,
             [
