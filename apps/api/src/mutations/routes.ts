@@ -33,14 +33,14 @@ export function createMutationRoutes(
 
   app.get("/mutations", async (c) => {
     const userId = getAuthenticatedUserId(c);
-    const after = Number(c.req.query("after") ?? 0);
+    const after = parseMutationCursor(c.req.query("after"));
     const events = await listMutationEvents(client, userId, after);
     return c.json(events);
   });
 
   app.get("/mutations/stream", (c) => {
     const userId = getAuthenticatedUserId(c);
-    let cursor = c.req.header("Last-Event-ID") ?? "0";
+    let cursor = parseMutationCursor(c.req.header("Last-Event-ID"));
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream<Uint8Array>({
@@ -48,22 +48,48 @@ export function createMutationRoutes(
         const sendAvailableEvents = async () => {
           const events = await listMutationEvents(client, userId, cursor);
           for (const event of events) {
-            cursor = event.event_id;
+            cursor = parseMutationCursor(event.event_id);
             controller.enqueue(encoder.encode(formatSseEvent(event)));
           }
         };
 
-        await sendAvailableEvents();
+        try {
+          await sendAvailableEvents();
+        } catch (error) {
+          controller.error(error);
+          return;
+        }
 
         if (pollIntervalMs === null) {
           controller.close();
           return;
         }
 
-        const interval = setInterval(() => {
-          void sendAvailableEvents();
+        let isPolling = false;
+        let isClosed = false;
+        let interval: ReturnType<typeof setInterval>;
+        const poll = async () => {
+          if (isPolling || isClosed) {
+            return;
+          }
+
+          isPolling = true;
+          try {
+            await sendAvailableEvents();
+          } catch (error) {
+            isClosed = true;
+            clearInterval(interval);
+            controller.error(error);
+          } finally {
+            isPolling = false;
+          }
+        };
+
+        interval = setInterval(() => {
+          void poll();
         }, pollIntervalMs);
         const abort = () => {
+          isClosed = true;
           clearInterval(interval);
           controller.close();
         };
@@ -82,6 +108,26 @@ export function createMutationRoutes(
   });
 
   return app;
+}
+
+function parseMutationCursor(rawCursor: string | undefined) {
+  const cursor = rawCursor ?? "0";
+
+  if (!/^[0-9]+$/.test(cursor)) {
+    throw new HTTPException(400, { message: "invalid mutation cursor" });
+  }
+
+  const parsedCursor = Number(cursor);
+  if (
+    Number.isNaN(parsedCursor) ||
+    !Number.isFinite(parsedCursor) ||
+    !Number.isInteger(parsedCursor) ||
+    !Number.isSafeInteger(parsedCursor)
+  ) {
+    throw new HTTPException(400, { message: "invalid mutation cursor" });
+  }
+
+  return parsedCursor;
 }
 
 function formatSseEvent(event: { event_id: string }) {

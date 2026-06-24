@@ -71,6 +71,26 @@ describe("toMutationEvent", () => {
     expect(event).not.toHaveProperty("id");
   });
 
+  it("rejects unsafe numeric event ids before stringifying them", () => {
+    expect(() =>
+      toMutationEvent({
+        id: Number.MAX_SAFE_INTEGER + 1,
+        mutation_txn_id: "00000000-0000-0000-0000-000000000001",
+        user_id: "00000000-0000-0000-0000-000000000002",
+        plan_lineage_id: null,
+        plan_id: null,
+        agent_run_id: null,
+        mutation_type: "MarkStale",
+        target_table: null,
+        target_node_id: null,
+        summary: "Marked plan stale",
+        before: null,
+        after: { status: "stale" },
+        committed_at: "2026-06-23T12:00:00.000Z",
+      }),
+    ).toThrow("event_id number is outside the safe integer range");
+  });
+
   it("produces events that validate against the mutation event JSON Schema", () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);

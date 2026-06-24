@@ -22,6 +22,10 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
+- Harden RCG-14 mutation SSE polling so cursor reads do not overlap and poll failures are handled.
+- Validate RCG-14 mutation replay cursors before REST/SSE DB queries.
+- Preserve the `@rewards-agent/api` manifest while merging RCG-14 route dependencies.
+- Verify spec 03 / RCG-14/25 checklist with route-level SSE payload and replay coverage.
 
 ## Next
 - Lock the seed fixture with stable IDs (RCG-8).

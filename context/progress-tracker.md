@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-21 by Alan
+**Last updated:** 2026-06-24 by Alan
 
 ---
 
@@ -37,6 +37,10 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] `graph_mutations` contract alignment — 2026-06-21 — restored ADR 0008/main DDL shape and mapped write-path logging into `mutation_type` event rows.
 - [x] Live `TransferPoints` service coverage — 2026-06-21 — `V31GraphWriteService.transfer_points` now runs against real Postgres in CI for debit/credit, replay, and re-plan enqueue.
 - [x] Mutation adapter SQL hardening — 2026-06-21 — replaced dynamic target-table interpolation with hardcoded reference queries.
+- [x] RCG-14 SSE polling hardening — 2026-06-23 — serialized mutation-stream polling and caught poll failures to avoid cursor races/unhandled rejections.
+- [x] Mutation replay cursor validation — 2026-06-23 — `GET /mutations` and SSE replay reject invalid cursors before repository queries.
+- [x] RCG-14 API manifest merge — 2026-06-24 — preserved `@rewards-agent/api` metadata/tooling while adding Hono/Postgres/AJV dependencies.
+- [x] RCG-14/25 spec 03 compliance pass — 2026-06-24 — added stream-boundary coverage for schema-valid SSE payloads and replay frames.
 - [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
 - [ ] [Unit / milestone] — [date] — [note]
 
@@ -93,6 +97,10 @@ Brief bullets from recent work sessions. Trim when stale.
 - 2026-06-21: Added a live Postgres integration test for `V31GraphWriteService.transfer_points` and wired it into the schema workflow.
 - 2026-06-21: Hardened state-dependency target lookup by removing f-string table interpolation from the v3.1 mutation adapter.
 - 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
+- 2026-06-23: Added an RCG-14 regression for overlapping SSE polls and guarded the mutation stream poll loop against concurrent cursor updates.
+- 2026-06-23: Added route-boundary validation for mutation replay cursors and regression coverage for invalid REST/SSE cursors.
+- 2026-06-24: Merged RCG-14 API dependencies into the existing `@rewards-agent/api` manifest instead of replacing the orchestrator package setup.
+- 2026-06-24: Verified spec 03 / RCG-14/25 checklist against the mutation API and added route-level SSE payload/replay compliance coverage.
 
 ---
 

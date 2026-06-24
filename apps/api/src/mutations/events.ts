@@ -34,7 +34,7 @@ export interface MutationEvent {
 
 export function toMutationEvent(row: GraphMutationRow): MutationEvent {
   return {
-    event_id: String(row.id),
+    event_id: toEventId(row.id),
     mutation_txn_id: row.mutation_txn_id,
     user_id: row.user_id,
     plan_lineage_id: row.plan_lineage_id,
@@ -51,4 +51,12 @@ export function toMutationEvent(row: GraphMutationRow): MutationEvent {
         ? row.committed_at.toISOString()
         : row.committed_at,
   };
+}
+
+function toEventId(id: GraphMutationRow["id"]) {
+  if (typeof id === "number" && !Number.isSafeInteger(id)) {
+    throw new RangeError("event_id number is outside the safe integer range");
+  }
+
+  return String(id);
 }
