@@ -95,7 +95,8 @@ If anything in the spec is ambiguous, stop and add an **Open question** — do n
 | Tasks + status (system of record) | Linear (**RCG**) |
 | What to build (a unit) | `feature-specs/NN-*.md` |
 | Current narrative / AI memory | `progress-tracker.md` (+ `progress-archive.md`) |
-| Daily board | `../STATUS.md` |
+| Daily lane status | Linear + `../tracking/<lane>.md` |
+| Standup snapshot | `../STATUS.md` (lead syncs from tracking + Linear) |
 
 **Two rules:** (1) link, don't duplicate — a copy is a future contradiction; (2) on any conflict, the locked docs (`schema-final.md`, `../docs/adr/`) and Linear win over the narrative docs.
 

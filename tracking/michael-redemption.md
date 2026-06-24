@@ -2,7 +2,7 @@
 
 **Lane:** the redemption agent (the hero reasoning surface), graph-typed tools, the 30-query benchmark, both baselines, and Layer 4 (ingestion + verifier). **Baselines are a first-class deliverable: an undertuned baseline invalidates the whole comparison.**
 
-Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
+Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this file only) — merge same day. Update **Linear** (RCG-##) to match. **Do not** edit `STATUS.md` in feature PRs — the lead syncs the standup grid from `tracking/` + Linear.
 
 ## Today
 - RCG-20/31 executable slice is in place: Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11 benchmark cases, and offline scorer.

@@ -18,11 +18,12 @@ New to the repo? Read **[AGENTS.md](AGENTS.md)** — it's the working guide for 
 
 ## How this team coordinates
 
-This repo is the source of truth for daily coordination. Linear is an optional backbone for the timeline view.
+**Linear** is the live daily board (RCG tickets). The repo holds snapshots and lane logs:
 
-- **[STATUS.md](STATUS.md)** — the shared team board. Standup grid, blockers, gates, decisions log. Read it daily.
-- **[tracking/](tracking/)** — one self-tracking file per person.
-- **[docs/](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
+- **[`tracking/`](tracking/)** — each person updates their lane file daily (tiny PR, merge same day). **This is your daily standup write-up.**
+- **[`STATUS.md`](STATUS.md)** — weekly snapshot: standup grid, gates, blockers. **Lead syncs** from `tracking/` + Linear before standup — do not edit in feature PRs.
+- **[`context/progress-tracker.md`](context/progress-tracker.md)** — milestone narrative when specs/PRs land (lead). See [`AGENTS.md`](AGENTS.md) § Team status & visibility.
+- **[`docs/`](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
 
 ## Frontend (interim layout)
 

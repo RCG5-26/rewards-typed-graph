@@ -23,7 +23,7 @@ Read these files **in order**:
 ### Repo-specific (authoritative for this sprint)
 
 10. [`README.md`](README.md) — project summary, team lanes, hard constraint
-11. [`STATUS.md`](STATUS.md) — daily standup board, gates, blockers
+11. [`STATUS.md`](STATUS.md) — weekly standup snapshot, gates, blockers (lead-maintained; sync from `tracking/` + Linear)
 12. [`docs/architecture/schema-final.md`](docs/architecture/schema-final.md) — **locked schema v3.1** (canonical; supersedes `schema-v2.md`)
 13. [`schema/schema.sql`](schema/schema.sql) — canonical DDL
 14. [`.coderabbit.yaml`](.coderabbit.yaml) — AI code review configuration
@@ -58,9 +58,29 @@ Lead (Raq) or another teammate must approve graph/integration PRs before merge �
 
 ---
 
+## Team status & visibility
+
+**Do not bundle standup updates into feature PRs.** Code PRs stay code-only.
+
+| Artifact | Who | When | Purpose |
+|---|---|---|---|
+| **Linear** (RCG-##) | Each person | Daily | Live task board |
+| [`tracking/<lane>.md`](tracking/) | Each person | Daily | Lane status in-repo; **tiny PR, merge same day** |
+| [`STATUS.md`](STATUS.md) | Lead (Raq) | Before standup / gates | Weekly snapshot — standup grid synced from `tracking/` + Linear |
+| [`context/progress-tracker.md`](context/progress-tracker.md) | Lead (Raq) | When a spec or PR lands | Milestone narrative for agents and integration |
+
+**Daily (each person):** update your `tracking/<lane>.md` + Linear tickets.  
+**Standup (lead):** sync `STATUS.md` from `tracking/` + Linear.  
+**Milestones (lead):** update `progress-tracker.md` when a spec merges.  
+**Feature PRs:** code only — no `STATUS.md`, no `progress-tracker.md`.
+
+Implementation agents: **`STATUS.md` and `tracking/` are excluded** from automated implementation touch lists (see active feature spec). Humans maintain them in the standup flow.
+
+---
+
 ## After meaningful changes
 
-Update [`context/progress-tracker.md`](context/progress-tracker.md):
+Update [`context/progress-tracker.md`](context/progress-tracker.md) **when a spec or PR lands** (lead, or implementer if the spec explicitly requires it):
 
 - Current phase / goal if shifted
 - Completed items
@@ -71,7 +91,7 @@ Keep the tracker lean — current state + recent history only; move older entrie
 
 Log decisions in [`context/decisions-log.md`](context/decisions-log.md) (index row first). For durable architectural choices, add or update an ADR in [`docs/adr/`](docs/adr/) and link it from the index — do not paste full ADR text into the log.
 
-For daily team visibility, update your row in [`STATUS.md`](STATUS.md) and your file in [`tracking/`](tracking/).
+**Daily lane status:** update your file in [`tracking/`](tracking/) (tiny PR). Do **not** edit `STATUS.md` in feature PRs — the lead syncs the standup grid before standup.
 
 ---
 
