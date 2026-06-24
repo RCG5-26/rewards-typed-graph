@@ -12,9 +12,10 @@
 
 **Branch:** `rcg-14-mutation-log-sse`
 
-### Task 1: Add Event Mapping Contract Tests
+## Task 1: Add Event Mapping Contract Tests
 
 **Files:**
+
 - Create: `apps/api/src/mutations/events.ts`
 - Create: `apps/api/src/mutations/events.test.ts`
 - Create: `apps/api/package.json`
@@ -45,7 +46,7 @@ Create `apps/api/package.json` with scripts:
 
 - [x] **Step 2: Write mapper test**
 
-Test that `toMutationEvent(row)` returns `event_id` as a string and includes the exact DDL field names: `mutation_txn_id`, `user_id`, `plan_lineage_id`, `plan_id`, `agent_run_id`, `mutation_type`, `target_table`, `target_node_id`, `summary`, `before`, `after`, `committed_at`.
+Test that `toMutationEvent(row)` conforms to `schema/contracts/mutation-event.schema.json`, including all required fields and transformations: `id -> event_id`, string representations for bigint/UUID fields, and the canonical event fields `mutation_txn_id`, `user_id`, `plan_lineage_id`, `plan_id`, `agent_run_id`, `mutation_type`, `target_table`, `target_node_id`, `summary`, `before`, `after`, `committed_at`.
 
 - [x] **Step 3: Run focused test**
 
@@ -57,9 +58,10 @@ Expected: failure until mapper exists.
 
 Implement `toMutationEvent(row)` with no field renames other than `id -> event_id`. Convert `bigint`, `number`, and decimal string IDs to string.
 
-### Task 2: Add REST Replay Query
+## Task 2: Add REST Replay Query
 
 **Files:**
+
 - Create: `apps/api/src/mutations/repository.ts`
 - Create: `apps/api/src/mutations/repository.test.ts`
 
@@ -88,13 +90,19 @@ Expected: failure until repository exists.
 
 Use parameterized queries only. Default `after` to `0` and `limit` to `100`.
 
-### Task 3: Add SSE and REST Routes
+## Task 3: Add SSE and REST Routes
 
 **Files:**
+
 - Create: `apps/api/src/mutations/routes.ts`
 - Create: `apps/api/src/mutations/routes.test.ts`
 
-- [x] **Step 1: Write route tests**
+**Endpoints:**
+
+- **REST:** `GET /mutations?after=<cursor>&limit=<count>` returns a JSON array.
+- **SSE:** `GET /mutations/stream` returns `text/event-stream`.
+
+- [ ] **Step 1: Write route tests**
 
 Test `GET /mutations?after=123` returns JSON events, and `GET /mutations/stream` returns `text/event-stream` frames whose `id:` is `event_id`.
 
@@ -119,9 +127,10 @@ data: <JSON event>
 
 Stop polling when the request aborts.
 
-### Task 4: Validate Against JSON Schema
+## Task 4: Validate Against JSON Schema
 
 **Files:**
+
 - Modify: `apps/api/src/mutations/events.test.ts`
 - Modify: `apps/api/package.json`
 
@@ -143,9 +152,10 @@ Run: `npm --prefix apps/api run typecheck`
 
 Expected: TypeScript passes.
 
-### Task 5: Update Tracking
+## Task 5: Update Tracking
 
 **Files:**
+
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`
 

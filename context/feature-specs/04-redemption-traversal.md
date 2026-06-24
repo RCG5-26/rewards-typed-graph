@@ -6,6 +6,8 @@
 - **Depends on:** 02 (graph write path), schema-final v3.1, RCG-22/23 (graph-typed tools / `external_quotes`)
 - **Related flows:** [Flow 1: Create a rewards plan](../project-overview.md), [Flow 2: Update state and automatically re-plan](../project-overview.md)
 
+**Prototype note:** RCG-20 now has an executable fixture-backed slice under `agents/redemption/` with Tokyo seed data, tests, and an offline scorer under `benchmark/`. The database-backed RCG-21 implementation remains blocked on spec 02 and MutationBatch/fragment merge contracts.
+
 ---
 
 ## Definition of ready (gate)
@@ -43,7 +45,7 @@ The redemption agent turns a natural-language goal into a multi-step plan by tra
 ## Out of scope
 
 - The automatic re-plan trigger/loop and the durable queue (`replan_jobs`, RCG-57) — this spec produces the plan + dependencies; the loop consumes them.
-- The baselines and the benchmark harness (separate specs/tickets).
+- The baselines and the **3-architecture benchmark harness** (single-agent + free-text vs. typed-graph; separate specs/tickets, RCG-33/35/36/37/40). Note: the **offline Person-C scorer** (`benchmark/person_c_scorer.py`) and its gold cases referenced in the touch list below are the RCG-20 fixture slice and _are_ in scope here — they score this agent's output only and do not run the cross-architecture comparison.
 - Real award availability (fixture-based for MVP).
 
 ---
@@ -60,11 +62,17 @@ The redemption agent turns a natural-language goal into a multi-step plan by tra
 
 ## Files / modules (expected touch list)
 
-| Path | Change |
-|---|---|
-| `src/agents/redemption/*` | create — traversal, ranking, narration |
-| `src/agents/redemption/queries.sql` | create — recursive CTE traversal |
-| `tests/agents/redemption/*` | create — see acceptance |
+| Path                                     | Change                                                                 |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `agents/redemption/*`                    | created — fixture-backed planner and seeded award tool prototype       |
+| `fixtures/person-c-mvp-seed.json`        | created — Tokyo Hyatt seed fixture                                     |
+| `benchmark/gold/person-c-mvp-cases.json` | created — 11 executable MVP cases                                      |
+| `benchmark/person_c_scorer.py`           | created — offline scorer for accuracy, hallucination, and invalidation |
+| `tests/redemption/*`                     | created — prototype regression tests                                   |
+| `tests/eval/*`                           | created — scorer regression tests                                      |
+| `src/agents/redemption/*`                | create — traversal, ranking, narration                                 |
+| `src/agents/redemption/queries.sql`      | create — recursive CTE traversal                                       |
+| `tests/agents/redemption/*`              | create — see acceptance                                                |
 
 ---
 
@@ -99,6 +107,6 @@ npm test -- agents/redemption
 
 ## Open questions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | Ranking weights (cpp vs. fees vs. time vs. status) | no | Set in paper design (RCG-20); tune against the benchmark |
+| #   | Question                                           | Blocking? | Resolution                                               |
+| --- | -------------------------------------------------- | --------- | -------------------------------------------------------- |
+| 1   | Ranking weights (cpp vs. fees vs. time vs. status) | no        | Set in paper design (RCG-20); tune against the benchmark |

@@ -1,14 +1,14 @@
 :root {
   /* ── Base unit: 4px ── */
-  --space-0:  0px;
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-7:  28px;
-  --space-8:  32px;
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
   --space-14: 56px;
@@ -18,36 +18,36 @@
   --space-32: 128px;
 
   /* ── Semantic spacing ── */
-  --gap-xs:   var(--space-2);
-  --gap-sm:   var(--space-3);
-  --gap-md:   var(--space-4);
-  --gap-lg:   var(--space-6);
-  --gap-xl:   var(--space-8);
+  --gap-xs: var(--space-2);
+  --gap-sm: var(--space-3);
+  --gap-md: var(--space-4);
+  --gap-lg: var(--space-6);
+  --gap-xl: var(--space-8);
 
-  --padding-card-sm:  var(--space-4) var(--space-5);
-  --padding-card:     var(--space-5) var(--space-6);
-  --padding-card-lg:  var(--space-7) var(--space-7);
+  --padding-card-sm: var(--space-4) var(--space-5);
+  --padding-card: var(--space-5) var(--space-6);
+  --padding-card-lg: var(--space-7) var(--space-7);
 
-  --padding-button-sm:  var(--space-2) var(--space-3);
-  --padding-button:     var(--space-3) var(--space-5);
-  --padding-button-lg:  var(--space-4) var(--space-7);
+  --padding-button-sm: var(--space-2) var(--space-3);
+  --padding-button: var(--space-3) var(--space-5);
+  --padding-button-lg: var(--space-4) var(--space-7);
 
   /* ── Border radii ── */
-  --radius-xs:   4px;
-  --radius-sm:   6px;
-  --radius-md:   10px;
-  --radius-lg:   14px;
-  --radius-xl:   18px;
-  --radius-2xl:  22px;
-  --radius-3xl:  32px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 32px;
   --radius-full: 9999px;
 
   /* ── Semantic radius ── */
-  --radius-chip:   var(--radius-full);
+  --radius-chip: var(--radius-full);
   --radius-button: var(--radius-lg);
-  --radius-input:  var(--radius-md);
-  --radius-card:   var(--radius-2xl);
-  --radius-panel:  var(--radius-2xl);
-  --radius-cell:   var(--radius-lg);
-  --radius-icon:   var(--radius-sm);
+  --radius-input: var(--radius-md);
+  --radius-card: var(--radius-2xl);
+  --radius-panel: var(--radius-2xl);
+  --radius-cell: var(--radius-lg);
+  --radius-icon: var(--radius-sm);
 }

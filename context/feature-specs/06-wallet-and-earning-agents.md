@@ -43,7 +43,7 @@ The two simpler agents in the orchestrator lane. The **wallet agent** is the sol
 ## Out of scope
 
 - The redemption agent (spec 04) and the orchestrator/harness itself (spec 05).
-- The re-plan loop/queue (`replan_jobs`, RCG-57) — wallet only *triggers* staleness via the write path; it does not run the re-plan.
+- The re-plan loop/queue (`replan_jobs`, RCG-57) — wallet only _triggers_ staleness via the write path; it does not run the re-plan.
 - The cross-lane API surface (RCG-18 — its own spec).
 
 ---
@@ -58,12 +58,12 @@ The two simpler agents in the orchestrator lane. The **wallet agent** is the sol
 
 ## Files / modules (expected touch list)
 
-| Path | Change |
-|---|---|
-| `src/agents/wallet/*` | create — personal-state mutations |
-| `src/agents/earning/*` | create — category → best-card reasoning |
-| `tests/agents/wallet/*` | create — balance update → staleness |
-| `tests/agents/earning/*` | create — best-card-per-category |
+| Path                     | Change                                  |
+| ------------------------ | --------------------------------------- |
+| `src/agents/wallet/*`    | create — personal-state mutations       |
+| `src/agents/earning/*`   | create — category → best-card reasoning |
+| `tests/agents/wallet/*`  | create — balance update → staleness     |
+| `tests/agents/earning/*` | create — best-card-per-category         |
 
 ---
 
@@ -90,6 +90,6 @@ npm test -- agents/wallet agents/earning
 
 ## Open questions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | Tie-break when two cards have equal earn rate | no | Pick lower annual fee; confirm in implementation |
+| #   | Question                                      | Blocking? | Resolution                                       |
+| --- | --------------------------------------------- | --------- | ------------------------------------------------ |
+| 1   | Tie-break when two cards have equal earn rate | no        | Pick lower annual fee; confirm in implementation |
