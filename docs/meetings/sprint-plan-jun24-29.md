@@ -2,7 +2,7 @@
 
 > Refreshed Wed Jun 24 from a full `main` + Linear audit. Two lines in the sand:
 > **MVP hero test green — Thu Jun 25** · **Live 10-min demo — Mon Jun 29.**
-> The backend is essentially done. The remaining work is the *visible demo* and the *benchmark/baselines*. Protect those two; add no backend scope.
+> The core backend pieces are in place, but the API service still needs to be stood up (spec 07). The remaining work is the *visible demo* and the *benchmark/baselines*, plus that thin service layer needed to serve them. Protect those; add no new backend features.
 
 ---
 
@@ -44,9 +44,9 @@ All the pieces are merged; this is wiring + debugging, not new features. Owners:
 
 ## 3. Critical path & risk
 
-1. **Frontend demo UI is the long pole.** Only the landing + auth exist; the shell, sidebar, stale-node view, and head-to-head are all unbuilt and they *are* the persuasion. **Decision (Jun 24): all frontend stays with Val — two-day target for the shell + sidebar (by EOD Jun 26).** She is unblocked on mocks today; the two real dependencies are (a) a filled mock-data bundle to build against and (b) a `query → plan` HTTP endpoint from Raq by Fri so she can swap mocks for real (see §8).
+1. **Frontend demo UI is the long pole.** Only the landing + auth exist; the shell, sidebar, stale-node view, and head-to-head are all unbuilt and they *are* the persuasion. **Decision (Jun 24): all frontend stays with Val — two-day target for the shell + sidebar (by EOD Jun 26).** She is unblocked on mocks today; the two real dependencies are (a) a filled mock-data bundle to build against (now committed in this PR) and (b) a `query → plan` HTTP endpoint from Raq by Fri so she can swap mocks for real (see §8).
 2. **Benchmark + 2 baselines are the research claim** and aren't started in code. Michael leads; Raq owns the single-agent baseline + harness.
-3. **Backend is done.** No new backend scope. Alan shifts to eval instrumentation, perf/bugfix, and frontend/infra backstop.
+3. **Core backend is done; only the thin API service (spec 07) remains, owned by Raq.** No new backend features. Alan shifts to eval instrumentation, perf/bugfix, and frontend/infra backstop.
 
 ---
 
@@ -128,9 +128,9 @@ All the pieces are merged; this is wiring + debugging, not new features. Owners:
 - **Sidebar event shape:** concrete SSE example in `design-context.md` + canonical [`mutation-event.schema.json`](../../schema/contracts/mutation-event.schema.json); the route code (`GET /mutations` + `GET /mutations/stream`, real `graph_mutations` query) is merged — but only mounted inside tests, **not served** (see gap 2).
 - **Styling + layout:** design system (RCG-64) + the app-shell layout contract in `design-context.md` (query input + plan area + sidebar).
 
-**Two gaps to close so she isn't blocked:**
+**One gap remains; the first is closed in this PR:**
 
-1. **No filled mock data is committed** — only the shapes exist, not a Tokyo-persona instance. Action: commit `fixtures/mock-plan.json` (a filled plan + steps with reasoning + `dependsOn`) and a short `fixtures/mock-mutation-events.json` SSE sequence. ~30 min; lets Val build a realistic shell today. A faithful sample can be lifted from the redemption planner's output.
+1. ✅ **Filled mock data is committed in this PR** — Val can build a realistic shell today against `fixtures/mock-plan.json` (a filled plan + steps with reasoning + `dependsOn`) and `fixtures/mock-mutation-events.json` (a short SSE sequence).
 2. **No running API service.** The backend is library code, not a service: `apps/api` has only `test` / `typecheck` scripts — no server entry, no `serve()` / `listen()`, no Postgres client wired in. The mutation routes read real `graph_mutations` but are only mounted inside tests, and there is **no `query → plan` route at all** (the orchestrator is a class with in-memory test fakes; no Postgres-backed impl). Nothing is exposed over HTTP yet. **Raq must stand up the Hono API server — real pg client, mounted `/mutations` + `/mutations/stream`, a new `POST /plans` running the orchestrator on live Postgres, and Clerk→userId auth — by Fri Jun 26.** Critical-path blocker for a real-data demo; until then the shell shows mocks. The exact HTTP contract is pinned in [spec 07](../../context/feature-specs/07-api-service.md) — Val mocks against it today, Raq implements it by Fri.
 
 **Net:** Val can start and largely finish the shell + sidebar on mocks in two days. What she cannot do alone is show *real* data — that needs Raq's query→plan endpoint by Fri.

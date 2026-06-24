@@ -89,7 +89,7 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
 
 ### `POST /balance-transfer`  *(Hero Moment 1 trigger)*
 - **Body:** `{ "sourceProgramId": "uuid", "destProgramId": "uuid", "amountPoints": 5000 }`
-- **Effect:** `transfer_points` (debit/credit with OCC) → marks the current plan + steps `stale` → enqueues a `replan_jobs` row, all in one transaction; the re-plan promotes revision 2 to `current`.
+- **Effect:** `transfer_points` (debit/credit with OCC) → writes the corresponding `graph_mutations` rows → marks the current plan + steps `stale` → enqueues a `replan_jobs` row, all in one transaction; the re-plan promotes revision 2 to `current`.
 - **Response 202:** `{ "planLineageId": "uuid", "staledPlanId": "uuid", "replanJobId": "uuid" }`
 - The shell watches `/mutations/stream` for the stale → re-plan events, then loads `GET /plans/current?lineageId=`.
 - **Errors:** 400 (same source/dest, non-positive amount, no active route), 409 (version conflict / insufficient balance), 401.
@@ -98,7 +98,7 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
 - **Response 200:** array of mutation events (catch-up since `cursor`; `cursor` = `event_id`). Already implemented.
 
 ### `GET /mutations/stream`  *(SSE — observability)*
-- **Response:** `text/event-stream`; one frame per `graph_mutations` row: `id: <event_id>`, `event: graph_mutation`, `data: <event json>`. Resume via `Last-Event-ID`. Already implemented.
+- **Response:** `text/event-stream`; one frame per `graph_mutations` row, replayed in per-user `graph_write` commit order (the append-only log ordering guaranteed by `pg_advisory_xact_lock(hashtextextended('graph_write:'||user_id, 0))`): `id: <event_id>`, `event: graph_mutation`, `data: <event json>`. Resume via `Last-Event-ID` without reordering. Already implemented.
 - **Event shape** (canonical: [`mutation-event.schema.json`](../../schema/contracts/mutation-event.schema.json)):
 ```json
 {
