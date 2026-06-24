@@ -25,7 +25,7 @@
 - [x] Persistence/write-boundary model reconciled with the graph-write invariant (§9)
 - [x] Exact `AgentCommitFactory`, `AgentRegistry`, `GraphSnapshotBuilder`, and `Orchestrator` constructor interfaces defined (§8, §10.2)
 
-**Readiness rationale.** Every implementation-critical contract is fixed and exhaustively typed. The only deferred items — the *generated* TS mutation types (Phase A3) and spec 02's real write path — are reached **only** through the `AgentCommitFactory` / `OrchestratorGraphWrite` interfaces and a single temporary union file. No test or public behavior in this unit depends on their final form; when they land, the temporary union (§10.1) is replaced by a generated import and the in-memory adapters by the real ones, with no change to the orchestrator, the agent contract, or the named tests.
+**Readiness rationale.** Every implementation-critical contract is fixed and exhaustively typed. The only deferred items — the _generated_ TS mutation types (Phase A3) and spec 02's real write path — are reached **only** through the `AgentCommitFactory` / `OrchestratorGraphWrite` interfaces and a single temporary union file. No test or public behavior in this unit depends on their final form; when they land, the temporary union (§10.1) is replaced by a generated import and the in-memory adapters by the real ones, with no change to the orchestrator, the agent contract, or the named tests.
 
 ---
 
@@ -75,6 +75,7 @@ This unit builds and tests end-to-end against in-memory doubles. No live databas
 ## 4. Contracts consumed and produced
 
 **Consumed** (link only — do not restate the schema):
+
 - `docs/architecture/schema-final.md §4.6` — `agent_runs`: field names, `status` CHECK (`running`,`completed`,`failed`,`timed_out`), `state` jsonb with `last_read_versions`, `agent_type` CHECK (`orchestrator`,`wallet_agent`,`earning_agent`,`redemption_agent`).
 - `docs/architecture/schema-final.md §4.1–4.2` — `plans`: `status` (`generating`,`current`,`stale`,`failed`,`superseded`), `revision_number`, `plan_lineage_id`, partial unique index `plans_one_current_revision`, `plan_type`.
 - `docs/architecture/schema-final.md §4.3` — `plan_steps`: `step_type` CHECK (`card_assignment`,`redemption_recommendation`,`spend_analysis`,`transfer_recommendation`), `payload` jsonb (basis for the typed per-step payloads in §10.1).
@@ -87,10 +88,12 @@ This unit builds and tests end-to-end against in-memory doubles. No live databas
 - `context/architecture-context.md §Invariants` — invariants 1, 2, 3, 6, 7, 11, 13.
 
 **Produced** by spec 05 (all as **orchestrator-owned typed graph-write commands** — §9):
+
 - `Plan` rows (`createPlan` + `transitionPlanStatus`). Orchestrator is the sole Plan writer.
 - `AgentRun` rows (`createAgentRun` + `finalizeAgentRun`, one per invocation, with `state.last_read_versions` merged atomically by the commit path).
 
 **NOT produced in spec 05** (deferred):
+
 - `plan_steps`, `state_dependencies` durable rows — owned by specs 04 and 06; agents submit these mutations through the same seam in later specs.
 - `targets` (Plan → UserGoal) — deferred.
 - `graph_mutations`, `idempotency_records`, `replan_jobs` audit/queue rows — written by spec 02's real path. The in-memory doubles model **call-level** semantics only (§10.5–§10.6).
@@ -101,18 +104,19 @@ This unit builds and tests end-to-end against in-memory doubles. No live databas
 
 The hard constraint is enforced by a combination of **type-level** and **runtime** controls. This unit does **not** provide process-level isolation.
 
-| Control | Mechanism | Strength |
-|---|---|---|
-| No free-text field on the public invocation contract | `AgentInvocation` is a discriminated union with exactly `agentType` + a typed `operation`; no prose field exists. A stray `prompt`/`message` triggers an excess-property error (`@ts-expect-error` test T29). | Compile-time, through the declared interface |
-| Operation is bound to the agent type | `AgentContext<K>.operation` is `OperationByAgent[K]`; an agent of type `K` cannot receive another agent's operation (`@ts-expect-error` test T31). | Compile-time |
-| No injected coordination capability | `AgentContext<K>` exposes exactly `planId, userId, agentRunId, operation, snapshot, commit`. The harness injects **no** database client, HTTP client, message bus, peer agent, event emitter, or generic callback (`@ts-expect-error` test T30). | Compile-time, through the declared interface |
-| `GraphSnapshot` is read-only | `Readonly<…>` with `ReadonlyArray` rows — no write capability inside the snapshot. | Compile-time |
-| Specialist cannot name an orchestrator command | Orchestrator writes are **typed methods** on `OrchestratorGraphWrite`, not mutations; there is no orchestrator mutation type for a specialist to construct. The agent-facing `commit` accepts only `SpecialistMutation` (test T32). | Compile-time |
-| No generic mutation payload | Every `SpecialistMutation` variant is closed and exhaustively typed (no `payload: Record<string, unknown>`, no `targetTable: string`); the in-memory adapter validates every variant exhaustively (§12). | Compile-time + runtime |
-| Mutation ownership | The commit adapter receives the calling `agentType` and **rejects at runtime** any mutation `kind` the agent does not own, before any state change (§6.4, §10.3). | Runtime, at the commit trust boundary |
-| Untrusted decomposer output | `validateDecomposedQuery` rejects unknown/mismatched/malformed invocations and unexpected keys at the orchestrator trust boundary (§6.5). | Runtime, at the decomposition trust boundary |
+| Control                                              | Mechanism                                                                                                                                                                                                                                        | Strength                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| No free-text field on the public invocation contract | `AgentInvocation` is a discriminated union with exactly `agentType` + a typed `operation`; no prose field exists. A stray `prompt`/`message` triggers an excess-property error (`@ts-expect-error` test T29).                                    | Compile-time, through the declared interface |
+| Operation is bound to the agent type                 | `AgentContext<K>.operation` is `OperationByAgent[K]`; an agent of type `K` cannot receive another agent's operation (`@ts-expect-error` test T31).                                                                                               | Compile-time                                 |
+| No injected coordination capability                  | `AgentContext<K>` exposes exactly `planId, userId, agentRunId, operation, snapshot, commit`. The harness injects **no** database client, HTTP client, message bus, peer agent, event emitter, or generic callback (`@ts-expect-error` test T30). | Compile-time, through the declared interface |
+| `GraphSnapshot` is read-only                         | `Readonly<…>` with `ReadonlyArray` rows — no write capability inside the snapshot.                                                                                                                                                               | Compile-time                                 |
+| Specialist cannot name an orchestrator command       | Orchestrator writes are **typed methods** on `OrchestratorGraphWrite`, not mutations; there is no orchestrator mutation type for a specialist to construct. The agent-facing `commit` accepts only `SpecialistMutation` (test T32).              | Compile-time                                 |
+| No generic mutation payload                          | Every `SpecialistMutation` variant is closed and exhaustively typed (no `payload: Record<string, unknown>`, no `targetTable: string`); the in-memory adapter validates every variant exhaustively (§12).                                         | Compile-time + runtime                       |
+| Mutation ownership                                   | The commit adapter receives the calling `agentType` and **rejects at runtime** any mutation `kind` the agent does not own, before any state change (§6.4, §10.3).                                                                                | Runtime, at the commit trust boundary        |
+| Untrusted decomposer output                          | `validateDecomposedQuery` rejects unknown/mismatched/malformed invocations and unexpected keys at the orchestrator trust boundary (§6.5).                                                                                                        | Runtime, at the decomposition trust boundary |
 
 **Explicitly NOT provided by this unit:**
+
 - Absolute process-level isolation. A determined caller using `as any` casts can fabricate objects at runtime; that is why ownership, mutation structure, and decomposer output are **also** validated at runtime, not asserted purely by type.
 - Import-level or credential isolation for Python specialist agents. That is enforced at the **subprocess boundary** (`launcher.ts`, environment allowlist, no `DATABASE_URL`) defined in ADR 0007 and implemented in specs 04/06 — out of scope here (invariant 11).
 - `@ts-expect-error` tests prove a construct is **rejected through the declared interface at compile time**. They are not evidence that an arbitrary extra property can never exist on a runtime object reached via casts — which is exactly why runtime validation backstops them.
@@ -123,17 +127,17 @@ The hard constraint is enforced by a combination of **type-level** and **runtime
 
 ### 6.1 Orchestrator boundary
 
-| Dimension | Specification |
-|---|---|
-| **Input** | `PlanRequest { userId: string; queryText: string }` — new plans only (§7) |
-| **Output** | `PlanResult { planId: string; planLineageId: string; status: 'current' \| 'failed'; agentRunIds: string[] }` — or **throws** `OrchestrationError` on decomposition-validation failure (§6.5) |
-| **Creates / transitions Plan** | Orchestrator only, via the `OrchestratorGraphWrite` typed command port (§9) |
-| **Creates / finalizes AgentRun** | Orchestrator only (Python agents have no DB credentials — invariant 11) |
-| **Validates decomposer output** | Orchestrator only, before any `AgentRun` is created (§6.5) |
-| **Invokes agents** | Orchestrator only, in `DecomposedQuery.invocations` array order; implementer cannot reorder |
-| **On agent success** | `finalizeAgentRun(completed)`; continue with next invocation |
-| **On agent failure** | `finalizeAgentRun(failed)`; halt immediately; remaining agents NOT invoked; `transitionPlanStatus(failed)` |
-| **Orchestration mode** | Sequential. Parallel orchestration is out of scope. |
+| Dimension                        | Specification                                                                                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Input**                        | `PlanRequest { userId: string; queryText: string }` — new plans only (§7)                                                                                                                    |
+| **Output**                       | `PlanResult { planId: string; planLineageId: string; status: 'current' \| 'failed'; agentRunIds: string[] }` — or **throws** `OrchestrationError` on decomposition-validation failure (§6.5) |
+| **Creates / transitions Plan**   | Orchestrator only, via the `OrchestratorGraphWrite` typed command port (§9)                                                                                                                  |
+| **Creates / finalizes AgentRun** | Orchestrator only (Python agents have no DB credentials — invariant 11)                                                                                                                      |
+| **Validates decomposer output**  | Orchestrator only, before any `AgentRun` is created (§6.5)                                                                                                                                   |
+| **Invokes agents**               | Orchestrator only, in `DecomposedQuery.invocations` array order; implementer cannot reorder                                                                                                  |
+| **On agent success**             | `finalizeAgentRun(completed)`; continue with next invocation                                                                                                                                 |
+| **On agent failure**             | `finalizeAgentRun(failed)`; halt immediately; remaining agents NOT invoked; `transitionPlanStatus(failed)`                                                                                   |
+| **Orchestration mode**           | Sequential. Parallel orchestration is out of scope.                                                                                                                                          |
 
 ### 6.2 Natural-language decomposition and the typed operation
 
@@ -180,21 +184,21 @@ export interface OperationByAgent {
 export interface WalletAssessmentOperation {
   readonly kind: "assess_wallet";
   readonly agentType: "wallet_agent";
-  readonly programIds: readonly string[];        // reward_programs to assess balances/status for
+  readonly programIds: readonly string[]; // reward_programs to assess balances/status for
 }
 
 export interface EarningRecommendationOperation {
   readonly kind: "recommend_earning";
   readonly agentType: "earning_agent";
-  readonly spendCategoryIds: readonly string[];  // spend_categories to optimize earn for
+  readonly spendCategoryIds: readonly string[]; // spend_categories to optimize earn for
 }
 
 export interface RedemptionTraversalOperation {
   readonly kind: "traverse_redemption";
   readonly agentType: "redemption_agent";
-  readonly goalType: UserGoalType;                       // schema enum (user_goals.goal_type)
-  readonly targetRedemptionOptionId: string | null;      // redemption_options.id, when specific
-  readonly sourceProgramIds: readonly string[];          // candidate source reward_programs
+  readonly goalType: UserGoalType; // schema enum (user_goals.goal_type)
+  readonly targetRedemptionOptionId: string | null; // redemption_options.id, when specific
+  readonly sourceProgramIds: readonly string[]; // candidate source reward_programs
 }
 ```
 
@@ -216,18 +220,21 @@ export interface RedemptionTraversalOperation {
 import type { AgentOperation, OperationByAgent } from "../orchestrator/contracts";
 
 export type SpecialistAgentType = "wallet_agent" | "earning_agent" | "redemption_agent";
-export type AgentType = "orchestrator" | SpecialistAgentType;   // mirrors agent_runs.agent_type CHECK
+export type AgentType = "orchestrator" | SpecialistAgentType; // mirrors agent_runs.agent_type CHECK
 
 // schema-final §3.4 user_goals.goal_type CHECK
 export type UserGoalType =
-  | "maximize_points" | "maximize_cashback" | "specific_redemption" | "minimize_fees";
+  | "maximize_points"
+  | "maximize_cashback"
+  | "specific_redemption"
+  | "minimize_fees";
 
 // AgentContext is parameterized by the agent type so operation is narrowed.
 export interface AgentContext<K extends SpecialistAgentType> {
   readonly planId: string;
   readonly userId: string;
   readonly agentRunId: string;
-  readonly operation: OperationByAgent[K];   // typed decomposed task narrowed to K — NOT queryText
+  readonly operation: OperationByAgent[K]; // typed decomposed task narrowed to K — NOT queryText
   readonly snapshot: GraphSnapshot;
   readonly commit: AgentCommit;
   // No: db, http, bus, otherAgents, callback, emit, message, prompt, queryText, planRepository, graphWrite
@@ -288,7 +295,7 @@ switch (invocation.agentType) {
 }
 ```
 
-Because `AgentRegistry` is an exhaustive `Record` over `SpecialistAgentType` and a valid `agentType` is guaranteed by §6.5 validation before dispatch, **a registered agent always exists** — there is no "missing agent" runtime branch. An *invalid* `agentType` never reaches dispatch; it is rejected at decomposition validation.
+Because `AgentRegistry` is an exhaustive `Record` over `SpecialistAgentType` and a valid `agentType` is guaranteed by §6.5 validation before dispatch, **a registered agent always exists** — there is no "missing agent" runtime branch. An _invalid_ `agentType` never reaches dispatch; it is rejected at decomposition validation.
 
 **How graph reads are supplied:** the orchestrator calls `GraphSnapshotBuilder.build({ userId, planId })` before invoking each agent. In spec 05 the only implementation is a test stub returning fixture data (`StubGraphSnapshotBuilder`, under tests). The DB-backed implementation is deferred (graph-query, spec 02 lane).
 
@@ -297,24 +304,25 @@ Because `AgentRegistry` is an exhaustive `Record` over `SpecialistAgentType` and
 Ownership follows `schema-final.md §6.2`, narrowed to what this unit exercises. **Specialist mutations** and **orchestrator commands** are modeled separately (§9):
 
 - **Specialist mutations** are members of `SpecialistMutation` (§10.1), owned per agent type and submitted through `commit`.
-- **Orchestrator commands** are the **typed methods** on `OrchestratorGraphWrite` (§9). They are *not* mutation variants and carry no `kind`; the method signatures themselves are the closed orchestrator command contract. The orchestrator additionally owns the `AgentRun` lifecycle because Python specialist agents have no DB credentials (invariant 11).
+- **Orchestrator commands** are the **typed methods** on `OrchestratorGraphWrite` (§9). They are _not_ mutation variants and carry no `kind`; the method signatures themselves are the closed orchestrator command contract. The orchestrator additionally owns the `AgentRun` lifecycle because Python specialist agents have no DB credentials (invariant 11).
 
-| Writer | Owned specialist mutation `kind`s (spec 05) | Schema basis |
-|---|---|---|
-| `wallet_agent` | `UpdateUserBalance` | §6.2 (personal-tier; wallet is sole writer of `user_balances`) |
-| `earning_agent` | `CreatePlanStep` | §6.2 (own plan-step contributions) |
-| `redemption_agent` | `CreatePlanStep`, `RecordStateDependency` | §6.2 (`plan_steps`, `state_dependencies`) |
-| `orchestrator` | *(no specialist mutations)* — owns the `OrchestratorGraphWrite` command methods only | §6.2 (`plans`); §4.6 (`agent_runs`) |
+| Writer             | Owned specialist mutation `kind`s (spec 05)                                          | Schema basis                                                   |
+| ------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `wallet_agent`     | `UpdateUserBalance`                                                                  | §6.2 (personal-tier; wallet is sole writer of `user_balances`) |
+| `earning_agent`    | `CreatePlanStep`                                                                     | §6.2 (own plan-step contributions)                             |
+| `redemption_agent` | `CreatePlanStep`, `RecordStateDependency`                                            | §6.2 (`plan_steps`, `state_dependencies`)                      |
+| `orchestrator`     | _(no specialist mutations)_ — owns the `OrchestratorGraphWrite` command methods only | §6.2 (`plans`); §4.6 (`agent_runs`)                            |
 
 ```typescript
 // apps/api/src/agents/ownership.ts  (production — exact)
 import type { SpecialistAgentType } from "./contracts";
 import type { SpecialistMutationKind } from "./contracts";
 
-export const MUTATION_OWNERSHIP:
-  Readonly<Record<SpecialistAgentType, ReadonlyArray<SpecialistMutationKind>>> = {
-  wallet_agent:     ["UpdateUserBalance"],
-  earning_agent:    ["CreatePlanStep"],
+export const MUTATION_OWNERSHIP: Readonly<
+  Record<SpecialistAgentType, ReadonlyArray<SpecialistMutationKind>>
+> = {
+  wallet_agent: ["UpdateUserBalance"],
+  earning_agent: ["CreatePlanStep"],
   redemption_agent: ["CreatePlanStep", "RecordStateDependency"],
 } as const;
 
@@ -324,6 +332,7 @@ export function isOwnedBy(agentType: SpecialistAgentType, kind: SpecialistMutati
 ```
 
 **Where ownership is checked:**
+
 - **Type level (compile time):** the agent-facing `AgentCommit` accepts only `SpecialistMutation` (§10.1). There is **no orchestrator mutation type**, so a specialist literally cannot name a `createPlan`/`transitionPlanStatus` command — those exist only as methods on a port absent from `AgentContext`. This makes tests T31–T32 compile-time guarantees.
 - **Runtime (at the commit trust boundary):** the adapter is bound to `agentType` and calls `isOwnedBy(agentType, mutation.kind)`. A mutation the agent does not own — or an unknown `kind` smuggled in via an `as any` cast — is rejected (`OwnershipError` for a known-but-unowned kind, `ValidationError` for an unknown kind) **before** the mutation is recorded. No state change occurs.
 
@@ -357,16 +366,16 @@ export class OrchestrationError extends Error {
 
 **Rejection conditions** (each → `OrchestrationError { kind: 'DecompositionInvalid' }`):
 
-| Condition | Notes |
-|---|---|
-| `invocations` is missing, not an array, or **empty** | An empty plan has no work; treated as invalid. |
-| `invocation.agentType` is not a `SpecialistAgentType` | Unknown agent. |
-| `operation.kind` is not a known operation kind | Unknown operation. |
-| `invocation.agentType !== operation.agentType` | Mismatched routing. |
-| `operation.kind` is not the kind valid for that `agentType` | e.g. `wallet_agent` with `traverse_redemption`. |
-| A required identifier is missing/empty (e.g. empty `programIds`, empty `sourceProgramIds`, empty `goalType`) | Per operation type. |
-| An enum value is invalid (e.g. `goalType` not in `UserGoalType`) | Closed-set check. |
-| Any **unexpected key** appears on an invocation or operation | Backstops the "no free-text coordination field" invariant at runtime. |
+| Condition                                                                                                    | Notes                                                                 |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `invocations` is missing, not an array, or **empty**                                                         | An empty plan has no work; treated as invalid.                        |
+| `invocation.agentType` is not a `SpecialistAgentType`                                                        | Unknown agent.                                                        |
+| `operation.kind` is not a known operation kind                                                               | Unknown operation.                                                    |
+| `invocation.agentType !== operation.agentType`                                                               | Mismatched routing.                                                   |
+| `operation.kind` is not the kind valid for that `agentType`                                                  | e.g. `wallet_agent` with `traverse_redemption`.                       |
+| A required identifier is missing/empty (e.g. empty `programIds`, empty `sourceProgramIds`, empty `goalType`) | Per operation type.                                                   |
+| An enum value is invalid (e.g. `goalType` not in `UserGoalType`)                                             | Closed-set check.                                                     |
+| Any **unexpected key** appears on an invocation or operation                                                 | Backstops the "no free-text coordination field" invariant at runtime. |
 
 **On failure (§3 step 4):** the already-created `generating` Plan is transitioned to `failed`; **no** `AgentRun` is created; **no** agent is invoked; **no** specialist commit occurs; the orchestrator **throws** the single typed `OrchestrationError`. Distinguishing this from an agent-run failure: a malformed planning request surfaces as a thrown `OrchestrationError`; an agent failing mid-run surfaces as `PlanResult.status === 'failed'`. In both cases the Plan row ends `failed` for audit.
 
@@ -376,12 +385,12 @@ export class OrchestrationError extends Error {
 
 Using exact status values from `schema-final.md §4.1`.
 
-| Action | `plans.status` | Command | Who |
-|---|---|---|---|
-| `createPlan` | `generating` | `OrchestratorGraphWrite.createPlan` | Orchestrator |
-| Decomposition invalid (§6.5) | `failed` | `transitionPlanStatus` | Orchestrator |
-| All agent runs complete | `current` | `transitionPlanStatus` | Orchestrator |
-| Any agent run fails | `failed` | `transitionPlanStatus` | Orchestrator |
+| Action                       | `plans.status` | Command                             | Who          |
+| ---------------------------- | -------------- | ----------------------------------- | ------------ |
+| `createPlan`                 | `generating`   | `OrchestratorGraphWrite.createPlan` | Orchestrator |
+| Decomposition invalid (§6.5) | `failed`       | `transitionPlanStatus`              | Orchestrator |
+| All agent runs complete      | `current`      | `transitionPlanStatus`              | Orchestrator |
+| Any agent run fails          | `failed`       | `transitionPlanStatus`              | Orchestrator |
 
 **New plans only.** `PlanRequest` accepts no `planLineageId`. The orchestrator generates a fresh `plan_lineage_id` (`crypto.randomUUID()`) and sets `revision_number = 1`. Accepting an existing lineage and computing the next revision belongs to the durable re-plan worker (ADR 0005, RCG-57) and is out of scope.
 
@@ -404,14 +413,14 @@ In the in-memory orchestrator graph-write double (§9), `transitionPlanStatus(pl
 
 Using exact field names from `schema-final.md §4.6`.
 
-| Lifecycle event | Command / harness effect |
-|---|---|
-| Orchestrator decides to invoke an agent | `createAgentRun { agentType, planId, userId }` → `status = 'running'`, `started_at = now()`, `state = null` |
-| Agent's first successful `commit(input)` | Atomically with recording the mutation: `state = { last_read_versions: { ...input.readSet } }` |
-| Agent's subsequent successful `commit(input)` | Atomically: merge `input.readSet` into existing `last_read_versions`; for a repeated `nodeId`, the **later** observed version overwrites the earlier |
-| Agent's `commit(input)` **fails** | `commit` rejects with `CommitFailure`; **neither** the mutation **nor** `last_read_versions` is updated for that call (§10.6) |
-| Agent `run()` resolves (success) | `finalizeAgentRun → status = 'completed'`, `completed_at = now()` |
-| Agent `run()` rejects/throws (incl. a rejected `commit`) | `finalizeAgentRun → status = 'failed'`, `error = err.message`, `completed_at = now()` |
+| Lifecycle event                                          | Command / harness effect                                                                                                                             |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Orchestrator decides to invoke an agent                  | `createAgentRun { agentType, planId, userId }` → `status = 'running'`, `started_at = now()`, `state = null`                                          |
+| Agent's first successful `commit(input)`                 | Atomically with recording the mutation: `state = { last_read_versions: { ...input.readSet } }`                                                       |
+| Agent's subsequent successful `commit(input)`            | Atomically: merge `input.readSet` into existing `last_read_versions`; for a repeated `nodeId`, the **later** observed version overwrites the earlier |
+| Agent's `commit(input)` **fails**                        | `commit` rejects with `CommitFailure`; **neither** the mutation **nor** `last_read_versions` is updated for that call (§10.6)                        |
+| Agent `run()` resolves (success)                         | `finalizeAgentRun → status = 'completed'`, `completed_at = now()`                                                                                    |
+| Agent `run()` rejects/throws (incl. a rejected `commit`) | `finalizeAgentRun → status = 'failed'`, `error = err.message`, `completed_at = now()`                                                                |
 
 **`state` jsonb shape** (schema lock decision 7, ADR 0001):
 
@@ -433,7 +442,7 @@ export interface OrchestratorDeps {
 
 export class Orchestrator {
   constructor(private readonly deps: OrchestratorDeps) {}
-  run(request: PlanRequest): Promise<PlanResult>;   // throws OrchestrationError on §6.5 failure
+  run(request: PlanRequest): Promise<PlanResult>; // throws OrchestrationError on §6.5 failure
 }
 ```
 
@@ -447,10 +456,10 @@ export class Orchestrator {
 
 The seam is exposed through **two typed ports** onto the same eventual service, differing by actor scope and shape:
 
-| Port | Actor scope | Shape | Spec-05 in-memory double |
-|---|---|---|---|
-| `OrchestratorGraphWrite` | `orchestrator` | **Typed command methods** (closed by signature) | `InMemoryOrchestratorGraphWrite` (under tests) |
-| `AgentCommit` (per run) | one `SpecialistAgentType` | A single `SpecialistMutation` + readSet + key | factory output of `InMemoryAgentCommitFactory` / `CommitStub` (under tests) |
+| Port                     | Actor scope               | Shape                                           | Spec-05 in-memory double                                                    |
+| ------------------------ | ------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| `OrchestratorGraphWrite` | `orchestrator`            | **Typed command methods** (closed by signature) | `InMemoryOrchestratorGraphWrite` (under tests)                              |
+| `AgentCommit` (per run)  | one `SpecialistAgentType` | A single `SpecialistMutation` + readSet + key   | factory output of `InMemoryAgentCommitFactory` / `CommitStub` (under tests) |
 
 ```typescript
 // apps/api/src/orchestrator/contracts.ts  (production interface — exact)
@@ -459,16 +468,28 @@ import type { AgentType } from "../agents/contracts";
 // The orchestrator's closed command contract IS this set of method signatures.
 // These are typed commands, not mutation variants — there is no orchestrator `kind`.
 export interface OrchestratorGraphWrite {
-  createPlan(input: { userId: string; planLineageId: string; queryText: string }): Promise<PlanRecord>;
+  createPlan(input: {
+    userId: string;
+    planLineageId: string;
+    queryText: string;
+  }): Promise<PlanRecord>;
   transitionPlanStatus(input: { planId: string; toStatus: "current" | "failed" }): Promise<void>;
-  createAgentRun(input: { planId: string; userId: string; agentType: AgentType }): Promise<AgentRunRecord>;
-  finalizeAgentRun(input: { agentRunId: string; status: "completed" | "failed"; error?: string }): Promise<void>;
+  createAgentRun(input: {
+    planId: string;
+    userId: string;
+    agentType: AgentType;
+  }): Promise<AgentRunRecord>;
+  finalizeAgentRun(input: {
+    agentRunId: string;
+    status: "completed" | "failed";
+    error?: string;
+  }): Promise<void>;
 }
 
 export interface PlanRecord {
   readonly id: string;
   readonly planLineageId: string;
-  readonly revisionNumber: number;       // always 1 in this unit
+  readonly revisionNumber: number; // always 1 in this unit
   readonly queryText: string;
   readonly status: "generating" | "current" | "failed";
   readonly planType: "agent_generated";
@@ -510,9 +531,9 @@ export type ReadSet = Readonly<Record<string, number>>;
 
 // Specialist mutation kinds ONLY. Orchestrator writes are typed methods (§9), not kinds.
 export type SpecialistMutationKind =
-  | "UpdateUserBalance"        // wallet-owned
-  | "CreatePlanStep"           // earning/redemption-owned
-  | "RecordStateDependency";   // redemption-owned
+  | "UpdateUserBalance" // wallet-owned
+  | "CreatePlanStep" // earning/redemption-owned
+  | "RecordStateDependency"; // redemption-owned
 
 export type SpecialistMutation =
   | UpdateUserBalanceMutation
@@ -522,43 +543,74 @@ export type SpecialistMutation =
 // --- wallet ---
 export interface UpdateUserBalanceMutation {
   readonly kind: "UpdateUserBalance";
-  readonly balanceNodeId: string;     // user_balances.id
-  readonly balancePoints: number;     // integer ≥ 0 (domain check is spec 02 / wallet spec)
+  readonly balanceNodeId: string; // user_balances.id
+  readonly balancePoints: number; // integer ≥ 0 (domain check is spec 02 / wallet spec)
 }
 
 // --- plan steps: payload discriminated by stepType (schema-final §4.3 CHECK) ---
 interface BaseCreatePlanStep {
   readonly kind: "CreatePlanStep";
   readonly planId: string;
-  readonly stepOrder: number;         // integer ≥ 1
+  readonly stepOrder: number; // integer ≥ 1
 }
 export type CreatePlanStepMutation =
-  | (BaseCreatePlanStep & { readonly stepType: "card_assignment";          readonly payload: CardAssignmentPayload })
-  | (BaseCreatePlanStep & { readonly stepType: "spend_analysis";           readonly payload: SpendAnalysisPayload })
-  | (BaseCreatePlanStep & { readonly stepType: "redemption_recommendation"; readonly payload: RedemptionRecommendationPayload })
-  | (BaseCreatePlanStep & { readonly stepType: "transfer_recommendation";  readonly payload: TransferRecommendationPayload });
+  | (BaseCreatePlanStep & {
+      readonly stepType: "card_assignment";
+      readonly payload: CardAssignmentPayload;
+    })
+  | (BaseCreatePlanStep & {
+      readonly stepType: "spend_analysis";
+      readonly payload: SpendAnalysisPayload;
+    })
+  | (BaseCreatePlanStep & {
+      readonly stepType: "redemption_recommendation";
+      readonly payload: RedemptionRecommendationPayload;
+    })
+  | (BaseCreatePlanStep & {
+      readonly stepType: "transfer_recommendation";
+      readonly payload: TransferRecommendationPayload;
+    });
 
 // Narrowest spec-05 payloads — every field is an id reference to a schema NodeType.
-export interface CardAssignmentPayload          { readonly cardId: string }                                   // CreditCard.id
-export interface SpendAnalysisPayload           { readonly spendCategoryId: string; readonly recommendedCardId: string } // SpendCategory.id, CreditCard.id
-export interface RedemptionRecommendationPayload { readonly redemptionOptionId: string; readonly sourceProgramId: string } // RedemptionOption.id, RewardProgram.id
-export interface TransferRecommendationPayload  { readonly fromProgramId: string; readonly toProgramId: string }          // RewardProgram.id × 2
+export interface CardAssignmentPayload {
+  readonly cardId: string;
+} // CreditCard.id
+export interface SpendAnalysisPayload {
+  readonly spendCategoryId: string;
+  readonly recommendedCardId: string;
+} // SpendCategory.id, CreditCard.id
+export interface RedemptionRecommendationPayload {
+  readonly redemptionOptionId: string;
+  readonly sourceProgramId: string;
+} // RedemptionOption.id, RewardProgram.id
+export interface TransferRecommendationPayload {
+  readonly fromProgramId: string;
+  readonly toProgramId: string;
+} // RewardProgram.id × 2
 
 // --- state dependency: closed target + typed snapshot (schema-final §4.4, MVP staleness scope B2) ---
 export interface RecordStateDependencyMutation {
   readonly kind: "RecordStateDependency";
   readonly planStepId: string;
   readonly targetNodeId: string;
-  readonly observedVersion: number;   // integer ≥ 0
-  readonly target: StateDependencyTarget;   // closed union — NOT an arbitrary record
+  readonly observedVersion: number; // integer ≥ 0
+  readonly target: StateDependencyTarget; // closed union — NOT an arbitrary record
 }
 
 // MVP staleness scope (schema-final §4.4 B2): personal-tier nodes only.
 export type StateDependencyTarget =
-  | { readonly targetNodeType: "UserBalance";       readonly targetTable: "user_balances";
-      readonly dependedProperty: "balance_points";  readonly snapshotValue: { readonly balancePoints: number } }
-  | { readonly targetNodeType: "UserProgramStatus"; readonly targetTable: "user_program_statuses";
-      readonly dependedProperty: "status_tier";     readonly snapshotValue: { readonly statusTier: string } };
+  | {
+      readonly targetNodeType: "UserBalance";
+      readonly targetTable: "user_balances";
+      readonly dependedProperty: "balance_points";
+      readonly snapshotValue: { readonly balancePoints: number };
+    }
+  | {
+      readonly targetNodeType: "UserProgramStatus";
+      readonly targetTable: "user_program_statuses";
+      readonly dependedProperty: "status_tier";
+      readonly snapshotValue: { readonly statusTier: string };
+    };
 ```
 
 ### 10.2 The commit adapter factory (exact production interface)
@@ -589,12 +641,12 @@ export type AgentCommit = (input: AgentCommitInput) => Promise<CommitSuccess>;
 export interface AgentCommitInput {
   readonly mutation: SpecialistMutation;
   readonly readSet: ReadSet;
-  readonly idempotencyKey: string;   // non-empty; e.g. `${agentRunId}:${callCounter}`
+  readonly idempotencyKey: string; // non-empty; e.g. `${agentRunId}:${callCounter}`
 }
 
 export interface CommitSuccess {
   readonly mutationTxnId: string;
-  readonly idempotencyReplayed: boolean;   // true when this was an idempotent replay (§10.5)
+  readonly idempotencyReplayed: boolean; // true when this was an idempotent replay (§10.5)
 }
 ```
 
@@ -607,10 +659,10 @@ A failed commit is **indistinguishable, at the harness level, from a thrown agen
 ```typescript
 // apps/api/src/agents/contracts.ts  (production — exact)
 export type CommitFailureKind =
-  | "ValidationError"      // structural/contract failure at the commit boundary (§12), incl. unknown kind
-  | "OwnershipError"       // known mutation kind not owned by the calling agentType (§6.4)
-  | "ConflictError"        // OCC version conflict (real path; not triggered by the stub — §10.6)
-  | "IdempotencyConflict"  // same key + different request fingerprint → 409 (§10.5)
+  | "ValidationError" // structural/contract failure at the commit boundary (§12), incl. unknown kind
+  | "OwnershipError" // known mutation kind not owned by the calling agentType (§6.4)
+  | "ConflictError" // OCC version conflict (real path; not triggered by the stub — §10.6)
+  | "IdempotencyConflict" // same key + different request fingerprint → 409 (§10.5)
   | "UnexpectedCommitError"; // includes atomic mutation+checkpoint write failure (§10.6)
 
 export class CommitFailure extends Error {
@@ -626,6 +678,7 @@ export class CommitFailure extends Error {
 ```
 
 Lifecycle consequences of a failed commit (each named-tested in §16):
+
 - Neither the mutation nor the read checkpoint is applied (atomic, §10.6). — T6, T21
 - The current `AgentRun` is finalized `failed` with `error = failure.message`. — T7
 - The `Plan` is transitioned to `failed`. — T8
@@ -636,18 +689,18 @@ It is **impossible for a failed commit to leave an `AgentRun` `completed`**, bec
 
 **Lifecycle cleanup persistence (best-effort vs critical).** On the failure path the orchestrator first attempts `finalizeAgentRun(failed)` (best-effort — errors are recorded in `cleanupErrors` but do not block the primary failure), then **must** succeed at `transitionPlanStatus(failed)` before returning `PlanResult { status: "failed" }`. If `transitionPlanStatus(failed)` throws, the orchestrator propagates that error rather than returning a failed result while the plan remains `generating` in storage. When `finalizeAgentRun(failed)` itself throws during cleanup, the `AgentRun` may remain `running` with `error = null` even though the plan is transitioned to `failed` — the primary agent error is preserved and not overwritten. This is an accepted spec-compliant limitation for this unit (no retry/fallback); durable recovery belongs to spec 02's real adapters. See `context/progress-tracker.md` (Spec 05 gotcha).
 
-| Failure | Stub behavior | Real-path owner |
-|---|---|---|
-| Validation (malformed structure / unknown kind at boundary) | `CommitFailure("ValidationError")`, no record | spec 05 contract validation (§12) |
-| Ownership (known but unowned `kind`) | `CommitFailure("OwnershipError")`, no record | spec 05 (§6.4) |
-| OCC conflict | **not** simulated by the stub | spec 02 (real OCC + retry) |
-| Idempotency conflict (same key, different fingerprint) | `CommitFailure("IdempotencyConflict")`, no record | spec 05 call-level (§10.5); spec 02 owns `idempotency_records` |
-| Idempotent replay (same key, same fingerprint) | **success**, `idempotencyReplayed: true`, recorded once | spec 02 `idempotency_records` |
-| Atomic mutation+checkpoint write failure | `CommitFailure("UnexpectedCommitError")`, nothing persisted (§10.6) | both (spec 02 transaction; stub all-or-nothing) |
+| Failure                                                     | Stub behavior                                                       | Real-path owner                                                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Validation (malformed structure / unknown kind at boundary) | `CommitFailure("ValidationError")`, no record                       | spec 05 contract validation (§12)                              |
+| Ownership (known but unowned `kind`)                        | `CommitFailure("OwnershipError")`, no record                        | spec 05 (§6.4)                                                 |
+| OCC conflict                                                | **not** simulated by the stub                                       | spec 02 (real OCC + retry)                                     |
+| Idempotency conflict (same key, different fingerprint)      | `CommitFailure("IdempotencyConflict")`, no record                   | spec 05 call-level (§10.5); spec 02 owns `idempotency_records` |
+| Idempotent replay (same key, same fingerprint)              | **success**, `idempotencyReplayed: true`, recorded once             | spec 02 `idempotency_records`                                  |
+| Atomic mutation+checkpoint write failure                    | `CommitFailure("UnexpectedCommitError")`, nothing persisted (§10.6) | both (spec 02 transaction; stub all-or-nothing)                |
 
 ### 10.4 (reserved)
 
-*Idempotency is §10.5; the atomic write contract is §10.6.*
+_Idempotency is §10.5; the atomic write contract is §10.6._
 
 ### 10.5 Idempotency (aligned with schema-final §5.3 / invariant 13)
 
@@ -678,6 +731,7 @@ The stub derives the request fingerprint deterministically from the typed mutati
 The double is a faithful **contract** double, not a database emulator. Before recording a commit it performs the validation in §12, enforces ownership (§6.4), applies idempotency (§10.5), and records the mutation + checkpoint atomically (§10.6).
 
 **What it does NOT emulate** (owned elsewhere):
+
 - OCC version-conflict detection and retry — spec 02.
 - Per-user advisory lock (ADR 0008) — spec 02.
 - `graph_mutations` / `idempotency_records` / `replan_jobs` row insertion and staleness propagation — spec 02.
@@ -702,10 +756,14 @@ Observable state for assertions: the ordered list of recorded commits, the set o
 const tokyoSnapshot: GraphSnapshot = {
   userBalances: [
     { id: "balance-chase-ur", programId: "program-chase-ur", balancePoints: 85000, version: 2 },
-    { id: "balance-amex-mr",  programId: "program-amex-mr",  balancePoints: 40000, version: 1 },
+    { id: "balance-amex-mr", programId: "program-amex-mr", balancePoints: 40000, version: 1 },
   ],
   userGoals: [
-    { id: "goal-1", goalType: "specific_redemption", targetRedemptionOptionId: "option-hyatt-tokyo" },
+    {
+      id: "goal-1",
+      goalType: "specific_redemption",
+      targetRedemptionOptionId: "option-hyatt-tokyo",
+    },
   ],
   userProgramStatuses: [],
 };
@@ -716,17 +774,32 @@ const tokyoSnapshot: GraphSnapshot = {
 ```typescript
 const tokyoFixture: DecomposedQuery = {
   invocations: [
-    { agentType: "wallet_agent", operation: {
-        kind: "assess_wallet", agentType: "wallet_agent",
-        programIds: ["program-chase-ur"] } },
-    { agentType: "earning_agent", operation: {
-        kind: "recommend_earning", agentType: "earning_agent",
-        spendCategoryIds: ["category-travel"] } },
-    { agentType: "redemption_agent", operation: {
-        kind: "traverse_redemption", agentType: "redemption_agent",
+    {
+      agentType: "wallet_agent",
+      operation: {
+        kind: "assess_wallet",
+        agentType: "wallet_agent",
+        programIds: ["program-chase-ur"],
+      },
+    },
+    {
+      agentType: "earning_agent",
+      operation: {
+        kind: "recommend_earning",
+        agentType: "earning_agent",
+        spendCategoryIds: ["category-travel"],
+      },
+    },
+    {
+      agentType: "redemption_agent",
+      operation: {
+        kind: "traverse_redemption",
+        agentType: "redemption_agent",
         goalType: "specific_redemption",
         targetRedemptionOptionId: "option-hyatt-tokyo",
-        sourceProgramIds: ["program-chase-ur"] } },
+        sourceProgramIds: ["program-chase-ur"],
+      },
+    },
   ],
 };
 ```
@@ -744,7 +817,11 @@ class FakeWalletAgent implements Agent<"wallet_agent"> {
     const target = ctx.snapshot.userBalances.find((b) => b.programId === programId);
     if (!target) throw new Error(`wallet_agent: no balance for ${programId}`);
     await ctx.commit({
-      mutation: { kind: "UpdateUserBalance", balanceNodeId: target.id, balancePoints: target.balancePoints },
+      mutation: {
+        kind: "UpdateUserBalance",
+        balanceNodeId: target.id,
+        balancePoints: target.balancePoints,
+      },
       readSet: { [target.id]: target.version },
       idempotencyKey: `${ctx.agentRunId}:0`,
     });
@@ -756,8 +833,16 @@ class FakeEarningAgent implements Agent<"earning_agent"> {
   async run(ctx: AgentContext<"earning_agent">): Promise<void> {
     // payload's spendCategoryId derived FROM the operation
     await ctx.commit({
-      mutation: { kind: "CreatePlanStep", planId: ctx.planId, stepOrder: 1, stepType: "spend_analysis",
-        payload: { spendCategoryId: ctx.operation.spendCategoryIds[0], recommendedCardId: "card-csp" } },
+      mutation: {
+        kind: "CreatePlanStep",
+        planId: ctx.planId,
+        stepOrder: 1,
+        stepType: "spend_analysis",
+        payload: {
+          spendCategoryId: ctx.operation.spendCategoryIds[0],
+          recommendedCardId: "card-csp",
+        },
+      },
       readSet: { "balance-chase-ur": 2, "card-csp": 0 },
       idempotencyKey: `${ctx.agentRunId}:0`,
     });
@@ -769,10 +854,16 @@ class FakeRedemptionAgent implements Agent<"redemption_agent"> {
   async run(ctx: AgentContext<"redemption_agent">): Promise<void> {
     // payload derived FROM the operation's redemption target + source program
     await ctx.commit({
-      mutation: { kind: "CreatePlanStep", planId: ctx.planId, stepOrder: 2, stepType: "redemption_recommendation",
+      mutation: {
+        kind: "CreatePlanStep",
+        planId: ctx.planId,
+        stepOrder: 2,
+        stepType: "redemption_recommendation",
         payload: {
           redemptionOptionId: ctx.operation.targetRedemptionOptionId ?? "option-unspecified",
-          sourceProgramId: ctx.operation.sourceProgramIds[0] } },
+          sourceProgramId: ctx.operation.sourceProgramIds[0],
+        },
+      },
       readSet: { "balance-chase-ur": 2, "route-chase-hyatt": 5 },
       idempotencyKey: `${ctx.agentRunId}:0`,
     });
@@ -820,21 +911,22 @@ class FailingEarningAgent implements Agent<"earning_agent"> {
 
 Before recording any commit, the double **rejects** (with the mapped `CommitFailure` kind) when:
 
-| Condition | `CommitFailure.kind` |
-|---|---|
-| `mutation.kind` is not a known `SpecialistMutationKind` | `ValidationError` |
-| For `CreatePlanStep`: `stepType` not a known step type, or payload keys don't match the variant | `ValidationError` |
-| For `RecordStateDependency`: `target` not a known `StateDependencyTarget` variant | `ValidationError` |
-| `mutation.kind` is known but not owned by the bound `agentType` (§6.4) | `OwnershipError` |
-| A required identifier on the mutation is missing/empty (e.g. empty `balanceNodeId`, `planId`, `planStepId`, payload id) | `ValidationError` |
-| Any `readSet` version is negative or non-integer | `ValidationError` |
-| `idempotencyKey` is empty or not a string | `ValidationError` |
-| `idempotencyKey` seen with a **different** fingerprint | `IdempotencyConflict` |
-| Atomic checkpoint merge fails (test seam) | `UnexpectedCommitError` (nothing persisted, §10.6) |
+| Condition                                                                                                               | `CommitFailure.kind`                               |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `mutation.kind` is not a known `SpecialistMutationKind`                                                                 | `ValidationError`                                  |
+| For `CreatePlanStep`: `stepType` not a known step type, or payload keys don't match the variant                         | `ValidationError`                                  |
+| For `RecordStateDependency`: `target` not a known `StateDependencyTarget` variant                                       | `ValidationError`                                  |
+| `mutation.kind` is known but not owned by the bound `agentType` (§6.4)                                                  | `OwnershipError`                                   |
+| A required identifier on the mutation is missing/empty (e.g. empty `balanceNodeId`, `planId`, `planStepId`, payload id) | `ValidationError`                                  |
+| Any `readSet` version is negative or non-integer                                                                        | `ValidationError`                                  |
+| `idempotencyKey` is empty or not a string                                                                               | `ValidationError`                                  |
+| `idempotencyKey` seen with a **different** fingerprint                                                                  | `IdempotencyConflict`                              |
+| Atomic checkpoint merge fails (test seam)                                                                               | `UnexpectedCommitError` (nothing persisted, §10.6) |
 
 Because every variant is closed (§10.1), validation is **exhaustive**: a `switch` over `kind` (and nested `stepType` / `target`) with a `never` default covers all cases.
 
 **Separation of concerns (do not blur):**
+
 - **Contract validation (spec 05, the double):** structure, closed-variant exhaustiveness, required identifiers, read-set shape, ownership, idempotency-key presence, call-level fingerprint dedup, atomic all-or-nothing.
 - **OCC + transaction behavior (spec 02):** version conflicts, advisory lock, audit rows, durable idempotency, staleness.
 - **Domain rules (specialist specs):** balance ≥ 0, transfer route validity, ranking math.
@@ -864,52 +956,52 @@ No wildcard paths. No "or define here" alternatives. One canonical production lo
 
 ### New production files
 
-| Path | Contents |
-|---|---|
-| `apps/api/package.json` | Package: TypeScript, Vitest, `@types/node`; `test` + `typecheck` scripts |
-| `apps/api/tsconfig.json` | `strict`, `ES2022`, `ESNext`/`Bundler` (see §17) |
-| `apps/api/src/agents/contracts.ts` | Agent + mutation + commit contracts (step 2). **Canonical** location |
-| `apps/api/src/agents/ownership.ts` | `MUTATION_OWNERSHIP`, `isOwnedBy` |
-| `apps/api/src/orchestrator/contracts.ts` | Orchestrator + decomposition + graph-write-port contracts (step 3). **Canonical** location |
-| `apps/api/src/orchestrator/decomposition.ts` | `validateDecomposedQuery` (§6.5) |
-| `apps/api/src/orchestrator/orchestrator.ts` | `Orchestrator` class (the loop) |
+| Path                                         | Contents                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `apps/api/package.json`                      | Package: TypeScript, Vitest, `@types/node`; `test` + `typecheck` scripts                   |
+| `apps/api/tsconfig.json`                     | `strict`, `ES2022`, `ESNext`/`Bundler` (see §17)                                           |
+| `apps/api/src/agents/contracts.ts`           | Agent + mutation + commit contracts (step 2). **Canonical** location                       |
+| `apps/api/src/agents/ownership.ts`           | `MUTATION_OWNERSHIP`, `isOwnedBy`                                                          |
+| `apps/api/src/orchestrator/contracts.ts`     | Orchestrator + decomposition + graph-write-port contracts (step 3). **Canonical** location |
+| `apps/api/src/orchestrator/decomposition.ts` | `validateDecomposedQuery` (§6.5)                                                           |
+| `apps/api/src/orchestrator/orchestrator.ts`  | `Orchestrator` class (the loop)                                                            |
 
 ### New test files (all doubles and fixtures live here)
 
-| Path | Contents |
-|---|---|
-| `apps/api/tests/helpers/fake-decomposer.ts` | `FakeDecomposer`, `RawDecomposer` |
-| `apps/api/tests/helpers/fake-agents.ts` | `FakeWalletAgent`, `FakeEarningAgent`, `FakeRedemptionAgent`, `FailingEarningAgent`, `WalletAgentSubmittingDependency`, `SpecialistNamingPlanCommand` |
-| `apps/api/tests/helpers/in-memory-commit.ts` | `InMemoryAgentCommitFactory` (`CommitStub`) — validation, ownership, idempotency, atomic write + `failCheckpointOnce` seam (§10.7, §12) |
-| `apps/api/tests/helpers/in-memory-graph-write.ts` | `InMemoryOrchestratorGraphWrite` — Plan/AgentRun lifecycle + one-current enforcement (§9, §7) |
-| `apps/api/tests/helpers/stub-snapshot-builder.ts` | `StubGraphSnapshotBuilder` — fixture `GraphSnapshot` (§11) |
-| `apps/api/tests/orchestrator/orchestrator.test.ts` | T1–T14 |
-| `apps/api/tests/orchestrator/commit-ownership.test.ts` | T15–T21 |
-| `apps/api/tests/orchestrator/decomposition.test.ts` | T22–T28 |
-| `apps/api/tests/agents/agent-harness.test.ts` | T29–T32 (type-level) |
+| Path                                                   | Contents                                                                                                                                              |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api/tests/helpers/fake-decomposer.ts`            | `FakeDecomposer`, `RawDecomposer`                                                                                                                     |
+| `apps/api/tests/helpers/fake-agents.ts`                | `FakeWalletAgent`, `FakeEarningAgent`, `FakeRedemptionAgent`, `FailingEarningAgent`, `WalletAgentSubmittingDependency`, `SpecialistNamingPlanCommand` |
+| `apps/api/tests/helpers/in-memory-commit.ts`           | `InMemoryAgentCommitFactory` (`CommitStub`) — validation, ownership, idempotency, atomic write + `failCheckpointOnce` seam (§10.7, §12)               |
+| `apps/api/tests/helpers/in-memory-graph-write.ts`      | `InMemoryOrchestratorGraphWrite` — Plan/AgentRun lifecycle + one-current enforcement (§9, §7)                                                         |
+| `apps/api/tests/helpers/stub-snapshot-builder.ts`      | `StubGraphSnapshotBuilder` — fixture `GraphSnapshot` (§11)                                                                                            |
+| `apps/api/tests/orchestrator/orchestrator.test.ts`     | T1–T14                                                                                                                                                |
+| `apps/api/tests/orchestrator/commit-ownership.test.ts` | T15–T21                                                                                                                                               |
+| `apps/api/tests/orchestrator/decomposition.test.ts`    | T22–T28                                                                                                                                               |
+| `apps/api/tests/agents/agent-harness.test.ts`          | T29–T32 (type-level)                                                                                                                                  |
 
 ### Documentation / bookkeeping touched by the implementer
 
-| Path | Change |
-|---|---|
-| `context/feature-specs/05-orchestrator-harness.md` | This spec (already corrected) |
-| `context/progress-tracker.md` | Implementer updates "In progress" on start and "Completed" on done |
-| `AI_USAGE.md` | Implementer appends the implementation entry (completion gate §19) |
+| Path                                               | Change                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `context/feature-specs/05-orchestrator-harness.md` | This spec (already corrected)                                      |
+| `context/progress-tracker.md`                      | Implementer updates "In progress" on start and "Completed" on done |
+| `AI_USAGE.md`                                      | Implementer appends the implementation entry (completion gate §19) |
 
 ### Explicitly excluded — do not touch
 
-| Path | Reason |
-|---|---|
-| `STATUS.md` | Human-maintained standup board (AGENTS.md "daily team visibility"). **Excluded.** |
-| `tracking/` | Per-person daily tracking, human-maintained. **Excluded.** |
-| `schema/schema.sql`, `schema/contracts/`, `schema/generated/`, `schema/mutations.py`, `schema/types.py` | Locked / generated (ADR 0001, 0007). No schema or contract change in this unit |
-| `packages/schema-ts/` | Phase A3 codegen target (ADR 0007); not built in this unit |
-| `apps/api/src/graph/`, `apps/api/src/agents/launcher.ts` | Spec 02 / launcher lane; not created here |
-| `apps/web/` | Frontend — Val's lane |
-| `agents/` | Python specialist agents — specs 04/06 |
-| `tests/*.py`, `schema/experimental/polymorphic/*` | Pre-lock Python prototype; do not reference or adapt |
-| `context/feature-specs/02-*.md`, `03-*.md`, `04-*.md`, `06-*.md` | Other specs — do not modify |
-| Any other file | **Stop** — record a blocker (§18), leave the spec `In Progress`, do not expand scope |
+| Path                                                                                                    | Reason                                                                               |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `STATUS.md`                                                                                             | Human-maintained standup board (AGENTS.md "daily team visibility"). **Excluded.**    |
+| `tracking/`                                                                                             | Per-person daily tracking, human-maintained. **Excluded.**                           |
+| `schema/schema.sql`, `schema/contracts/`, `schema/generated/`, `schema/mutations.py`, `schema/types.py` | Locked / generated (ADR 0001, 0007). No schema or contract change in this unit       |
+| `packages/schema-ts/`                                                                                   | Phase A3 codegen target (ADR 0007); not built in this unit                           |
+| `apps/api/src/graph/`, `apps/api/src/agents/launcher.ts`                                                | Spec 02 / launcher lane; not created here                                            |
+| `apps/web/`                                                                                             | Frontend — Val's lane                                                                |
+| `agents/`                                                                                               | Python specialist agents — specs 04/06                                               |
+| `tests/*.py`, `schema/experimental/polymorphic/*`                                                       | Pre-lock Python prototype; do not reference or adapt                                 |
+| `context/feature-specs/02-*.md`, `03-*.md`, `04-*.md`, `06-*.md`                                        | Other specs — do not modify                                                          |
+| Any other file                                                                                          | **Stop** — record a blocker (§18), leave the spec `In Progress`, do not expand scope |
 
 **STATUS.md / tracking/ resolution:** explicitly **excluded** from the implementation touch list. This spec's exhaustive list overrides the general "update your row in STATUS.md / tracking/" bookkeeping guidance in AGENTS.md for automated implementation runs; those files are maintained by humans in the standup flow. No new dependency (e.g. a runtime-schema library) is added — `validateDecomposedQuery` is a manual type guard.
 
@@ -939,55 +1031,55 @@ Author each test before the production module it exercises. Names are exact.
 
 ### `apps/api/tests/orchestrator/orchestrator.test.ts`
 
-| ID | Test name | Type | Proves |
-|---|---|---|---|
-| T1 | `decomposes a persona query into ordered typed operations` | integration | Validated output is an ordered `AgentInvocation[]` of typed operations |
-| T2 | `passes each agent the typed operation matching its own agent type` | unit | For every run, `ctx.operation.agentType === agent.agentType` |
-| T3 | `creates one Plan generating then current with one ordered AgentRun per invocation` | integration | Happy path: Plan lifecycle + 3 ordered runs |
-| T4 | `records last_read_versions from readSet on first successful commit` | unit | Checkpoint equals first commit's `readSet` |
-| T5 | `merges last_read_versions across multiple commits in one run` | unit | Overlapping key takes later version; non-overlapping keys both kept |
-| T6 | `persists neither mutation nor checkpoint when a commit fails` | unit | Rejected commit leaves recorded set and `last_read_versions` unchanged |
-| T7 | `marks the AgentRun failed when a commit fails` | unit | Rejected commit → `AgentRun.status = 'failed'`, error recorded |
-| T8 | `marks the Plan failed when a required commit fails` | unit | Rejected commit → `Plan.status = 'failed'` |
-| T9 | `does not invoke later agents after a failed commit` | unit | No `AgentRun` row for agents after the failure |
-| T10 | `treats a thrown agent error like a failed commit` | unit | Failure fixture: identical lifecycle to T7–T9 |
-| T11 | `is the only component that creates or transitions Plans` | behavioral | `AgentContext` exposes no graph-write port; only the orchestrator port creates/transitions Plans |
-| T12 | `completes the persona flow end to end on in-memory doubles` | integration | Full fixture (§11) green with no DB and no live LLM |
-| T13 | `derives each agent's committed mutation from its typed operation` | unit | wallet `balanceNodeId` from `programIds`; earning `spendCategoryId`; redemption `redemptionOptionId`/`sourceProgramId` |
-| T14 | `produces a different mutation when the operation changes` | unit | Same wallet agent + `program-amex-mr` operation → `balanceNodeId = 'balance-amex-mr'` |
+| ID  | Test name                                                                           | Type        | Proves                                                                                                                 |
+| --- | ----------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| T1  | `decomposes a persona query into ordered typed operations`                          | integration | Validated output is an ordered `AgentInvocation[]` of typed operations                                                 |
+| T2  | `passes each agent the typed operation matching its own agent type`                 | unit        | For every run, `ctx.operation.agentType === agent.agentType`                                                           |
+| T3  | `creates one Plan generating then current with one ordered AgentRun per invocation` | integration | Happy path: Plan lifecycle + 3 ordered runs                                                                            |
+| T4  | `records last_read_versions from readSet on first successful commit`                | unit        | Checkpoint equals first commit's `readSet`                                                                             |
+| T5  | `merges last_read_versions across multiple commits in one run`                      | unit        | Overlapping key takes later version; non-overlapping keys both kept                                                    |
+| T6  | `persists neither mutation nor checkpoint when a commit fails`                      | unit        | Rejected commit leaves recorded set and `last_read_versions` unchanged                                                 |
+| T7  | `marks the AgentRun failed when a commit fails`                                     | unit        | Rejected commit → `AgentRun.status = 'failed'`, error recorded                                                         |
+| T8  | `marks the Plan failed when a required commit fails`                                | unit        | Rejected commit → `Plan.status = 'failed'`                                                                             |
+| T9  | `does not invoke later agents after a failed commit`                                | unit        | No `AgentRun` row for agents after the failure                                                                         |
+| T10 | `treats a thrown agent error like a failed commit`                                  | unit        | Failure fixture: identical lifecycle to T7–T9                                                                          |
+| T11 | `is the only component that creates or transitions Plans`                           | behavioral  | `AgentContext` exposes no graph-write port; only the orchestrator port creates/transitions Plans                       |
+| T12 | `completes the persona flow end to end on in-memory doubles`                        | integration | Full fixture (§11) green with no DB and no live LLM                                                                    |
+| T13 | `derives each agent's committed mutation from its typed operation`                  | unit        | wallet `balanceNodeId` from `programIds`; earning `spendCategoryId`; redemption `redemptionOptionId`/`sourceProgramId` |
+| T14 | `produces a different mutation when the operation changes`                          | unit        | Same wallet agent + `program-amex-mr` operation → `balanceNodeId = 'balance-amex-mr'`                                  |
 
 ### `apps/api/tests/orchestrator/commit-ownership.test.ts`
 
-| ID | Test name | Type | Proves |
-|---|---|---|---|
-| T15 | `rejects an unknown mutation variant before any state change` | unit | Unknown `kind` → `ValidationError`; nothing recorded |
-| T16 | `rejects a wallet agent submitting a redemption-owned mutation` | unit | wallet → `RecordStateDependency` → `OwnershipError`; nothing recorded |
-| T17 | `rejects a specialist naming a Plan command` | unit | specialist → `{kind:'CreatePlan'}` (via cast) → `ValidationError`; nothing recorded |
-| T18 | `replays the original result for the same key and equivalent request` | unit | Same key + same fingerprint → `idempotencyReplayed: true`; recorded once |
-| T19 | `rejects the same key with a different request as an idempotency conflict` | unit | Same key + different fingerprint → `IdempotencyConflict`; no state change |
-| T20 | `rejects invalid identifiers, read-set versions, and empty idempotency keys` | unit | §12 contract validation → `ValidationError`; nothing recorded |
-| T21 | `rolls back the mutation when the atomic checkpoint merge fails` | unit | `failCheckpointOnce` → `UnexpectedCommitError`; neither mutation nor checkpoint persisted; run failed |
+| ID  | Test name                                                                    | Type | Proves                                                                                                |
+| --- | ---------------------------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------- |
+| T15 | `rejects an unknown mutation variant before any state change`                | unit | Unknown `kind` → `ValidationError`; nothing recorded                                                  |
+| T16 | `rejects a wallet agent submitting a redemption-owned mutation`              | unit | wallet → `RecordStateDependency` → `OwnershipError`; nothing recorded                                 |
+| T17 | `rejects a specialist naming a Plan command`                                 | unit | specialist → `{kind:'CreatePlan'}` (via cast) → `ValidationError`; nothing recorded                   |
+| T18 | `replays the original result for the same key and equivalent request`        | unit | Same key + same fingerprint → `idempotencyReplayed: true`; recorded once                              |
+| T19 | `rejects the same key with a different request as an idempotency conflict`   | unit | Same key + different fingerprint → `IdempotencyConflict`; no state change                             |
+| T20 | `rejects invalid identifiers, read-set versions, and empty idempotency keys` | unit | §12 contract validation → `ValidationError`; nothing recorded                                         |
+| T21 | `rolls back the mutation when the atomic checkpoint merge fails`             | unit | `failCheckpointOnce` → `UnexpectedCommitError`; neither mutation nor checkpoint persisted; run failed |
 
 ### `apps/api/tests/orchestrator/decomposition.test.ts`
 
-| ID | Test name | Type | Proves |
-|---|---|---|---|
-| T22 | `rejects an unknown agentType in decomposer output` | unit | → `OrchestrationError('DecompositionInvalid')` |
-| T23 | `rejects an unknown operation kind` | unit | → `DecompositionInvalid` |
-| T24 | `rejects an invocation whose agentType does not match its operation` | unit | mismatch → `DecompositionInvalid` |
-| T25 | `rejects an operation kind not valid for the declared agent` | unit | e.g. wallet + `traverse_redemption` → `DecompositionInvalid` |
-| T26 | `rejects an unexpected free-text key on an invocation or operation` | unit | stray `prompt` key → `DecompositionInvalid` |
-| T27 | `rejects an empty invocation sequence` | unit | empty `invocations` → `DecompositionInvalid` |
+| ID  | Test name                                                                    | Type        | Proves                                                                 |
+| --- | ---------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| T22 | `rejects an unknown agentType in decomposer output`                          | unit        | → `OrchestrationError('DecompositionInvalid')`                         |
+| T23 | `rejects an unknown operation kind`                                          | unit        | → `DecompositionInvalid`                                               |
+| T24 | `rejects an invocation whose agentType does not match its operation`         | unit        | mismatch → `DecompositionInvalid`                                      |
+| T25 | `rejects an operation kind not valid for the declared agent`                 | unit        | e.g. wallet + `traverse_redemption` → `DecompositionInvalid`           |
+| T26 | `rejects an unexpected free-text key on an invocation or operation`          | unit        | stray `prompt` key → `DecompositionInvalid`                            |
+| T27 | `rejects an empty invocation sequence`                                       | unit        | empty `invocations` → `DecompositionInvalid`                           |
 | T28 | `creates no AgentRun and fails the Plan on decomposition validation failure` | integration | Plan `generating → failed`; zero `AgentRun` rows; zero commits; throws |
 
 ### `apps/api/tests/agents/agent-harness.test.ts` (type-level)
 
-| ID | Test name | Type | Proves |
-|---|---|---|---|
-| T29 | `rejects a free-text field on AgentInvocation at compile time` | type-level (`@ts-expect-error`) | `{ agentType: 'wallet_agent', operation: …, prompt: 'x' }` is a compile error |
-| T30 | `exposes only the declared capabilities on AgentContext` | type-level (`@ts-expect-error`) | `ctx.db`, `ctx.http`, `ctx.bus`, `ctx.otherAgents`, `ctx.commitFactory` are compile errors |
-| T31 | `binds each agent type to exactly its operation type` | type-level (`@ts-expect-error`) | An `Agent<"wallet_agent">` whose `run` reads a `RedemptionTraversalOperation` field, or is handed an `earning` operation, is a compile error |
-| T32 | `excludes orchestrator commands from the agent-facing commit at compile time` | type-level (`@ts-expect-error`) | `commit({ mutation: { kind: 'CreatePlan', … } })` is a compile error (no orchestrator mutation type in `SpecialistMutation`) |
+| ID  | Test name                                                                     | Type                            | Proves                                                                                                                                       |
+| --- | ----------------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| T29 | `rejects a free-text field on AgentInvocation at compile time`                | type-level (`@ts-expect-error`) | `{ agentType: 'wallet_agent', operation: …, prompt: 'x' }` is a compile error                                                                |
+| T30 | `exposes only the declared capabilities on AgentContext`                      | type-level (`@ts-expect-error`) | `ctx.db`, `ctx.http`, `ctx.bus`, `ctx.otherAgents`, `ctx.commitFactory` are compile errors                                                   |
+| T31 | `binds each agent type to exactly its operation type`                         | type-level (`@ts-expect-error`) | An `Agent<"wallet_agent">` whose `run` reads a `RedemptionTraversalOperation` field, or is handed an `earning` operation, is a compile error |
+| T32 | `excludes orchestrator commands from the agent-facing commit at compile time` | type-level (`@ts-expect-error`) | `commit({ mutation: { kind: 'CreatePlan', … } })` is a compile error (no orchestrator mutation type in `SpecialistMutation`)                 |
 
 **Type-level pattern.** Each `@ts-expect-error` is asserted by `tsc --noEmit`: if the prohibited construct becomes valid, TypeScript emits `TS2578` (unused `@ts-expect-error`) and `typecheck` fails. The runtime body asserts nothing beyond compilation (`expect(true).toBe(true)`).
 
@@ -1061,6 +1153,7 @@ cd apps/api && npm run typecheck && npm test
 ```
 
 **Required semantic outcomes** (do not assert exact runner summary text — formatting varies by Vitest version):
+
 - Targeted spec-05 tests pass.
 - The full `apps/api` suite passes.
 - No named test (T1–T32) is skipped.
@@ -1069,19 +1162,19 @@ cd apps/api && npm run typecheck && npm test
 
 ### Failure handling
 
-| Situation | Response |
-|---|---|
-| A named test fails | Fix only the production code; do not alter the test's assertions |
-| Typecheck fails on spec-05 source | Fix the type; do not weaken `strict` |
-| `@ts-expect-error` (T29–T32) emits `TS2578` | The prohibited construct is valid — fix the **type definition**, not the test |
-| Implementation needs a file not in §14 | **Stop.** Record a blocker (§18), leave the spec `In Progress` |
+| Situation                                                                   | Response                                                                                                                                 |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| A named test fails                                                          | Fix only the production code; do not alter the test's assertions                                                                         |
+| Typecheck fails on spec-05 source                                           | Fix the type; do not weaken `strict`                                                                                                     |
+| `@ts-expect-error` (T29–T32) emits `TS2578`                                 | The prohibited construct is valid — fix the **type definition**, not the test                                                            |
+| Implementation needs a file not in §14                                      | **Stop.** Record a blocker (§18), leave the spec `In Progress`                                                                           |
 | The temporary mutation union conflicts with new spec 02 / codegen decisions | Stop; coordinate with the spec 02 / codegen owner (Alan). Replace the union behind the same `AgentCommit`/`AgentCommitFactory` seam only |
 
 ---
 
 ## 18. Manual verification
 
-No separate verification script and no `tsx` dependency. Manual verification uses **only** files and tooling already in the §14 touch list, and is a **code-and-result review** — the verbose reporter confirms T12 *passed*; it does not by itself print internal Plan/AgentRun values.
+No separate verification script and no `tsx` dependency. Manual verification uses **only** files and tooling already in the §14 touch list, and is a **code-and-result review** — the verbose reporter confirms T12 _passed_; it does not by itself print internal Plan/AgentRun values.
 
 Procedure:
 
@@ -1121,12 +1214,12 @@ Mark this spec `Done` only when **all** are true:
 
 ## 20. Open questions and explicit resolutions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | Canonical generated TypeScript mutation types (Phase A3 codegen, ADR 0007) | **No (deferred dependency)** | This unit ships the closed temporary `SpecialistMutation` union (§10.1), derived from `schema/mutations.py` + `schema/generated/types.ts` + schema-final §4.3–4.4, with discriminants chosen to map 1:1 onto the future generated variants. Replacement seam: replace the union with a generated import from `packages/schema-ts/`; no orchestrator, agent, or test change. |
-| 2 | Spec 02 real write path (OCC, advisory lock, `graph_mutations`, durable idempotency, single-txn atomicity) | **No (deferred dependency)** | Reached only through `AgentCommitFactory` / `OrchestratorGraphWrite`. In-memory doubles implement the spec-05 contract fully, including atomic mutation+checkpoint (§10.6); spec 02 supplies the real adapters behind the same interfaces. |
-| 3 | Python subprocess protocol for specialist agents | **No** | Out of scope. The TS `Agent<K>` interface drives deterministic stubs here; the subprocess contract (`launcher.ts`, env allowlist, no `DATABASE_URL`) is ADR 0007 / specs 04–06 (invariant 11). |
-| 4 | LLM-backed `Decomposer` | **No** | Out of scope; the `Decomposer` interface is the seam. Because the implementation is untrusted, its output is validated by `validateDecomposedQuery` (§6.5) regardless of which implementation produces it. |
-| 5 | Test runner | **No** | Vitest (TypeScript-native; supports `@ts-expect-error` via `tsc --noEmit`; `npm test -- <pattern>`). |
-| 6 | Monorepo workspace root (pnpm/turbo) | **No** | Out of scope. `apps/api` is scaffolded as a self-contained package; a workspace root is a later infra task. `apps/api` itself is the ADR 0004 / architecture-context-mandated location, and spec 05 is the first TS unit, so it owns the scaffold. |
-| 7 | Richer plan-step / state-dependency domain payloads, and world-graph snapshot fields (transfer routes, earn edges) | **No** | Personal-tier, narrowest fixture payloads only in this unit; the payload interfaces and `GraphSnapshot` type are extended additively by specs 04/06. |
+| #   | Question                                                                                                           | Blocking?                    | Resolution                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Canonical generated TypeScript mutation types (Phase A3 codegen, ADR 0007)                                         | **No (deferred dependency)** | This unit ships the closed temporary `SpecialistMutation` union (§10.1), derived from `schema/mutations.py` + `schema/generated/types.ts` + schema-final §4.3–4.4, with discriminants chosen to map 1:1 onto the future generated variants. Replacement seam: replace the union with a generated import from `packages/schema-ts/`; no orchestrator, agent, or test change. |
+| 2   | Spec 02 real write path (OCC, advisory lock, `graph_mutations`, durable idempotency, single-txn atomicity)         | **No (deferred dependency)** | Reached only through `AgentCommitFactory` / `OrchestratorGraphWrite`. In-memory doubles implement the spec-05 contract fully, including atomic mutation+checkpoint (§10.6); spec 02 supplies the real adapters behind the same interfaces.                                                                                                                                  |
+| 3   | Python subprocess protocol for specialist agents                                                                   | **No**                       | Out of scope. The TS `Agent<K>` interface drives deterministic stubs here; the subprocess contract (`launcher.ts`, env allowlist, no `DATABASE_URL`) is ADR 0007 / specs 04–06 (invariant 11).                                                                                                                                                                              |
+| 4   | LLM-backed `Decomposer`                                                                                            | **No**                       | Out of scope; the `Decomposer` interface is the seam. Because the implementation is untrusted, its output is validated by `validateDecomposedQuery` (§6.5) regardless of which implementation produces it.                                                                                                                                                                  |
+| 5   | Test runner                                                                                                        | **No**                       | Vitest (TypeScript-native; supports `@ts-expect-error` via `tsc --noEmit`; `npm test -- <pattern>`).                                                                                                                                                                                                                                                                        |
+| 6   | Monorepo workspace root (pnpm/turbo)                                                                               | **No**                       | Out of scope. `apps/api` is scaffolded as a self-contained package; a workspace root is a later infra task. `apps/api` itself is the ADR 0004 / architecture-context-mandated location, and spec 05 is the first TS unit, so it owns the scaffold.                                                                                                                          |
+| 7   | Richer plan-step / state-dependency domain payloads, and world-graph snapshot fields (transfer routes, earn edges) | **No**                       | Personal-tier, narrowest fixture payloads only in this unit; the payload interfaces and `GraphSnapshot` type are extended additively by specs 04/06.                                                                                                                                                                                                                        |

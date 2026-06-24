@@ -6,23 +6,23 @@
 
 **Approval status:** **Locked (ADR 0001 Accepted 2026-06-18).** Phase A DDL validated on clean PostgreSQL 16. Phase A3 contracts next.
 
-**Implementation status:** Spec and DDL authored; application code not scaffolded. Paths marked *(proposed)* do not exist yet. Controls below are **specified**, not implemented, unless code or tests exist in the repo.
+**Implementation status:** Spec and DDL authored; application code not scaffolded. Paths marked _(proposed)_ do not exist yet. Controls below are **specified**, not implemented, unless code or tests exist in the repo.
 
 ---
 
 ## Stack
 
-| Layer | Technology | Role |
-|---|---|---|
-| Frontend | Next.js App Router in `apps/web` *(proposed)* | Demo UI; Clerk client; SSE consumer; actionability from plan `status` |
-| API / orchestration | Hono + TypeScript in `apps/api` *(proposed)* | HTTP, Clerk, orchestrator, graph-query/write (with per-user advisory lock), SSE, replan worker, Python launcher |
-| Specialist agents | Python 3.11+ modules in `agents/` *(proposed)* | Reasoning only; scoped JSON snapshot on stdin; **no DB access** |
-| Database | PostgreSQL | Graph tiers, mutation audit log, replan job queue |
-| Auth | Clerk (identity only) | Sign-in → `users.clerk_id` |
-| Contracts | JSON Schema in `schema/contracts/` *(proposed)* | Authoritative for API, mutation, subprocess, tool, benchmark, SSE |
-| Persistence DDL | SQL in `schema/schema.sql` | Authoritative for relational structure (validated on clean PostgreSQL 16) |
-| Generated types | `packages/schema-ts/`, `agents/schema_py/` *(proposed)* | Generated from JSON Schema only |
-| Evaluation | Python CLI in `eval/` *(proposed)* | Local/CI only; ephemeral eval DB |
+| Layer               | Technology                                              | Role                                                                                                            |
+| ------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Frontend            | Next.js App Router in `apps/web` _(proposed)_           | Demo UI; Clerk client; SSE consumer; actionability from plan `status`                                           |
+| API / orchestration | Hono + TypeScript in `apps/api` _(proposed)_            | HTTP, Clerk, orchestrator, graph-query/write (with per-user advisory lock), SSE, replan worker, Python launcher |
+| Specialist agents   | Python 3.11+ modules in `agents/` _(proposed)_          | Reasoning only; scoped JSON snapshot on stdin; **no DB access**                                                 |
+| Database            | PostgreSQL                                              | Graph tiers, mutation audit log, replan job queue                                                               |
+| Auth                | Clerk (identity only)                                   | Sign-in → `users.clerk_id`                                                                                      |
+| Contracts           | JSON Schema in `schema/contracts/` _(proposed)_         | Authoritative for API, mutation, subprocess, tool, benchmark, SSE                                               |
+| Persistence DDL     | SQL in `schema/schema.sql`                              | Authoritative for relational structure (validated on clean PostgreSQL 16)                                       |
+| Generated types     | `packages/schema-ts/`, `agents/schema_py/` _(proposed)_ | Generated from JSON Schema only                                                                                 |
+| Evaluation          | Python CLI in `eval/` _(proposed)_                      | Local/CI only; ephemeral eval DB                                                                                |
 
 No Redis, external queue, WebSocket server, or graph database in MVP.
 
@@ -77,17 +77,17 @@ flowchart TB
 
 ## System boundaries
 
-| Boundary | Path | Owns | Must not own |
-|---|---|---|---|
-| Frontend | `apps/web/` | UI, SSE client, displays plans with `status = current` as actionable | DB, agents, writes |
-| API | `apps/api/src/routes/` | HTTP, auth, SSE replay, idempotency | Agent DB access |
-| Graph-write | `apps/api/src/graph/write/` | Validation, OCC, advisory lock, mutations, job enqueue, idempotency | LLM calls |
-| Graph-query | `apps/api/src/graph/read/` | User-scoped reads, snapshots for subprocess | Writes |
-| Replan worker | `apps/api/src/replan/worker.ts` | Lease-based job claim; atomic revision promotion | Redis |
-| Python launcher | `apps/api/src/agents/launcher.ts` | Subprocess spawn per operational contract | Agent logic |
-| Agents | `agents/*/` | LLM → `MutationBatch` from snapshot | Shell, DB, HTTP, secrets |
-| Schema | `schema/schema.sql`, `schema/contracts/` | DDL authored; JSON Schema contracts planned (Phase A3) | Hand-written duplicate types |
-| Eval | `eval/` | CLI + ephemeral DB | Demo deploy |
+| Boundary        | Path                                     | Owns                                                                 | Must not own                 |
+| --------------- | ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------- |
+| Frontend        | `apps/web/`                              | UI, SSE client, displays plans with `status = current` as actionable | DB, agents, writes           |
+| API             | `apps/api/src/routes/`                   | HTTP, auth, SSE replay, idempotency                                  | Agent DB access              |
+| Graph-write     | `apps/api/src/graph/write/`              | Validation, OCC, advisory lock, mutations, job enqueue, idempotency  | LLM calls                    |
+| Graph-query     | `apps/api/src/graph/read/`               | User-scoped reads, snapshots for subprocess                          | Writes                       |
+| Replan worker   | `apps/api/src/replan/worker.ts`          | Lease-based job claim; atomic revision promotion                     | Redis                        |
+| Python launcher | `apps/api/src/agents/launcher.ts`        | Subprocess spawn per operational contract                            | Agent logic                  |
+| Agents          | `agents/*/`                              | LLM → `MutationBatch` from snapshot                                  | Shell, DB, HTTP, secrets     |
+| Schema          | `schema/schema.sql`, `schema/contracts/` | DDL authored; JSON Schema contracts planned (Phase A3)               | Hand-written duplicate types |
+| Eval            | `eval/`                                  | CLI + ephemeral DB                                                   | Demo deploy                  |
 
 ---
 
@@ -97,22 +97,22 @@ Overlapping fields are **not** independently mutable. **`plans.status` is the so
 
 ### Plan revision status (`plans.status`)
 
-| Status | Meaning |
-|---|---|
-| `generating` | Initial creation or re-plan revision being built |
-| `current` | **Only actionable revision** for this lineage |
-| `stale` | Invalidated by personal-state change; awaiting or undergoing re-plan |
-| `failed` | Generation or re-plan failed; not actionable |
-| `superseded` | Replaced by a newer revision; historical only |
+| Status       | Meaning                                                              |
+| ------------ | -------------------------------------------------------------------- |
+| `generating` | Initial creation or re-plan revision being built                     |
+| `current`    | **Only actionable revision** for this lineage                        |
+| `stale`      | Invalidated by personal-state change; awaiting or undergoing re-plan |
+| `failed`     | Generation or re-plan failed; not actionable                         |
+| `superseded` | Replaced by a newer revision; historical only                        |
 
 ### Plan-step status (`plan_steps.status`)
 
-| Status | Meaning |
-|---|---|
-| `proposed` | Created during generation; not yet committed as part of current plan |
-| `current` | Active step on a `current` or `generating` plan revision |
-| `stale` | Invalidated because depended-on personal state changed |
-| `superseded` | Belongs to a superseded plan revision |
+| Status       | Meaning                                                              |
+| ------------ | -------------------------------------------------------------------- |
+| `proposed`   | Created during generation; not yet committed as part of current plan |
+| `current`    | Active step on a `current` or `generating` plan revision             |
+| `stale`      | Invalidated because depended-on personal state changed               |
+| `superseded` | Belongs to a superseded plan revision                                |
 
 **Rules:**
 
@@ -181,14 +181,14 @@ Ephemeral eval DB per run; baselines write minimal rows only; demo DB never touc
 
 ## Storage model
 
-| Store | Holds | Authoritative? |
-|---|---|---|
-| World graph | Shared seed data | Yes (read-only in MVP app paths) |
-| Personal graph | Per-user wallet, goals | Yes |
-| Plan graph | Lineages, revisions, steps, deps | Yes |
-| `graph_mutations` | User-scoped SSE/audit log | Yes for per-user event order |
-| `replan_jobs` | Durable work queue with leases | Yes for re-plan work |
-| `idempotency_records` | Scoped dedup fingerprints | Yes for retry safety |
+| Store                 | Holds                            | Authoritative?                   |
+| --------------------- | -------------------------------- | -------------------------------- |
+| World graph           | Shared seed data                 | Yes (read-only in MVP app paths) |
+| Personal graph        | Per-user wallet, goals           | Yes                              |
+| Plan graph            | Lineages, revisions, steps, deps | Yes                              |
+| `graph_mutations`     | User-scoped SSE/audit log        | Yes for per-user event order     |
+| `replan_jobs`         | Durable work queue with leases   | Yes for re-plan work             |
+| `idempotency_records` | Scoped dedup fingerprints        | Yes for retry safety             |
 
 **REST graph endpoints are source of truth for application state.** SSE is an observable update channel only.
 
@@ -210,9 +210,9 @@ Ephemeral eval DB per run; baselines write minimal rows only; demo DB never touc
 
 ### Hosted runtime
 
-| Environment | Web | API | PostgreSQL |
-|---|---|---|---|
-| **Local dev** | Docker container | Docker container (long-lived) | **Docker Compose container** |
+| Environment     | Web               | API                                         | PostgreSQL                                                                                          |
+| --------------- | ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Local dev**   | Docker container  | Docker container (long-lived)               | **Docker Compose container**                                                                        |
 | **Hosted demo** | Service/container | **Long-lived container** (no scale-to-zero) | **Managed PostgreSQL** (Railway/Render/Fly/Neon/etc.) — **not** an app container with attached disk |
 
 The API service must not scale to zero — it owns SSE, replan worker, and Python subprocesses.
@@ -243,15 +243,15 @@ Eval CLI: **local/CI only**, never deployed.
 
 Table `idempotency_records`:
 
-| Column | Notes |
-|---|---|
-| `user_id` | FK |
-| `operation_type` | e.g. `TransferPoints` |
-| `idempotency_key` | Client header |
-| `request_hash` | Canonical hash of request body |
-| `mutation_txn_id` | Outcome reference |
-| `result_reference` | jsonb summary for replay |
-| `created_at` | |
+| Column             | Notes                          |
+| ------------------ | ------------------------------ |
+| `user_id`          | FK                             |
+| `operation_type`   | e.g. `TransferPoints`          |
+| `idempotency_key`  | Client header                  |
+| `request_hash`     | Canonical hash of request body |
+| `mutation_txn_id`  | Outcome reference              |
+| `result_reference` | jsonb summary for replay       |
+| `created_at`       |                                |
 
 ```sql
 UNIQUE (user_id, operation_type, idempotency_key)
@@ -263,24 +263,24 @@ UNIQUE (user_id, operation_type, idempotency_key)
 
 ### Durable `replan_jobs` with lease recovery
 
-| Column | Notes |
-|---|---|
-| `id` | uuid PK |
-| `user_id` | FK |
-| `plan_lineage_id` | Lineage anchor |
-| `source_plan_id` | The stale revision at enqueue time (not "current") |
-| `trigger_mutation_txn_id` | Invalidating commit |
-| `idempotency_key` | UNIQUE per lineage + trigger |
-| `status` | `pending`, `processing`, `completed`, `failed`, `superseded` |
-| `attempt_count` | Incremented on each claim |
-| `max_attempts` | Default 3 |
-| `available_at` | Claimable when `<= now()`; backoff on retry |
-| `locked_at` | Set on claim |
-| `locked_by` | `hostname:pid` |
-| `lease_expires_at` | Reclaim if worker crashes |
-| `result_plan_id` | New revision on success |
-| `error` | Last failure |
-| `created_at` / `updated_at` / `completed_at` | |
+| Column                                       | Notes                                                        |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| `id`                                         | uuid PK                                                      |
+| `user_id`                                    | FK                                                           |
+| `plan_lineage_id`                            | Lineage anchor                                               |
+| `source_plan_id`                             | The stale revision at enqueue time (not "current")           |
+| `trigger_mutation_txn_id`                    | Invalidating commit                                          |
+| `idempotency_key`                            | UNIQUE per lineage + trigger                                 |
+| `status`                                     | `pending`, `processing`, `completed`, `failed`, `superseded` |
+| `attempt_count`                              | Incremented on each claim                                    |
+| `max_attempts`                               | Default 3                                                    |
+| `available_at`                               | Claimable when `<= now()`; backoff on retry                  |
+| `locked_at`                                  | Set on claim                                                 |
+| `locked_by`                                  | `hostname:pid`                                               |
+| `lease_expires_at`                           | Reclaim if worker crashes                                    |
+| `result_plan_id`                             | New revision on success                                      |
+| `error`                                      | Last failure                                                 |
+| `created_at` / `updated_at` / `completed_at` |                                                              |
 
 **Claiming:**
 
@@ -305,17 +305,17 @@ UNIQUE (user_id, operation_type, idempotency_key)
 
 Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher.ts`:
 
-| Rule | Requirement |
-|---|---|
-| Spawn | `spawn()` without shell |
-| I/O | JSON stdin → stdout only for contract payload |
-| Exit codes | `0` = success; `1` = validation error; `2` = timeout; other = unexpected failure |
-| Timeout | Configured execution timeout; kill process on exceed |
-| Output limit | Configured maximum output size; exceed → validation failure |
-| Environment | Allowlist only (`PYTHONPATH`, agent config); **no `DATABASE_URL`** |
-| stdout | Exactly one JSON document; extra output → validation failure |
-| stderr | Logs only; sanitized before persistence |
-| Credentials | None passed to subprocess |
+| Rule         | Requirement                                                                      |
+| ------------ | -------------------------------------------------------------------------------- |
+| Spawn        | `spawn()` without shell                                                          |
+| I/O          | JSON stdin → stdout only for contract payload                                    |
+| Exit codes   | `0` = success; `1` = validation error; `2` = timeout; other = unexpected failure |
+| Timeout      | Configured execution timeout; kill process on exceed                             |
+| Output limit | Configured maximum output size; exceed → validation failure                      |
+| Environment  | Allowlist only (`PYTHONPATH`, agent config); **no `DATABASE_URL`**               |
+| stdout       | Exactly one JSON document; extra output → validation failure                     |
+| stderr       | Logs only; sanitized before persistence                                          |
+| Credentials  | None passed to subprocess                                                        |
 
 ### Agent read boundary
 
@@ -333,15 +333,15 @@ Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher
 
 ## Integration contracts
 
-| Contract | Shape | Owner |
-|---|---|---|
-| Planning request | `{ query_text, plan_lineage_id? }` | Raq |
-| TransferPoints | JSON Schema + idempotency header | Alan |
-| Agent invocation | Snapshot + limits in `agent-invocation.json` | Raq |
-| Agent stdout | Single `MutationBatch` JSON | Alan |
-| SSE event | one row per `graph_mutations` insert — [`schema/contracts/mutation-event.schema.json`](../schema/contracts/mutation-event.schema.json) | Alan + Val |
-| Idempotency record | Table above | Alan |
-| Replan job | Table above | Alan |
+| Contract           | Shape                                                                                                                                  | Owner      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Planning request   | `{ query_text, plan_lineage_id? }`                                                                                                     | Raq        |
+| TransferPoints     | JSON Schema + idempotency header                                                                                                       | Alan       |
+| Agent invocation   | Snapshot + limits in `agent-invocation.json`                                                                                           | Raq        |
+| Agent stdout       | Single `MutationBatch` JSON                                                                                                            | Alan       |
+| SSE event          | one row per `graph_mutations` insert — [`schema/contracts/mutation-event.schema.json`](../schema/contracts/mutation-event.schema.json) | Alan + Val |
+| Idempotency record | Table above                                                                                                                            | Alan       |
+| Replan job         | Table above                                                                                                                            | Alan       |
 
 ---
 
@@ -374,12 +374,12 @@ Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher
 
 ### Local development
 
-| Unit | Form |
-|---|---|
-| `web` | Docker Compose container |
-| `api` | Docker Compose container (long-lived) |
+| Unit       | Form                                         |
+| ---------- | -------------------------------------------- |
+| `web`      | Docker Compose container                     |
+| `api`      | Docker Compose container (long-lived)        |
 | PostgreSQL | **Docker Compose container** (`postgres:16`) |
-| Eval | Host or CI; ephemeral DB container per run |
+| Eval       | Host or CI; ephemeral DB container per run   |
 
 ```bash
 docker compose up  # web + api + postgres
@@ -387,12 +387,12 @@ docker compose up  # web + api + postgres
 
 ### Hosted demo
 
-| Unit | Form |
-|---|---|
-| `web` | Platform service or container (Vercel/Netlify for static, or container) |
-| `api` | **Long-lived container/service** — min instances = 1; no scale-to-zero |
+| Unit       | Form                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `web`      | Platform service or container (Vercel/Netlify for static, or container)                      |
+| `api`      | **Long-lived container/service** — min instances = 1; no scale-to-zero                       |
 | PostgreSQL | **Managed database** (Railway Postgres, Render Postgres, Fly Postgres, Neon, Supabase, etc.) |
-| Eval | **Not deployed** |
+| Eval       | **Not deployed**                                                                             |
 
 `DATABASE_URL` points at managed instance — not a co-located Postgres container with ephemeral disk.
 
@@ -402,42 +402,42 @@ docker compose up  # web + api + postgres
 
 ## Schema change checklist (v3.1 — implementation-ready)
 
-| Item | Required | Spec |
-|---|---|---|
-| `plan_lineage_id` | Yes | Stable UUID per conversation; not self-referential |
-| `plans.status` lifecycle | Yes | `generating`, `current`, `stale`, `failed`, `superseded` — replaces ambiguous old set for revisions |
-| `plan_steps.status` lifecycle | Yes | `proposed`, `current`, `stale`, `superseded` — drop `is_stale` boolean |
-| Drop `is_current` | Yes | Use `status = 'current'` + partial unique index only |
-| Lineage unique index | Yes | `(plan_lineage_id) WHERE status = 'current'` — **not** per-user |
-| `graph_mutations` | Yes | `bigserial id`, `mutation_txn_id`, `user_id NOT NULL`, user-scoped MVP |
-| `replan_jobs` | Yes | Lease fields; `source_plan_id`; statuses without separate `claimed` |
-| `idempotency_records` | Yes | `UNIQUE (user_id, operation_type, idempotency_key)` + `request_hash` |
-| `users.clerk_id` | Yes | UNIQUE |
-| Per-user advisory lock | Yes | Document in graph-write spec, not a table |
-| TransferPoints validation | Yes | Domain rules in §5 + idempotency |
-| Indexes | Yes | `(user_id, id)` on mutations; `(status, available_at) WHERE pending` on jobs; lineage current index |
+| Item                          | Required | Spec                                                                                                |
+| ----------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `plan_lineage_id`             | Yes      | Stable UUID per conversation; not self-referential                                                  |
+| `plans.status` lifecycle      | Yes      | `generating`, `current`, `stale`, `failed`, `superseded` — replaces ambiguous old set for revisions |
+| `plan_steps.status` lifecycle | Yes      | `proposed`, `current`, `stale`, `superseded` — drop `is_stale` boolean                              |
+| Drop `is_current`             | Yes      | Use `status = 'current'` + partial unique index only                                                |
+| Lineage unique index          | Yes      | `(plan_lineage_id) WHERE status = 'current'` — **not** per-user                                     |
+| `graph_mutations`             | Yes      | `bigserial id`, `mutation_txn_id`, `user_id NOT NULL`, user-scoped MVP                              |
+| `replan_jobs`                 | Yes      | Lease fields; `source_plan_id`; statuses without separate `claimed`                                 |
+| `idempotency_records`         | Yes      | `UNIQUE (user_id, operation_type, idempotency_key)` + `request_hash`                                |
+| `users.clerk_id`              | Yes      | UNIQUE                                                                                              |
+| Per-user advisory lock        | Yes      | Document in graph-write spec, not a table                                                           |
+| TransferPoints validation     | Yes      | Domain rules in §5 + idempotency                                                                    |
+| Indexes                       | Yes      | `(user_id, id)` on mutations; `(status, available_at) WHERE pending` on jobs; lineage current index |
 
 ### Conflicts with schema-final v3 (resolved in v3.1)
 
-| v3 | v3.1 correction | Status |
-|---|---|---|
-| `plans.status` = pending/in_progress/completed/… | Lifecycle §4.1 in schema-final v3.1 | **Done** |
-| `plan_steps.is_stale` boolean | `status = stale` only | **Done** |
-| In-place re-plan refresh | Plan revision model | **Done** |
-| Missing infrastructure tables | `graph_mutations`, `replan_jobs`, `idempotency_records` | **Done** |
-| Per-user current plan index | Per-lineage `(plan_lineage_id) WHERE status = 'current'` | **Done** |
+| v3                                               | v3.1 correction                                          | Status   |
+| ------------------------------------------------ | -------------------------------------------------------- | -------- |
+| `plans.status` = pending/in_progress/completed/… | Lifecycle §4.1 in schema-final v3.1                      | **Done** |
+| `plan_steps.is_stale` boolean                    | `status = stale` only                                    | **Done** |
+| In-place re-plan refresh                         | Plan revision model                                      | **Done** |
+| Missing infrastructure tables                    | `graph_mutations`, `replan_jobs`, `idempotency_records`  | **Done** |
+| Per-user current plan index                      | Per-lineage `(plan_lineage_id) WHERE status = 'current'` | **Done** |
 
 ---
 
 ## Open decisions (post-correction)
 
-| Item | Owner | Blocks schema? |
-|---|---|---|
-| Cash-price API provider | Raq | No |
-| Hosted platform choice | Raq | No |
-| Codegen tool + `schema/contracts/` | Alan | Blocks app lanes — **next (Phase A3)** |
-| Subprocess timeout and output limits | Raq | No — values set in finalized `agent-invocation.json` contract |
-| Lane sign-off on v3.1 (§13) | All | No |
+| Item                                 | Owner | Blocks schema?                                                |
+| ------------------------------------ | ----- | ------------------------------------------------------------- |
+| Cash-price API provider              | Raq   | No                                                            |
+| Hosted platform choice               | Raq   | No                                                            |
+| Codegen tool + `schema/contracts/`   | Alan  | Blocks app lanes — **next (Phase A3)**                        |
+| Subprocess timeout and output limits | Raq   | No — values set in finalized `agent-invocation.json` contract |
+| Lane sign-off on v3.1 (§13)          | All   | No                                                            |
 
 ---
 

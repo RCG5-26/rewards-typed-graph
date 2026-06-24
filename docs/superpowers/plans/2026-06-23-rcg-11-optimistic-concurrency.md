@@ -15,6 +15,7 @@
 ### Task 1: Add Read-Set Types and Conflict Errors
 
 **Files:**
+
 - Modify: `schema/mutations.py`
 - Test: `tests/test_v31_mutations.py`
 
@@ -87,6 +88,7 @@ Expected: pass.
 ### Task 2: Add Bounded Retry Wrapper
 
 **Files:**
+
 - Modify: `schema/mutations.py`
 - Test: `tests/test_v31_mutations.py`
 
@@ -122,6 +124,7 @@ Expected: pass, with live Postgres tests skipped unless `RUN_LIVE_POSTGRES_TESTS
 ### Task 3: Wire Read-Set Validation into TransferPoints
 
 **Files:**
+
 - Modify: `schema/mutations.py`
 - Test: `tests/test_v31_mutations.py`
 
@@ -146,6 +149,7 @@ Expected: all non-live tests pass.
 ### Task 4: Update Tracking
 
 **Files:**
+
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`
 

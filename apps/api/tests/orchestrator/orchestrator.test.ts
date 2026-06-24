@@ -28,12 +28,11 @@ function buildHarness(options?: {
 }) {
   const graphWrite = options?.graphWrite ?? new InMemoryOrchestratorGraphWrite();
   const memoryCommitFactory = new InMemoryAgentCommitFactory(graphWrite);
-  const registry: AgentRegistry =
-    options?.registry ?? {
-      wallet_agent: new FakeWalletAgent(),
-      earning_agent: new FakeEarningAgent(),
-      redemption_agent: new FakeRedemptionAgent(),
-    };
+  const registry: AgentRegistry = options?.registry ?? {
+    wallet_agent: new FakeWalletAgent(),
+    earning_agent: new FakeEarningAgent(),
+    redemption_agent: new FakeRedemptionAgent(),
+  };
   const orchestrator = new Orchestrator({
     decomposer: options?.decomposer ?? new FakeDecomposer(tokyoFixture),
     graphWrite,
@@ -425,7 +424,10 @@ describe("orchestrator", () => {
 
     const earningMutation = commitFactory.recordedCommits[1].mutation;
     expect(earningMutation.kind).toBe("CreatePlanStep");
-    if (earningMutation.kind === "CreatePlanStep" && earningMutation.stepType === "spend_analysis") {
+    if (
+      earningMutation.kind === "CreatePlanStep" &&
+      earningMutation.stepType === "spend_analysis"
+    ) {
       expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
     }
 
@@ -450,7 +452,10 @@ describe("orchestrator", () => {
     }
 
     const earningMutation = commitFactory.recordedCommits[1].mutation;
-    if (earningMutation.kind === "CreatePlanStep" && earningMutation.stepType === "spend_analysis") {
+    if (
+      earningMutation.kind === "CreatePlanStep" &&
+      earningMutation.stepType === "spend_analysis"
+    ) {
       expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
     }
 

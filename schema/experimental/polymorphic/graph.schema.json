@@ -18,10 +18,7 @@
       }
     }
   },
-  "required": [
-    "nodes",
-    "edges"
-  ],
+  "required": ["nodes", "edges"],
   "$defs": {
     "nodeTypes": {
       "type": "string",
@@ -54,11 +51,7 @@
     },
     "graphTiers": {
       "type": "string",
-      "enum": [
-        "world",
-        "personal",
-        "plan"
-      ]
+      "enum": ["world", "personal", "plan"]
     },
     "graphNode": {
       "type": "object",
@@ -71,17 +64,11 @@
           "$ref": "#/$defs/graphTiers"
         },
         "user_id": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": ["string", "null"],
           "format": "uuid"
         },
         "slug": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "attributes": {
           "type": "object"
@@ -91,11 +78,7 @@
           "minimum": 0
         }
       },
-      "required": [
-        "type",
-        "tier",
-        "attributes"
-      ]
+      "required": ["type", "tier", "attributes"]
     },
     "graphEdge": {
       "type": "object",
@@ -118,33 +101,13 @@
           "minimum": 0
         }
       },
-      "required": [
-        "type",
-        "source_type",
-        "target_type",
-        "attributes"
-      ]
+      "required": ["type", "source_type", "target_type", "attributes"]
     }
   },
   "x-graph": {
-    "programKinds": [
-      "transferable",
-      "airline",
-      "hotel",
-      "cashback"
-    ],
-    "planStatuses": [
-      "active",
-      "stale",
-      "superseded",
-      "completed",
-      "failed"
-    ],
-    "planQueryStatuses": [
-      "active",
-      "completed",
-      "failed"
-    ],
+    "programKinds": ["transferable", "airline", "hotel", "cashback"],
+    "planStatuses": ["active", "stale", "superseded", "completed", "failed"],
+    "planQueryStatuses": ["active", "completed", "failed"],
     "mutationActions": [
       "create_node",
       "update_node",
@@ -154,11 +117,7 @@
       "supersede_plan_step",
       "transfer_points"
     ],
-    "earnTypes": [
-      "points",
-      "miles",
-      "cashback_pct"
-    ],
+    "earnTypes": ["points", "miles", "cashback_pct"],
     "nodeTiers": {
       "User": "personal",
       "Card": "world",
@@ -170,40 +129,13 @@
       "PlanStep": "plan"
     },
     "nodeRequiredAttributes": {
-      "User": [
-        "name",
-        "optimization_goal"
-      ],
-      "Card": [
-        "name",
-        "issuer",
-        "network",
-        "annual_fee_cents"
-      ],
-      "Program": [
-        "name",
-        "kind",
-        "currency_name"
-      ],
-      "MerchantCategory": [
-        "name"
-      ],
-      "Balance": [
-        "program_id",
-        "amount_points",
-        "as_of",
-        "source"
-      ],
-      "Goal": [
-        "goal_type",
-        "description"
-      ],
-      "PlanQuery": [
-        "plan_lineage_id",
-        "revision_number",
-        "query_text",
-        "status"
-      ],
+      "User": ["name", "optimization_goal"],
+      "Card": ["name", "issuer", "network", "annual_fee_cents"],
+      "Program": ["name", "kind", "currency_name"],
+      "MerchantCategory": ["name"],
+      "Balance": ["program_id", "amount_points", "as_of", "source"],
+      "Goal": ["goal_type", "description"],
+      "PlanQuery": ["plan_lineage_id", "revision_number", "query_text", "status"],
       "PlanStep": [
         "plan_lineage_id",
         "revision_number",
@@ -320,26 +252,15 @@
     "edgeRequiredAttributes": {
       "HOLDS": [],
       "ASSOCIATED_WITH": [],
-      "EARNS": [
-        "earn_rate_basis_points",
-        "earn_type"
-      ],
+      "EARNS": ["earn_rate_basis_points", "earn_type"],
       "HAS_BALANCE": [],
       "BALANCE_FOR": [],
       "HAS_GOAL": [],
       "FOR_USER": [],
-      "TRANSFERS_TO": [
-        "ratio_num",
-        "ratio_den",
-        "transfer_time_days",
-        "is_active"
-      ],
+      "TRANSFERS_TO": ["ratio_num", "ratio_den", "transfer_time_days", "is_active"],
       "TARGETS": [],
       "STEP_OF": [],
-      "DEPENDS_ON": [
-        "observed_version",
-        "observed_value"
-      ]
+      "DEPENDS_ON": ["observed_version", "observed_value"]
     },
     "edgeAttributeTypes": {
       "HOLDS": {

@@ -15,6 +15,7 @@
 ### Task 1: Add Query Helper Types
 
 **Files:**
+
 - Create: `schema/queries.py`
 - Test: `tests/test_v31_queries.py`
 
@@ -57,6 +58,7 @@ Expected: pass for result mapping.
 ### Task 2: Implement Recursive CTE
 
 **Files:**
+
 - Modify: `schema/queries.py`
 - Test: `tests/test_v31_queries.py`
 
@@ -89,6 +91,7 @@ Expected: pass.
 ### Task 3: Add Live PostgreSQL Contract Test
 
 **Files:**
+
 - Modify: `tests/test_v31_queries.py`
 
 - [x] **Step 1: Add opt-in live test**
@@ -108,6 +111,7 @@ Expected: all non-live tests pass; live query test is skipped without opt-in.
 ### Task 4: Update Tracking
 
 **Files:**
+
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`
 

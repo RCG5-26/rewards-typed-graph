@@ -83,15 +83,23 @@ and map each one here (props + tokens) as you add it.
 ```tsx
 // components/ui/Tag.tsx — example: lifecycle chip driven entirely by status tokens
 const STATUS = {
-  current:    "bg-status-current-bg text-status-current",
-  stale:      "bg-status-stale-bg text-status-stale",
+  current: "bg-status-current-bg text-status-current",
+  stale: "bg-status-stale-bg text-status-stale",
   superseded: "bg-status-superseded-bg text-status-superseded",
-  failed:     "bg-status-failed-bg text-status-failed",
+  failed: "bg-status-failed-bg text-status-failed",
 } as const;
 
-export function Tag({ status, children }: { status: keyof typeof STATUS; children: React.ReactNode }) {
+export function Tag({
+  status,
+  children,
+}: {
+  status: keyof typeof STATUS;
+  children: React.ReactNode;
+}) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-chip px-2 py-1 text-xs font-medium ${STATUS[status]}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-chip px-2 py-1 text-xs font-medium ${STATUS[status]}`}
+    >
       {children}
     </span>
   );
@@ -118,14 +126,14 @@ raw scale `--color-iris-50…900`, neutrals `--color-neutral-0…900`.
 
 **Plan / step lifecycle** (maps 1:1 to `plans.status` / `plan_steps.status`):
 
-| State | Color token | Background |
-|---|---|---|
+| State      | Color token           | Background               |
+| ---------- | --------------------- | ------------------------ |
 | generating | `--status-generating` | `--status-generating-bg` |
-| proposed | `--status-proposed` | `--status-proposed-bg` |
-| current | `--status-current` | `--status-current-bg` |
-| stale | `--status-stale` | `--status-stale-bg` |
+| proposed   | `--status-proposed`   | `--status-proposed-bg`   |
+| current    | `--status-current`    | `--status-current-bg`    |
+| stale      | `--status-stale`      | `--status-stale-bg`      |
 | superseded | `--status-superseded` | `--status-superseded-bg` |
-| failed | `--status-failed` | `--status-failed-bg` |
+| failed     | `--status-failed`     | `--status-failed-bg`     |
 
 **Mutation log** — `--mutation-accent`, `--mutation-rail`.
 

@@ -6,7 +6,11 @@ export const tokyoSnapshot: GraphSnapshot = {
     { id: "balance-amex-mr", programId: "program-amex-mr", balancePoints: 40000, version: 1 },
   ],
   userGoals: [
-    { id: "goal-1", goalType: "specific_redemption", targetRedemptionOptionId: "option-hyatt-tokyo" },
+    {
+      id: "goal-1",
+      goalType: "specific_redemption",
+      targetRedemptionOptionId: "option-hyatt-tokyo",
+    },
   ],
   userProgramStatuses: [],
 };

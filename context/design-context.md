@@ -4,7 +4,7 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-22
+**Last updated:** 2026-06-23
 
 > **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
@@ -23,18 +23,19 @@ Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisi
 
 _Stack: Next.js + custom Tailwind. Design system installed at [`../design-system/`](../design-system/). Wire it via the [Tailwind preset](../design-system/tailwind-preset.js) (`bg-surface`, `rounded-card`, …) and import [`global.css`](../design-system/global.css) once at the app root. Colors are defined in [`tokens/colors.css`](../design-system/tokens/colors.css) and [`tokens/status.css`](../design-system/tokens/status.css)._
 
-| Role | Token / variable | Value / notes |
-|---|---|---|
-| Background | `--color-bg` | cool grey (neutral-100); page canvas |
-| Surface | `--color-surface` / `--color-surface-raised` | white / neutral-50 cards & panels |
-| Primary text | `--color-text-primary` | neutral-900 (secondary/tertiary/disabled also defined) |
-| Brand / accent | `--color-accent` (= `--color-iris-500`) | iris/periwinkle scale `--color-iris-50…900`; `-fg`/`-text`/`-subtle`/`-muted` aliases |
-| Border | `--color-border` / `-strong` / `-subtle` | translucent black hairlines |
-| Error / success / warning | `--color-error` / `--color-success` / `--color-warning` (+ `-bg`/`-fg`) | used heavily in head-to-head contrast (baseline failures) |
+| Role                      | Token / variable                                                        | Value / notes                                                                         |
+| ------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Background                | `--color-bg`                                                            | cool grey (neutral-100); page canvas                                                  |
+| Surface                   | `--color-surface` / `--color-surface-raised`                            | white / neutral-50 cards & panels                                                     |
+| Primary text              | `--color-text-primary`                                                  | neutral-900 (secondary/tertiary/disabled also defined)                                |
+| Brand / accent            | `--color-accent` (= `--color-iris-500`)                                 | iris/periwinkle scale `--color-iris-50…900`; `-fg`/`-text`/`-subtle`/`-muted` aliases |
+| Border                    | `--color-border` / `-strong` / `-subtle`                                | translucent black hairlines                                                           |
+| Error / success / warning | `--color-error` / `--color-success` / `--color-warning` (+ `-bg`/`-fg`) | used heavily in head-to-head contrast (baseline failures)                             |
 
 **Plan/step lifecycle colors** (map 1:1 to `plans.status` / `plan_steps.status`) — drive every node + chip from these, never a literal: `--status-generating`, `--status-proposed`, `--status-current`, `--status-stale`, `--status-superseded`, `--status-failed` (each with a `-bg` pair). Mutation log: `--mutation-accent`, `--mutation-rail`.
 
 **Rules:**
+
 - **No hardcoded hex** in components — reference tokens (or preset utilities) only.
 - Theme mode: **light only** for the demo. Tokens are semantic aliases over raw scales, so a dark map can be added later without touching component code.
 
@@ -44,11 +45,11 @@ _Stack: Next.js + custom Tailwind. Design system installed at [`../design-system
 
 _Defined in [`tokens/typography.css`](../design-system/tokens/typography.css); faces declared in [`tokens/fonts.css`](../design-system/tokens/fonts.css). Global font is set on `body` by [`global.css`](../design-system/global.css) — inherit it, don't set per-component. Use the semantic `--type-*` roles (shorthand `font:` values) rather than raw size/weight tokens._
 
-| Role | Font (token) | Usage |
-|---|---|---|
-| UI / body | `--font-sans` (SF Pro Text) | body, labels, plan steps — roles `--type-body`, `--type-body-sm`, `--type-label` |
-| Display | `--font-display` (SF Pro Display) | headings/titles — `--type-display`, `--type-headline`, `--type-title` |
-| Mono | `--font-mono` (Fira Code) | node IDs, mutation-log entries, JSON fragments — role `--type-mono` |
+| Role      | Font (token)                      | Usage                                                                            |
+| --------- | --------------------------------- | -------------------------------------------------------------------------------- |
+| UI / body | `--font-sans` (SF Pro Text)       | body, labels, plan steps — roles `--type-body`, `--type-body-sm`, `--type-label` |
+| Display   | `--font-display` (SF Pro Display) | headings/titles — `--type-display`, `--type-headline`, `--type-title`            |
+| Mono      | `--font-mono` (Fira Code)         | node IDs, mutation-log entries, JSON fragments — role `--type-mono`              |
 
 Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--tracking-*` · leading `--leading-*`.
 
@@ -56,28 +57,26 @@ Scale: `--text-2xs…5xl` · weights `--weight-thin…semibold` · tracking `--t
 
 ## Layout patterns
 
-| Pattern | Where used | Notes |
-|---|---|---|
-| App shell | demo shell | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right) |
-| Streaming sidebar | mutation log (RCG-24/25) | append-only stream of typed mutations as agents coordinate |
-| Dependency view | plan-node graph (RCG-26) | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded) |
-| Side-by-side contrast | head-to-head (RCG-45) | same scenario, typed-graph vs baselines, rendered in parallel columns |
-| Metrics panel | benchmark display (RCG-46) | accuracy, hallucination, invalidation, token cost |
-| Auth / sign-in | gate (Clerk) | Clerk identity-only sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)) |
-| Marketing landing | GPFree cinematic landing (`components/gpfree/`) | scroll-driven hero + how-it-works + footer; **fully token-driven** (light surfaces, iris accent, SF Pro/Fira Code) — no hardcoded hex/px/easing (D028) |
+| Pattern               | Where used                                   | Notes                                                                                                                                                                |
+| --------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App shell             | demo shell                                   | NL query input (top/left) + multi-step plan main area + graph-mutation sidebar (right)                                                                               |
+| Streaming sidebar     | mutation log (RCG-24/25)                     | append-only stream of typed mutations as agents coordinate                                                                                                           |
+| Dependency view       | plan-node graph (RCG-26)                     | stale steps/revision light up on invalidation; new **current** revision replaces prior (superseded)                                                                  |
+| Side-by-side contrast | head-to-head (RCG-45)                        | same scenario, typed-graph vs baselines, rendered in parallel columns                                                                                                |
+| Metrics panel         | benchmark display (RCG-46)                   | accuracy, hallucination, invalidation, token cost                                                                                                                    |
+| Auth / sign-in        | `/sign-in` · `/sign-up` (Clerk)              | Clerk identity-only, **Google-only** sign-in before demo shell ([ADR 0006](../docs/adr/0006-clerk-identity-only.md)); `middleware.ts` protects all non-public routes |
+| Marketing landing     | GPFree landing (`components/GPFreeHero.tsx`) | self-contained dark hero with a pointer/gyro 3D card tilt + animated how-it-works + closing CTA; both CTAs → `/sign-in`. Ported from the design handoff (D029)       |
 
 ---
 
-## GPFree landing surface (`components/gpfree/`)
+## GPFree landing surface (`components/GPFreeHero.tsx`)
 
-The public landing conforms to the design system end-to-end (D028). Structure:
-`GPFreeHero` (composition + root) → `cinema.ts` (shared token styles + `useGpxCinema` scroll engine) → `HeroStage` / `HowItWorks` / `SiteFooter`.
+The public landing is a **single self-contained component** ported verbatim from the design handoff (D029) — a dark hero with a pointer/gyro-driven **3D card tilt**, floating points, an animated "how it works" stepper, and a closing CTA. The markup + CSS are injected as a static string and the original interaction script is ported into one `useEffect` scoped to the component root.
 
-- **Color** off `--color-bg` / `--color-surface*` / `--color-text-*` / `--color-accent*` / `--color-border*`; alpha variants via `color-mix(... var(--token) ...)`, never raw `rgba()`.
-- **Type** off `--font-display` (headings), `--font-sans` (body/CTA), `--font-mono` (labels/typewriters) + the `--text-*` / `--weight-*` / `--tracking-*` / `--leading-*` scales.
-- **Spacing / radii / shadows** off `--space-*` / `--radius-*` / `--shadow-*`; **motion** off `--ease-soft` / `--spring-settle` / `--duration-*`.
-- Engine-applied styles (active step tab, glow, progress bar) also write token values, so the imperative layer stays token-true.
-- Bespoke geometry (frame positions, illustration card sizes, viewport breakpoints) stays as literals — no token exists for one-off coordinates.
+- **Auth wiring:** both "start optimizing" CTAs link to `/sign-in` (Clerk). Hover is brightness-only — CTAs do **not** translate on hover (no magnetic pull).
+- **Motion:** `prefers-reduced-motion` is honored (tilt/parallax/float neutralized to a static resting transform).
+- **Token deviation (explicit, temporary exception):** this surface is a **deliberate, scoped carve-out from the global "No hardcoded hex/px" rule** (§Theme & tokens / §Typography). It carries its **own scoped theme** — local CSS variables and literal hex/oklch values inside the component, not the shared `design-system/` tokens — to stay pixel-faithful to the handoff. The exception applies **only** to `components/GPFreeHero.tsx`; everywhere else the no-hardcoded-hex rule still holds. Planned resolution: when this is folded into the design system, migrate its locals (`--bg`, `--iris`, `--tx*`, …) onto the semantic tokens and drop the carve-out.
+- **Removed:** the prior cinematic `components/gpfree/` hero (`HeroStage` / `cinema.ts` / `HowItWorks` / `SiteFooter`) and its `public/assets/frame-*.webp` scroll frames were deleted when this design replaced it.
 
 ---
 
@@ -92,27 +91,27 @@ The public landing conforms to the design system end-to-end (D028). Structure:
 
 ## Key UI surfaces
 
-| Surface | Route / component | Primary actions | Data source |
-|---|---|---|---|
-| Demo shell | `[TBD]` (RCG-27) | enter NL query; view multi-step plan + per-step reasoning; only `status = current` revision actionable | orchestrator (mocked → real Days 5–7) |
-| Mutation sidebar | `[TBD]` (RCG-24/25) | observe streaming typed mutations (`graph_mutations` / SSE) | SSE replay + REST catch-up (mock → real) |
-| Plan-node dependency view | `[TBD]` (RCG-26) | watch stale steps/revision; see new current revision promoted | invalidation + replan lifecycle events |
-| Head-to-head contrast | `[TBD]` (RCG-45) | run same scenario across architectures | benchmark run output |
-| Benchmark numbers | `[TBD]` (RCG-46) | view accuracy / hallucination / invalidation / token cost | benchmark results |
-| Sign-in | `[TBD]` | authenticate | Clerk (identity-only; per-user demo persona) |
+| Surface                   | Route / component   | Primary actions                                                                                        | Data source                                  |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| Demo shell                | `[TBD]` (RCG-27)    | enter NL query; view multi-step plan + per-step reasoning; only `status = current` revision actionable | orchestrator (mocked → real Days 5–7)        |
+| Mutation sidebar          | `[TBD]` (RCG-24/25) | observe streaming typed mutations (`graph_mutations` / SSE)                                            | SSE replay + REST catch-up (mock → real)     |
+| Plan-node dependency view | `[TBD]` (RCG-26)    | watch stale steps/revision; see new current revision promoted                                          | invalidation + replan lifecycle events       |
+| Head-to-head contrast     | `[TBD]` (RCG-45)    | run same scenario across architectures                                                                 | benchmark run output                         |
+| Benchmark numbers         | `[TBD]` (RCG-46)    | view accuracy / hallucination / invalidation / token cost                                              | benchmark results                            |
+| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only)                                                                             | Clerk (identity-only; per-user demo persona) |
 
 ---
 
 ## Interaction & feedback
 
-| Event | Expected UX |
-|---|---|
-| Loading | plan steps stream in incrementally; per-step reasoning appears as it resolves |
-| Mutation arrives | new typed entry animates into the sidebar |
-| Invalidation | affected plan revision → `stale`; steps → `stale`; then new revision promoted to **`current`** (prior → `superseded`) |
-| Baseline failure (contrast) | baseline visibly hallucinates a ratio / misses invalidation / re-fetches a tool result |
-| Error | inline, token-colored with `--color-error` / `-bg` / `-fg`; baseline failures render in the contrast column, not a toast |
-| Empty | pre-query state: prompt the persona query |
+| Event                       | Expected UX                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Loading                     | plan steps stream in incrementally; per-step reasoning appears as it resolves                                            |
+| Mutation arrives            | new typed entry animates into the sidebar                                                                                |
+| Invalidation                | affected plan revision → `stale`; steps → `stale`; then new revision promoted to **`current`** (prior → `superseded`)    |
+| Baseline failure (contrast) | baseline visibly hallucinates a ratio / misses invalidation / re-fetches a tool result                                   |
+| Error                       | inline, token-colored with `--color-error` / `-bg` / `-fg`; baseline failures render in the contrast column, not a toast |
+| Empty                       | pre-query state: prompt the persona query                                                                                |
 
 ---
 

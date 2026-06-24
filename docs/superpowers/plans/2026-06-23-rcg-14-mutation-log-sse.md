@@ -15,6 +15,7 @@
 ## Task 1: Add Event Mapping Contract Tests
 
 **Files:**
+
 - Create: `apps/api/src/mutations/events.ts`
 - Create: `apps/api/src/mutations/events.test.ts`
 - Create: `apps/api/package.json`
@@ -60,6 +61,7 @@ Implement `toMutationEvent(row)` with no field renames other than `id -> event_i
 ## Task 2: Add REST Replay Query
 
 **Files:**
+
 - Create: `apps/api/src/mutations/repository.ts`
 - Create: `apps/api/src/mutations/repository.test.ts`
 
@@ -91,10 +93,12 @@ Use parameterized queries only. Default `after` to `0` and `limit` to `100`.
 ## Task 3: Add SSE and REST Routes
 
 **Files:**
+
 - Create: `apps/api/src/mutations/routes.ts`
 - Create: `apps/api/src/mutations/routes.test.ts`
 
 **Endpoints:**
+
 - **REST:** `GET /mutations?after=<cursor>&limit=<count>` returns a JSON array.
 - **SSE:** `GET /mutations/stream` returns `text/event-stream`.
 
@@ -126,6 +130,7 @@ Stop polling when the request aborts.
 ## Task 4: Validate Against JSON Schema
 
 **Files:**
+
 - Modify: `apps/api/src/mutations/events.test.ts`
 - Modify: `apps/api/package.json`
 
@@ -150,6 +155,7 @@ Expected: TypeScript passes.
 ## Task 5: Update Tracking
 
 **Files:**
+
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`
 
