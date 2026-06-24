@@ -23,9 +23,12 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
-- Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
-- Lock the RCG-8 demo seed fixture with stable IDs for five cards, three programs, and 240k points.
-- Harden the RCG-8 loader so shared world seed is the default and demo persona rows are explicit local/eval opt-in.
+- Harden RCG-14 mutation SSE polling so cursor reads do not overlap and poll failures are handled.
+- Validate RCG-14 mutation replay cursors before REST/SSE DB queries.
+- Preserve the `@rewards-agent/api` manifest while merging RCG-14 route dependencies.
+- Verify spec 03 / RCG-14/25 checklist with route-level SSE payload and replay coverage.
+- Tighten mutation route review coverage for REST schema validation and missing-user rejection.
+- Raise the Hono dependency floor to `^4.12.27` for path/static-file security advisories.
 
 ## Next
 
