@@ -48,5 +48,5 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added tests covering recommendation, fallback, invalidation, and benchmark cases.
 - Added an offline benchmark scorer for Person C's seeded cases.
 - Fallback explanations now stay focused on awards that match the current trip.
-- Added the fixed demo seed used by the hero flow. The seed loader now loads shared rewards data by default, and the fixed demo person is opt-in for isolated tests.
+- Added the fixed demo seed used by the hero flow. The seed loader loads shared rewards data by default; the fixed demo persona is opt-in for isolated tests.
 - Added database-backed writing for the seeded redemption plan, including plan steps and balance dependencies.

@@ -500,6 +500,7 @@ class V31GraphWriteService:
             raise MutationValidationError(errors)
 
         with self.connection.cursor() as cursor:
+            _lock_user(cursor, user_id)
             cursor.execute(
                 """
                 WITH claimable AS (
@@ -577,6 +578,59 @@ class V31GraphWriteService:
             "source_plan_id": str(source_plan_id),
             "result_plan_id": str(returned_result_plan_id),
         }
+
+    def fail_replan_job(
+        self,
+        *,
+        user_id: str,
+        job_id: str,
+        worker_id: str,
+        error: str,
+    ) -> None:
+        """Release a claimed replan job after worker failure so retries can proceed."""
+
+        errors = _validate_replan_job_failure(
+            user_id=user_id,
+            job_id=job_id,
+            worker_id=worker_id,
+            error=error,
+        )
+        if errors:
+            raise MutationValidationError(errors)
+
+        with self.connection.cursor() as cursor:
+            _lock_user(cursor, user_id)
+            cursor.execute(
+                """
+                UPDATE replan_jobs job
+                   SET status = CASE
+                         WHEN job.attempt_count >= job.max_attempts THEN 'failed'
+                         ELSE 'pending'
+                       END,
+                       locked_at = NULL,
+                       locked_by = NULL,
+                       lease_expires_at = NULL,
+                       error = %s,
+                       available_at = now(),
+                       updated_at = now(),
+                       completed_at = CASE
+                         WHEN job.attempt_count >= job.max_attempts THEN now()
+                         ELSE NULL
+                       END
+                 WHERE job.id = %s
+                   AND job.user_id = %s
+                   AND job.locked_by = %s
+                   AND job.status = 'processing'
+                RETURNING job.id
+                """,
+                (error, job_id, user_id, worker_id),
+            )
+            row = cursor.fetchone()
+
+        if row is None:
+            raise MutationCommitError(
+                f"replan job is not actively leased for failure handling: {job_id}"
+            )
 
 
 def require_app_graph_write() -> None:
@@ -807,6 +861,21 @@ def _validate_replan_job_promotion(
         errors.append("worker_id is required")
     if not result_plan_id:
         errors.append("ReplanJob.result_plan_id is required")
+    return errors
+
+
+def _validate_replan_job_failure(
+    *,
+    user_id: str,
+    job_id: str,
+    worker_id: str,
+    error: str,
+) -> list[str]:
+    errors = _validate_actor_user(worker_id, user_id)
+    if not job_id:
+        errors.append("ReplanJob.id is required")
+    if not error:
+        errors.append("ReplanJob.error is required")
     return errors
 
 

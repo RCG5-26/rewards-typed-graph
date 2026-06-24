@@ -68,17 +68,22 @@ def create_plan_from_query(
             plan_lineage_id=plan_lineage_id,
             revision_number=1,
             query_text=query_text,
-            status="current",
+            status="generating",
         )
     )
-    write_redemption_steps(
-        connection,
-        user_id=user_id,
-        plan_id=plan_id,
-        query_text=query_text,
-        plan_lineage_id=plan_lineage_id,
-        revision_number=1,
-    )
+    try:
+        write_redemption_steps(
+            connection,
+            user_id=user_id,
+            plan_id=plan_id,
+            query_text=query_text,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+        )
+        _promote_generating_plan_to_current(connection, plan_id)
+    except Exception:
+        _mark_generating_plan_failed(connection, plan_id)
+        raise
     return _plan_snapshot(connection, plan_id)
 
 
@@ -93,7 +98,6 @@ def replan_after_balance_transfer(
     service = V31GraphWriteService(connection)
     service.transfer_points(
         TransferPointsRequest(
-            actor=transfer.actor,
             user_id=transfer.user_id,
             source_balance_id=transfer.source_balance_id,
             dest_balance_id=transfer.dest_balance_id,
@@ -112,32 +116,76 @@ def replan_after_balance_transfer(
         source_plan_id=prior.plan_id,
         worker_id=worker_id,
     )
-    result_plan_id = service.create_plan(
-        CreatePlanRequest(
-            actor="orchestrator",
+    result_plan_id: str | None = None
+    try:
+        result_plan_id = service.create_plan(
+            CreatePlanRequest(
+                actor="orchestrator",
+                user_id=transfer.user_id,
+                plan_lineage_id=prior.plan_lineage_id,
+                revision_number=prior.revision_number + 1,
+                supersedes_plan_id=prior.plan_id,
+                query_text=prior.query_text,
+                status="generating",
+            )
+        )
+        write_redemption_steps(
+            connection,
             user_id=transfer.user_id,
+            plan_id=result_plan_id,
+            query_text=prior.query_text,
             plan_lineage_id=prior.plan_lineage_id,
             revision_number=prior.revision_number + 1,
-            supersedes_plan_id=prior.plan_id,
-            query_text=prior.query_text,
-            status="generating",
+            step_status="proposed",
         )
-    )
-    write_redemption_steps(
-        connection,
-        user_id=transfer.user_id,
-        plan_id=result_plan_id,
-        query_text=prior.query_text,
-        plan_lineage_id=prior.plan_lineage_id,
-        revision_number=prior.revision_number + 1,
-        step_status="proposed",
-    )
-    service.promote_replan_job_success(
-        job_id=job_id,
-        worker_id=worker_id,
-        result_plan_id=result_plan_id,
-    )
+        service.promote_replan_job_success(
+            job_id=job_id,
+            worker_id=worker_id,
+            result_plan_id=result_plan_id,
+        )
+    except Exception as exc:
+        service.fail_replan_job(
+            user_id=transfer.user_id,
+            job_id=job_id,
+            worker_id=worker_id,
+            error=str(exc),
+        )
+        if result_plan_id is not None:
+            _mark_generating_plan_failed(connection, result_plan_id)
+        raise
     return _plan_snapshot(connection, result_plan_id)
+
+
+def _mark_generating_plan_failed(connection: GraphConnection, plan_id: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE plans
+               SET status = 'failed',
+                   updated_at = now()
+             WHERE id = %s
+               AND status = 'generating'
+            """,
+            (plan_id,),
+        )
+
+
+def _promote_generating_plan_to_current(connection: GraphConnection, plan_id: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE plans
+               SET status = 'current',
+                   version = version + 1,
+                   updated_at = now()
+             WHERE id = %s
+               AND status = 'generating'
+            RETURNING id
+            """,
+            (plan_id,),
+        )
+        if cursor.fetchone() is None:
+            raise RuntimeError(f"plan not in generating state before promotion: {plan_id}")
 
 
 def _plan_snapshot(connection: GraphConnection, plan_id: str) -> HeroPlanSnapshot:

@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import unittest
+import json
 from pathlib import Path
 
 from schema.mutations import (
@@ -58,6 +59,11 @@ class FakeCursor:
             self.result = self.connection.promote_replan_job_result
             return
 
+        if "SET status = CASE" in compact_sql and "replan_jobs job" in compact_sql:
+            self.connection.fail_replan_job_calls.append(params)
+            self.result = self.connection.fail_replan_job_result
+            return
+
         if compact_sql.startswith("SELECT user_id, plan_lineage_id, revision_number FROM plans"):
             plan_id = params[0]
             self.result = self.connection.plans.get(plan_id)
@@ -111,6 +117,8 @@ class FakeConnection:
         self.claim_replan_job_result = None
         self.promote_replan_job_calls = []
         self.promote_replan_job_result = None
+        self.fail_replan_job_calls = []
+        self.fail_replan_job_result = ("00000000-0000-0000-0000-000000000070",)
         self.plans = {}
         self.plan_steps = {}
         self.user_balances = {}
@@ -351,6 +359,13 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(plan_step_id, "00000000-0000-0000-0000-000000000030")
+        _, step_params = _first_sql(connection, "INSERT INTO plan_steps")
+        payload_param = step_params[6]
+        self.assertIsInstance(payload_param, str)
+        self.assertEqual(
+            json.loads(payload_param),
+            {"claim": "Transfer Chase points to Hyatt"},
+        )
         self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "INSERT INTO plan_steps"))
         self.assertTrue(_any_sql(connection, "INSERT INTO graph_mutations"))
@@ -716,7 +731,11 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         )
 
         self.assertEqual(job_id, "00000000-0000-0000-0000-000000000070")
+        self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
         self.assertTrue(_any_sql(connection, "UPDATE replan_jobs job"))
+        lock_index = _sql_index(connection, "SELECT pg_advisory_xact_lock")
+        claim_index = _sql_index(connection, "WITH claimable AS")
+        self.assertLess(lock_index, claim_index)
         self.assertEqual(
             connection.claim_replan_job_calls,
             [
@@ -759,6 +778,34 @@ class V31GraphWriteServiceTest(unittest.TestCase):
                     "00000000-0000-0000-0000-000000000070",
                     "worker-1",
                     "00000000-0000-0000-0000-000000000021",
+                )
+            ],
+        )
+
+    def test_fail_replan_job_releases_active_lease(self):
+        connection = FakeConnection()
+        connection.claim_replan_job_result = (
+            "00000000-0000-0000-0000-000000000070",
+        )
+        service = V31GraphWriteService(connection)
+
+        service.fail_replan_job(
+            user_id="00000000-0000-0000-0000-000000000001",
+            job_id="00000000-0000-0000-0000-000000000070",
+            worker_id="worker-1",
+            error="write_redemption_steps failed",
+        )
+
+        self.assertTrue(_any_sql(connection, "SELECT pg_advisory_xact_lock"))
+        self.assertTrue(_any_sql(connection, "UPDATE replan_jobs job"))
+        self.assertEqual(
+            connection.fail_replan_job_calls,
+            [
+                (
+                    "write_redemption_steps failed",
+                    "00000000-0000-0000-0000-000000000070",
+                    "00000000-0000-0000-0000-000000000001",
+                    "worker-1",
                 )
             ],
         )
