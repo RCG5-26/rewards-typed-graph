@@ -5,7 +5,7 @@ import {
   planQueryError,
   selectedCardIdsError,
 } from "@/lib/plan/limits";
-import { getCurrentUserGraph } from "@/lib/user/current";
+import { resolveSessionGraph } from "@/lib/user/session";
 
 /**
  * POST /api/plan — turn a natural-language goal into a typed plan.
@@ -23,10 +23,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const graph = await getCurrentUserGraph();
-    if (!graph) {
-      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    const session = await resolveSessionGraph();
+    if (!session.ok) {
+      return session.response;
     }
+    const graph = session.graph;
 
     const body = (await request.json().catch(() => ({}))) as {
       queryText?: unknown;

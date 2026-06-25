@@ -6,7 +6,7 @@ import {
   selectedCardIdsError,
 } from "@/lib/plan/limits";
 import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
-import { getCurrentUserGraph } from "@/lib/user/current";
+import { resolveSessionGraph } from "@/lib/user/session";
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
@@ -29,10 +29,11 @@ const PACE_MS = 320;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(request: Request) {
-  const graph = await getCurrentUserGraph();
-  if (!graph) {
-    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const session = await resolveSessionGraph();
+  if (!session.ok) {
+    return session.response;
   }
+  const graph = session.graph;
 
   const url = new URL(request.url);
   const queryText = (url.searchParams.get("q") ?? "").trim();
