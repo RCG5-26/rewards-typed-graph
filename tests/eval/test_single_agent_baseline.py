@@ -109,6 +109,29 @@ class SingleAgentBaselineTests(unittest.TestCase):
         with self.assertRaisesRegex(BaselineOutputError, "dependency"):
             run_single_agent_baseline(llm_client=client)
 
+    def test_preserves_unsupported_reason_for_expected_response_scoring(self) -> None:
+        unsupported_plan = {
+            "status": "unsupported",
+            "chosen_award_slug": None,
+            "fallback": None,
+            "unsupported_reason": "unsupported_by_seed_fixture",
+            "ranked_awards": [],
+            "steps": [
+                {
+                    "summary": "Only Hyatt is seeded in this benchmark fixture.",
+                    "reasoning": "The supplied context has no Marriott transfer path or Marriott award facts.",
+                }
+            ],
+        }
+        client = FakeLLMClient([_valid_llm_plan() for _ in range(5)] + [unsupported_plan])
+
+        report = run_single_agent_baseline(llm_client=client, limit=6)
+        unsupported_case = report["cases"][-1]
+
+        self.assertEqual(unsupported_case["case_id"], "mvp_006_wrong_program_trap")
+        self.assertTrue(unsupported_case["accuracy_correct"])
+        self.assertEqual(unsupported_case["status"], "unsupported")
+
     def test_rejects_non_json_llm_output(self) -> None:
         class BadJsonClient:
             def complete_json(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:

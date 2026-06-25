@@ -19,12 +19,13 @@ The current scorer covers the typed-graph fixture path only. Single-agent and Cr
 ## Run The RCG-35 Single-Agent LLM Baseline
 
 ```bash
-SINGLE_AGENT_BASELINE_API_KEY=... \
+OPENAI_API_KEY=... \
 python -m benchmark.single_agent_baseline --pretty
 ```
 
 Optional knobs:
 
+- `SINGLE_AGENT_BASELINE_API_KEY` (dedicated override; falls back to `OPENAI_API_KEY`)
 - `SINGLE_AGENT_BASELINE_MODEL` (default: `gpt-5.5`)
 - `SINGLE_AGENT_BASELINE_API_URL` (default: OpenAI-compatible chat completions)
 - `SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS` (default: `60`)

@@ -279,7 +279,7 @@ def _system_prompt() -> str:
         "You are the Architecture 1 single-agent baseline for a rewards benchmark. "
         "Use only the facts supplied in the user prompt. Do not invent programs, hotels, "
         "award prices, transfer ratios, or availability. Return exactly one JSON object "
-        "with keys: status, chosen_award_slug, fallback, ranked_awards, steps. "
+        "with keys: status, chosen_award_slug, fallback, unsupported_reason, ranked_awards, steps. "
         "Do not output dependency edges, graph mutations, plan_steps, or state_dependencies."
     )
 
@@ -306,6 +306,7 @@ def _user_prompt(fixture: dict[str, Any], case: dict[str, Any]) -> str:
             "status": "current or unsupported",
             "chosen_award_slug": "award slug string or null",
             "fallback": "cash or null",
+            "unsupported_reason": "unsupported_by_seed_fixture when status is unsupported, otherwise null",
             "ranked_awards": [
                 {
                     "award_slug": "seeded award slug",
@@ -361,6 +362,10 @@ def _normalize_plan(raw_output: dict[str, Any]) -> dict[str, Any]:
     if fallback is not None and not isinstance(fallback, str):
         raise BaselineOutputError("fallback must be a string or null")
 
+    unsupported_reason = raw_output.get("unsupported_reason")
+    if unsupported_reason is not None and not isinstance(unsupported_reason, str):
+        raise BaselineOutputError("unsupported_reason must be a string or null")
+
     ranked_awards = raw_output.get("ranked_awards")
     if not isinstance(ranked_awards, list):
         raise BaselineOutputError("ranked_awards must be a list")
@@ -374,6 +379,7 @@ def _normalize_plan(raw_output: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "chosen_award_slug": chosen_award_slug,
         "fallback": fallback,
+        "unsupported_reason": unsupported_reason,
         "ranked_awards": normalized_awards,
         "steps": steps,
     }
@@ -405,6 +411,7 @@ def _scoring_plan(plan: dict[str, Any]) -> dict[str, Any]:
         "status": plan["status"],
         "chosen_award_slug": plan["chosen_award_slug"],
         "fallback": plan["fallback"],
+        "unsupported_reason": plan["unsupported_reason"],
         "ranked_awards": plan["ranked_awards"],
         "steps": [
             {
