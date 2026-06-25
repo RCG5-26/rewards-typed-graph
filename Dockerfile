@@ -33,6 +33,10 @@ RUN npm --prefix apps/api ci
 # tree (schema/, tests/integration/, fixtures/, scripts/) must be present.
 COPY . .
 
+# Drop root. The node user (uid 1000) ships in the official Node image.
+RUN chown -R node:node /app
+USER node
+
 ENV NODE_ENV=production
 ENV PYTHON_BIN=python3
 # API_PORT is set by the platform (Railway service variable). The server falls

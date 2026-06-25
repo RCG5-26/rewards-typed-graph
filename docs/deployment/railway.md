@@ -156,9 +156,14 @@ API_BASE_URL=https://api-production-d6f4c.up.railway.app
 CLERK_TOKEN=<real Clerk development Bearer token — from a signed-in session, cannot be generated server-side>
 ```
 
+> **Liveness vs readiness.** `/health` is a **liveness** probe — it returns
+> `{"ok":true}` unconditionally without probing Postgres, Clerk, or the bridge.
+> A readiness probe (e.g. `SELECT 1` against the pool) is not yet implemented;
+> dependency availability is confirmed by the token-gated gates below.
+
 | Gate | Command | Expected | Status |
 |---|---|---|---|
-| Health | `curl -i $API_BASE_URL/health` | `200 {"ok":true}` | ✅ verified hosted |
+| Liveness | `curl -i $API_BASE_URL/health` | `200 {"ok":true}` — process alive, not dependency health | ✅ verified hosted |
 | Auth guard — session | `curl -i $API_BASE_URL/session` | `401` | ✅ verified hosted |
 | Auth guard — mutations | `curl -i $API_BASE_URL/mutations` | `401` | ✅ verified hosted |
 | Root path | `curl -i $API_BASE_URL/` | `404` — no route at `/`, expected | ✅ verified hosted |
