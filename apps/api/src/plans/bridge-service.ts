@@ -158,7 +158,7 @@ export class BridgePlanService implements PlanService {
       "--amount",
       String(input.amountPoints),
     ];
-    if (input.idempotencyKey) {
+    if (input.idempotencyKey !== undefined) {
       args.push("--idempotency-key", input.idempotencyKey);
     }
     return this.run<BalanceTransferResult>("balance-transfer", args);
