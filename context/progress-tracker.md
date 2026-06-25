@@ -2,7 +2,7 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-24 — RCG-8 on main; PR #27 adds RCG-9 dev Postgres + RCG-21 graph writer
+**Last updated:** 2026-06-25 — RCG-52 graph eval instrumentation added on branch
 
 ---
 
@@ -49,12 +49,12 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## In progress
 
-| Item | Owner | Blocked on | Notes |
-|---|---|---|---|
-| **RCG-18** API service (spec 07) | Raq | manual dev-server Clerk curl | `raq/demo-mocks`; 86 `npm test` unit tests + typecheck green; persona bootstrap + hero bridge verified on live Postgres |
-| **RCG-28/29/32** hero path | Raq | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
-| **RCG-11-14** graph infrastructure | Alan | - | OCC, traversal, deps, mutation log |
-| **RCG-24/27/26** demo UI on mocks | Val | Alan RCG-14 event shape | Clerk auth on `main`; parallel to hero |
+| Item                               | Owner | Blocked on                 | Notes                                                              |
+| ---------------------------------- | ----- | -------------------------- | ------------------------------------------------------------------ |
+| **RCG-18** API service (spec 07)   | Raq   | manual dev-server Clerk curl | `raq/demo-mocks`; 86 `npm test` unit tests + typecheck green; persona bootstrap + hero bridge verified on live Postgres |
+| **RCG-28/29/32** hero path         | Raq   | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
+| **RCG-11-14** graph infrastructure | Alan  | -                          | OCC, traversal, deps, mutation log                                 |
+| **RCG-24/27/26** demo UI on mocks  | Val   | Alan RCG-14 event shape    | Clerk auth on `main`; parallel to hero                             |
 
 ---
 
@@ -68,24 +68,24 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Open questions
 
-| # | Question | Owner | Status |
-|---|---|---|---|
-| 1 | Hosted platform choice | Raq | open |
-| 2 | Eval config / model budget for baselines | Michael + Raq | open |
-| 3 | ADR 0004 storage-only compromise sign-off | Alan/Raq | resolved → polymorphic experimental only |
-| 4 | Does RCG-9 require canonical single-table JSONB `nodes`/`edges`? | Alan/Raq | resolved → ADR 0001 v3.1 table-per-type; docker-compose dev DB in PR #27 |
+| #   | Question                                                         | Owner         | Status                                                                   |
+| --- | ---------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| 1   | Hosted platform choice                                           | Raq           | open                                                                     |
+| 2   | Eval config / model budget for baselines                         | Michael + Raq | open                                                                     |
+| 3   | ADR 0004 storage-only compromise sign-off                        | Alan/Raq      | resolved → polymorphic experimental only                                 |
+| 4   | Does RCG-9 require canonical single-table JSONB `nodes`/`edges`? | Alan/Raq      | resolved → ADR 0001 v3.1 table-per-type; docker-compose dev DB in PR #27 |
 
 ---
 
 ## Gates / milestones
 
-| Gate | Date | Status | Criteria |
-|---|---|---|---|
-| Schema v3.1 lock | 2026-06-18 | done | ADR 0001 |
-| Person C offline scorer | 2026-06-23 | done | PR #14; 11/11 on fixture cases |
+| Gate                       | Date       | Status    | Criteria                                             |
+| -------------------------- | ---------- | --------- | ---------------------------------------------------- |
+| Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
+| Person C offline scorer    | 2026-06-23 | done      | PR #14; 11/11 on fixture cases                       |
 | RCG-21 graph-writer bridge | 2026-06-24 | in PR #27 | Unit tests green; live hero test with docker-compose |
-| MVP hero green | 2026-06-25 | open | `test_hero_end_to_end` passes with live Postgres |
-| Live demo (10 min) | 2026-06-29 | open | Hosted URL + demo script |
+| MVP hero green             | 2026-06-25 | open      | `test_hero_end_to_end` passes with live Postgres     |
+| Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script                             |
 
 ---
 
