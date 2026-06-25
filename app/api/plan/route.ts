@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 
 import { buildPlan } from "@/lib/plan/builder";
+import { planResultFromView } from "@/lib/plan/from-plan-view";
 import {
   planQueryError,
   selectedCardIdsError,
 } from "@/lib/plan/limits";
+import {
+  createPlanViaOrchestrator,
+  isOrchestratorEnabled,
+} from "@/lib/plan/orchestrator-client";
 import { resolveSessionGraph } from "@/lib/user/session";
 
 /**
  * POST /api/plan — turn a natural-language goal into a typed plan.
  *
- * Resolves the signed-in user's graph (Clerk → seed), then runs the
- * fixture-backed plan builder (the orchestrator stand-in) over the seeded graph
- * to traverse balances → transfer → redemption. When the real orchestrator
- * service is wired (#3), this route calls `Orchestrator.run()` and the
- * mutations stream over SSE — the response contract stays the same.
+ * Resolves the signed-in user's graph (Clerk → seed). When the real
+ * orchestrator backend is configured (`API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL`),
+ * the plan's identity, lifecycle, revision, and steps come from
+ * `Orchestrator.run()` via `apps/api` → `hero_bridge.py` → Postgres, with the
+ * typed-graph / mutation visuals projected on top. With no backend configured
+ * (or on any error), it falls back to the deterministic fixture builder over the
+ * seeded graph — the response contract is identical either way.
  *
  * Body: `{ queryText: string, selectedCardIds?: string[] }`
  */
@@ -46,7 +53,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cardsError }, { status: 400 });
     }
 
-    const plan = await buildPlan(graph, selectedCardIds, queryText);
+    const derived = await buildPlan(graph, selectedCardIds, queryText);
+    let plan = derived;
+    if (isOrchestratorEnabled()) {
+      try {
+        const view = await createPlanViaOrchestrator(queryText);
+        plan = planResultFromView(view, derived);
+      } catch (err) {
+        console.warn("orchestrator plan failed; using fixture plan", err);
+      }
+    }
     return NextResponse.json(plan);
   } catch (err) {
     console.error("POST /api/plan failed", err);

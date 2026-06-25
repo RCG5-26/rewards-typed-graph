@@ -141,4 +141,10 @@ export interface Invalidation {
 export interface ReplanResult {
   invalidation: Invalidation;
   plan: PlanResult;
+  /**
+   * The transfer revision 1 relied on, in raw program-id terms — lets the real
+   * orchestrator backend persist the actual `POST /balance-transfer` that drives
+   * the re-plan. Absent for direct-redemption plans (no transfer hop).
+   */
+  transfer?: { sourceProgramId: string; destProgramId: string; amountPoints: number };
 }

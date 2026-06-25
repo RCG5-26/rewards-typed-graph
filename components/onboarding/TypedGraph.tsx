@@ -30,6 +30,14 @@ interface Light {
   land: boolean;
 }
 
+export interface HoverNode {
+  id: string;
+  label: string;
+  kind: string;
+  x: number;
+  y: number;
+}
+
 const ease = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -79,14 +87,19 @@ function genLights(): Light[] {
 export default function TypedGraph({
   graph,
   litNodeIds,
+  onHover,
+  onSelect,
 }: {
   graph: PlanGraph;
   litNodeIds: Set<string>;
+  onHover?: (node: HoverNode | null) => void;
+  onSelect?: (node: HoverNode | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const reduced = useReducedMotion();
-  const stateRef = useRef({ graph, litNodeIds, reduced });
-  stateRef.current = { graph, litNodeIds, reduced };
+  const stateRef = useRef({ graph, litNodeIds, reduced, onHover, onSelect });
+  stateRef.current = { graph, litNodeIds, reduced, onHover, onSelect };
+  const hubPosRef = useRef<{ id: string; label: string; kind: string; x: number; y: number; r: number }[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -207,16 +220,25 @@ export default function TypedGraph({
         if (a <= 0.012) continue;
         const rad = L.size * p.s + 0.35;
         const col = L.warm ? "255,206,150" : "176,204,255";
-        const bloom = rad * (L.land ? 4.2 : 3.0);
+        // soft round halo: a gradual gaussian-like falloff (no hard inner
+        // plateau) reads as a fuzzy circle. Floor the radius so even the
+        // tiny far stars have room to resolve into a circle (a sub-pixel
+        // box just renders as a square).
+        const bloom = Math.max(4, rad * (L.land ? 6.5 : 5.0));
         const gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, bloom);
         gg.addColorStop(0, `rgba(${col},${a})`);
-        gg.addColorStop(0.45, `rgba(${col},${a * 0.22})`);
+        gg.addColorStop(0.18, `rgba(${col},${a * 0.55})`);
+        gg.addColorStop(0.45, `rgba(${col},${a * 0.16})`);
+        gg.addColorStop(0.75, `rgba(${col},${a * 0.04})`);
         gg.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = gg;
-        ctx.fillRect(p.x - bloom, p.y - bloom, bloom * 2, bloom * 2);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, bloom, 0, Math.PI * 2);
+        ctx.fill();
+        // bright round core: an anti-aliased arc (never a square box).
         ctx.fillStyle = `rgba(${col},${Math.min(1, a * 1.7)})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(0.5, rad * 0.62), 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(0.75, rad * 0.7), 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -278,6 +300,7 @@ export default function TypedGraph({
         }
 
         // ── hubs as luminous beads ──
+        const hubPos: typeof hubPosRef.current = [];
         for (let i = 0; i < hubs.length; i++) {
           const hub = hubs[i];
           const isStale = hub.stale;
@@ -287,6 +310,8 @@ export default function TypedGraph({
           const p = project(hub.x, hub.depth, 0);
           const pulse = rm ? 1 : 0.5 + 0.5 * Math.sin(time * 2.4 + i);
           const baseR = lerp(6, 11, p.s);
+          const kind = i === hubs.length - 1 ? "redemption" : "program";
+          hubPos.push({ id: hub.id, label: hub.label, kind, x: p.x, y: p.y, r: baseR });
 
           ctx.globalCompositeOperation = "lighter";
           const glowR = baseR * (3 + litV * 2.2);
@@ -353,6 +378,7 @@ export default function TypedGraph({
             ctx.textBaseline = "alphabetic";
           }
         }
+        hubPosRef.current = hubPos;
 
         // ── the plane at the head ──
         const i = Math.min(Math.floor(prog), S - 1);
@@ -377,7 +403,48 @@ export default function TypedGraph({
     };
 
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    // shared hit-test → the hub nearest the cursor (within its radius)
+    const hitTest = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = clientX - rect.left;
+      const my = clientY - rect.top;
+      let best: (typeof hubPosRef.current)[number] | null = null;
+      let bestD = Infinity;
+      for (const hp of hubPosRef.current) {
+        const d = Math.hypot(mx - hp.x, my - hp.y);
+        const hit = Math.max(20, hp.r * 2.6);
+        if (d < hit && d < bestD) {
+          bestD = d;
+          best = hp;
+        }
+      }
+      return best;
+    };
+    const toNode = (hp: (typeof hubPosRef.current)[number] | null): HoverNode | null =>
+      hp ? { id: hp.id, label: hp.label, kind: hp.kind, x: hp.x, y: hp.y } : null;
+
+    // hover hit-testing → emit the node under the cursor
+    const onMove = (e: PointerEvent) => {
+      const best = hitTest(e.clientX, e.clientY);
+      canvas.style.cursor = best ? "pointer" : "default";
+      stateRef.current.onHover?.(toNode(best));
+    };
+    const onLeave = () => stateRef.current.onHover?.(null);
+    // click → select the node (or clear when clicking empty space)
+    const onClick = (e: MouseEvent) => {
+      stateRef.current.onSelect?.(toNode(hitTest(e.clientX, e.clientY)));
+    };
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("click", onClick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("click", onClick);
+    };
   }, []);
 
   return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />;

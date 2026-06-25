@@ -1,12 +1,22 @@
 "use client";
 
+import {
+  deriveComparison,
+  fmtTokens,
+  type LiveMetrics,
+} from "@/lib/plan/comparison";
+
 /**
  * Head-to-head contrast (Hero Moment 3): the same query, wallet, and tools run
  * across three architectures — typed graph vs. two baselines — where the
  * baselines visibly fail (hallucinate a ratio, miss the invalidation, re-fetch
- * tool results). Numbers are illustrative demo fixtures, not a live benchmark
- * (that's the benchmark view). Derived from the live plan so the typed column's
- * value matches what just streamed.
+ * tool results).
+ *
+ * Driven by the *live* plan run: the typed column's value and every token count
+ * come from the real streamed plan (`lib/plan/comparison.ts`), and the typed
+ * "caught the invalidation" line reflects whether a re-plan actually fired this
+ * session. The baseline value/token figures are derived from those live numbers
+ * via the documented model — illustrative projections, not a real CrewAI run.
  */
 
 const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`;
@@ -19,11 +29,10 @@ const MARK_STYLE: Record<Mark, { bg: string; color: string; glyph: string }> = {
   warn: { bg: "var(--color-warning-bg)", color: "var(--color-warning-fg)", glyph: "!" },
 };
 
-export default function ContrastView({
-  planValueCents,
-}: {
-  planValueCents: number;
-}) {
+export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
+  const cmp = deriveComparison(metrics);
+  const caught = metrics.invalidationCaught;
+
   const columns = [
     {
       key: "typed",
@@ -33,13 +42,21 @@ export default function ContrastView({
       border: "var(--color-accent-subtle)",
       lines: [
         { mark: "ok" as Mark, t: "Read the Chase→Hyatt ratio from the graph: 1:1 (correct)." },
-        { mark: "ok" as Mark, t: "Caught the balance invalidation and re-planned to the next award." },
-        { mark: "ok" as Mark, t: "No tool result re-fetched — coordination is state, not messages." },
+        caught
+          ? {
+              mark: "ok" as Mark,
+              t: `Caught the balance invalidation and re-planned to the next award (revision ${metrics.revision}).`,
+            }
+          : {
+              mark: "ok" as Mark,
+              t: "Ready to catch a balance invalidation via typed state dependencies.",
+            },
+        { mark: "ok" as Mark, t: `${metrics.opCount} typed mutations — no tool result re-fetched; coordination is state, not messages.` },
       ],
       metricLabel: "plan value",
-      metricValue: dollars(planValueCents),
+      metricValue: dollars(cmp.typed.valueCents),
       metricColor: "var(--color-success-fg)",
-      tokens: "4.2k tok",
+      tokens: `${fmtTokens(cmp.typed.tokens)} tok`,
     },
     {
       key: "crewai",
@@ -53,9 +70,9 @@ export default function ContrastView({
         { mark: "warn" as Mark, t: "Passed the wallet as free-text JSON between agents." },
       ],
       metricLabel: "plan value",
-      metricValue: `${dollars(Math.round(planValueCents * 1.25))}*`,
+      metricValue: `${dollars(cmp.crewai.valueCents)}*`,
       metricColor: "var(--color-error-fg)",
-      tokens: "11.8k tok",
+      tokens: `${fmtTokens(cmp.crewai.tokens)} tok`,
     },
     {
       key: "single",
@@ -69,9 +86,9 @@ export default function ContrastView({
         { mark: "bad" as Mark, t: "Lost the goal once the context window filled up." },
       ],
       metricLabel: "plan value",
-      metricValue: dollars(Math.round(planValueCents * 0.7)),
+      metricValue: dollars(cmp.single.valueCents),
       metricColor: "var(--color-warning-fg)",
-      tokens: "8.5k tok",
+      tokens: `${fmtTokens(cmp.single.tokens)} tok`,
     },
   ];
 
@@ -126,7 +143,7 @@ export default function ContrastView({
         ))}
       </div>
       <div className="mt-2 font-mono text-2xs text-text-tertiary">
-        * hallucinated — the baseline overstates value on a ratio it never verified.
+        value &amp; token counts derived live from {metrics.opCount} streamed mutations · * hallucinated baseline ratio.
       </div>
     </div>
   );

@@ -170,6 +170,7 @@ function computePlan(
   graph: UserGraph,
   queryText: string,
   opts: ComputeOpts,
+  out?: { winner?: Candidate | null },
 ): PlanResult {
   const programsById = new Map(seed.reward_programs.map((p) => [p.id, p]));
   const goalType = deriveGoalType(queryText);
@@ -180,6 +181,7 @@ function computePlan(
   const planId = stableId("plan", `${queryText}#${opts.revision}`);
 
   const winner = bestCandidate(seed, balanceByProgram, opts.excludedEdges);
+  if (out) out.winner = winner;
 
   const steps: PlanStep[] = [];
   const mutations: MutationLogEntry[] = [];
@@ -322,7 +324,8 @@ export async function buildReplan(
 ): Promise<ReplanResult | null> {
   const seed = await loadSeed();
   const eff = filterGraphBySelection(seed, graph, selectedCardIds);
-  const rev1 = computePlan(seed, eff, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
+  const rev1Out: { winner?: Candidate | null } = {};
+  const rev1 = computePlan(seed, eff, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 }, rev1Out);
   if (rev1.status === "failed") return null;
 
   // The transfer edge that revision 1 relied on (if any).
@@ -361,5 +364,18 @@ export async function buildReplan(
   if (rev2.mutations[0]) {
     rev2.mutations[0] = { ...rev2.mutations[0], op: "REPLAN", detail: "re-planning on invalidation · new revision" };
   }
-  return { invalidation, plan: rev2 };
+
+  // Surface the rev-1 transfer in raw program-id terms so the real backend can
+  // persist the actual balance transfer that drives the re-plan.
+  const w = rev1Out.winner;
+  const transfer =
+    w && w.sourceProgram && w.requiredTransfer > 0
+      ? {
+          sourceProgramId: w.sourceProgram.id,
+          destProgramId: w.destProgram.id,
+          amountPoints: w.requiredTransfer,
+        }
+      : undefined;
+
+  return { invalidation, plan: rev2, transfer };
 }

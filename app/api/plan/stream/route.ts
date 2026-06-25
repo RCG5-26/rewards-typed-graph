@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { buildPlan, buildReplan } from "@/lib/plan/builder";
+import { planResultFromView } from "@/lib/plan/from-plan-view";
 import {
   planQueryError,
   selectedCardIdsError,
 } from "@/lib/plan/limits";
+import {
+  createPlanViaOrchestrator,
+  fetchMutationsViaOrchestrator,
+  isOrchestratorEnabled,
+  latestMutationCursor,
+  transferBalanceViaOrchestrator,
+} from "@/lib/plan/orchestrator-client";
+import { realMutationsToLog } from "@/lib/plan/real-mutations";
 import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
 import { resolveSessionGraph } from "@/lib/user/session";
 
@@ -19,8 +28,14 @@ import { resolveSessionGraph } from "@/lib/user/session";
  *   done         → revision complete
  *
  * Query: `?q=<goal>&cards=<id,id>&replan=1`. EventSource sends the Clerk
- * session cookie automatically, so middleware still gates it. When the real
- * backend lands (#4) this is replaced by the orchestrator's `/mutations` SSE.
+ * session cookie automatically, so middleware still gates it.
+ *
+ * When `API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL` is set, the authoritative plan
+ * (identity, lifecycle, revision, steps) comes from the real orchestrator
+ * backend (`apps/api` → `hero_bridge.py` → Postgres) and the typed-graph /
+ * mutation visuals are projected onto it; with no backend configured (or on any
+ * error) it falls back to the deterministic fixture builder so the demo always
+ * runs. See `lib/plan/orchestrator-client.ts`.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +87,34 @@ export async function GET(request: Request) {
         }
       };
 
+      const done = (plan: PlanResult) =>
+        send("done", { revision: plan.revision, planValueCents: plan.planValueCents, route: plan.route, status: plan.status });
+
+      /**
+       * Overlay the real `graph_mutations` rows this write produced (since
+       * `cursor`, scoped to the plan lineage) onto the projected plan, so the
+       * log streams Postgres rows instead of the seed-derived ones. Best-effort:
+       * on any failure or an empty result, keep the derived mutations.
+       */
+      const withRealMutations = async (
+        plan: PlanResult,
+        derived: PlanResult,
+        cursor: number,
+        lineageId: string | null,
+        seqStart: number,
+      ): Promise<PlanResult> => {
+        try {
+          const events = (await fetchMutationsViaOrchestrator(cursor)).filter(
+            (e) => !lineageId || e.plan_lineage_id === lineageId,
+          );
+          if (!events.length) return plan;
+          return { ...plan, mutations: realMutationsToLog(events, derived, seqStart) };
+        } catch (err) {
+          console.warn("fetching real mutations failed; using derived log", err);
+          return plan;
+        }
+      };
+
       try {
         if (isReplan) {
           const replan = await buildReplan(graph, selectedCardIds, queryText);
@@ -79,16 +122,46 @@ export async function GET(request: Request) {
             send("error", { message: "No replan path available." });
             return;
           }
+          // Persist the real transfer + re-plan when a backend is wired; project
+          // its authoritative revision-2 onto the fixture's invalidation visual.
+          let plan = replan.plan;
+          if (isOrchestratorEnabled() && replan.transfer) {
+            try {
+              const cursor = await latestMutationCursor();
+              const result = await transferBalanceViaOrchestrator(replan.transfer);
+              plan = planResultFromView(result.currentPlan, replan.plan);
+              plan = await withRealMutations(
+                plan,
+                replan.plan,
+                cursor,
+                result.planLineageId,
+                replan.invalidation.mutation.seq + 1,
+              );
+            } catch (err) {
+              console.warn("orchestrator replan failed; using fixture re-plan", err);
+            }
+          }
           await sleep(PACE_MS);
           send("invalidation", replan.invalidation);
-          send("meta", metaOf(replan.plan));
-          await streamMutations(replan.plan.mutations);
-          send("done", { revision: replan.plan.revision, planValueCents: replan.plan.planValueCents, route: replan.plan.route, status: replan.plan.status });
-        } else {
-          const plan = await buildPlan(graph, selectedCardIds, queryText);
           send("meta", metaOf(plan));
           await streamMutations(plan.mutations);
-          send("done", { revision: plan.revision, planValueCents: plan.planValueCents, route: plan.route, status: plan.status });
+          done(plan);
+        } else {
+          const derived = await buildPlan(graph, selectedCardIds, queryText);
+          let plan = derived;
+          if (isOrchestratorEnabled()) {
+            try {
+              const cursor = await latestMutationCursor();
+              const view = await createPlanViaOrchestrator(queryText);
+              plan = planResultFromView(view, derived);
+              plan = await withRealMutations(plan, derived, cursor, view.planLineageId, 1);
+            } catch (err) {
+              console.warn("orchestrator plan failed; using fixture plan", err);
+            }
+          }
+          send("meta", metaOf(plan));
+          await streamMutations(plan.mutations);
+          done(plan);
         }
       } catch (err) {
         console.error("GET /api/plan/stream failed", err);

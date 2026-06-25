@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import type { LiveMetrics } from "@/lib/plan/comparison";
 import { AGENT_META, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
@@ -14,7 +15,7 @@ import type {
 } from "@/lib/plan/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
-import TypedGraph from "./TypedGraph";
+import TypedGraph, { type HoverNode } from "./TypedGraph";
 
 type ConsoleView = "plan" | "baselines" | "benchmark";
 const VIEWS: { id: ConsoleView; label: string }[] = [
@@ -87,10 +88,12 @@ export default function AgentConsole({
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
   const [replanned, setReplanned] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
+  const [selected, setSelected] = useState<HoverNode | null>(null);
 
   const esRef = useRef<EventSource | null>(null);
   const doneRef = useRef(false);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLDivElement | null>(null);
 
   function openStream(replan: boolean) {
     esRef.current?.close();
@@ -160,6 +163,15 @@ export default function AgentConsole({
 
   const failed = status === "failed";
 
+  // Live signals for the baselines/benchmark tabs: real plan value, the real
+  // streamed-mutation count, and whether a re-plan actually fired this session.
+  const liveMetrics: LiveMetrics = {
+    planValueCents: valueCents,
+    opCount: mutations.length,
+    invalidationCaught: replanned,
+    revision,
+  };
+
   function triggerReplan() {
     if (replanned) return;
     setReplanned(true);
@@ -170,10 +182,98 @@ export default function AgentConsole({
     <div className="absolute inset-0 z-[2] flex">
       {/* ── left: typed-graph traversal rail ── */}
       <div
+        ref={railRef}
         className="relative flex w-2/5 flex-none flex-col justify-between overflow-hidden p-7"
         style={{ background: "#060912", boxShadow: "inset -1px 0 0 rgba(125,166,255,0.14)" }}
       >
-        <TypedGraph graph={graph} litNodeIds={lit} />
+        <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
+
+        {selected && (() => {
+          const node = graph.nodes.find((n) => n.id === selected.id);
+          const ops = mutations.filter((m) => m.nodeId === selected.id);
+          const isLit = lit.has(selected.id);
+          const state = node?.state ?? "active";
+          const pw = railRef.current?.clientWidth ?? 0;
+          const left = pw ? Math.min(Math.max(selected.x, 132), pw - 132) : selected.x;
+          const above = selected.y > 220;
+          return (
+            <div
+              className="absolute z-20 w-[252px] rounded-xl p-3.5"
+              style={{
+                left,
+                top: selected.y,
+                transform: above ? "translate(-50%, calc(-100% - 20px))" : "translate(-50%, 20px)",
+                background: "rgba(10,16,28,0.94)",
+                border: "1px solid rgba(134,168,255,0.32)",
+                boxShadow: "0 10px 34px rgba(4,8,20,0.55), inset 0 0 0 1px rgba(125,166,255,0.06)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="truncate font-display text-sm font-semibold text-white">{selected.label}</div>
+                  <div className="mt-0.5 font-mono text-2xs font-semibold uppercase tracking-wide text-[#a0beff]/80">
+                    {selected.kind}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="-mr-1 -mt-1 flex-none rounded-md px-1.5 py-0.5 text-sm leading-none text-[#a0beff]/60 transition hover:text-white"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mt-2.5 flex items-center gap-1.5">
+                <span
+                  className="rounded font-mono text-2xs font-semibold"
+                  style={{
+                    color: isLit ? "var(--status-current)" : "#a0beff",
+                    background: isLit ? "var(--status-current-bg)" : "rgba(134,168,255,0.12)",
+                    padding: "2px 7px",
+                  }}
+                >
+                  {isLit ? "● live" : "○ pending"}
+                </span>
+                <span
+                  className="rounded font-mono text-2xs font-semibold"
+                  style={{
+                    color: state === "stale" ? "var(--status-stale)" : "#bed2fa",
+                    background: state === "stale" ? "var(--status-stale-bg)" : "rgba(134,168,255,0.08)",
+                    padding: "2px 7px",
+                  }}
+                >
+                  {state}
+                </span>
+              </div>
+
+              <div className="mt-3 border-t pt-2.5" style={{ borderColor: "rgba(125,166,255,0.14)" }}>
+                <div className="mb-1.5 font-mono text-2xs uppercase tracking-wide text-[#a0beff]/50">
+                  mutations · {ops.length}
+                </div>
+                {ops.length === 0 ? (
+                  <div className="font-mono text-2xs text-[#bed2fa]/45">no writes touched this node yet</div>
+                ) : (
+                  <div className="flex max-h-[148px] flex-col gap-1.5 overflow-y-auto">
+                    {ops.map((m) => (
+                      <div key={m.seq} className="flex items-baseline gap-1.5">
+                        <span
+                          className="flex-none rounded text-center font-mono text-2xs font-semibold"
+                          style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px", minWidth: "54px" }}
+                        >
+                          {m.op}
+                        </span>
+                        <span className="min-w-0 font-mono text-2xs leading-relaxed text-[#bed2fa]/75">{m.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="pointer-events-none relative z-10">
           <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
@@ -259,9 +359,9 @@ export default function AgentConsole({
         </div>
 
         {view === "baselines" ? (
-          <ContrastView planValueCents={valueCents} />
+          <ContrastView metrics={liveMetrics} />
         ) : view === "benchmark" ? (
-          <BenchmarkView />
+          <BenchmarkView metrics={liveMetrics} />
         ) : failed && steps.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-error-fg">
             Could not build a plan. Try resetting.
@@ -341,7 +441,7 @@ export default function AgentConsole({
                         <div className="flex items-center gap-1.5">
                           <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: meta.color }} />
                           <span className="font-mono text-2xs font-semibold" style={{ color: meta.color }}>{meta.short}</span>
-                          <span className="rounded font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px" }}>{m.op}</span>
+                          <span className="rounded text-center font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px", display: "inline-block", minWidth: "54px" }}>{m.op}</span>
                           <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
                         </div>
                         <div className="mt-0.5 pl-3 font-mono text-2xs leading-relaxed text-[#bed2fa]/70">{m.detail}</div>
