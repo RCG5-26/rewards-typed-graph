@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration — Rewards Agent (RCG5-26/rewards-typed-graph)
-# Merge policy: passing CodeRabbit check on PRs to main (no human approval required).
-# See repo ruleset "main — CodeRabbit" and AGENTS.md.
+# Merge policy: see ruleset "main — protected" in AGENTS.md (CodeRabbit + apply-schema + 1 human approval).
+# See repo ruleset "main — protected" and AGENTS.md.
 
 language: "en-US"
 early_access: false

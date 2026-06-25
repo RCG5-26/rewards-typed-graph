@@ -20,7 +20,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Blocked on
 
-- nothing (work on mocks from Day 3; wire real events Days 5-7)
+- nothing. The backend API + live SSE are merged on `main` and documented — wire against them now (or keep mocks). Setup + contract: [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md). API base `http://localhost:8787`, `Authorization: Bearer <getToken()>`, `GET /mutations/stream` for the sidebar, `POST /plans` (synchronous full plan), `fixtures/mock-*.json` for offline.
 
 ---
 

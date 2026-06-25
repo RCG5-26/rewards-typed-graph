@@ -86,16 +86,18 @@ If anything in the spec is ambiguous, stop and add an **Open question** — do n
 
 **One source of truth per fact** — everything else links to it, never copies it:
 
-| Fact                                 | Lives in                                                        |
-| ------------------------------------ | --------------------------------------------------------------- |
-| Product scope / intent               | `project-overview.md`                                           |
-| Data model + contracts               | `../docs/architecture/schema-final.md` + `../schema/contracts/` |
-| Architecture boundaries / invariants | `architecture-context.md`                                       |
-| Decisions (index + durable)          | `decisions-log.md` + `../docs/adr/`                             |
-| Tasks + status (system of record)    | Linear (**RCG**)                                                |
-| What to build (a unit)               | `feature-specs/NN-*.md`                                         |
-| Current narrative / AI memory        | `progress-tracker.md` (+ `progress-archive.md`)                 |
-| Daily board                          | `../STATUS.md`                                                  |
+| Fact | Lives in |
+|---|---|
+| Product scope / intent | `project-overview.md` |
+| Data model + contracts | `../docs/architecture/schema-final.md` + `../schema/contracts/` |
+| Architecture boundaries / invariants | `architecture-context.md` |
+| Decisions (index + durable) | `decisions-log.md` + `../docs/adr/` |
+| Tasks + status (system of record) | Linear (**RCG**) |
+| What to build (a unit) | `feature-specs/NN-*.md` |
+| Current narrative / AI memory | `progress-tracker.md` (+ `progress-archive.md`) |
+| Daily lane status | Linear + `../tracking/<lane>.md` |
+| Standup snapshot | `../STATUS.md` (lead syncs from tracking + Linear) |
+| Backend local setup (operational) | `../docs/development/backend-local-setup.md` |
 
 **Two rules:** (1) link, don't duplicate — a copy is a future contradiction; (2) on any conflict, the locked docs (`schema-final.md`, `../docs/adr/`) and Linear win over the narrative docs.
 

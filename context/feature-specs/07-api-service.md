@@ -2,7 +2,7 @@
 
 - **Status:** Done
 - **Owner:** Raq (RCG-18)
-- **Depends on:** RCG-15 (orchestrator, done) · RCG-14/59 (mutation REST+SSE routes, done) · RCG-21 (redemption writer, done) · RCG-8 (seed, done) · RCG-28/29 (hero flow green — in progress)
+- **Depends on:** RCG-15 (orchestrator, done) · RCG-14/59 (mutation REST+SSE routes, done) · RCG-21 (redemption writer, done) · RCG-8 (seed, done) · RCG-28/29 (hero flow green — done)
 - **Related flows:** [`orchestration-flow.md`](../../docs/architecture/orchestration-flow.md) (happy path + hero moment); [`design-context.md`](../design-context.md) (API/event contracts)
 
 ---
@@ -214,11 +214,16 @@ curl -N localhost:$API_PORT/mutations/stream -H "Authorization: Bearer $TOKEN"
 
 ## Completion notes _(fill when done)_
 
-- **Completed:** 2026-06-24 _(remaining gate: manual `npm run dev` + real Clerk bearer curl — agent sandbox blocks server boot; all automated gates green)_
-- **PR / commit:** PR #29 (`raq/demo-mocks`)
-- **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (86 unit tests) + `typecheck` green. Live smoke against docker Postgres: session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job `completed`) → current-plan → demo-reset → re-run all pass.
+- **Completed:** 2026-06-24; merged to `main` via PR #29 (2026-06-25, `origin/main` @ f53aa36). Status **Done** (RCG-18). _Remaining gate: one browser run-through with a real Clerk bearer token — see below._
+- **PR / commit:** PR #29 (`raq/demo-mocks`) → `main` @ f53aa36.
+- **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/http/clerk-auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (86 unit tests) + `typecheck` green.
+- **Live verification (2026-06-25, Docker Postgres 16 + demo seed):**
+  - Via the bridge (the exact code the routes call): session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job) → current-plan → demo-reset (plans cleared) → re-run — all pass.
+  - **Via live HTTP** (`npm --prefix apps/api run dev` with `AUTH_DEV_USER_ID`): `GET /health` ok; `GET /session` → seeded user; `POST /plans` → 200 synchronous full plan (rev 1, 3 steps); `GET /plans/current` → rev 1; `GET /mutations?after=0` → events; `GET /mutations/stream` → real SSE frames (`id:` / `event: graph_mutation` / `data:`).
+  - Live hero integration test: `RUN_LIVE_POSTGRES_TESTS=1 python3 -m unittest tests.integration.test_hero_moment` → 2 passed.
+  - Operational runbook: [`docs/development/backend-local-setup.md`](../../docs/development/backend-local-setup.md).
 - **Deviations from spec:**
   - **Sync over async:** `POST /plans` returns `200` + full plan and `POST /balance-transfer` returns `200` + `currentPlan` (resolved Open question #2) — no `generating`/`202` poll window for the Jun 25 demo.
-  - **psql-subprocess bridge, not a Python DB driver:** `psycopg` is absent, so the bridge reuses the hero gate's `psql`-subprocess adapter (see §Implementation decision).
-  - **Test-resident seam import:** `bridge/hero_bridge.py` imports `tests/integration/hero_flow.py`; graduate to a non-test package post-demo.
-  - **Live server boot not auto-verified here:** `tsx`'s IPC pipe is sandbox-incompatible; verify `npm --prefix apps/api run dev` boots locally (typecheck + route tests cover the wiring).
+  - **psql-subprocess bridge, not a Python DB driver:** `psycopg` is absent, so the bridge reuses the hero gate's `psql`-subprocess adapter (see §Implementation decision). Production graph-write graduation tracked in RCG-66.
+  - **Test-resident seam import:** `bridge/hero_bridge.py` imports `tests/integration/hero_flow.py`; graduate to a non-test package post-demo (RCG-66).
+  - **Not yet verified:** the real Clerk-JWT path end to end — the live runs used the dev bypass (`AUTH_DEV_USER_ID`); no dev Clerk token was available. A browser run-through with a real token is the only remaining gate (RCG-32).

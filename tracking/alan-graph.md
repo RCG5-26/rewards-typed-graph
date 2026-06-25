@@ -2,7 +2,7 @@
 
 **Lane:** graph substrate (world / personal / plan), Postgres schema, mutation atomicity, dependency tracking, optimistic concurrency. **You are the critical path: everyone is blocked until the schema is locked and the mutation layer works.**
 
-Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
+Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this file only) — merge same day. Update **Linear** (RCG-##) to match. **Do not** edit `STATUS.md` in feature PRs — the lead syncs the standup grid from `tracking/` + Linear.
 
 ## Today
 
