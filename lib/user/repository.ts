@@ -128,6 +128,14 @@ function buildGraph(seed: DemoSeed, clerkId: string): UserGraph {
   return { user, balances, goals, holds };
 }
 
+/** Thrown when a Clerk session has no provisioned `users.clerk_id` row. */
+export class UnmappedUserError extends Error {
+  constructor(clerkId: string) {
+    super(`no user provisioned for clerk_id ${clerkId}`);
+    this.name = "UnmappedUserError";
+  }
+}
+
 // ── Fixture adapter (default) ──
 class FixtureUserRepository implements UserRepository {
   async getUserGraph(clerkId: string): Promise<UserGraph> {
@@ -151,16 +159,15 @@ class PostgresUserRepository implements UserRepository {
         `SELECT id, clerk_id, email, display_name FROM users WHERE clerk_id = $1 LIMIT 1`,
         [clerkId],
       );
-      let row = userRes.rows[0];
-      let isDemoPersona = false;
+      const row = userRes.rows[0];
+      // No silent fallback to "the first user": that would serve one account's
+      // balances/goals/cards to any unmapped Clerk session. The demo-persona
+      // fallback lives only in FixtureUserRepository; the Postgres path requires
+      // an explicitly provisioned `users.clerk_id` row.
       if (!row) {
-        const fallback: { rows: SeedUser[] } = await client.query(
-          `SELECT id, clerk_id, email, display_name FROM users ORDER BY created_at ASC LIMIT 1`,
-        );
-        row = fallback.rows[0];
-        isDemoPersona = true;
+        throw new UnmappedUserError(clerkId);
       }
-      if (!row) throw new Error("no users in database to resolve");
+      const isDemoPersona = false;
 
       const userId = row.id;
       const [balances, goals, holds] = await Promise.all([

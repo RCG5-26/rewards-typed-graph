@@ -160,7 +160,7 @@ App routes (Next, Node runtime, Clerk-gated). All read the swappable repositorie
 - `GET /api/cards` → `{ cards: CardView[] }` — the 19-card catalog (5 seed hero cards + 14 curated). `CardView`: `{ id, slug, name, bank, network, annualFeeCents, programName, currencyName, signupBonusPoints, rate, firstYearValueCents, face, accent }`.
 - `GET /api/me` → `UserGraph` `{ user, balances[], goals[], holds[] }` — Clerk session resolved to the seeded persona; `user` identity (name/avatar) overlaid from Clerk `currentUser()`.
 - `POST /api/plan` `{ queryText, selectedCardIds }` → `PlanResult` (REST source of truth; superset of the orchestrator's result + steps/mutations/graph).
-- `GET /api/plan/stream?q=&cards=&replan=1` → SSE: `meta` → `mutation`×N (~320ms) → `invalidation` (replan) → `done`. Observability stream the console subscribes to; swaps for `apps/api` `/mutations` SSE at the real-backend step.
+- `GET /api/plan/stream?q=&cards=&replan=1` → SSE, sequence depends on mode. Normal: `meta` → `mutation`×N (~320ms) → `done`. Replan (`replan=1`): `invalidation` → `meta` → `mutation`×N → `done`. Observability stream the console subscribes to; swaps for `apps/api` `/mutations` SSE at the real-backend step.
 
 ### NL query → plan (mock)
 

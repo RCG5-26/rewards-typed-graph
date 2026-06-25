@@ -29,6 +29,20 @@ export type GoalType =
 /** Maps 1:1 to `plan_steps.status` lifecycle tokens. */
 export type StepStatus = "proposed" | "current" | "stale" | "superseded";
 
+/**
+ * Plan revision lifecycle (maps 1:1 to `plans.status`, schema-final v3.1).
+ * Replan flow: active `current` → `stale`; the replacement revision is
+ * `generating` before it becomes `current`, and the prior revision ends
+ * `superseded`. `failed` is terminal. Keeping the full set here means the
+ * fixture→Postgres swap stays a wiring change, not a contract change.
+ */
+export type PlanStatus =
+  | "generating"
+  | "current"
+  | "stale"
+  | "superseded"
+  | "failed";
+
 export interface PlanStep {
   order: number;
   agentType: AgentType;
@@ -92,7 +106,7 @@ export interface PlanResult {
   // ── orchestrator-compatible header (placeholder ids until the real run) ──
   planId: string;
   planLineageId: string;
-  status: "current" | "failed";
+  status: PlanStatus;
   agentRunIds: string[];
   /** Plan revision number (1 = initial, 2 = after a replan). */
   revision: number;

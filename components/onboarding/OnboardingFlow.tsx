@@ -25,14 +25,22 @@ function dollars(cents: number): string {
 /** Eased count-up from the previous value to `target` whenever it changes. */
 function useCountUp(target: number, duration = 600): number {
   const [val, setVal] = useState(target);
-  const fromRef = useRef(target);
+  // Track the currently displayed value so a new animation starts from the
+  // current frame, not the last settled target (prevents backward jumps on
+  // quick toggles).
+  const valueRef = useRef(target);
   const reduced = useReducedMotion();
+
   useEffect(() => {
-    const from = fromRef.current;
+    valueRef.current = val;
+  }, [val]);
+
+  useEffect(() => {
+    const from = valueRef.current;
     if (from === target) return;
     if (reduced) {
       setVal(target);
-      fromRef.current = target;
+      valueRef.current = target;
       return;
     }
     let raf = 0;
@@ -40,9 +48,11 @@ function useCountUp(target: number, duration = 600): number {
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      setVal(Math.round(from + (target - from) * eased));
+      const nextVal = Math.round(from + (target - from) * eased);
+      valueRef.current = nextVal;
+      setVal(nextVal);
       if (t < 1) raf = requestAnimationFrame(tick);
-      else fromRef.current = target;
+      else valueRef.current = target;
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -141,7 +151,7 @@ export default function OnboardingFlow() {
           backgroundSize: "24px 24px",
           WebkitMaskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
           maskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
-          animation: "gpGridDrift 60s linear infinite",
+          animation: "gp-grid-drift 60s linear infinite",
         }}
       />
       <div className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full" style={{ background: "var(--blob-glow-lg)", opacity: 0.35 }} />
@@ -303,7 +313,7 @@ function CardsStep({
                     background: w.face,
                     zIndex: i,
                     boxShadow: "0 14px 32px -10px rgba(0,0,0,0.55)",
-                    animation: "gpCardIn 0.45s var(--spring-snappy, ease) both",
+                    animation: "gp-card-in 0.45s var(--spring-snappy, ease) both",
                   }}
                 >
                   <span className="absolute left-0 top-0 h-full w-1.5" style={{ background: w.accent }} />
@@ -340,7 +350,7 @@ function CardsStep({
               style={{
                 background: "linear-gradient(110deg, transparent 35%, var(--color-accent-muted) 50%, transparent 65%)",
                 backgroundSize: "220% 100%",
-                animation: "gpShimmer 3.6s linear infinite",
+                animation: "gp-shimmer 3.6s linear infinite",
                 opacity: 0.7,
               }}
             />
@@ -391,7 +401,7 @@ function AskStep({
   const ready = query.trim().length > 0;
   return (
     <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center px-14 pb-10 pt-10">
-      <div className="w-full max-w-[700px]" style={{ animation: "gpStepIn 0.5s var(--spring-snappy, ease) both" }}>
+      <div className="w-full max-w-[700px]" style={{ animation: "gp-step-in 0.5s var(--spring-snappy, ease) both" }}>
         <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
           step 02 · set the goal
         </div>
@@ -408,7 +418,11 @@ function AskStep({
 
         <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
           <span className="self-start pt-4 font-mono text-md text-accent-text">›</span>
+          <label htmlFor="goal-query" className="sr-only">
+            Describe what you want your points to do
+          </label>
           <textarea
+            id="goal-query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="fly LAX → Tokyo in business this fall using my points"

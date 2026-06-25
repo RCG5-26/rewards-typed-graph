@@ -97,6 +97,7 @@ export default function TopBar({
           className="flex items-center gap-2 rounded-full border border-subtle bg-surface py-1 pl-1 pr-2.5 shadow-xs transition hover:shadow-sm"
           aria-haspopup="menu"
           aria-expanded={open}
+          aria-label={`Account menu for ${displayName ?? "your account"}`}
         >
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -118,7 +119,7 @@ export default function TopBar({
           <div
             role="menu"
             className="absolute right-0 top-[calc(100%+8px)] w-48 overflow-hidden rounded-xl border border-subtle bg-surface shadow-float"
-            style={{ animation: "gpMenuIn 0.18s var(--spring-snappy, ease) both" }}
+            style={{ animation: "gp-menu-in 0.18s var(--spring-snappy, ease) both" }}
           >
             <div className="border-b border-subtle px-3.5 py-2.5">
               <div className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">signed in</div>

@@ -94,16 +94,18 @@ function genLights(): Light[] {
 /** Ordered traversal chain (active edges) → hubs with layout positions. */
 function buildChain(graph: PlanGraph): Hub[] {
   if (!graph.edges.length) return [];
+  const activeEdges = graph.edges.filter(
+    (e) => e.state !== "stale" && e.state !== "superseded",
+  );
   const next = new Map<string, string>();
   const tos = new Set<string>();
-  for (const e of graph.edges) {
-    if (e.state === "stale" || e.state === "superseded") continue;
+  for (const e of activeEdges) {
     next.set(e.from, e.to);
     tos.add(e.to);
   }
   let start: string | undefined;
-  for (const e of graph.edges) if (!tos.has(e.from)) { start = e.from; break; }
-  start ??= graph.edges[0]?.from;
+  for (const e of activeEdges) if (!tos.has(e.from)) { start = e.from; break; }
+  start ??= activeEdges[0]?.from;
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const ids: string[] = [];
   const seen = new Set<string>();

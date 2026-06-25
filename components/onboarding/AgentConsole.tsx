@@ -8,6 +8,7 @@ import type {
   MutationLogEntry,
   PlanGraph,
   PlanResult,
+  PlanStatus,
   PlanStep,
   StepStatus,
 } from "@/lib/plan/types";
@@ -77,6 +78,7 @@ export default function AgentConsole({
   const [mutations, setMutations] = useState<MutationLogEntry[]>([]);
   const [graph, setGraph] = useState<PlanGraph>({ nodes: [], edges: [] });
   const [lit, setLit] = useState<Set<string>>(new Set());
+  const [liveNodes, setLiveNodes] = useState(0);
   const [route, setRoute] = useState("");
   const [goalLabel, setGoalLabel] = useState("");
   const [valueCents, setValueCents] = useState(0);
@@ -112,6 +114,7 @@ export default function AgentConsole({
       const meta = JSON.parse((ev as MessageEvent).data) as Meta;
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
+      setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
       setRevision(meta.revision);
@@ -125,7 +128,7 @@ export default function AgentConsole({
 
     es.addEventListener("done", (ev) => {
       const d = JSON.parse((ev as MessageEvent).data) as {
-        status: "current" | "failed";
+        status: PlanStatus;
         planValueCents: number;
         route: string;
       };
@@ -156,7 +159,6 @@ export default function AgentConsole({
   }, [mutations]);
 
   const failed = status === "failed";
-  const liveNodes = lit.size;
 
   function triggerReplan() {
     if (replanned) return;
@@ -333,7 +335,7 @@ export default function AgentConsole({
                 {mutations.map((m) => {
                   const meta = AGENT_META[m.agentType];
                   return (
-                    <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gpRowIn 0.3s ease" }}>
+                    <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gp-row-in 0.3s ease" }}>
                       <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">

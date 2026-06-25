@@ -31,7 +31,7 @@ export interface CardView {
   rate: string;
   /**
    * Estimated net first-year value in cents, derived purely from seed fields:
-   * signup-bonus points valued at {@link CPP_CENTS}¢/pt, minus the annual fee.
+   * signup-bonus points valued at {@link CPP_BASIS_POINTS}, minus the annual fee.
    * Honest demo math — labelled "est." in the UI, not a guarantee.
    */
   firstYearValueCents: number;
@@ -41,8 +41,13 @@ export interface CardView {
   accent: string;
 }
 
-/** Cents-per-point used for the first-year value estimate. */
-export const CPP_CENTS = 1.5;
+/**
+ * Cents-per-point for the first-year value estimate, in integer basis points
+ * (1.50¢ = 150bp). Stored as an integer to match the schema's basis-point
+ * convention so the fixture→Postgres swap stays wiring-only. Value in cents =
+ * points × CPP_BASIS_POINTS / 100.
+ */
+export const CPP_BASIS_POINTS = 150;
 
 /** The data source for cards. Fixture today, Postgres when wired. */
 export interface CardsRepository {

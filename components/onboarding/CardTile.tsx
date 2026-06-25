@@ -47,7 +47,7 @@ export default function CardTile({
 
   return (
     <div
-      style={{ opacity: 0, animation: "gpCardIn 0.5s var(--spring-snappy, ease) forwards", animationDelay: `${index * 55}ms` }}
+      style={{ opacity: 0, animation: "gp-card-in 0.5s var(--spring-snappy, ease) forwards", animationDelay: `${index * 55}ms` }}
     >
       <button
         ref={ref}
@@ -101,7 +101,7 @@ export default function CardTile({
               }}
             >
               {selected && (
-                <span className="text-[13px] leading-none text-white" style={{ animation: "gpCheck 0.4s var(--spring-snappy, ease) both" }}>
+                <span className="text-[13px] leading-none text-white" style={{ animation: "gp-check 0.4s var(--spring-snappy, ease) both" }}>
                   ✓
                 </span>
               )}

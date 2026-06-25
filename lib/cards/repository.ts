@@ -14,7 +14,12 @@ import { promises as fs } from "fs";
 import path from "path";
 
 import { faceForSlug } from "./presentation";
-import { CPP_CENTS, type CardsRepository, type CardView } from "./types";
+import { CPP_BASIS_POINTS, type CardsRepository, type CardView } from "./types";
+
+/** Bonus-points value in cents at the demo CPP (integer basis points). */
+function bonusValueCents(signupBonusPoints: number | null): number {
+  return Math.round(((signupBonusPoints ?? 0) * CPP_BASIS_POINTS) / 100);
+}
 
 const BASIS_POINTS_PER_X = 10000;
 
@@ -86,8 +91,7 @@ function deriveRate(
 
 /** Net first-year estimate, in cents: bonus pts @ CPP minus annual fee. */
 function firstYearValueCents(card: SeedCard): number {
-  const bonusValue = Math.round((card.signup_bonus_points ?? 0) * CPP_CENTS);
-  return bonusValue - card.annual_fee_cents;
+  return bonusValueCents(card.signup_bonus_points) - card.annual_fee_cents;
 }
 
 function toCardView(seed: DemoSeed): CardView[] {
@@ -149,7 +153,12 @@ class PostgresCardsRepository implements CardsRepository {
                c.annual_fee_cents, c.signup_bonus_points,
                p.name AS program_name, p.currency_name,
                (
-                 SELECT (e.earn_rate_basis_points / 10000.0)::text || '× ' || lower(sc.name)
+                 -- Normalize to match the fixture adapter's label: trim a
+                 -- trailing ".0"/zeros so 30000bp → "3× travel", 15000bp →
+                 -- "1.5× travel" (no padded "3.0000000000000000×").
+                 SELECT trim(trailing '.' from
+                          trim(trailing '0' from (e.earn_rate_basis_points / 10000.0)::text))
+                        || '× ' || lower(sc.name)
                  FROM earns e
                  JOIN spend_categories sc ON sc.id = e.spend_category_id
                  WHERE e.credit_card_id = c.id
@@ -163,7 +172,6 @@ class PostgresCardsRepository implements CardsRepository {
       `);
       return result.rows.map((r) => {
         const { face, accent } = faceForSlug(r.slug);
-        const bonusValue = Math.round((r.signup_bonus_points ?? 0) * CPP_CENTS);
         return {
           id: r.id,
           slug: r.slug,
@@ -175,7 +183,8 @@ class PostgresCardsRepository implements CardsRepository {
           currencyName: r.currency_name,
           signupBonusPoints: r.signup_bonus_points,
           rate: r.rate ?? "—",
-          firstYearValueCents: bonusValue - r.annual_fee_cents,
+          firstYearValueCents:
+            bonusValueCents(r.signup_bonus_points) - r.annual_fee_cents,
           face,
           accent,
         };

@@ -25,7 +25,7 @@ img {
 }
 
 /* Streaming mutation-log row entrance (agent console). */
-@keyframes gpRowIn {
+@keyframes gp-row-in {
   from {
     opacity: 0;
     transform: translateY(-7px);
@@ -37,7 +37,7 @@ img {
 }
 
 /* Card tile staggered entrance (pick-cards grid). */
-@keyframes gpCardIn {
+@keyframes gp-card-in {
   from {
     opacity: 0;
     transform: translateY(14px) scale(0.97);
@@ -49,7 +49,7 @@ img {
 }
 
 /* Selected-check pop. */
-@keyframes gpCheck {
+@keyframes gp-check {
   0% {
     transform: scale(0) rotate(-30deg);
     opacity: 0;
@@ -65,7 +65,7 @@ img {
 }
 
 /* Step / panel entrance. */
-@keyframes gpStepIn {
+@keyframes gp-step-in {
   from {
     opacity: 0;
     transform: translateY(16px);
@@ -77,7 +77,7 @@ img {
 }
 
 /* Account-menu dropdown. */
-@keyframes gpMenuIn {
+@keyframes gp-menu-in {
   from {
     opacity: 0;
     transform: translateY(-6px) scale(0.98);
@@ -89,7 +89,7 @@ img {
 }
 
 /* Flowing sheen sweep (projected value panel). */
-@keyframes gpShimmer {
+@keyframes gp-shimmer {
   from {
     background-position: 220% 0;
   }
@@ -99,7 +99,7 @@ img {
 }
 
 /* Slow ambient ledger-grid drift. */
-@keyframes gpGridDrift {
+@keyframes gp-grid-drift {
   from {
     background-position: 0 0;
   }
@@ -109,7 +109,7 @@ img {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  @keyframes gpRowIn {
+  @keyframes gp-row-in {
     from {
       opacity: 0;
     }
