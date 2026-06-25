@@ -64,6 +64,14 @@ AUTH_DEV_USER_ID=00000000-0000-0000-0000-00000000a001 npm --prefix apps/api run 
 npm run dev                                                                            # web on :3000
 ```
 
+## Deploy the demo (Railway)
+
+The API ships as a container (root [`Dockerfile`](Dockerfile)) alongside managed
+Postgres. Setup, required variables, schema/seed, verification, and frontend
+handoff live in one place:
+
+**→ [`docs/deployment/railway.md`](docs/deployment/railway.md)** (RCG-60)
+
 ## Frontend (interim layout)
 
 The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy. To wire the shell to the live API (base URL, Clerk token header, route contract, SSE, mock fixtures), follow [`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md) § Frontend integration.
