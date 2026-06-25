@@ -19,7 +19,7 @@ const LIST_MUTATION_EVENTS_SQL = `SELECT id, mutation_txn_id, user_id, plan_line
 export async function listMutationEvents(
   client: QueryClient,
   userId: string,
-  after: number | string = 0,
+  after: string = "0",
   limit = 100,
 ) {
   const result = await client.query(LIST_MUTATION_EVENTS_SQL, [

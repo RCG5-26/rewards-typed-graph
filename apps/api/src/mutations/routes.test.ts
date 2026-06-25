@@ -79,28 +79,23 @@ describe("mutation routes", () => {
     const { app, calls } = createTestApp();
 
     const response = await app.request("/mutations?after=123");
-    expect(response.status).toBe(200);
-    const events = (await response.json()) as unknown[];
 
-    expect(Array.isArray(events)).toBe(true);
-    for (const event of events) {
-      expect(
-        validateMutationEvent(event),
-        JSON.stringify(validateMutationEvent.errors),
-      ).toBe(true);
-    }
-    expect(events).toEqual([
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as unknown[];
+
+    expect(Array.isArray(payload)).toBe(true);
+    expect(payload).toEqual([
       expect.objectContaining({
         event_id: "124",
         mutation_type: "TransferPoints",
       }),
     ]);
-    for (const event of events) {
+    for (const event of payload) {
       expect(validate(event), JSON.stringify(validate.errors)).toBe(true);
     }
     expect(calls[0]?.params).toEqual([
       "00000000-0000-0000-0000-000000000002",
-      123,
+      "123",
       100,
     ]);
   });
@@ -114,7 +109,21 @@ describe("mutation routes", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it.each(["abc", "Infinity", "1.5", String(Number.MAX_SAFE_INTEGER + 1)])(
+  it("accepts REST mutation cursors beyond JavaScript safe integer range", async () => {
+    const largeCursor = "9007199254740993";
+    const { app, calls } = createTestApp();
+
+    const response = await app.request(`/mutations?after=${largeCursor}`);
+
+    expect(response.status).toBe(200);
+    expect(calls[0]?.params).toEqual([
+      "00000000-0000-0000-0000-000000000002",
+      largeCursor,
+      100,
+    ]);
+  });
+
+  it.each(["abc", "Infinity", "1.5"])(
     "rejects invalid REST mutation cursors before querying: %s",
     async (after) => {
       const { app, calls } = createTestApp();
@@ -159,9 +168,64 @@ describe("mutation routes", () => {
     ]);
     expect(calls[0]?.params).toEqual([
       "00000000-0000-0000-0000-000000000002",
-      123,
+      "123",
       100,
     ]);
+  });
+
+  it("advances SSE replay cursor with the raw event id string", async () => {
+    vi.useFakeTimers();
+    const largeEventId = "9007199254740993";
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const client = {
+      async query(sql: string, params: unknown[]) {
+        calls.push({ sql, params });
+        if (calls.length === 1) {
+          return {
+            rows: [
+              {
+                ...eventRow,
+                id: largeEventId,
+              },
+            ],
+          };
+        }
+
+        return { rows: [] };
+      },
+    };
+    const app = new Hono<MutationRouteEnv>();
+    const abortController = new AbortController();
+
+    app.use("*", async (c, next) => {
+      c.set("userId", "00000000-0000-0000-0000-000000000002");
+      await next();
+    });
+    app.route("/", createMutationRoutes(client, { pollIntervalMs: 10 }));
+
+    const response = await app.request("/mutations/stream", {
+      headers: {
+        "Last-Event-ID": "9007199254740992",
+      },
+      signal: abortController.signal,
+    });
+
+    expect(response.status).toBe(200);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(calls[0]?.params).toEqual([
+      "00000000-0000-0000-0000-000000000002",
+      "9007199254740992",
+      100,
+    ]);
+    expect(calls[1]?.params).toEqual([
+      "00000000-0000-0000-0000-000000000002",
+      largeEventId,
+      100,
+    ]);
+
+    abortController.abort();
+    await response.body?.cancel();
   });
 
   it("rejects SSE mutation streams when no user is present", async () => {
@@ -196,7 +260,25 @@ describe("mutation routes", () => {
     ).toBe(true);
   });
 
-  it.each(["abc", "Infinity", "1.5", String(Number.MAX_SAFE_INTEGER + 1)])(
+  it("accepts SSE replay cursors beyond JavaScript safe integer range", async () => {
+    const largeCursor = "9007199254740993";
+    const { app, calls } = createTestApp();
+
+    const response = await app.request("/mutations/stream", {
+      headers: {
+        "Last-Event-ID": largeCursor,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(calls[0]?.params).toEqual([
+      "00000000-0000-0000-0000-000000000002",
+      largeCursor,
+      100,
+    ]);
+  });
+
+  it.each(["abc", "Infinity", "1.5"])(
     "rejects invalid SSE replay cursors before querying: %s",
     async (lastEventId) => {
       const { app, calls } = createTestApp();

@@ -33,7 +33,7 @@ describe("listMutationEvents", () => {
     const events = await listMutationEvents(
       client,
       "00000000-0000-0000-0000-000000000002",
-      123,
+      "123",
     );
 
     expect(calls).toHaveLength(1);
@@ -47,7 +47,7 @@ describe("listMutationEvents", () => {
  LIMIT $3`);
     expect(calls[0]?.params).toEqual([
       "00000000-0000-0000-0000-000000000002",
-      123,
+      "123",
       100,
     ]);
     expect(events).toEqual([

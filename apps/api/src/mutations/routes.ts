@@ -48,7 +48,7 @@ export function createMutationRoutes(
         const sendAvailableEvents = async () => {
           const events = await listMutationEvents(client, userId, cursor);
           for (const event of events) {
-            cursor = parseMutationCursor(event.event_id);
+            cursor = event.event_id;
             controller.enqueue(encoder.encode(formatSseEvent(event)));
           }
         };
@@ -117,17 +117,7 @@ function parseMutationCursor(rawCursor: string | undefined) {
     throw new HTTPException(400, { message: "invalid mutation cursor" });
   }
 
-  const parsedCursor = Number(cursor);
-  if (
-    Number.isNaN(parsedCursor) ||
-    !Number.isFinite(parsedCursor) ||
-    !Number.isInteger(parsedCursor) ||
-    !Number.isSafeInteger(parsedCursor)
-  ) {
-    throw new HTTPException(400, { message: "invalid mutation cursor" });
-  }
-
-  return parsedCursor;
+  return cursor;
 }
 
 function formatSseEvent(event: { event_id: string }) {
