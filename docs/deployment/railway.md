@@ -25,7 +25,9 @@ Modular monolith (ADR 0004). Only two services are deployed for the demo:
 |---|---|---|
 | **API** (`apps/api`) | Long-lived container from the root [`Dockerfile`](../../Dockerfile) | Hono + TypeScript under `tsx`; **min instances = 1, no scale-to-zero** |
 | **PostgreSQL** | Railway managed database | Persistent; not an ephemeral co-located container |
-| Web (`app/`) | _not deployed yet_ | Frontend does not consume the API yet — see [Frontend handoff](#frontend-handoff) |
+| **Web** (`app/`, repo root) | Nixpacks service via [`railway.json`](../../railway.json) | Next.js BFF; **database-less** — no `DATABASE_URL`; calls the live API server-side |
+
+> **`apps/web` migration deferred post-demo.** ADR 0004 planned migrating the Next.js root to `apps/web`, but the move was deferred to avoid a demo-day build risk. Web deploys from the repo root for the Jun 29 demo.
 
 **Why always-on (no scale-to-zero):** the API process owns the SSE stream
 (`/mutations/stream`), the replan worker path, and the Python hero-bridge
@@ -181,22 +183,31 @@ real Clerk token; not yet executed.
 
 ---
 
-## Frontend handoff
+## Web service — required variables
 
-- **Hosted API URL:** published as the Railway API service URL after deploy.
-- **Frontend env var:** the web app must read `NEXT_PUBLIC_API_BASE_URL` and
-  point it at the hosted API URL. **It does not yet** — the root Next.js app
-  references no `NEXT_PUBLIC_API_BASE_URL` and makes no API fetch calls.
-- **Clerk:** the browser uses `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (+ sign-in/up
-  URL vars). `CLERK_SECRET_KEY` stays server-side only — never a
-  `NEXT_PUBLIC_*` variable.
-- **CORS:** keep the API's `CORS_ORIGIN` set to an exact temporary approved
-  origin until the real web origin exists, then update it to the deployed web
-  origin and redeploy the API.
+Set these on the **Railway web service** (not the API service). No `DATABASE_URL`
+— the web tier is intentionally database-less (KTD-5; persona authoritative from the API).
 
-**Current blocker:** web deployment and browser verification are blocked until
-the frontend consumes `NEXT_PUBLIC_API_BASE_URL` (Val-owned). The backend API
-URL will be available for that work as soon as the API is deployed.
+| Variable | Purpose |
+|---|---|
+| `API_BASE_URL` | Live Hono API URL — **server-only, NOT `NEXT_PUBLIC_*`** (BFF; browser never calls Hono directly). Value: `https://api-production-d6f4c.up.railway.app` |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk client SDK |
+| `CLERK_SECRET_KEY` | Clerk server-side verification — **never `NEXT_PUBLIC_*`** |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/` |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/` |
+
+After deploying, update the API service's `CORS_ORIGIN` to the exact deployed web origin and redeploy the API.
+
+Add the deployed web origin to **Clerk Dashboard → Allowed Origins** (and the allowed redirect URLs for sign-in/up).
+
+## Frontend handoff (historical — now wired)
+
+- **Hosted API URL:** `https://api-production-d6f4c.up.railway.app`
+- **Key correction from earlier docs:** the BFF proxy uses **`API_BASE_URL`** (server-only), not `NEXT_PUBLIC_API_BASE_URL`. The browser never contacts the Hono API directly.
+- **Clerk:** browser uses `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. `CLERK_SECRET_KEY` stays server-side only on both the API and web services.
+- **CORS:** not required for the BFF path (Next server → Hono server); only needed if any browser-direct API call exists (none in the current design).
 
 ---
 
