@@ -79,19 +79,17 @@ describe("mutation routes", () => {
     const { app, calls } = createTestApp();
 
     const response = await app.request("/mutations?after=123");
+    expect(response.status).toBe(200);
     const events = (await response.json()) as unknown[];
 
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-
-    expect(Array.isArray(payload)).toBe(true);
-    for (const event of payload as unknown[]) {
+    expect(Array.isArray(events)).toBe(true);
+    for (const event of events) {
       expect(
         validateMutationEvent(event),
         JSON.stringify(validateMutationEvent.errors),
       ).toBe(true);
     }
-    expect(payload).toEqual([
+    expect(events).toEqual([
       expect.objectContaining({
         event_id: "124",
         mutation_type: "TransferPoints",

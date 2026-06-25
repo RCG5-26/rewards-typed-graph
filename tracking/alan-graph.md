@@ -29,7 +29,6 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Verify spec 03 / RCG-14/25 checklist with route-level SSE payload and replay coverage.
 - Tighten mutation route review coverage for REST schema validation and missing-user rejection.
 - Raise the Hono dependency floor to `^4.12.27` for path/static-file security advisories.
-- Add RCG-52 graph-lane eval instrumentation for structural invalidation evidence and token totals.
 
 ## Next
 

@@ -42,7 +42,6 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] RCG-14/25 spec 03 compliance pass — 2026-06-24 — added stream-boundary coverage for schema-valid SSE payloads and replay frames.
 - [x] Mutation routes review follow-up — 2026-06-24 — REST replay events now validate against `mutationEventSchema`; route tests cover missing-user rejection.
 - [x] Hono security range hardening — 2026-06-24 — raised API manifest floor to `^4.12.27` for Hono path/static-file advisories.
-- [x] RCG-52 graph eval instrumentation — 2026-06-25 — added read-only benchmark helper for structural invalidation evidence, token totals, and graph mutation/job counts.
 - [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
 - [ ] [Unit / milestone] — [date] — [note]
 
@@ -111,7 +110,6 @@ Brief bullets from recent work sessions. Trim when stale.
 - 2026-06-24: Verified spec 03 / RCG-14/25 checklist against the mutation API and added route-level SSE payload/replay compliance coverage.
 - 2026-06-24: Addressed mutation-route review nits with schema validation on REST replay payloads and unauthenticated REST/SSE route coverage.
 - 2026-06-24: Bumped the declared Hono dependency range to `^4.12.27`; production `npm audit --omit=dev` reports no vulnerabilities.
-- 2026-06-25: Added RCG-52 graph-lane eval instrumentation in `benchmark/graph_instrumentation.py`; live hero tests now assert the helper can score pending invalidation evidence from Postgres when enabled.
 
 ---
 

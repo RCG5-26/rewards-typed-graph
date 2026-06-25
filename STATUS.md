@@ -37,12 +37,12 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 Update only your own row. Format: short phrases, not paragraphs.
 _Rows reflect repo + Linear evidence; each owner confirms/edits their own line at standup._
 
-| Person                           | Yesterday                                                                      | Today                                                                                                  | Blocked on               |
-| -------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------ |
-| Alan · Graph                     | RCG-14 mutation replay/SSE scaffold; mutation route review/security follow-ups | Implement RCG-52 graph-lane eval instrumentation for structural invalidation evidence and token totals | nothing                  |
-| Val · Frontend                   | kickoff                                                                        | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27)                        | nothing (works on mocks) |
-| Michael · Redemption             | kickoff                                                                        | Paper-design redemption traversal (RCG-20); does not wait on lock                                      | nothing                  |
-| Raq · Orchestrator (owner, lead) | kickoff                                                                        | Review schema; scaffold orchestrator + agent harness (RCG-15)                                          | schema draft from Alan   |
+| Person | Yesterday | Today | Blocked on |
+|---|---|---|---|
+| Alan · Graph | RCG-14 mutation replay/SSE scaffold | Verify spec 03 / RCG-14/25 compliance; harden SSE polling/cursors; tighten mutation route auth/schema coverage; raise Hono floor for security advisories | nothing |
+| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
+| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
+| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
 
 ---
 
