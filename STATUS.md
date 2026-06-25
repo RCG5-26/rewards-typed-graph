@@ -48,7 +48,7 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 | Alan · Graph | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish | nothing |
 | Val · Frontend | Wired console plan routes to live orchestrator API + real `graph_mutations` (RCG-27/25/26, fixture fallback); live-derived baselines/benchmark; canvas polish | Browser run-through with real Clerk token (RCG-32); native node-id lighting follow-up | nothing — see backend-local-setup guide |
 | Michael · Redemption | RCG-21 graph-writer merged | Benchmark fixture work (RCG-33) | nothing |
-| Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff | nothing |
+| Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff; RCG-35 single-agent baseline runner | nothing |
 
 ---
 
