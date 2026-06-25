@@ -51,6 +51,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 | Item                               | Owner | Blocked on                 | Notes                                                              |
 | ---------------------------------- | ----- | -------------------------- | ------------------------------------------------------------------ |
+| **RCG-18** API service (spec 07)   | Raq   | manual dev-server Clerk curl | `raq/demo-mocks`; 86 `npm test` unit tests + typecheck green; persona bootstrap + hero bridge verified on live Postgres |
 | **RCG-28/29/32** hero path         | Raq   | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
 | **RCG-11-14** graph infrastructure | Alan  | -                          | OCC, traversal, deps, mutation log                                 |
 | **RCG-24/27/26** demo UI on mocks  | Val   | Alan RCG-14 event shape    | Clerk auth on `main`; parallel to hero                             |
@@ -110,6 +111,7 @@ Brief bullets from recent work sessions. Trim when stale.
 - 2026-06-24: Verified spec 03 / RCG-14/25 checklist against the mutation API and added route-level SSE payload/replay compliance coverage.
 - 2026-06-24: Addressed mutation-route review nits with schema validation on REST replay payloads and unauthenticated REST/SSE route coverage.
 - 2026-06-24: Bumped the declared Hono dependency range to `^4.12.27`; production `npm audit --omit=dev` reports no vulnerabilities.
+- 2026-06-24: Implemented spec 07 HTTP service (RCG-18) — Hono server with Clerk auth, `PlanService` port, `BridgePlanService` (psql-subprocess bridge to `hero_flow.py`), all six routes, SSE/REST mutation mount; 86 `npm test` unit tests + typecheck green. Remaining gate: live Clerk smoke-test.
 
 ---
 

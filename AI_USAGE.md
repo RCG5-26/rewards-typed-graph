@@ -428,3 +428,70 @@ cd apps/api && npm run typecheck
 ### Deferred / unchanged
 
 No production contracts changed. All deferred items from Entry 005 remain unchanged. The fingerprint fix is in the in-memory double only; the production adapter (spec 02) will implement fingerprinting inside the database transaction using a server-side stable serialization strategy.
+
+---
+
+## Entry 008 — Spec 07 API Service Implementation (2026-06-24)
+
+**Task:** Implement the demo-shell HTTP service per `context/feature-specs/07-api-service.md` (RCG-18)
+**Branch:** `raq/demo-mocks`
+**Commit:** `feat(api): implement spec 07 sync HTTP surface + hero bridge (RCG-18)`
+**Files created:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`
+**Files updated:** `apps/api/package.json`, `apps/api/package-lock.json`, `.env.example`, `context/feature-specs/07-api-service.md`, `fixtures/mock-plan.json`, `fixtures/mock-mutation-events.json`
+**Production code changed:** Yes
+
+### Tools used
+
+- Cursor Agent — spec 07 implementation (`2d7afa6`): routes, bridge, server, mocks, spec amendments
+- Claude Code (Sonnet 4.6) — ce-work verification pass: re-ran 75 TS + 22 Python unit tests, typecheck; documented decisions and remaining gates
+
+### Test evidence
+
+`src/plans/routes.test.ts` exercises all six plan routes via an in-memory `PlanService` fake (no DB/Python). Suite is part of commit `2d7afa6` and gates HTTP validation + error-code mapping.
+
+### Implementation decisions
+
+1. **Option B (psql-subprocess bridge)**: `psycopg` not installed; reused the exact `_PsqlConnection` / `_PsqlCursor` adapter from `tests/integration/test_hero_moment.py`. Bridge lives at `apps/api/bridge/hero_bridge.py`; spawned once per request by `BridgePlanService`.
+2. **`PlanService` port** (`src/plans/service.ts`): routes depend only on this interface → unit-tested with an in-memory fake, no DB or Python required.
+3. **Synchronous `200` for `POST /plans` and `POST /balance-transfer`**: resolved Open Question #2 from the spec; the bridge builds and commits the plan in-request.
+4. **Single projection source**: Python bridge owns both reads and writes and returns the `PlanView` shape. TypeScript only marshals args, parses the `{ok, data|error}` envelope, and maps `error.code` → `PlanServiceError` → HTTP status.
+5. **`AUTH_DEV_USER_ID` local bypass**: `server.ts` short-circuits Clerk verification when this env var is set, so the API is curl-testable without a real Clerk token.
+6. **Bridge import path**: `hero_bridge.py` prepends `REPO_ROOT` to `sys.path`; `BridgePlanService` also sets spawn `cwd` + `PYTHONPATH` so `schema.*` and `tests.integration.*` resolve reliably.
+7. **Route ordering**: `GET /plans/current` registered before `GET /plans/:planId` to avoid Hono matching `current` as a param.
+
+### Validation commands and results
+
+```bash
+npm --prefix apps/api test
+# 75 tests, 8 test files — all passed
+
+npm --prefix apps/api run typecheck
+# exit 0 — 0 errors
+
+python3 -m unittest tests.test_v31_mutations -v
+# 22 tests passed, 1 skipped (live Postgres — expected without RUN_LIVE_POSTGRES_TESTS=1)
+```
+
+### Remaining manual gates (blocks "Done" status)
+
+1. **Live Clerk token smoke-test** — `CLERK_SECRET_KEY` not exercised in CI/sandbox:
+
+```bash
+npm --prefix apps/api run dev
+curl -s localhost:8787/session -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8787/plans -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"query":"Best way to Tokyo in October?"}'
+```
+
+2. **`GET /session` persona bootstrap clone** — implemented: new Clerk users (`clerkId` only) trigger idempotent persona clone from `fixtures/demo-seed.json` (balances, statuses, goals, holds). Verified live against docker Postgres + bridge smoke. Clerk JWT path unit-tested via `clerk-auth.test.ts` (mocked `verifyToken`).
+
+Live Postgres hero smoke (session → create-plan → balance-transfer → demo-reset) passed against docker-compose. **Remaining gate:** manual `npm --prefix apps/api run dev` + real Clerk bearer curl (blocked in agent sandbox for server boot; run locally).
+
+### Files not touched (per spec touch list)
+
+`STATUS.md`, `tracking/`, other feature specs, schema DDL, Python graph-write behavior, existing mutation route behavior, `apps/web/**`.
+
+### Deferred
+
+- Graduate `tests/integration/hero_flow.py` to a non-test package (`agents/hero/`) post-demo — bridge import path is the only line to change.
+- Live `tsx` server boot auto-verification — `tsx`'s IPC pipe is sandbox-incompatible; verify manually with `npm --prefix apps/api run dev`.
