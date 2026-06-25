@@ -8,6 +8,7 @@
 
 - **Spec-driven:** implement against `context/` files and `feature-specs/` — do not invent product behavior.
 - **Incremental:** small, verifiable steps over large speculative changes.
+- **Test-first (TDD):** every change is test-driven — write a failing test first, then the code to pass it. This is repo-wide, not just spec work; specs that name tests are the concrete instance. Canonical policy: [`code-standards.md`](code-standards.md) → Testing (CI enforces all suites + diff coverage; the PR red-phase attestation enforces ordering).
 - **Docs follow code:** when implementation changes architecture, scope, or rules, update context _before_ moving on.
 
 ---

@@ -71,9 +71,19 @@ _Fill for your stack. Delete sections that don't apply._
 
 ## Testing
 
-- **Required before merge:** [unit / integration / e2e / manual checklist]
-- **Coverage expectation:** [none / critical paths / % target]
-- [How to run: `npm test`, `pytest`, etc.]
+**TDD is the team standard (canonical policy — ADR [0009](../docs/adr/0009-tdd-enforcement.md)).**
+
+- **Test-first.** Write a failing test before the code that makes it pass, then refactor (red → green → refactor). Every new function or behavior ships with a test in the same PR. Record the red phase as the PR template's attestation (mirrors the Spec 05 `AI_USAGE.md` pattern).
+- **Required before merge (enforced in CI by `.github/workflows/tests.yml`):**
+  - All three suites pass: web Vitest, `apps/api` Vitest, Python `unittest`.
+  - **Diff coverage:** changed lines must be ≥ 90% covered (the real "new code is tested" gate, across all stacks).
+  - **Ratchet:** total coverage must not drop below each stack's seeded floor (Vitest `coverage.thresholds`, `.coveragerc` `fail_under`). Raise floors as coverage improves; never lower them to pass.
+- **How to run locally:**
+  - Web: `npm run test:coverage`
+  - API: `cd apps/api && npm run test:coverage`
+  - Python: `npm run test:py` (i.e. `python3 -m coverage run -m unittest discover -s tests && python3 -m coverage xml`)
+- **What CI can and can't enforce:** CI proves tests exist, pass, and cover changed lines. It cannot prove tests were written *first* — that is enforced by the PR red-phase attestation plus CodeRabbit/human review.
+- **Test quality:** prefer behavioral assertions over string-grepping SQL; schema tests apply `schema.sql` to PostgreSQL 16 when possible. Don't weaken or delete assertions to pass a gate.
 
 ---
 
