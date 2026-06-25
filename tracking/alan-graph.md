@@ -29,6 +29,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 - Verify spec 03 / RCG-14/25 checklist with route-level SSE payload and replay coverage.
 - Tighten mutation route review coverage for REST schema validation and missing-user rejection.
 - Raise the Hono dependency floor to `^4.12.27` for path/static-file security advisories.
+- Add RCG-52 graph-lane eval instrumentation for structural invalidation evidence and token totals.
 
 ## Next
 
@@ -53,18 +54,19 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## My tickets
 
-| ID | Task | Phase | Done when |
-|---|---|---|---|
-| RCG-6 | Draft schema spec (node/edge types, attrs, versioning, validation) | Day 1 | reviewed; feeds the lock |
-| RCG-5 | Schema lock (co-own with Raq) | Day 1 | all four lanes sign off |
-| RCG-7 | Canonical schema artifact (DDL + TS/Python types) | Day 1 | committed; both stacks validate against it |
-| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | merged to main; shared loader + opt-in persona |
-| RCG-9 | Postgres v3.1 table-per-type + docker-compose dev DB | Day 1-5 | schema on main; `docker compose` + `DATABASE_URL` in PR #27 |
-| RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5 | invalid mutations rejected before commit |
-| RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry) | Day 1-5 | stale-version commit rejected; retries bounded |
-| RCG-12 | Recursive-CTE traversal + query helpers | Day 1-5 | multi-hop paths returned at MVP scale |
-| RCG-13 | Dependency-edge tracking on plan nodes (~250 lines, plan nodes only) | Day 3-5 | stale detection works; no transitive propagation |
-| RCG-14 | Append-only mutation/event log (powers sidebar + audit) | Day 1-5 | every commit logged; Val can subscribe |
+| ID     | Task                                                                      | Phase    | Done when                                                                 |
+| ------ | ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
+| RCG-6  | Draft schema spec (node/edge types, attrs, versioning, validation)        | Day 1    | reviewed; feeds the lock                                                  |
+| RCG-5  | Schema lock (co-own with Raq)                                             | Day 1    | all four lanes sign off                                                   |
+| RCG-7  | Canonical schema artifact (DDL + TS/Python types)                         | Day 1    | committed; both stacks validate against it                                |
+| RCG-8  | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs                  | Day 1    | merged to main; shared loader + opt-in persona                            |
+| RCG-9  | Postgres v3.1 table-per-type + docker-compose dev DB                      | Day 1-5  | schema on main; `docker compose` + `DATABASE_URL` in PR #27               |
+| RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5  | invalid mutations rejected before commit                                  |
+| RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry)  | Day 1-5  | stale-version commit rejected; retries bounded                            |
+| RCG-12 | Recursive-CTE traversal + query helpers                                   | Day 1-5  | multi-hop paths returned at MVP scale                                     |
+| RCG-13 | Dependency-edge tracking on plan nodes (~250 lines, plan nodes only)      | Day 3-5  | stale detection works; no transitive propagation                          |
+| RCG-14 | Append-only mutation/event log (powers sidebar + audit)                   | Day 1-5  | every commit logged; Val can subscribe                                    |
+| RCG-52 | Graph-lane eval instrumentation                                           | Day 7-10 | eval harness can score structural invalidation evidence from graph tables |
 
 ## My open schema decisions to drive
 
