@@ -131,14 +131,33 @@ function parseTransferInput(body: unknown): BalanceTransferInput {
   if (
     typeof amountPoints !== "number" ||
     !Number.isInteger(amountPoints) ||
+    !Number.isSafeInteger(amountPoints) ||
     amountPoints <= 0
   ) {
     throw new HTTPException(400, {
-      message: "amountPoints must be a positive integer",
+      message: "amountPoints must be a positive safe integer",
     });
   }
 
-  return { sourceProgramId, destProgramId, amountPoints };
+  let idempotencyKey: string | undefined;
+  if (record.idempotencyKey !== undefined) {
+    if (
+      typeof record.idempotencyKey !== "string" ||
+      record.idempotencyKey.trim().length === 0
+    ) {
+      throw new HTTPException(400, {
+        message: "idempotencyKey must be a non-empty string when provided",
+      });
+    }
+    idempotencyKey = record.idempotencyKey.trim();
+  }
+
+  return {
+    sourceProgramId,
+    destProgramId,
+    amountPoints,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  };
 }
 
 /** Require a non-empty string id field from a JSON body or query param. */

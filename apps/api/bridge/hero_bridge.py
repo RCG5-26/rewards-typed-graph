@@ -18,6 +18,7 @@ owns the single DB→view projection so reads and writes never drift.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -359,6 +360,7 @@ def do_session(
         )
         if not rows:
             raise BridgeError("not_found", f"user not found: {user_id}")
+        _ensure_persona_seeded(user_id)
         return {"userId": user_id, "clerkId": rows[0][0], "seeded": True}
 
     if clerk_id:
@@ -637,6 +639,7 @@ def do_balance_transfer(
     source_program_id: str,
     dest_program_id: str,
     amount_points: int,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Transfer points, stale the prior plan, re-plan, and return the sync result."""
     connection = _PsqlConnection()
@@ -648,6 +651,14 @@ def do_balance_transfer(
         raise BridgeError("validation", "no current plan to re-plan")
     prior: HeroPlanSnapshot = _plan_snapshot(connection, prior_plan_id)
 
+    transfer_key, request_hash = _resolve_transfer_idempotency(
+        user_id=user_id,
+        source_program_id=source_program_id,
+        dest_program_id=dest_program_id,
+        amount_points=amount_points,
+        idempotency_key=idempotency_key,
+    )
+
     transfer = BalanceTransferSpec(
         actor="wallet_agent",
         user_id=user_id,
@@ -656,8 +667,8 @@ def do_balance_transfer(
         amount_points=amount_points,
         source_expected_version=source_version,
         dest_expected_version=dest_version,
-        idempotency_key=str(uuid.uuid4()),
-        request_hash=uuid.uuid4().hex,
+        idempotency_key=transfer_key,
+        request_hash=request_hash,
     )
 
     new_plan = replan_after_balance_transfer(
@@ -674,6 +685,37 @@ def do_balance_transfer(
         "replanJobId": _replan_job_id(prior.plan_id),
         "currentPlan": current_plan,
     }
+
+
+def _resolve_transfer_idempotency(
+    *,
+    user_id: str,
+    source_program_id: str,
+    dest_program_id: str,
+    amount_points: int,
+    idempotency_key: str | None,
+) -> tuple[str, str]:
+    """Return a stable idempotency key and request hash for one transfer intent."""
+    canonical = {
+        "user_id": user_id,
+        "source_program_id": source_program_id,
+        "dest_program_id": dest_program_id,
+        "amount_points": amount_points,
+    }
+    request_hash = hashlib.sha256(
+        json.dumps(canonical, sort_keys=True).encode()
+    ).hexdigest()
+    if idempotency_key is not None:
+        key = idempotency_key.strip()
+        if not key:
+            raise BridgeError("validation", "idempotencyKey must be non-empty when provided")
+        return key, request_hash
+
+    # Same transfer body retries dedupe even when the client omits an explicit key.
+    return (
+        str(uuid.uuid5(uuid.NAMESPACE_URL, f"balance-transfer:{request_hash}")),
+        request_hash,
+    )
 
 
 def _replan_job_id(source_plan_id: str) -> str | None:
@@ -730,6 +772,7 @@ def build_parser() -> argparse.ArgumentParser:
     transfer.add_argument("--source-program-id", required=True)
     transfer.add_argument("--dest-program-id", required=True)
     transfer.add_argument("--amount", required=True, type=int)
+    transfer.add_argument("--idempotency-key")
     return parser
 
 
@@ -757,6 +800,7 @@ def dispatch(args: argparse.Namespace) -> Any:
             args.source_program_id,
             args.dest_program_id,
             args.amount,
+            idempotency_key=args.idempotency_key,
         )
     raise BridgeError("validation", f"unknown command: {args.command}")
 

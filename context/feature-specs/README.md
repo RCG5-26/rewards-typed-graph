@@ -50,6 +50,6 @@ A spec is **Ready** when another developer or agent could implement it without a
 | 04  | [redemption traversal](04-redemption-traversal.md)         | Draft  | Michael    | RCG-20, RCG-21        | 02, RCG-22/23  |
 | 05  | [orchestrator + agent harness](05-orchestrator-harness.md) | Draft  | Raq        | RCG-15                | 02 (interface) |
 | 06  | [wallet + earning agents](06-wallet-and-earning-agents.md) | Draft  | Raq        | RCG-16, RCG-17        | 02, 05         |
-| 07  | [API service (HTTP surface)](07-api-service.md)            | Ready  | Raq        | RCG-18                | 05, RCG-28/29  |
+| 07  | [API service (HTTP surface)](07-api-service.md)            | Done   | Raq        | RCG-18                | 05, RCG-28/29  |
 
 _Update this table as specs are added. Numbers are stable ids; sequence by `Depends on`._

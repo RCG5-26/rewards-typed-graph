@@ -148,7 +148,7 @@ export class BridgePlanService implements PlanService {
     userId: string,
     input: BalanceTransferInput,
   ): Promise<BalanceTransferResult> {
-    return this.run<BalanceTransferResult>("balance-transfer", [
+    const args = [
       "--user-id",
       userId,
       "--source-program-id",
@@ -157,7 +157,11 @@ export class BridgePlanService implements PlanService {
       input.destProgramId,
       "--amount",
       String(input.amountPoints),
-    ]);
+    ];
+    if (input.idempotencyKey) {
+      args.push("--idempotency-key", input.idempotencyKey);
+    }
+    return this.run<BalanceTransferResult>("balance-transfer", args);
   }
 
   /** Spawn hero_bridge.py for one subcommand and decode its JSON envelope. */

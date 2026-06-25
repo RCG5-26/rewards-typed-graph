@@ -198,6 +198,45 @@ describe("plan routes", () => {
     expect(res.status).toBe(400);
   });
 
+  it("rejects an unsafe transfer amount with 400", async () => {
+    const app = createTestApp(createFakeService());
+    const res = await app.request(
+      postJson("/balance-transfer", {
+        sourceProgramId: "prog-a",
+        destProgramId: "prog-b",
+        amountPoints: Number.MAX_SAFE_INTEGER + 1,
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("forwards an idempotency key to the service", async () => {
+    let captured: BalanceTransferInput | undefined;
+    const app = createTestApp(
+      createFakeService({
+        async transferBalance(_userId, input) {
+          captured = input;
+          return {
+            planLineageId: samplePlan.planLineageId,
+            staledPlanId: samplePlan.planId,
+            replanJobId: "33333333-3333-3333-3333-333333333333",
+            currentPlan: { ...samplePlan, revisionNumber: 2 },
+          };
+        },
+      }),
+    );
+    const res = await app.request(
+      postJson("/balance-transfer", {
+        sourceProgramId: "prog-a",
+        destProgramId: "prog-b",
+        amountPoints: 5000,
+        idempotencyKey: "client-retry-key",
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(captured?.idempotencyKey).toBe("client-retry-key");
+  });
+
   it("maps a conflict from the service to 409", async () => {
     const app = createTestApp(
       createFakeService({

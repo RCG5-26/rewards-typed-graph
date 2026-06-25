@@ -56,6 +56,8 @@ export interface BalanceTransferInput {
   sourceProgramId: string;
   destProgramId: string;
   amountPoints: number;
+  /** Optional client key so retries replay the same graph-write transaction. */
+  idempotencyKey?: string;
 }
 
 export interface BalanceTransferResult {

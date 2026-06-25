@@ -1,6 +1,6 @@
 # 07 — API service (HTTP surface for the demo shell)
 
-- **Status:** In Progress
+- **Status:** Done
 - **Owner:** Raq (RCG-18)
 - **Depends on:** RCG-15 (orchestrator, done) · RCG-14/59 (mutation REST+SSE routes, done) · RCG-21 (redemption writer, done) · RCG-8 (seed, done) · RCG-28/29 (hero flow green — in progress)
 - **Related flows:** [`orchestration-flow.md`](../../docs/architecture/orchestration-flow.md) (happy path + hero moment); [`design-context.md`](../design-context.md) (API/event contracts)
@@ -97,10 +97,11 @@ Clerk session token from the Next app (`Authorization: Bearer <getToken()>`). Mi
 - **Errors:** 404 (no current revision), 401.
 
 ### `POST /balance-transfer`  *(Hero Moment 1 trigger)*
-- **Body:** `{ "sourceProgramId": "uuid", "destProgramId": "uuid", "amountPoints": 5000 }`
+- **Body:** `{ "sourceProgramId": "uuid", "destProgramId": "uuid", "amountPoints": 5000, "idempotencyKey": "optional-client-key" }`
 - **Program → balance resolution:** the bridge resolves each `programId` to the caller's `user_balances` row (id + current `version`) before mutating, so the client passes stable program ids, not balance ids. Unknown program for the user → `404`.
-- **Effect (synchronous — resolved for Jun 25 demo):** in one request the bridge runs the verified `replan_after_balance_transfer` seam: `transfer_points` (debit/credit with OCC) → writes `graph_mutations` rows → marks the current plan + steps `stale` → claims + runs the `replan_jobs` row → promotes revision 2 to `current`. No background worker; the re-plan completes before the response returns.
+- **Effect (synchronous — resolved for Jun 25 demo):** in one request the bridge runs the verified `replan_after_balance_transfer` seam: `transfer_points` (debit/credit with OCC) → writes `graph_mutations` rows → marks the current plan + dependent steps `stale` → claims + runs the `replan_jobs` row → promotes revision 2 to `current` and the prior revision to `superseded`. No background worker; the re-plan completes before the response returns.
 - **Response 200:** `{ "planLineageId": "uuid", "staledPlanId": "uuid", "replanJobId": "uuid", "currentPlan": { …full plan body, revision 2, status "current"… } }`
+- **Idempotency:** optional `idempotencyKey` lets the shell replay a dropped response safely. When omitted, the bridge derives a stable key from the transfer body so network retries with the same payload dedupe.
 - The shell watches `/mutations/stream` for the stale → re-plan events for the live effect, but renders revision 2 from `currentPlan` directly.
 - **Errors:** 400 (same source/dest, non-positive amount, no active route), 409 (version conflict / insufficient balance), 404 (unknown program for user), 401.
 
@@ -174,7 +175,7 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 - [ ] `GET /session` with a valid Clerk token returns `userId` and seeds the persona (idempotent on repeat).
 - [ ] `POST /plans {"query": …}` → `200` with `status: "current"` and ≥1 step carrying `reasoning` + `dependsOn` (synchronous; no poll).
 - [ ] `GET /mutations/stream` emits `graph_mutation` events for that plan's writes; `GET /mutations?after=` replays them.
-- [ ] `POST /balance-transfer` → `200` with `currentPlan` (revision 2, `current`); the prior plan is `stale` and `GET /plans/current?lineageId=` returns revision 2.
+- [ ] `POST /balance-transfer` → `200` with `currentPlan` (revision 2, `current`); the prior revision ends `superseded` (it is `stale` only transiently during the transaction) and `GET /plans/current?lineageId=` returns revision 2.
 - [ ] `POST /demo/reset` restores the persona so the hero flow can be re-run; idempotent.
 - [ ] `401` without a token; `400` on empty query / bad cursor; `404` on unknown plan / program; `409` on insufficient balance; CORS preflight from the Next origin passes.
 - [ ] `npm --prefix apps/api test` is green: plan routes unit-tested via an in-memory fake `PlanService` (status codes + error mapping), no DB required.
@@ -215,7 +216,7 @@ curl -N localhost:$API_PORT/mutations/stream -H "Authorization: Bearer $TOKEN"
 
 - **Completed:** 2026-06-24 _(remaining gate: manual `npm run dev` + real Clerk bearer curl — agent sandbox blocks server boot; all automated gates green)_
 - **PR / commit:** PR #29 (`raq/demo-mocks`)
-- **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (75 tests) + `typecheck` green. Live smoke against docker Postgres: session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job `completed`) → current-plan → demo-reset → re-run all pass.
+- **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (86 unit tests) + `typecheck` green. Live smoke against docker Postgres: session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job `completed`) → current-plan → demo-reset → re-run all pass.
 - **Deviations from spec:**
   - **Sync over async:** `POST /plans` returns `200` + full plan and `POST /balance-transfer` returns `200` + `currentPlan` (resolved Open question #2) — no `generating`/`202` poll window for the Jun 25 demo.
   - **psql-subprocess bridge, not a Python DB driver:** `psycopg` is absent, so the bridge reuses the hero gate's `psql`-subprocess adapter (see §Implementation decision).
