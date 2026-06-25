@@ -33,11 +33,15 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` require a passing **CodeRabbit** commit status check only — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
+Pull requests targeting `main` must pass these required status checks:
 
-CodeRabbit posts review comments and may request changes when it finds issues. Manual review trigger: `@coderabbitai review`.
+- **CodeRabbit** — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) (`auto_review` on `main`; `fail_commit_status: true` if review is skipped). It posts comments and may request changes; manual trigger: `@coderabbitai review`.
+- **Schema apply** — `apply-schema` job ([`.github/workflows/schema-postgres.yml`](.github/workflows/schema-postgres.yml)).
+- **Tests + coverage (TDD)** — `web-vitest`, `api-vitest`, `python-tests`, and `coverage-gate` jobs ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)). See [`docs/development/ci-required-checks.md`](docs/development/ci-required-checks.md) for the exact check names and how they are wired into the ruleset.
 
-Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
+Plus **1 human approval** before merge.
+
+Repository ruleset: **main — protected** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
 
 ---
 
@@ -74,10 +78,11 @@ Implementation agents: **`STATUS.md` and `tracking/` are excluded** from automat
 
 Run these on every meaningful change before handing off or opening a PR:
 
-1. **Format** — `npm run format` (Prettier). Verify with `npm run format:check`; keep the diff formatting-clean. Config: [`.prettierrc.json`](.prettierrc.json) / [`.prettierignore`](.prettierignore).
-2. **Lint** — `npm run lint` (ESLint via `next lint`). Resolve any warnings you introduced.
-3. **Simplify** — do a simplification pass (reuse, dead code, right altitude) and apply the safe cleanups. Run the `/simplify` review on the diff.
-4. **Security review** — run `/security-review` on the branch diff. Check auth boundaries (Clerk identity-only, per [`docs/adr/0006-clerk-identity-only.md`](docs/adr/0006-clerk-identity-only.md)), per-user data scoping, input handling, and secrets. Never commit secrets or `.env*` files — only [`.env.example`](.env.example).
+1. **Tests (TDD)** — write tests first, then code (red → green → refactor). Run all suites with coverage: `npm run test:coverage`, `cd apps/api && npm run test:coverage`, `npm run test:py`. New/changed code must be covered (CI enforces ≥90% diff coverage). Canonical policy: [`context/code-standards.md`](context/code-standards.md) → Testing ([ADR 0009](docs/adr/0009-tdd-enforcement.md)).
+2. **Format** — `npm run format` (Prettier). Verify with `npm run format:check`; keep the diff formatting-clean. Config: [`.prettierrc.json`](.prettierrc.json) / [`.prettierignore`](.prettierignore).
+3. **Lint** — `npm run lint` (ESLint via `next lint`). Resolve any warnings you introduced.
+4. **Simplify** — do a simplification pass (reuse, dead code, right altitude) and apply the safe cleanups. Run the `/simplify` review on the diff.
+5. **Security review** — run `/security-review` on the branch diff. Check auth boundaries (Clerk identity-only, per [`docs/adr/0006-clerk-identity-only.md`](docs/adr/0006-clerk-identity-only.md)), per-user data scoping, input handling, and secrets. Never commit secrets or `.env*` files — only [`.env.example`](.env.example).
 
 ---
 

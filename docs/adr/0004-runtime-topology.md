@@ -1,6 +1,6 @@
 # 0004 — Runtime Topology
 
-- **Status:** Accepted — June 18, 2026.
+- **Status:** Accepted — June 18, 2026. **Amendment (Jun 25):** `apps/web` migration deferred post-Jun-29 demo — web deploys from repo root via Nixpacks (`railway.json`) to avoid build-break risk. See `docs/deployment/railway.md`.
 - **Owner:** Raq (lead)
 - **Index:** [`context/decisions-log.md`](../../context/decisions-log.md) (D013, D023)
 - **Related:** [0001 — Schema Lock](0001-schema-lock.md), [`architecture-context.md`](../../context/architecture-context.md) §Hosted runtime
