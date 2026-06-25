@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
+import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+
+/** Where a signed-in user lands: the onboarding pick-cards flow. */
+const AFTER_SIGN_IN = "/onboarding";
 
 /**
  * Google-only authentication card.
@@ -22,22 +26,55 @@ export default function GoogleAuthCard({
   subheading: string;
 }) {
   const { signIn, isLoaded } = useSignIn();
+  const { isSignedIn } = useAuth();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  // Already signed in (e.g. landed on /sign-in with an active session)?
+  // Skip the OAuth start — Clerk would throw `session_exists` — and go
+  // straight to the pick-cards flow.
+  useEffect(() => {
+    if (isSignedIn) router.replace(AFTER_SIGN_IN);
+  }, [isSignedIn, router]);
+
   async function continueWithGoogle() {
     if (!isLoaded || !signIn) return;
+    if (isSignedIn) {
+      router.replace(AFTER_SIGN_IN);
+      return;
+    }
     setError(null);
     setPending(true);
     try {
       await signIn.authenticateWithRedirect({
         strategy: "oauth_google",
         redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/",
+        // Land in the onboarding flow (pick cards) after a successful sign-in.
+        redirectUrlComplete: "/onboarding",
       });
     } catch (err) {
       console.error("Google sign-in failed", err);
-      setError("Could not start Google sign-in. Please try again.");
+      // Surface Clerk's real reason (e.g. "oauth_google is not enabled") instead
+      // of a generic string, so config issues are diagnosable from the UI.
+      const clerkMessage =
+        err &&
+        typeof err === "object" &&
+        "errors" in err &&
+        Array.isArray((err as { errors?: { code?: string; longMessage?: string; message?: string }[] }).errors)
+          ? (err as { errors: { code?: string; longMessage?: string; message?: string }[] }).errors[0]
+          : null;
+      // An active session already exists — just proceed into the app.
+      if (clerkMessage?.code === "session_exists" || isSignedIn) {
+        router.replace(AFTER_SIGN_IN);
+        return;
+      }
+      setError(
+        clerkMessage?.longMessage ||
+          clerkMessage?.message ||
+          (err instanceof Error ? err.message : null) ||
+          "Could not start Google sign-in. Please try again.",
+      );
       setPending(false);
     }
   }

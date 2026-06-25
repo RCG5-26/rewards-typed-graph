@@ -10,3 +10,26 @@ img {
   -webkit-user-drag: none;
   user-select: none;
 }
+
+/* Streaming mutation-log row entrance (agent console). */
+@keyframes gpRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(-7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes gpRowIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
