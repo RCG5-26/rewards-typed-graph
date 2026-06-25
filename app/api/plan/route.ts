@@ -55,7 +55,9 @@ export async function POST(request: Request) {
 
     const derived = await buildPlan(graph, selectedCardIds, queryText);
     let plan = derived;
-    if (isOrchestratorEnabled()) {
+    // Skip the live overlay under a card filter — the backend plans over the
+    // full wallet, which would contradict the filtered fixture projection.
+    if (isOrchestratorEnabled() && selectedCardIds.length === 0) {
       try {
         const view = await createPlanViaOrchestrator(queryText);
         plan = planResultFromView(view, derived);

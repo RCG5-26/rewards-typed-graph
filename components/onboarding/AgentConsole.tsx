@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { LiveMetrics } from "@/lib/plan/comparison";
-import { AGENT_META, opColor } from "@/lib/plan/presentation";
+import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
   MutationLogEntry,
@@ -91,6 +91,7 @@ export default function AgentConsole({
   const [revision, setRevision] = useState(1);
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
   const [replanned, setReplanned] = useState(false);
+  const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
   const [selected, setSelected] = useState<HoverNode | null>(null);
 
@@ -117,6 +118,8 @@ export default function AgentConsole({
       if (inv.mutation.nodeId) setLit((s) => new Set(s).add(inv.mutation.nodeId as string));
       // ripple stale through the plan-dependency graph (still showing revision 1)
       setStalePlanIds(new Set(inv.stalePlanNodeIds));
+      // an invalidation actually streamed → the typed graph genuinely caught it
+      setCaughtInvalidation(true);
     });
 
     es.addEventListener("meta", (ev) => {
@@ -125,6 +128,9 @@ export default function AgentConsole({
       setGraph((g) => mergeGraph(g, meta.graph));
       setPlanGraph(meta.planGraph);
       setStalePlanIds(new Set()); // the new revision is clean
+      // the authoritative plan value is in meta — seed it now so the
+      // baselines/benchmark tabs aren't $0 mid-stream (done refines it)
+      if (meta.planValueCents) setValueCents(meta.planValueCents);
       setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
@@ -176,7 +182,7 @@ export default function AgentConsole({
   const liveMetrics: LiveMetrics = {
     planValueCents: valueCents,
     opCount: mutations.length,
-    invalidationCaught: replanned,
+    invalidationCaught: caughtInvalidation,
     revision,
   };
 
@@ -444,13 +450,14 @@ export default function AgentConsole({
               <div ref={logRef} className="flex-1 overflow-y-auto px-3 py-2">
                 {mutations.map((m) => {
                   const meta = AGENT_META[m.agentType];
+                  const dark = agentDarkColor(meta);
                   return (
                     <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gp-row-in 0.3s ease" }}>
                       <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: meta.color }} />
-                          <span className="font-mono text-2xs font-semibold" style={{ color: meta.color }}>{meta.short}</span>
+                          <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: dark }} />
+                          <span className="font-mono text-2xs font-semibold" style={{ color: dark }}>{meta.short}</span>
                           <span className="rounded text-center font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px", display: "inline-block", minWidth: "54px" }}>{m.op}</span>
                           <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
                         </div>

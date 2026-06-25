@@ -16,7 +16,7 @@ import type { AgentType, PlanResult, PlanStatus, PlanStep, StepStatus } from "./
  */
 
 /** Infer the rendering agent lane from the persisted step's typed operation. */
-function agentTypeForStep(type: string): AgentType {
+export function agentTypeForStep(type: string): AgentType {
   const t = type.toLowerCase();
   if (t.includes("decompose") || t.includes("orchestr")) return "orchestrator";
   if (t.includes("wallet") || t.includes("balance") || t.includes("assess")) return "wallet_agent";

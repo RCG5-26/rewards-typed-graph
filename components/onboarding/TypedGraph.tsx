@@ -41,43 +41,28 @@ export interface HoverNode {
 const ease = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * A fuzzy circular constellation: stars scattered inside a unit disc, denser
+ * toward the center and thinning to a soft rim. `x`/`depth` hold normalized disc
+ * coordinates in [-1, 1] (no perspective grid — the field is a circle, not a
+ * dome). The draw loop maps them to screen against a circular mask.
+ */
 function genLights(): Light[] {
   const out: Light[] = [];
-  const cols = 24;
-  const rows = 18;
-  const blockW = 2.9 / cols;
-  const blockD = 1.55 / rows;
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      if (Math.random() < 0.16) continue;
-      const cnt = 1 + ((Math.random() * 3) | 0);
-      const cx0 = ((c / (cols - 1)) * 2 - 1) * 1.5;
-      const depth0 = Math.pow(r / (rows - 1), 1.05) * 1.5 + 0.02;
-      for (let k = 0; k < cnt; k++) {
-        out.push({
-          x: cx0 + (Math.random() - 0.5) * blockW * 0.7,
-          depth: depth0 + (Math.random() - 0.5) * blockD * 0.7,
-          warm: Math.random() < 0.26,
-          base: 0.22 + Math.random() * 0.55,
-          size: 0.5 + Math.random() * 1.25,
-          speed: 0.5 + Math.random() * 2.4,
-          phase: Math.random() * Math.PI * 2,
-          twinkle: Math.random() < 0.5,
-          land: Math.random() < 0.05,
-        });
-      }
-    }
-  }
-  for (let i = 0; i < 90; i++) {
+  const N = 540;
+  for (let i = 0; i < N; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    // bias radius toward the center so density tapers outward (fuzzy edge)
+    const r = Math.pow(Math.random(), 0.62);
     out.push({
-      x: (Math.random() * 2 - 1) * 1.55,
-      depth: Math.pow(Math.random(), 0.9) * 1.5 + 0.02,
-      warm: Math.random() < 0.24,
-      base: 0.18 + Math.random() * 0.4,
-      size: 0.45 + Math.random() * 1.0,
+      x: Math.cos(ang) * r,
+      depth: Math.sin(ang) * r,
+      warm: Math.random() < 0.25,
+      base: 0.2 + Math.random() * 0.6,
+      size: 0.45 + Math.random() * 1.35,
       speed: 0.5 + Math.random() * 2.4,
       phase: Math.random() * Math.PI * 2,
-      twinkle: Math.random() < 0.6,
+      twinkle: Math.random() < 0.55,
       land: false,
     });
   }
@@ -209,35 +194,35 @@ export default function TypedGraph({
       ctx.fillStyle = hg;
       ctx.fillRect(0, 0, w, h * 0.8);
 
-      // ── city lights ──
-      // Shape the whole field into a fuzzy CIRCLE (not the grid's rectangle):
-      // a soft radial mask centered on the light cluster culls anything past
-      // the edge and fades density toward it.
-      const maskCx = cx;
-      const maskCy = horizonY + (h - horizonY) * 0.4;
-      const maskR = Math.min(w, h) * 0.52;
+      // ── fuzzy circular constellation ──
+      // Map each star's unit-disc coordinate to a circle on screen (no
+      // perspective dome). Density already tapers outward; the rim fade makes
+      // the edge fuzzy. Tune the center/radius here to reposition the circle.
+      const fieldCx = cx;
+      const fieldCy = horizonY + (h - horizonY) * 0.34;
+      const fieldR = Math.min(w, h) * 0.46;
       ctx.globalCompositeOperation = "lighter";
       for (const L of lights) {
-        const p = project(L.x, L.depth, 0);
-        if (p.y < horizonY - 2 || p.x < -20 || p.x > w + 20) continue;
-        const mDist = Math.hypot(p.x - maskCx, p.y - maskCy);
-        if (mDist > maskR) continue;
-        // 1 inside the core, easing to 0 at the rim → fuzzy circular edge
-        const mask = 1 - ease((mDist - maskR * 0.45) / (maskR * 0.55));
+        const ru = Math.hypot(L.x, L.depth); // 0 (center) → ~1 (rim)
+        const px = fieldCx + L.x * fieldR;
+        const py = fieldCy + L.depth * fieldR;
+        // soft circular rim: full inside, easing to 0 past ~0.7 of the radius
+        const mask = 1 - ease((ru - 0.7) / 0.3);
         if (mask <= 0.001) continue;
-        let a = L.base * (0.4 + 0.6 * p.s) * mask;
-        if (L.land) a *= 1.7;
+        // brighter toward the center; depth-like scale from the radius
+        const s = 0.55 + 0.45 * (1 - ru);
+        let a = L.base * (0.45 + 0.55 * s) * mask;
         if (L.twinkle && !rm) a *= 0.6 + 0.4 * Math.sin(time * L.speed + L.phase);
         if (a <= 0.012) continue;
-        const rad = L.size * p.s + 0.35;
+        const rad = L.size * s + 0.35;
         const col = L.warm ? "255,206,150" : "176,204,255";
         // Each light is ONE soft radial gradient with a bright, fuzzy center
         // that fades smoothly to nothing — no hard-edged core disc (a crisp
         // arc at ~1px reads as a square pixel). Floored radius gives even the
         // far stars room to resolve as a fuzzy circle. The fill is clipped to a
         // circle (arc), so the bounding box is never visible.
-        const bloom = Math.max(3.5, rad * (L.land ? 6 : 4.5));
-        const gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, bloom);
+        const bloom = Math.max(3.5, rad * 4.5);
+        const gg = ctx.createRadialGradient(px, py, 0, px, py, bloom);
         gg.addColorStop(0, `rgba(${col},${Math.min(1, a * 1.9)})`);
         gg.addColorStop(0.1, `rgba(${col},${Math.min(1, a * 1.1)})`);
         gg.addColorStop(0.28, `rgba(${col},${a * 0.4})`);
@@ -246,7 +231,7 @@ export default function TypedGraph({
         gg.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = gg;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, bloom, 0, Math.PI * 2);
+        ctx.arc(px, py, bloom, 0, Math.PI * 2);
         ctx.fill();
       }
 

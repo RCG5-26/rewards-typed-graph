@@ -13,15 +13,24 @@ export interface AgentMeta {
   name: string;
   short: string;
   color: string;
+  /** Variant for dark surfaces (the mutation log); falls back to `color`. */
+  darkColor?: string;
 }
 
 export const AGENT_META: Record<AgentType, AgentMeta> = {
-  orchestrator: { name: "Orchestrator", short: "ORC", color: "#1C1C22" },
+  // near-black reads on the light agent-plan card but vanishes on the dark log,
+  // so the log uses the lighter `darkColor`.
+  orchestrator: { name: "Orchestrator", short: "ORC", color: "#1C1C22", darkColor: "#c6cede" },
   wallet_agent: { name: "Wallet", short: "WAL", color: "#1f9d8f" },
   earning_agent: { name: "Earning", short: "ERN", color: "#bd8a2e" },
   redemption_agent: { name: "Redemption", short: "RDM", color: "#4f7cf0" },
   system: { name: "Graph", short: "SYS", color: "#8a93a6" },
 };
+
+/** Agent identity color for dark surfaces (the mutation log). */
+export function agentDarkColor(meta: AgentMeta): string {
+  return meta.darkColor ?? meta.color;
+}
 
 export const OP_COLOR: Record<string, string> = {
   CREATE: "#1f9d8f",

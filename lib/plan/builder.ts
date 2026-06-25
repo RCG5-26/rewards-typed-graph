@@ -448,6 +448,12 @@ export async function buildReplan(
           sourceProgramId: w.sourceProgram.id,
           destProgramId: w.destProgram.id,
           amountPoints: w.requiredTransfer,
+          // Stable across reconnects/retries for this (query, edge, amount) so
+          // /balance-transfer replays the same transaction rather than double-applying.
+          idempotencyKey: stableId(
+            "idem",
+            `${queryText}#${w.sourceProgram.id}->${w.destProgram.id}#${w.requiredTransfer}`,
+          ),
         }
       : undefined;
 

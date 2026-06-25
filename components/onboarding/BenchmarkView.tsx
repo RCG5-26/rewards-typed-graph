@@ -52,13 +52,15 @@ export default function BenchmarkView({ metrics }: { metrics: LiveMetrics }) {
     ],
   };
 
-  // Invalidations-caught: typed cell reflects whether a re-plan actually fired.
+  // Invalidations-caught: the typed cell is live only once a re-plan actually
+  // fired this session; before that it's "—" (not yet observed), never a
+  // precise score that would imply this run measured it.
   const typedCaught = metrics.invalidationCaught;
   const invalidationRow: Row = {
     label: "Invalidations caught",
-    hint: "higher is better",
+    hint: typedCaught ? "higher is better · live" : "higher is better · run a replan",
     cells: [
-      { arch: "Typed graph", val: typedCaught ? "100%" : "96%", barPct: typedCaught ? 100 : 96, color: "var(--color-accent)", live: typedCaught },
+      { arch: "Typed graph", val: typedCaught ? "100%" : "—", barPct: typedCaught ? 100 : 0, color: "var(--color-accent)", live: typedCaught },
       { arch: "CrewAI", val: "22%", barPct: 22, color: "var(--color-warning)" },
       { arch: "Single agent", val: "9%", barPct: 9, color: "var(--color-neutral-400)" },
     ],

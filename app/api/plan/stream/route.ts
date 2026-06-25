@@ -166,6 +166,12 @@ export async function GET(request: Request) {
         return count;
       };
 
+      // The live backend plans over the *full* Postgres wallet; it has no card
+      // filter. When the user narrowed the wallet, only the fixture builder
+      // honors that — so skip the live overlay to avoid a self-contradicting plan
+      // (real steps over all balances, but filtered route/value/graph).
+      const liveEligible = isOrchestratorEnabled() && selectedCardIds.length === 0;
+
       try {
         if (isReplan) {
           const replan = await buildReplan(graph, selectedCardIds, queryText);
@@ -177,7 +183,7 @@ export async function GET(request: Request) {
           // its authoritative revision-2 onto the fixture's invalidation visual.
           let plan = replan.plan;
           let live: { cursor: number; lineageId: string } | null = null;
-          if (isOrchestratorEnabled() && replan.transfer) {
+          if (liveEligible && replan.transfer) {
             try {
               const cursor = await latestMutationCursor();
               const result = await transferBalanceViaOrchestrator(replan.transfer);
@@ -208,7 +214,7 @@ export async function GET(request: Request) {
           const derived = await buildPlan(graph, selectedCardIds, queryText);
           let plan = derived;
           let live: { cursor: number; lineageId: string } | null = null;
-          if (isOrchestratorEnabled()) {
+          if (liveEligible) {
             try {
               const cursor = await latestMutationCursor();
               const view = await createPlanViaOrchestrator(queryText);

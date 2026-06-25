@@ -165,5 +165,11 @@ export interface ReplanResult {
    * orchestrator backend persist the actual `POST /balance-transfer` that drives
    * the re-plan. Absent for direct-redemption plans (no transfer hop).
    */
-  transfer?: { sourceProgramId: string; destProgramId: string; amountPoints: number };
+  transfer?: {
+    sourceProgramId: string;
+    destProgramId: string;
+    amountPoints: number;
+    /** Deterministic key so a reconnect/retry replays one transaction, not two. */
+    idempotencyKey: string;
+  };
 }

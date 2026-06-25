@@ -1,3 +1,4 @@
+import { agentTypeForStep } from "./from-plan-view";
 import type { MutationEvent } from "./orchestrator-client";
 import type { AgentType, MutationLogEntry, PlanResult } from "./types";
 
@@ -79,7 +80,12 @@ export function makeRealMutationMapper(derived: PlanResult, seqStart = 1) {
   let cursor = 0;
   let seq = seqStart;
   return (ev: MutationEvent): MutationLogEntry => {
-    const { op, agentType, touchesNode } = classify(ev.mutation_type);
+    const { op, touchesNode, agentType: lane } = classify(ev.mutation_type);
+    // A plan_steps row carries its own step_type, so lane it by that (an
+    // orchestrator/wallet step shouldn't render as redemption); otherwise use
+    // the mutation_type-derived lane.
+    const stepType = ev.target_table === "plan_steps" ? ev.after?.step_type : undefined;
+    const agentType = typeof stepType === "string" ? agentTypeForStep(stepType) : lane;
     let nodeId: string | undefined;
     if (touchesNode && nodeIds.length) {
       // Advance through the traversal hubs; clamp on the final (redemption) node.
