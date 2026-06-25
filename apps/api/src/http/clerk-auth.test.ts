@@ -23,14 +23,25 @@ describe("parseBearer", () => {
 });
 
 describe("resolveIdentity", () => {
-  it("short-circuits to AUTH_DEV_USER_ID when configured", async () => {
+  it("short-circuits to AUTH_DEV_USER_ID only when the dev bypass is allowed", async () => {
     const result = await resolveIdentity(
       undefined,
-      { devUserId: "00000000-0000-0000-0000-00000000a001" },
+      { devUserId: "00000000-0000-0000-0000-00000000a001", allowDevBypass: true },
       { findUserIdByClerkId: vi.fn() },
     );
     expect(result).toEqual({ userId: "00000000-0000-0000-0000-00000000a001" });
     expect(mockedVerify).not.toHaveBeenCalled();
+  });
+
+  it("ignores AUTH_DEV_USER_ID when the dev bypass is not allowed", async () => {
+    const lookup = { findUserIdByClerkId: vi.fn() };
+    const result = await resolveIdentity(
+      undefined,
+      { devUserId: "00000000-0000-0000-0000-00000000a001", allowDevBypass: false },
+      lookup,
+    );
+    expect(result).toEqual({});
+    expect(lookup.findUserIdByClerkId).not.toHaveBeenCalled();
   });
 
   it("returns empty identity when token or secret is missing", async () => {

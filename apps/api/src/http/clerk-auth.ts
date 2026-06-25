@@ -9,6 +9,12 @@ export interface ResolvedIdentity {
 export interface ClerkAuthConfig {
   clerkSecretKey?: string;
   devUserId?: string;
+  /**
+   * Hard gate for the `devUserId` bypass. Must be explicitly true (set by the
+   * server only outside production) for the bypass to apply. Without it, a
+   * stray `AUTH_DEV_USER_ID` in a shared/deployed env cannot disable Clerk.
+   */
+  allowDevBypass?: boolean;
 }
 
 export interface UserLookup {
@@ -37,7 +43,7 @@ export async function resolveIdentity(
   config: ClerkAuthConfig,
   lookup: UserLookup,
 ): Promise<ResolvedIdentity> {
-  if (config.devUserId) {
+  if (config.allowDevBypass && config.devUserId) {
     return { userId: config.devUserId };
   }
 

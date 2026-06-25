@@ -16,6 +16,15 @@ const databaseUrl = requireEnv("DATABASE_URL");
 const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 const devUserId = process.env.AUTH_DEV_USER_ID;
 
+// The dev-user bypass only applies outside production. A stray AUTH_DEV_USER_ID
+// in a shared/deployed env is ignored (and warned about) so Clerk stays required.
+const allowDevBypass = process.env.NODE_ENV !== "production";
+if (devUserId && !allowDevBypass) {
+  console.warn(
+    "AUTH_DEV_USER_ID is set in production; ignoring it and requiring Clerk auth.",
+  );
+}
+
 const pool = new Pool({ connectionString: databaseUrl });
 const planService = new BridgePlanService();
 
@@ -34,7 +43,7 @@ app.use(
 app.use("*", async (c, next) => {
   const identity = await resolveIdentity(
     c.req.header("Authorization"),
-    { clerkSecretKey, devUserId },
+    { clerkSecretKey, devUserId, allowDevBypass },
     {
       findUserIdByClerkId: async (clerkId) => {
         const result = await pool.query<{ id: string }>(
