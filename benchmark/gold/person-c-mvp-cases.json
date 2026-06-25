@@ -5,7 +5,7 @@
   "fixture_id": "person-c-mvp-tokyo-hyatt-v1",
   "scoring_rules": {
     "primary_metrics": ["accuracy", "strict_hallucination_rate", "invalidation_correctness"],
-    "benchmark_axes": {
+    "expected_axis_counts": {
       "earning": 10,
       "redemption": 10,
       "portfolio": 10

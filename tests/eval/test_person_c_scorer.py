@@ -52,7 +52,7 @@ class PersonCScorerTests(unittest.TestCase):
 
         self.assertEqual(len(case_ids), 30)
         self.assertEqual(len(case_ids), len(set(case_ids)))
-        self.assertEqual(axis_counts, benchmark["scoring_rules"]["benchmark_axes"])
+        self.assertEqual(axis_counts, benchmark["scoring_rules"]["expected_axis_counts"])
 
     def test_invalidation_cases_record_stale_steps(self) -> None:
         report = run_benchmark()

@@ -64,6 +64,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] Canonical backend setup guide — 2026-06-25 — `docs/development/backend-local-setup.md` (frontend-facing: env, startup, contract, hero smoke test, troubleshooting).
 - [x] RCG-51 clean Layer 4 cut contingency - 2026-06-25 - `docs/demo/layer4-cut-contingency.md`, `fixtures/demo-contingency-layer4-cut.json`, and `tests/test_demo_contingency.py` lock the Layers 1-3 demo path and presenter language.
 - [x] RCG-33 benchmark corpus - 2026-06-25 - `benchmark/gold/person-c-mvp-cases.json` now has 30 executable earning/redemption/portfolio cases; scorer reports axis counts and 30/30 typed fixture accuracy.
+- [x] RCG-35 single-agent baseline — 2026-06-25 — `benchmark/single_agent_baseline.py` adds the live LLM-call baseline with env-secret config, output-sink validation, token accounting, and mocked HTTP/LLM tests.
 
 ---
 
@@ -81,7 +82,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 1. **RCG-27/25/26** - Val wires the demo shell + sidebar to the live API/SSE (or mocks); see [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md).
 2. **RCG-32** - one browser run-through of the hero flow with a real Clerk token closes the Day-7 gate.
 3. **RCG-66** - graduate the Option B psql-subprocess bridge into a real graph-write boundary (post-demo).
-4. Baseline runners + eval harness (Michael/Raq) - reuse the RCG-33 30-query corpus.
+4. CrewAI baseline + eval harness (Michael/Raq) — post-hero; RCG-35 single-agent runner shipped; reuse the RCG-33 30-case corpus.
 
 ---
 
@@ -101,7 +102,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 | Gate                       | Date       | Status    | Criteria                                             |
 | -------------------------- | ---------- | --------- | ---------------------------------------------------- |
 | Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
-| Person C offline scorer    | 2026-06-23 | done      | PR #14; 11/11 on fixture cases                       |
+| Person C offline scorer    | 2026-06-23 | done      | PR #14 + RCG-33; 30/30 accuracy, 5/5 invalidation, 0 strict hallucinations on gold corpus |
 | RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
 | MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
 | Layer 4 go/no-go           | 2026-06-25 | no-go     | RCG-51 runbook locks a clean Layers 1-3 demo path |
