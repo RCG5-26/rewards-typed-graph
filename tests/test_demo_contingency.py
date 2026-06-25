@@ -8,6 +8,13 @@ CONTINGENCY_PATH = REPO_ROOT / "fixtures" / "demo-contingency-layer4-cut.json"
 RUNBOOK_PATH = REPO_ROOT / "docs" / "demo" / "layer4-cut-contingency.md"
 SPRINT_PLAN_PATH = REPO_ROOT / "docs" / "meetings" / "sprint-plan-jun24-29.md"
 
+# D030 (context/decisions-log.md) anchors the Layer 4 no-go decision to these
+# two sources; the fixture's canonicalSources must mirror them.
+D030_CANONICAL_SOURCES = {
+    "docs/demo/layer4-cut-contingency.md",
+    "docs/meetings/sprint-plan-jun24-29.md",
+}
+
 
 class DemoLayer4CutContingencyTest(unittest.TestCase):
     def setUp(self):
@@ -25,6 +32,12 @@ class DemoLayer4CutContingencyTest(unittest.TestCase):
         self.assertIn("Layer 4 is cut", self.runbook)
         self.assertIn("Layer 4 (ingestion/verifier, Hero Moment 2)", self.sprint_plan)
         self.assertIn("NO-GO now", self.sprint_plan)
+
+    def test_canonical_sources_mirror_the_decision_log(self):
+        self.assertEqual(
+            set(self.fixture["decision"]["canonicalSources"]),
+            D030_CANONICAL_SOURCES,
+        )
 
     def test_demo_path_uses_only_shipped_layers_one_to_three_routes(self):
         routes = set(self.fixture["demoPath"]["requiredRoutes"])
@@ -62,16 +75,22 @@ class DemoLayer4CutContingencyTest(unittest.TestCase):
     def test_layer4_forbidden_surface_is_complete(self):
         forbidden = self.fixture["demoPath"]["forbiddenSurface"]
 
-        self.assertGreaterEqual(
+        self.assertEqual(
             set(forbidden["tickets"]),
             {"RCG-39", "RCG-41", "RCG-42", "RCG-43", "RCG-44", "RCG-50"},
         )
-        self.assertGreaterEqual(
+        self.assertEqual(
             set(forbidden["schemaTerms"]),
             {"MutationProposal", "visibility_scope", "global graph_mutations"},
         )
-        self.assertIn("/verifier", forbidden["routes"])
-        self.assertIn("world-tier Layer 4 events", forbidden["eventScopes"])
+        self.assertEqual(
+            set(forbidden["routes"]),
+            {"/ingestion", "/verifier", "/mutation-proposals", "/layer4"},
+        )
+        self.assertEqual(
+            set(forbidden["eventScopes"]),
+            {"global mutation events", "world-tier Layer 4 events"},
+        )
 
     def test_fallbacks_preserve_the_layer4_cut(self):
         fallbacks = self.fixture["demoPath"]["fallbacks"]
@@ -93,6 +112,7 @@ class DemoLayer4CutContingencyTest(unittest.TestCase):
             "docs/demo/layer4-cut-contingency.md",
         )
         self.assertIn("fixtures/demo-contingency-layer4-cut.json", self.runbook)
+        self.assertIn("../demo/layer4-cut-contingency.md", self.sprint_plan)
         self.assertIn("POST /plans", self.runbook)
         self.assertIn("POST /balance-transfer", self.runbook)
         self.assertIn("GET /mutations/stream", self.runbook)

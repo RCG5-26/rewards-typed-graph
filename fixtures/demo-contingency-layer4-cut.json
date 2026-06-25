@@ -5,9 +5,8 @@
   "decision": {
     "layer4Status": "cut",
     "canonicalSources": [
-      "docs/adr/0003-team-four-eval-ownership.md",
-      "docs/meetings/sprint-plan-jun24-29.md",
-      "context/architecture-context.md"
+      "docs/demo/layer4-cut-contingency.md",
+      "docs/meetings/sprint-plan-jun24-29.md"
     ],
     "presenterLine": "Layer 4 was a hard-cuttable stretch and is cut for this demo. The live proof is Layers 1-3: typed graph mutations, dependency tracking, and structural replanning."
   },
