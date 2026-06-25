@@ -6,7 +6,7 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 
 ## Today
 
-- RCG-20/31 executable slice is in place: Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11 benchmark cases, and offline scorer.
+- RCG-20/31/33 executable slice is in place: Tokyo Hyatt fixture, deterministic planner, seeded award tool, 30 benchmark cases, and offline scorer with earning/redemption/portfolio coverage.
 - Tests prove initial recommendation, balance-change invalidation, cash fallback, award availability overrides, integer basis-point math, typed tool fragments, and scorer report output.
 - PR review fixes are addressed: fallback diagnostics are query-scoped, and invalidation scoring uses the Chase balance slug instead of fixture list position.
 - RCG-21 graph-writer bridge is in place: planner output writes `plans`, `plan_steps`, and `state_dependencies` through `V31GraphWriteService`, and `hero_flow.py` is wired for synchronous revision-2 promotion.
@@ -34,7 +34,7 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 | RCG-23 | Graph-typed tool contract (envelope + merge/provenance)        | Day 1-5           | fragments upsert by slug + version with provenance            |
 | RCG-30 | Connect real cash-price tool                                   | Day 5-7           | one real tool returns a typed fragment                        |
 | RCG-31 | Begin benchmark fixture construction                           | Day 5-7           | gold corpus + queries started against seed data               |
-| RCG-33 | Build 30-query benchmark (earning/redemption/portfolio)        | Day 7-10          | 30 queries with ground-truth recommendations                  |
+| RCG-33 | Build 30-query benchmark (earning/redemption/portfolio)        | Day 7-10          | done - 30 executable gold queries                             |
 | RCG-34 | Operationalize hallucination-rate metric                       | Day 7-10          | ratio vs program-existence defined; point-in-time gold corpus |
 | RCG-35 | Single-agent baseline (well-tuned)                             | Day 7-10          | tuned, same tools/budget as main system                       |
 | RCG-36 | Free-text multi-agent baseline (CrewAI-style, well-tuned)      | Day 7-10          | strong; JSON tools instead of graph fragments                 |

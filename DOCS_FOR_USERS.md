@@ -35,7 +35,7 @@ python -m unittest discover -s tests -v
 python -m benchmark.person_c_scorer --pretty
 ```
 
-The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision.
+The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision. Its benchmark now includes 30 seeded questions across earning, redemption, and portfolio scenarios.
 
 ## Current Limitations
 
@@ -54,3 +54,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added the fixed demo seed used by the hero flow. The seed loader loads shared rewards data by default; the fixed demo persona is opt-in for isolated tests.
 - Added database-backed writing for the seeded redemption plan, including plan steps and balance dependencies.
 - Added the RCG-51 clean demo contingency for the Layer 4 cut, with a presenter runbook and a checked fixture for the Layers 1-3 path.
+- Expanded the Person C benchmark to 30 seeded questions across earning, redemption, and portfolio scenarios.

@@ -1,6 +1,7 @@
 # Person C Benchmark
 
-This folder holds the seeded Person C benchmark artifacts.
+This folder holds the seeded Person C benchmark artifacts. The gold corpus has
+30 executable queries: 10 earning, 10 redemption, and 10 portfolio cases.
 
 ## Run The Current Scorer
 
@@ -13,6 +14,7 @@ The scorer runs the fixture-backed typed path against `benchmark/gold/person-c-m
 - accuracy
 - strict hallucination count and rate
 - invalidation correctness
+- benchmark-axis and category counts
 
 The current scorer covers the typed-graph fixture path only. Single-agent and CrewAI-style baseline runners should reuse the same gold cases and report shape.
 

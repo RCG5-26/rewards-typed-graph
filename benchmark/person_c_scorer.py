@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import copy
 import json
 from pathlib import Path
@@ -46,6 +47,12 @@ def run_benchmark(
         "architecture": "typed_graph_fixture",
         "evaluator_version": EVALUATOR_VERSION,
         "case_count": len(case_results),
+        "benchmark_axis_counts": dict(
+            sorted(Counter(result["benchmark_axis"] for result in case_results).items())
+        ),
+        "category_counts": dict(
+            sorted(Counter(result["category"] for result in case_results).items())
+        ),
         "metrics": {
             "accuracy_passed": sum(1 for result in case_results if result["accuracy_correct"]),
             "accuracy_total": len(case_results),
@@ -133,6 +140,7 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
 
     return {
         "case_id": case["case_id"],
+        "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),

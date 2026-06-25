@@ -18,12 +18,41 @@ class PersonCScorerTests(unittest.TestCase):
 
         self.assertTrue(report_passed(report))
         self.assertEqual(report["architecture"], "typed_graph_fixture")
-        self.assertEqual(report["metrics"]["accuracy_passed"], 11)
-        self.assertEqual(report["metrics"]["accuracy_total"], 11)
+        self.assertEqual(report["case_count"], 30)
+        self.assertEqual(report["benchmark_axis_counts"], {
+            "earning": 10,
+            "portfolio": 10,
+            "redemption": 10,
+        })
+        self.assertEqual(report["metrics"]["accuracy_passed"], 30)
+        self.assertEqual(report["metrics"]["accuracy_total"], 30)
         self.assertEqual(report["metrics"]["strict_hallucination_count"], 0)
-        self.assertEqual(report["metrics"]["invalidation_passed"], 2)
-        self.assertEqual(report["metrics"]["invalidation_total"], 2)
-        self.assertEqual(len(report["cases"]), 11)
+        self.assertEqual(report["metrics"]["invalidation_passed"], 5)
+        self.assertEqual(report["metrics"]["invalidation_total"], 5)
+        self.assertEqual(len(report["cases"]), 30)
+
+    def test_gold_corpus_has_30_unique_cases_across_required_axes(self) -> None:
+        benchmark = json.loads(
+            (ROOT / "benchmark" / "gold" / "person-c-mvp-cases.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        case_ids = [case["case_id"] for case in benchmark["cases"]]
+        axis_counts: dict[str, int] = {}
+        for case in benchmark["cases"]:
+            axis = case["benchmark_axis"]
+            axis_counts[axis] = axis_counts.get(axis, 0) + 1
+            self.assertIn("query", case)
+            self.assertIn("starting_balance_points", case)
+            self.assertTrue(
+                "expected_top_award_slug" in case
+                or "expected_fallback" in case
+                or "expected_response" in case
+            )
+
+        self.assertEqual(len(case_ids), 30)
+        self.assertEqual(len(case_ids), len(set(case_ids)))
+        self.assertEqual(axis_counts, benchmark["scoring_rules"]["benchmark_axes"])
 
     def test_invalidation_cases_record_stale_steps(self) -> None:
         report = run_benchmark()
@@ -33,7 +62,7 @@ class PersonCScorerTests(unittest.TestCase):
             if case["invalidation_correct"] is not None
         ]
 
-        self.assertEqual(len(invalidation_cases), 2)
+        self.assertEqual(len(invalidation_cases), 5)
         for case in invalidation_cases:
             self.assertTrue(case["invalidation_correct"])
             self.assertGreaterEqual(len(case["stale_step_orders"]), 1)
@@ -60,8 +89,8 @@ class PersonCScorerTests(unittest.TestCase):
             report = run_benchmark(fixture_path=fixture_path)
 
         self.assertTrue(report_passed(report))
-        self.assertEqual(report["metrics"]["invalidation_passed"], 2)
-        self.assertEqual(report["metrics"]["invalidation_total"], 2)
+        self.assertEqual(report["metrics"]["invalidation_passed"], 5)
+        self.assertEqual(report["metrics"]["invalidation_total"], 5)
 
     def test_cli_emits_json_report(self) -> None:
         completed = subprocess.run(
