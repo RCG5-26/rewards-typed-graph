@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import copy
 import json
 from pathlib import Path
@@ -14,6 +13,12 @@ from agents.redemption.planner import (
     find_stale_steps_for_balance,
     load_fixture,
     plan_redemption,
+)
+from benchmark.metric_summary import (
+    build_metric_definitions,
+    count_case_values,
+    rate as score_rate,
+    summarize_case_metrics,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,16 +35,6 @@ def run_benchmark(
     fixture = load_fixture(fixture_path)
     benchmark = load_fixture(cases_path)
     case_results = [_score_case(fixture, case) for case in benchmark["cases"]]
-    invalidation_results = [
-        result
-        for result in case_results
-        if result["invalidation_correct"] is not None
-    ]
-    hallucination_cases = [
-        result
-        for result in case_results
-        if result["hallucination_count"] > 0
-    ]
 
     return {
         "benchmark_id": benchmark["benchmark_id"],
@@ -47,42 +42,10 @@ def run_benchmark(
         "architecture": "typed_graph_fixture",
         "evaluator_version": EVALUATOR_VERSION,
         "case_count": len(case_results),
-        "benchmark_axis_counts": dict(
-            sorted(Counter(result["benchmark_axis"] for result in case_results).items())
-        ),
-        "category_counts": dict(
-            sorted(Counter(result["category"] for result in case_results).items())
-        ),
-        "metrics": {
-            "accuracy_passed": sum(1 for result in case_results if result["accuracy_correct"]),
-            "accuracy_total": len(case_results),
-            "accuracy_rate": _rate(
-                sum(1 for result in case_results if result["accuracy_correct"]),
-                len(case_results),
-            ),
-            "strict_hallucination_count": sum(
-                result["hallucination_count"]
-                for result in case_results
-            ),
-            "strict_hallucination_rate": _rate(
-                len(hallucination_cases),
-                len(case_results),
-            ),
-            "invalidation_passed": sum(
-                1
-                for result in invalidation_results
-                if result["invalidation_correct"]
-            ),
-            "invalidation_total": len(invalidation_results),
-            "invalidation_rate": _rate(
-                sum(
-                    1
-                    for result in invalidation_results
-                    if result["invalidation_correct"]
-                ),
-                len(invalidation_results),
-            ),
-        },
+        "metric_definitions": build_metric_definitions(benchmark),
+        "benchmark_axis_counts": count_case_values(case_results, "benchmark_axis"),
+        "category_counts": count_case_values(case_results, "category"),
+        "metrics": summarize_case_metrics(case_results),
         "cases": case_results,
     }
 
@@ -142,6 +105,7 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
         "case_id": case["case_id"],
         "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
+        "invalidation_kind": case.get("invalidation_kind"),
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),
         "hallucination_issues": hallucination_issues,
@@ -236,19 +200,13 @@ def _fixture_fact_slugs(fixture: dict[str, Any]) -> set[str]:
     return slugs
 
 
-def _rate(numerator: int, denominator: int) -> float | None:
-    if denominator == 0:
-        return None
-    return numerator / denominator
-
-
 # Public scoring API. Alternative architectures (e.g. the single-agent LLM
 # baseline) reuse these so every architecture is graded by identical logic.
 # Exposed as stable names so callers don't import underscore-private helpers.
 accuracy_correct = _accuracy_correct
 hallucination_issues = _hallucination_issues
 case_current_balance = _case_current_balance
-rate = _rate
+rate = score_rate
 
 
 def main() -> int:

@@ -23,7 +23,11 @@ from benchmark.person_c_scorer import (
     accuracy_correct as score_accuracy_correct,
     case_current_balance as score_case_current_balance,
     hallucination_issues as score_hallucination_issues,
-    rate as score_rate,
+)
+from benchmark.metric_summary import (
+    build_metric_definitions,
+    count_case_values,
+    summarize_case_metrics,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -170,16 +174,6 @@ def run_single_agent_baseline(
     benchmark = load_fixture(cases_path)
     cases = benchmark["cases"][:limit] if limit is not None else benchmark["cases"]
     case_results = [_run_case(llm_client, fixture, case) for case in cases]
-    invalidation_results = [
-        result
-        for result in case_results
-        if result["invalidation_correct"] is not None
-    ]
-    hallucination_cases = [
-        result
-        for result in case_results
-        if result["hallucination_count"] > 0
-    ]
     token_cost_total = sum(result["token_cost_total"] for result in case_results)
 
     return {
@@ -188,6 +182,9 @@ def run_single_agent_baseline(
         "architecture": "single_agent_llm_baseline",
         "evaluator_version": EVALUATOR_VERSION,
         "case_count": len(case_results),
+        "metric_definitions": build_metric_definitions(benchmark),
+        "benchmark_axis_counts": count_case_values(case_results, "benchmark_axis"),
+        "category_counts": count_case_values(case_results, "category"),
         # Metric keys mirror benchmark/person_c_scorer.py exactly so the baseline
         # and the typed-graph system are directly comparable. Note the deliberate
         # asymmetry: `strict_hallucination_count` is the total issue count while
@@ -195,37 +192,10 @@ def run_single_agent_baseline(
         # Award-level hallucinations are scored; step-level checks (transfer
         # ratio, balance snapshot) don't apply because the baseline emits no
         # typed-graph steps (see _scoring_plan).
-        "metrics": {
-            "accuracy_passed": sum(1 for result in case_results if result["accuracy_correct"]),
-            "accuracy_total": len(case_results),
-            "accuracy_rate": score_rate(
-                sum(1 for result in case_results if result["accuracy_correct"]),
-                len(case_results),
-            ),
-            "strict_hallucination_count": sum(
-                result["hallucination_count"]
-                for result in case_results
-            ),
-            "strict_hallucination_rate": score_rate(
-                len(hallucination_cases),
-                len(case_results),
-            ),
-            "invalidation_passed": sum(
-                1
-                for result in invalidation_results
-                if result["invalidation_correct"]
-            ),
-            "invalidation_total": len(invalidation_results),
-            "invalidation_rate": score_rate(
-                sum(
-                    1
-                    for result in invalidation_results
-                    if result["invalidation_correct"]
-                ),
-                len(invalidation_results),
-            ),
-            "token_cost_total": token_cost_total,
-        },
+        "metrics": summarize_case_metrics(
+            case_results,
+            token_cost_total=token_cost_total,
+        ),
         "cases": case_results,
     }
 
@@ -256,7 +226,9 @@ def _run_case(
 
     return {
         "case_id": case["case_id"],
+        "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
+        "invalidation_kind": case.get("invalidation_kind"),
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),
         "hallucination_issues": hallucination_issues,

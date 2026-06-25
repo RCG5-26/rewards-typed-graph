@@ -3,6 +3,13 @@
   "description": "MVP benchmark cases for the seeded Tokyo Hyatt earning, redemption, and portfolio flow.",
   "as_of": "2026-06-18T00:00:00Z",
   "fixture_id": "person-c-mvp-tokyo-hyatt-v1",
+  "fixture_manifest": {
+    "ticket": "RCG-31",
+    "seed_fixture": "fixtures/person-c-mvp-seed.json",
+    "query_count": 30,
+    "frozen_world_scope": "Seeded Person C Tokyo Hyatt fixture: Chase Ultimate Rewards, World of Hyatt, three Tokyo hotel awards, and fixed cash quotes.",
+    "excluded_sources": ["live award inventory", "live cash prices", "unseeded transfer partners"]
+  },
   "scoring_rules": {
     "primary_metrics": ["accuracy", "strict_hallucination_rate", "invalidation_correctness"],
     "expected_axis_counts": {
@@ -64,6 +71,7 @@
       "case_id": "mvp_004_balance_change_replan",
       "benchmark_axis": "portfolio",
       "category": "invalidation",
+      "invalidation_kind": "balance_drop_to_backup_award",
       "query": "I used 40,000 Chase points yesterday. Is my Tokyo Hyatt plan still good?",
       "starting_balance_points": 75000,
       "mutation": {
@@ -83,6 +91,7 @@
       "case_id": "mvp_005_second_balance_change_no_award",
       "benchmark_axis": "portfolio",
       "category": "invalidation",
+      "invalidation_kind": "balance_drop_to_cash_fallback",
       "query": "I spent another 20,000 Chase points. What happens to the backup plan?",
       "starting_balance_points": 35000,
       "mutation": {
@@ -336,6 +345,7 @@
       "case_id": "mvp_025_large_spend_replan_to_ueno",
       "benchmark_axis": "portfolio",
       "category": "invalidation",
+      "invalidation_kind": "balance_drop_to_lower_tier_award",
       "query": "I spent 51,000 Chase points after planning. Which Tokyo Hyatt option remains?",
       "starting_balance_points": 75000,
       "mutation": {
@@ -351,6 +361,7 @@
       "case_id": "mvp_026_spend_to_shinjuku_threshold",
       "benchmark_axis": "portfolio",
       "category": "invalidation",
+      "invalidation_kind": "balance_drop_to_backup_award",
       "query": "I spent 45,000 Chase points after my first plan. What is the new best fit?",
       "starting_balance_points": 75000,
       "mutation": {
@@ -366,6 +377,7 @@
       "case_id": "mvp_027_backup_plan_stales_to_ueno",
       "benchmark_axis": "portfolio",
       "category": "invalidation",
+      "invalidation_kind": "balance_drop_to_lower_tier_award",
       "query": "I had a Shinjuku backup plan, then spent 6,000 Chase points. What remains?",
       "starting_balance_points": 30000,
       "mutation": {

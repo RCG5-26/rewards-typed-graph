@@ -47,7 +47,7 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 |---|---|---|---|
 | Alan · Graph | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish | nothing |
 | Val · Frontend | Clerk auth + landing on `main` | Wire demo shell to live API (RCG-27/25/26) | nothing — see backend-local-setup guide |
-| Michael · Redemption | RCG-33 benchmark corpus done (30 cases) | CrewAI baseline next | nothing |
+| Michael · Redemption | RCG-31/33/34/38 benchmark metrics done | CrewAI baseline next | nothing |
 | Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff | nothing |
 
 ---

@@ -2,6 +2,8 @@
 
 This folder holds the seeded Person C benchmark artifacts. The gold corpus has
 30 executable queries: 10 earning, 10 redemption, and 10 portfolio cases.
+The gold file also carries the RCG-31 fixture manifest that freezes the seed
+fixture, world scope, and excluded live sources for scoring.
 
 ## Run The Current Scorer
 
@@ -14,11 +16,12 @@ The gold file's `scoring_rules.expected_axis_counts` records the **required case
 The scorer runs the fixture-backed typed path against `benchmark/gold/person-c-mvp-cases.json` and reports:
 
 - accuracy
-- strict hallucination count and rate
-- invalidation correctness
+- strict hallucination count, case rate, issue counts, and RCG-34 definition
+- invalidation correctness plus RCG-38 wins by invalidation kind
 - benchmark-axis and category counts
 
-The current scorer covers the typed-graph fixture path only. Single-agent and CrewAI-style baseline runners should reuse the same gold cases and report shape.
+The typed-graph scorer and baseline runners reuse the shared metric definitions
+in `benchmark/metric_summary.py` so every architecture reports the same shape.
 
 ## Run The RCG-35 Single-Agent LLM Baseline
 
@@ -34,7 +37,7 @@ Optional knobs:
 - `SINGLE_AGENT_BASELINE_API_URL` (default: OpenAI-compatible chat completions)
 - `SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS` (default: `60`)
 
-The runner makes one JSON-only LLM call per benchmark case. It supplies the same seeded fixture/tool facts as context, but the output is treated as a baseline sink only: `plan_type = baseline_single_agent`, final raw output, no `plan_steps`, no `state_dependencies`, and no graph-mutation coordination. Invalidation cases therefore receive no structural invalidation credit by design.
+The runner makes one JSON-only LLM call per benchmark case. It supplies the same seeded fixture/tool facts as context, but the output is treated as a baseline sink only: `plan_type = baseline_single_agent`, final raw output, no `plan_steps`, no `state_dependencies`, and no graph-mutation coordination. Invalidation cases therefore receive no structural invalidation credit by design, and the RCG-38 report shows 0 wins for each invalidation kind.
 
 ## Graph-Lane Invalidation Evidence
 

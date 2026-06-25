@@ -33,17 +33,57 @@ class PersonCScorerTests(unittest.TestCase):
         self.assertEqual(report["architecture"], "typed_graph_fixture")
         self.assertEqual(report["case_count"], GOLD_CASE_COUNT)
         self.assertEqual(report["benchmark_axis_counts"], GOLD_EXPECTED_AXIS_COUNTS)
+        self.assertEqual(
+            report["metric_definitions"]["strict_hallucination_rate"]["ticket"],
+            "RCG-34",
+        )
+        self.assertEqual(
+            report["metric_definitions"]["plan_invalidation_correctness"]["ticket"],
+            "RCG-38",
+        )
         self.assertEqual(report["metrics"]["accuracy_passed"], GOLD_CASE_COUNT)
         self.assertEqual(report["metrics"]["accuracy_total"], GOLD_CASE_COUNT)
         self.assertEqual(report["metrics"]["strict_hallucination_count"], 0)
+        self.assertEqual(report["metrics"]["strict_hallucination_case_count"], 0)
+        self.assertEqual(report["metrics"]["strict_hallucination_issue_counts"], {})
         self.assertEqual(report["metrics"]["invalidation_passed"], GOLD_INVALIDATION_TOTAL)
         self.assertEqual(report["metrics"]["invalidation_total"], GOLD_INVALIDATION_TOTAL)
+        self.assertEqual(
+            report["metrics"]["invalidation_wins_by_kind"],
+            {
+                "balance_drop_to_backup_award": {
+                    "passed": 2,
+                    "total": 2,
+                    "rate": 1.0,
+                    "case_ids": [
+                        "mvp_004_balance_change_replan",
+                        "mvp_026_spend_to_shinjuku_threshold",
+                    ],
+                },
+                "balance_drop_to_cash_fallback": {
+                    "passed": 1,
+                    "total": 1,
+                    "rate": 1.0,
+                    "case_ids": ["mvp_005_second_balance_change_no_award"],
+                },
+                "balance_drop_to_lower_tier_award": {
+                    "passed": 2,
+                    "total": 2,
+                    "rate": 1.0,
+                    "case_ids": [
+                        "mvp_025_large_spend_replan_to_ueno",
+                        "mvp_027_backup_plan_stales_to_ueno",
+                    ],
+                },
+            },
+        )
         self.assertEqual(len(report["cases"]), GOLD_CASE_COUNT)
 
     def test_gold_corpus_has_30_unique_cases_across_required_axes(self) -> None:
         benchmark = _load_gold_benchmark()
         case_ids = [case["case_id"] for case in benchmark["cases"]]
         axis_counts: dict[str, int] = {}
+        invalidation_kinds: dict[str, int] = {}
         for case in benchmark["cases"]:
             axis = case["benchmark_axis"]
             axis_counts[axis] = axis_counts.get(axis, 0) + 1
@@ -54,10 +94,23 @@ class PersonCScorerTests(unittest.TestCase):
                 or "expected_fallback" in case
                 or "expected_response" in case
             )
+            if "mutation" in case:
+                kind = case["invalidation_kind"]
+                invalidation_kinds[kind] = invalidation_kinds.get(kind, 0) + 1
 
         self.assertEqual(len(case_ids), GOLD_CASE_COUNT)
         self.assertEqual(len(case_ids), len(set(case_ids)))
         self.assertEqual(axis_counts, benchmark["scoring_rules"]["expected_axis_counts"])
+        self.assertEqual(benchmark["fixture_manifest"]["ticket"], "RCG-31")
+        self.assertEqual(benchmark["fixture_manifest"]["query_count"], GOLD_CASE_COUNT)
+        self.assertEqual(
+            invalidation_kinds,
+            {
+                "balance_drop_to_backup_award": 2,
+                "balance_drop_to_cash_fallback": 1,
+                "balance_drop_to_lower_tier_award": 2,
+            },
+        )
 
     def test_invalidation_cases_record_stale_steps(self) -> None:
         report = run_benchmark()

@@ -17,7 +17,7 @@ This file is **team-wide AI working memory** — milestone narrative, not daily 
 
 When **Completed** grows past ~15 items for the current phase, move older bullets to [`progress-archive.md`](progress-archive.md).
 
-**Last updated:** 2026-06-25 - RCG-33 benchmark corpus expanded to 30 executable gold cases
+**Last updated:** 2026-06-25 - RCG-31/34/38 benchmark fixture and metrics operationalized
 
 ---
 
@@ -65,6 +65,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] RCG-51 clean Layer 4 cut contingency - 2026-06-25 - `docs/demo/layer4-cut-contingency.md`, `fixtures/demo-contingency-layer4-cut.json`, and `tests/test_demo_contingency.py` lock the Layers 1-3 demo path and presenter language.
 - [x] RCG-33 benchmark corpus - 2026-06-25 - `benchmark/gold/person-c-mvp-cases.json` now has 30 executable earning/redemption/portfolio cases; scorer reports axis counts and 30/30 typed fixture accuracy.
 - [x] RCG-35 single-agent baseline — 2026-06-25 — `benchmark/single_agent_baseline.py` adds the live LLM-call baseline with env-secret config, output-sink validation, token accounting, and mocked HTTP/LLM tests.
+- [x] RCG-31/34/38 benchmark metrics - 2026-06-25 - gold corpus now carries the fixture manifest, strict hallucination metric definition, and invalidation wins by kind shared by typed and baseline reports.
 
 ---
 
@@ -102,7 +103,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 | Gate                       | Date       | Status    | Criteria                                             |
 | -------------------------- | ---------- | --------- | ---------------------------------------------------- |
 | Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
-| Person C offline scorer    | 2026-06-23 | done      | PR #14 + RCG-33; 30/30 accuracy, 5/5 invalidation, 0 strict hallucinations on gold corpus |
+| Person C offline scorer    | 2026-06-25 | done      | 30/30 on fixture cases; RCG-34/38 metric breakdowns  |
 | RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
 | MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
 | Layer 4 go/no-go           | 2026-06-25 | no-go     | RCG-51 runbook locks a clean Layers 1-3 demo path |

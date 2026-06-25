@@ -83,10 +83,53 @@ class SingleAgentBaselineTests(unittest.TestCase):
 
         self.assertEqual(report["architecture"], "single_agent_llm_baseline")
         self.assertEqual(report["case_count"], expected_case_count)
+        self.assertEqual(report["benchmark_axis_counts"], {
+            "earning": 10,
+            "portfolio": 10,
+            "redemption": 10,
+        })
+        self.assertEqual(
+            report["metric_definitions"]["strict_hallucination_rate"]["ticket"],
+            "RCG-34",
+        )
+        self.assertEqual(
+            report["metric_definitions"]["plan_invalidation_correctness"]["ticket"],
+            "RCG-38",
+        )
         self.assertEqual(len(client.calls), expected_case_count)
         self.assertEqual(report["metrics"]["token_cost_total"], expected_case_count * 124)
         self.assertEqual(report["metrics"]["invalidation_passed"], 0)
         self.assertEqual(report["metrics"]["invalidation_total"], GOLD_INVALIDATION_TOTAL)
+        self.assertEqual(
+            report["metrics"]["invalidation_wins_by_kind"],
+            {
+                "balance_drop_to_backup_award": {
+                    "passed": 0,
+                    "total": 2,
+                    "rate": 0.0,
+                    "case_ids": [
+                        "mvp_004_balance_change_replan",
+                        "mvp_026_spend_to_shinjuku_threshold",
+                    ],
+                },
+                "balance_drop_to_cash_fallback": {
+                    "passed": 0,
+                    "total": 1,
+                    "rate": 0.0,
+                    "case_ids": ["mvp_005_second_balance_change_no_award"],
+                },
+                "balance_drop_to_lower_tier_award": {
+                    "passed": 0,
+                    "total": 2,
+                    "rate": 0.0,
+                    "case_ids": [
+                        "mvp_025_large_spend_replan_to_ueno",
+                        "mvp_027_backup_plan_stales_to_ueno",
+                    ],
+                },
+            },
+        )
+        self.assertEqual(report["cases"][0]["benchmark_axis"], "redemption")
         self.assertEqual(report["cases"][0]["baseline_plan_record"]["plan_type"], "baseline_single_agent")
         self.assertEqual(report["cases"][0]["baseline_plan_record"]["status"], "completed")
         self.assertIn("raw_output", report["cases"][0]["baseline_plan_record"])
