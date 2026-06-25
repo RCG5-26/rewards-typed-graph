@@ -14,6 +14,12 @@ from agents.redemption.planner import (
     load_fixture,
     plan_redemption,
 )
+from benchmark.metric_summary import (
+    build_metric_definitions,
+    count_case_values,
+    rate as score_rate,
+    summarize_case_metrics,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FIXTURE_PATH = ROOT / "fixtures" / "person-c-mvp-seed.json"
@@ -29,16 +35,6 @@ def run_benchmark(
     fixture = load_fixture(fixture_path)
     benchmark = load_fixture(cases_path)
     case_results = [_score_case(fixture, case) for case in benchmark["cases"]]
-    invalidation_results = [
-        result
-        for result in case_results
-        if result["invalidation_correct"] is not None
-    ]
-    hallucination_cases = [
-        result
-        for result in case_results
-        if result["hallucination_count"] > 0
-    ]
 
     return {
         "benchmark_id": benchmark["benchmark_id"],
@@ -46,36 +42,10 @@ def run_benchmark(
         "architecture": "typed_graph_fixture",
         "evaluator_version": EVALUATOR_VERSION,
         "case_count": len(case_results),
-        "metrics": {
-            "accuracy_passed": sum(1 for result in case_results if result["accuracy_correct"]),
-            "accuracy_total": len(case_results),
-            "accuracy_rate": _rate(
-                sum(1 for result in case_results if result["accuracy_correct"]),
-                len(case_results),
-            ),
-            "strict_hallucination_count": sum(
-                result["hallucination_count"]
-                for result in case_results
-            ),
-            "strict_hallucination_rate": _rate(
-                len(hallucination_cases),
-                len(case_results),
-            ),
-            "invalidation_passed": sum(
-                1
-                for result in invalidation_results
-                if result["invalidation_correct"]
-            ),
-            "invalidation_total": len(invalidation_results),
-            "invalidation_rate": _rate(
-                sum(
-                    1
-                    for result in invalidation_results
-                    if result["invalidation_correct"]
-                ),
-                len(invalidation_results),
-            ),
-        },
+        "metric_definitions": build_metric_definitions(benchmark),
+        "benchmark_axis_counts": count_case_values(case_results, "benchmark_axis"),
+        "category_counts": count_case_values(case_results, "category"),
+        "metrics": summarize_case_metrics(case_results),
         "cases": case_results,
     }
 
@@ -133,7 +103,9 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
 
     return {
         "case_id": case["case_id"],
+        "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
+        "invalidation_kind": invalidation_kind_for_case(case),
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),
         "hallucination_issues": hallucination_issues,
@@ -145,6 +117,23 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
         "actual_fallback": plan.get("fallback"),
         "status": plan["status"],
     }
+
+
+def invalidation_kind_for_case(case: dict[str, Any]) -> str | None:
+    """Return a case's invalidation_kind, requiring it on mutation cases.
+
+    A mutation case without an explicit kind would otherwise be silently grouped
+    as "unspecified" in the per-kind benchmark totals (metric_summary.py), which
+    skews the comparison. Fail fast instead so the gold corpus stays well-formed.
+    """
+    if "mutation" in case:
+        kind = case.get("invalidation_kind")
+        if not kind:
+            raise ValueError(
+                f"mutation case {case.get('case_id')!r} must set invalidation_kind"
+            )
+        return kind
+    return case.get("invalidation_kind")
 
 
 def _balance_by_slug(fixture: dict[str, Any], balance_slug: str) -> dict[str, Any]:
@@ -228,19 +217,13 @@ def _fixture_fact_slugs(fixture: dict[str, Any]) -> set[str]:
     return slugs
 
 
-def _rate(numerator: int, denominator: int) -> float | None:
-    if denominator == 0:
-        return None
-    return numerator / denominator
-
-
 # Public scoring API. Alternative architectures (e.g. the single-agent LLM
 # baseline) reuse these so every architecture is graded by identical logic.
 # Exposed as stable names so callers don't import underscore-private helpers.
 accuracy_correct = _accuracy_correct
 hallucination_issues = _hallucination_issues
 case_current_balance = _case_current_balance
-rate = _rate
+rate = score_rate
 
 
 def main() -> int:
