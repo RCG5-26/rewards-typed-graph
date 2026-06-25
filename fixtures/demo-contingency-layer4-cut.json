@@ -1,0 +1,130 @@
+{
+  "fixtureId": "rcg-51-layer4-cut-demo-path-v1",
+  "ticket": "RCG-51",
+  "runbook": "docs/demo/layer4-cut-contingency.md",
+  "decision": {
+    "layer4Status": "cut",
+    "canonicalSources": [
+      "docs/demo/layer4-cut-contingency.md",
+      "docs/meetings/sprint-plan-jun24-29.md"
+    ],
+    "presenterLine": "Layer 4 was a hard-cuttable stretch and is cut for this demo. The live proof is Layers 1-3: typed graph mutations, dependency tracking, and structural replanning."
+  },
+  "demoPath": {
+    "name": "Clean Layers 1-3 hero path",
+    "requiredRoutes": [
+      "GET /session",
+      "POST /demo/reset",
+      "POST /plans",
+      "GET /plans/:planId",
+      "GET /plans/current",
+      "POST /balance-transfer",
+      "GET /mutations",
+      "GET /mutations/stream"
+    ],
+    "requiredFixtures": [
+      "fixtures/demo-seed.json",
+      "fixtures/mock-plan.json",
+      "fixtures/mock-mutation-events.json"
+    ],
+    "heroMoments": [
+      {
+        "id": "hero-1",
+        "name": "Balance change invalidates and replans",
+        "status": "show",
+        "proof": [
+          "plan revision 1 is current",
+          "balance transfer commits as typed graph mutations",
+          "dependent plan revision becomes stale",
+          "revision 2 becomes current and revision 1 is superseded"
+        ]
+      },
+      {
+        "id": "hero-2",
+        "name": "Layer 4 ingestion and verifier",
+        "status": "cut",
+        "replacement": "Use the mutation sidebar and revision history from Hero Moment 1 to show the same coordination claim on shipped code."
+      }
+    ],
+    "runOfShow": [
+      {
+        "order": 1,
+        "label": "Reset or confirm the seeded demo persona",
+        "route": "POST /demo/reset",
+        "layer": 1
+      },
+      {
+        "order": 2,
+        "label": "Create the Tokyo rewards plan from the typed graph seed",
+        "route": "POST /plans",
+        "layer": 2
+      },
+      {
+        "order": 3,
+        "label": "Show the plan revision, steps, and state dependencies",
+        "route": "GET /plans/:planId",
+        "layer": 3
+      },
+      {
+        "order": 4,
+        "label": "Stream or replay graph mutation events in the sidebar",
+        "route": "GET /mutations/stream",
+        "fallbackRoute": "GET /mutations",
+        "layer": 3
+      },
+      {
+        "order": 5,
+        "label": "Transfer Chase UR to Hyatt and trigger structural invalidation",
+        "route": "POST /balance-transfer",
+        "layer": 3
+      },
+      {
+        "order": 6,
+        "label": "Show the replanned current revision",
+        "route": "GET /plans/current",
+        "layer": 3
+      }
+    ],
+    "fallbacks": [
+      {
+        "trigger": "SSE disconnects or the sidebar misses frames",
+        "action": "Use GET /mutations?after=<lastEventId> for REST catch-up; if needed, replay fixtures/mock-mutation-events.json and label it as the same Layers 1-3 event contract."
+      },
+      {
+        "trigger": "Live API or Postgres is unavailable during rehearsal",
+        "action": "Use fixtures/mock-plan.json and fixtures/mock-mutation-events.json as a clearly labeled replay of the shipped contract, then keep Layer 4 cut."
+      }
+    ],
+    "forbiddenSurface": {
+      "tickets": [
+        "RCG-39",
+        "RCG-41",
+        "RCG-42",
+        "RCG-43",
+        "RCG-44",
+        "RCG-50"
+      ],
+      "routes": [
+        "/ingestion",
+        "/verifier",
+        "/mutation-proposals",
+        "/layer4"
+      ],
+      "schemaTerms": [
+        "MutationProposal",
+        "visibility_scope",
+        "global graph_mutations"
+      ],
+      "eventScopes": [
+        "global mutation events",
+        "world-tier Layer 4 events"
+      ]
+    },
+    "successChecks": [
+      "Demo starts from the fixed seeded persona and Tokyo trip scenario.",
+      "The shown path includes plan creation, typed mutation events, balance transfer, stale or superseded revision, and the new current revision.",
+      "No demo step requires Layer 4 ingestion, verifier approval, mutation proposals, or global mutation events.",
+      "If asked about Layer 4, the presenter says it was cut and points back to the stronger Layers 1-3 proof."
+    ]
+  }
+}
