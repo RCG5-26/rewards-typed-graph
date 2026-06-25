@@ -138,16 +138,21 @@ def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
         stderr=subprocess.PIPE,
         text=True,
     )
-    output = result.stdout.strip("\n\x1e")
-    if not output:
+    # psql places the record separator BETWEEN rows and terminates output with a
+    # single newline. So "" means zero rows, while a lone "\n" is one row with a
+    # single empty-string column — do not conflate them, and never split away a
+    # genuine trailing empty record.
+    output = result.stdout
+    if output == "":
         return []
+    if output.endswith("\n"):
+        output = output[:-1]
     return [
         tuple(
             None if value == _PSQL_NULL else _parse_psql_value(value)
             for value in row.split("\x1f")
         )
         for row in output.split("\x1e")
-        if row
     ]
 
 
@@ -384,31 +389,52 @@ def _ensure_persona_seeded(user_id: str) -> None:
     keeps it idempotent regardless of the partial state found.
     """
 
-    rows = _psql_rows(
-        _format_psql_query(
-            "SELECT 1 FROM user_balances WHERE user_id = %s LIMIT 1",
-            (user_id,),
-        )
-    )
-    if rows:
+    if _persona_is_complete(user_id):
         return
     _psql_tx(
         [*_persona_delete_statements(user_id), *_persona_clone_statements(user_id)]
     )
 
 
+# Per-user persona tables the seed clone populates, FK-safe delete order.
+_PERSONA_TABLES = (
+    "user_balances",
+    "user_program_statuses",
+    "user_goals",
+    "holds",
+)
+
+
+def _persona_is_complete(user_id: str) -> bool:
+    """A persona is complete only if every table the seed populates is fully
+    cloned. Checking just one table would miss a clone that failed partway."""
+
+    seed = json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
+    for table in _PERSONA_TABLES:
+        expected = len(seed.get(table, []))
+        if expected == 0:
+            continue
+        rows = _psql_rows(
+            _format_psql_query(
+                # table is from the fixed _PERSONA_TABLES tuple, never user input.
+                f"SELECT count(*) FROM {table} WHERE user_id = %s",
+                (user_id,),
+            )
+        )
+        actual = int(rows[0][0]) if rows else 0
+        if actual < expected:
+            return False
+    return True
+
+
 def _persona_delete_statements(user_id: str) -> list[str]:
-    """Clear any per-user persona rows (FK-safe order) before a re-clone."""
+    """Clear any per-user persona rows before a re-clone, reverse of the seed
+    order so foreign keys never block the delete."""
 
     return [
-        _format_psql_query("DELETE FROM holds WHERE user_id = %s", (user_id,)),
-        _format_psql_query("DELETE FROM user_goals WHERE user_id = %s", (user_id,)),
-        _format_psql_query(
-            "DELETE FROM user_program_statuses WHERE user_id = %s", (user_id,)
-        ),
-        _format_psql_query(
-            "DELETE FROM user_balances WHERE user_id = %s", (user_id,)
-        ),
+        # table is from the fixed _PERSONA_TABLES tuple, never user input.
+        _format_psql_query(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+        for table in reversed(_PERSONA_TABLES)
     ]
 
 
