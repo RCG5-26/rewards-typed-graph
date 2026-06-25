@@ -1,34 +1,31 @@
-import "server-only";
-
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-import { getSession } from "@/lib/api/client";
+import { demoReset } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/types";
 
 /**
- * GET /api/me — proxies to the Hono API GET /session, returning the signed-in
- * user's session record. Returns 401 when there is no session, 403 when the
- * account is not yet provisioned.
+ * POST /api/demo/reset — proxies to the Hono API POST /demo/reset, resetting
+ * the demo user's account to its seeded state. Returns 401 when not signed in.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function POST() {
   try {
     const { getToken } = await auth();
     const token = await getToken();
     if (!token) {
       return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     }
-    const session = await getSession(token);
-    return NextResponse.json(session);
+    const result = await demoReset(token);
+    return NextResponse.json(result);
   } catch (err) {
     if (err instanceof ApiError) {
       const status = "status" in err.kind ? err.kind.status : 500;
       return NextResponse.json({ error: err.message }, { status });
     }
-    console.error("GET /api/me failed", err);
-    return NextResponse.json({ error: "Could not load your account." }, { status: 500 });
+    console.error("POST /api/demo/reset failed", err);
+    return NextResponse.json({ error: "Could not reset demo." }, { status: 500 });
   }
 }
