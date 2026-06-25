@@ -212,7 +212,7 @@ curl -N localhost:$API_PORT/mutations/stream -H "Authorization: Bearer $TOKEN"
 
 ## Completion notes _(fill when done)_
 
-- **Completed:** 2026-06-24 _(remaining gates: live Clerk token smoke-test; `GET /session` per-user persona bootstrap clone — see AI_USAGE Entry 008)_
+- **Completed:** 2026-06-24 _(remaining gate: manual `npm run dev` + real Clerk bearer curl — agent sandbox blocks server boot; all automated gates green)_
 - **PR / commit:** PR #29 (`raq/demo-mocks`)
 - **Implemented:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`, plan-route vitest. `npm --prefix apps/api test` (75 tests) + `typecheck` green. Live smoke against docker Postgres: session → create-plan (rev 1 `current`, 3 steps + deps) → balance-transfer (rev 2 `current`, prior `superseded`, replan job `completed`) → current-plan → demo-reset → re-run all pass.
 - **Deviations from spec:**

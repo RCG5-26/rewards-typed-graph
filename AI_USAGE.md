@@ -483,9 +483,9 @@ curl -s -XPOST localhost:8787/plans -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' -d '{"query":"Best way to Tokyo in October?"}'
 ```
 
-2. **`GET /session` persona bootstrap clone** — spec calls for idempotent per-Clerk-user seed clone on first login; current bridge only reads an existing `users` row (works with `AUTH_DEV_USER_ID` + pre-loaded demo user; needs clone logic before multi-user Clerk demo).
+2. **`GET /session` persona bootstrap clone** — implemented: new Clerk users (`clerkId` only) trigger idempotent persona clone from `fixtures/demo-seed.json` (balances, statuses, goals, holds). Verified live against docker Postgres + bridge smoke. Clerk JWT path unit-tested via `clerk-auth.test.ts` (mocked `verifyToken`).
 
-Live Postgres hero smoke (session → create-plan → balance-transfer → demo-reset) passed against docker-compose. Status stays `In Progress` until Clerk + bootstrap gates clear.
+Live Postgres hero smoke (session → create-plan → balance-transfer → demo-reset) passed against docker-compose. **Remaining gate:** manual `npm --prefix apps/api run dev` + real Clerk bearer curl (blocked in agent sandbox for server boot; run locally).
 
 ### Files not touched (per spec touch list)
 

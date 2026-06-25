@@ -51,7 +51,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 | Item | Owner | Blocked on | Notes |
 |---|---|---|---|
-| **RCG-18** API service (spec 07) | Raq | live Clerk smoke-test | `raq/demo-mocks`; 75 TS tests + typecheck green; awaits real `CLERK_SECRET_KEY` for final gate |
+| **RCG-18** API service (spec 07) | Raq | manual dev-server Clerk curl | `raq/demo-mocks`; 83 TS tests + typecheck green; persona bootstrap + hero bridge verified on live Postgres |
 | **RCG-28/29/32** hero path | Raq | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
 | **RCG-11-14** graph infrastructure | Alan | - | OCC, traversal, deps, mutation log |
 | **RCG-24/27/26** demo UI on mocks | Val | Alan RCG-14 event shape | Clerk auth on `main`; parallel to hero |
