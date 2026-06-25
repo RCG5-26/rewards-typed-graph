@@ -21,12 +21,12 @@ export function createPlanRoutes(service: PlanService) {
 
   app.get("/session", async (c) => {
     const identity = getAuthIdentity(c);
-    return c.json(await service.getSession(identity));
+    return c.json(await callService(() => service.getSession(identity)));
   });
 
   app.post("/demo/reset", async (c) => {
     const userId = getAuthenticatedUserId(c);
-    return c.json(await service.resetDemo(userId));
+    return c.json(await callService(() => service.resetDemo(userId)));
   });
 
   app.post("/plans", async (c) => {
@@ -40,7 +40,9 @@ export function createPlanRoutes(service: PlanService) {
   app.get("/plans/current", async (c) => {
     const userId = getAuthenticatedUserId(c);
     const lineageId = parseRequiredId(c.req.query("lineageId"), "lineageId");
-    const plan = await service.getCurrentPlan(userId, lineageId);
+    const plan = await callService(() =>
+      service.getCurrentPlan(userId, lineageId),
+    );
     if (!plan) {
       throw new HTTPException(404, { message: "no current plan for lineage" });
     }
@@ -49,7 +51,9 @@ export function createPlanRoutes(service: PlanService) {
 
   app.get("/plans/:planId", async (c) => {
     const userId = getAuthenticatedUserId(c);
-    const plan = await service.getPlanById(userId, c.req.param("planId"));
+    const plan = await callService(() =>
+      service.getPlanById(userId, c.req.param("planId")),
+    );
     if (!plan) {
       throw new HTTPException(404, { message: "plan not found" });
     }
@@ -68,12 +72,14 @@ export function createPlanRoutes(service: PlanService) {
   return app;
 }
 
-async function runService<T>(
-  call: () => Promise<T>,
-  respond: (value: T) => Response,
-): Promise<Response> {
+/**
+ * Run a `PlanService` call, mapping typed domain errors to their HTTP status.
+ * Every service-backed route goes through this so a bridge `not_found`/`conflict`
+ * surfaces as 404/409 instead of leaking out as a generic 500.
+ */
+async function callService<T>(call: () => Promise<T>): Promise<T> {
   try {
-    return respond(await call());
+    return await call();
   } catch (error) {
     if (error instanceof PlanServiceError) {
       throw new HTTPException(HTTP_STATUS_BY_ERROR_CODE[error.code], {
@@ -82,6 +88,13 @@ async function runService<T>(
     }
     throw error;
   }
+}
+
+async function runService<T>(
+  call: () => Promise<T>,
+  respond: (value: T) => Response,
+): Promise<Response> {
+  return respond(await callService(call));
 }
 
 async function readJsonBody(request: Request): Promise<unknown> {
