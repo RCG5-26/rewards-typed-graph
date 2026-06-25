@@ -5,7 +5,29 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["**/*.test.ts"],
-    exclude: ["node_modules", "apps/api", ".next"],
+    // Glob patterns match nested paths too: apps/api has its own runner, and
+    // .claude/worktrees holds full repo copies (agent worktrees) that must not
+    // pollute web test collection or coverage.
+    exclude: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/apps/api/**",
+      "**/.claude/**",
+      "**/coverage/**",
+    ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov", "json-summary"],
+      reportsDirectory: "coverage/web",
+      // Include all source so CI diff-cover sees new lines anywhere, even untested UI.
+      include: ["lib/**", "app/**", "components/**"],
+      exclude: ["**/*.test.ts", "**/*.config.*", "test/**"],
+      // Ratchet floor only — see docs/development/ci-required-checks.md (Thresholds).
+      thresholds: {
+        lines: 6,
+        statements: 6,
+      },
+    },
   },
   resolve: {
     alias: {

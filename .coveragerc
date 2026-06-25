@@ -1,0 +1,20 @@
+# Python coverage config — feeds the CI diff-coverage gate (see docs/plans).
+# Drives coverage.py over the stdlib `unittest` suite (no pytest migration).
+[run]
+source = .
+branch = True
+omit =
+    tests/*
+    apps/*
+    node_modules/*
+    # Pre-lock polymorphic prototype — superseded by table-per-type schema
+    # (see AI_USAGE.md); not part of the canonical codebase.
+    schema/experimental/*
+
+[report]
+# Ratchet floor only — see docs/development/ci-required-checks.md (Thresholds).
+fail_under = 78
+show_missing = True
+
+[xml]
+output = coverage/python/coverage.xml
