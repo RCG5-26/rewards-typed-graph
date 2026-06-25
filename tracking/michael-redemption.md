@@ -11,11 +11,12 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 - PR review fixes are addressed: fallback diagnostics are query-scoped, and invalidation scoring uses the Chase balance slug instead of fixture list position.
 - RCG-21 graph-writer bridge is in place: planner output writes `plans`, `plan_steps`, and `state_dependencies` through `V31GraphWriteService`, and `hero_flow.py` is wired for synchronous revision-2 promotion.
 - RCG-21 branch is synced with latest `main`; non-live test suite is green, with live Postgres tests still skipped in environments without `psql`.
+- RCG-36 free-text multi-agent baseline has an initial deterministic runner: role-tagged free-text handoffs, JSON tool outputs, same gold cases, final-plan-only persistence shape.
 
 ## Next
 
 - Support Raq on live Postgres hero verification if the RCG-28/29/32 path exposes redemption-writer gaps.
-- Add fair single-agent and CrewAI-style baseline runners around the same fixture data and scorer report shape.
+- Harden the RCG-36 baseline around the shared eval config/model budget once that decision lands.
 
 ## Blocked on
 

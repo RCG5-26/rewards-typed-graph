@@ -16,6 +16,14 @@ The scorer runs the fixture-backed typed path against `benchmark/gold/person-c-m
 
 The current scorer covers the typed-graph fixture path only. Single-agent and CrewAI-style baseline runners should reuse the same gold cases and report shape.
 
+## Run The RCG-36 Free-Text Multi-Agent Baseline
+
+```bash
+python -m benchmark.free_text_multiagent_baseline --pretty
+```
+
+The RCG-36 runner simulates a CrewAI-style handoff with role-tagged free-text messages and JSON tool outputs. It reports against the same gold cases, persists only a final baseline plan shape plus evaluation metrics, and receives no structural invalidation credit.
+
 ## Graph-Lane Invalidation Evidence
 
 RCG-52 adds a read-only graph instrumentation helper for the cross-architecture eval harness:

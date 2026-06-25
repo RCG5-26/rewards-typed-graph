@@ -22,6 +22,27 @@ BALANCE_SLUG = "balance:user_mvp_demo:chase_ur"
 EVALUATOR_VERSION = "person-c-offline-scorer-v1"
 
 
+def score_plan_against_case(
+    fixture: dict[str, Any],
+    plan: dict[str, Any],
+    case: dict[str, Any],
+) -> dict[str, Any]:
+    hallucination_issues = _hallucination_issues(fixture, plan, case)
+    return {
+        "accuracy_correct": _accuracy_correct(plan, case),
+        "hallucination_count": len(hallucination_issues),
+        "hallucination_issues": hallucination_issues,
+    }
+
+
+def balance_by_slug(fixture: dict[str, Any], balance_slug: str) -> dict[str, Any]:
+    return _balance_by_slug(fixture, balance_slug)
+
+
+def metric_rate(numerator: int, denominator: int) -> float | None:
+    return _rate(numerator, denominator)
+
+
 def run_benchmark(
     fixture_path: str | Path = DEFAULT_FIXTURE_PATH,
     cases_path: str | Path = DEFAULT_CASES_PATH,
