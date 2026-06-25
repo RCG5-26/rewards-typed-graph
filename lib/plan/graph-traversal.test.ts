@@ -7,6 +7,7 @@ describe("buildTraversalChain", () => {
   it("follows active edges when a stale edge is listed first", () => {
     const graph: PlanGraph = {
       nodes: [
+        { id: "ghost", label: "Stale hop", kind: "program", col: 0 },
         { id: "a", label: "Chase UR", kind: "program", col: 0 },
         { id: "b", label: "Hyatt", kind: "program", col: 1 },
         { id: "c", label: "Tokyo award", kind: "redemption", col: 2 },
@@ -26,6 +27,7 @@ describe("buildTraversalChain", () => {
 
     const hubs = buildTraversalChain(graph);
     expect(hubs.map((h) => h.id)).toEqual(["a", "b", "c"]);
+    expect(hubs.map((h) => h.id)).not.toContain("ghost");
   });
 
   it("ignores superseded edges", () => {

@@ -38,7 +38,7 @@ describe("PostgresUserRepository", () => {
 
     await expect(repo.getUserGraph("user_unmapped")).rejects.toMatchObject({
       name: "UnmappedUserError",
-      message: expect.stringContaining("user_unmapped"),
+      message: "No account is provisioned for this sign-in.",
     });
     expect(mockEnd).toHaveBeenCalled();
   });
@@ -48,7 +48,7 @@ describe("PostgresUserRepository", () => {
     const { getUserRepository } = await import("./repository");
 
     await expect(getUserRepository().getUserGraph("user_new")).rejects.toThrow(
-      /no user provisioned/,
+      /No account is provisioned/,
     );
 
     const userLookupSql = mockQuery.mock.calls[0]?.[0] as string;

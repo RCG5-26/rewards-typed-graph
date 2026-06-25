@@ -130,8 +130,8 @@ function buildGraph(seed: DemoSeed, clerkId: string): UserGraph {
 
 /** Thrown when a Clerk session has no provisioned `users.clerk_id` row. */
 export class UnmappedUserError extends Error {
-  constructor(clerkId: string) {
-    super(`no user provisioned for clerk_id ${clerkId}`);
+  constructor() {
+    super("No account is provisioned for this sign-in.");
     this.name = "UnmappedUserError";
   }
 }
@@ -165,7 +165,7 @@ class PostgresUserRepository implements UserRepository {
       // fallback lives only in FixtureUserRepository; the Postgres path requires
       // an explicitly provisioned `users.clerk_id` row.
       if (!row) {
-        throw new UnmappedUserError(clerkId);
+        throw new UnmappedUserError();
       }
       const isDemoPersona = false;
 

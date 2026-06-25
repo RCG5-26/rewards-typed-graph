@@ -35,9 +35,7 @@ describe("resolveSessionGraph", () => {
   });
 
   it("maps UnmappedUserError to 403", async () => {
-    mockGetCurrentUserGraph.mockRejectedValueOnce(
-      new UnmappedUserError("user_unmapped"),
-    );
+    mockGetCurrentUserGraph.mockRejectedValueOnce(new UnmappedUserError());
     const { resolveSessionGraph } = await import("./session");
 
     const result = await resolveSessionGraph();
