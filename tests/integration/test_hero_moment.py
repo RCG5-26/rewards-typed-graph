@@ -28,6 +28,7 @@ import unittest
 import uuid
 from pathlib import Path
 
+from benchmark.graph_instrumentation import collect_graph_eval_metrics
 from schema.mutations import (
     CreatePlanRequest,
     CreatePlanStepRequest,
@@ -243,6 +244,29 @@ class HeroMomentDbPathTest(LivePostgresMixin, unittest.TestCase):
             ),
         )
 
+        eval_metrics = collect_graph_eval_metrics(
+            _PsqlConnection(),
+            user_id=DEMO_USER_ID,
+            source_plan_id=plan_id,
+        )
+        self.assertTrue(eval_metrics["plan_invalidation_correct"])
+        self.assertIsNone(eval_metrics["benchmark_query_id"])
+        self.assertEqual(eval_metrics["token_cost_total"], 0)
+        self.assertEqual(eval_metrics["metric_scores"]["source_plan_status"], "stale")
+        self.assertEqual(eval_metrics["metric_scores"]["replan_job_status"], "pending")
+        self.assertEqual(
+            eval_metrics["metric_scores"]["transfer_points_mutation_count"],
+            2,
+        )
+        self.assertEqual(
+            eval_metrics["metric_scores"]["mark_stale_plan_mutation_count"],
+            1,
+        )
+        self.assertGreaterEqual(
+            eval_metrics["metric_scores"]["mark_stale_step_mutation_count"],
+            1,
+        )
+
 
 class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
     """Full hero gate — green when hero_flow.py is wired."""
@@ -324,6 +348,9 @@ class _PsqlCursor:
         if not self.result:
             return None
         return self.result[0]
+
+    def fetchall(self):
+        return self.result or []
 
 
 def _format_psql_query(sql, params):
