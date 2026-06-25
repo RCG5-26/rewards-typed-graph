@@ -1,0 +1,39 @@
+# Build-context excludes for the Railway API image.
+# Keep schema/, tests/integration/, fixtures/, scripts/, and lockfiles IN — the
+# Python bridge imports them at runtime.
+
+# VCS / CI
+.git
+.github
+
+# Node deps + build output (reinstalled fresh in the image)
+node_modules
+**/node_modules
+.next
+dist
+build
+*.tsbuildinfo
+
+# Secrets / local env (only .env.example is tracked, and it is not needed at runtime)
+.env
+.env.*
+*.local
+
+# Python caches
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+
+# Editor / OS
+.DS_Store
+.idea
+.vscode
+
+# Local-only / non-runtime docs and scratch
+docs/meetings
+scratch
+*.tmp
+review_docs
