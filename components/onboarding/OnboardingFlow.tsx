@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CardView } from "@/lib/cards/types";
+import { useReducedMotion } from "@/lib/use-reduced-motion";
 import type { UserGraph } from "@/lib/user/types";
 import AgentConsole from "./AgentConsole";
 import CardTile from "./CardTile";
+import TopBar from "./TopBar";
 
 type Step = "cards" | "ask" | "plan";
 
@@ -18,6 +20,34 @@ const SUGGESTED_PROMPTS = [
 
 function dollars(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+}
+
+/** Eased count-up from the previous value to `target` whenever it changes. */
+function useCountUp(target: number, duration = 600): number {
+  const [val, setVal] = useState(target);
+  const fromRef = useRef(target);
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    const from = fromRef.current;
+    if (from === target) return;
+    if (reduced) {
+      setVal(target);
+      fromRef.current = target;
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setVal(Math.round(from + (target - from) * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = target;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration, reduced]);
+  return val;
 }
 
 /**
@@ -57,16 +87,10 @@ export default function OnboardingFlow() {
       .then(([cardsData, graph]) => {
         if (!active) return;
         setCards(cardsData.cards);
-        if (graph) {
-          setMe(graph);
-          // Pre-select the cards the user already holds (real `holds` rows),
-          // intersected with the catalog we actually loaded.
-          const catalog = new Set(cardsData.cards.map((c) => c.id));
-          setSelected(graph.holds.map((h) => h.cardId).filter((id) => catalog.has(id)));
-          // Seed the goal box from the user's stored goal.
-          const goal = graph.goals[0];
-          if (goal?.description) setQuery(goal.description);
-        }
+        // Start empty & interactive: the user picks the cards they carry from
+        // the full catalog and writes their own goal. (The persona's holds/goal
+        // are still available via `me` for the traversal, just not pre-filled.)
+        if (graph) setMe(graph);
       })
       .catch((err) => {
         console.error("onboarding load failed", err);
@@ -78,12 +102,6 @@ export default function OnboardingFlow() {
     };
   }, []);
 
-  const pointsOnHand = useMemo(
-    () => (me ? me.balances.reduce((sum, b) => sum + b.balancePoints, 0) : 0),
-    [me],
-  );
-  const firstName = me?.user.displayName?.split(" ")[0] ?? null;
-
   const wallet = useMemo(
     () => cards.filter((c) => selected.includes(c.id)),
     [cards, selected],
@@ -92,6 +110,15 @@ export default function OnboardingFlow() {
     () => wallet.reduce((sum, c) => sum + c.firstYearValueCents, 0),
     [wallet],
   );
+  // Points on hand reflect only the programs of the cards you've selected.
+  const pointsOnHand = useMemo(() => {
+    if (!me) return 0;
+    const programs = new Set(wallet.map((c) => c.programName));
+    return me.balances
+      .filter((b) => programs.has(b.programName))
+      .reduce((sum, b) => sum + b.balancePoints, 0);
+  }, [me, wallet]);
+  const firstName = me?.user.displayName?.split(" ")[0] ?? null;
 
   function toggle(id: string) {
     setSelected((prev) =>
@@ -101,49 +128,64 @@ export default function OnboardingFlow() {
 
   const cardWord = wallet.length === 1 ? "card" : "cards";
 
+  const displayName = me?.user.displayName ?? null;
+  const imageUrl = me?.user.imageUrl ?? null;
+
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-surface-subtle">
-      {/* ambient glows */}
-      <div className="pointer-events-none absolute -bottom-44 -right-36 h-[520px] w-[520px] rounded-full bg-[var(--blob-glow-lg,radial-gradient(circle,var(--color-blob-core),transparent_72%))] opacity-60" />
-      <div className="pointer-events-none absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-[var(--blob-glow-lg,radial-gradient(circle,var(--color-blob-core),transparent_72%))] opacity-40" />
+    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-surface-subtle">
+      {/* ledger dot-grid + iris glow — the typed graph as quiet texture */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: "radial-gradient(var(--color-border-strong) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+          WebkitMaskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
+          maskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
+          animation: "gpGridDrift 60s linear infinite",
+        }}
+      />
+      <div className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full" style={{ background: "var(--blob-glow-lg)", opacity: 0.35 }} />
 
-          {step === "cards" && (
-            <CardsStep
-              cards={cards}
-              loading={loading}
-              error={error}
-              selected={selected}
-              wallet={wallet}
-              projectedCents={projectedCents}
-              cardWord={cardWord}
-              firstName={firstName}
-              pointsOnHand={pointsOnHand}
-              prefilledCount={me?.holds.length ?? 0}
-              onToggle={toggle}
-              onContinue={() => setStep("ask")}
-            />
-          )}
+      <TopBar step={step} displayName={displayName} imageUrl={imageUrl} />
 
-          {step === "ask" && (
-            <AskStep
-              walletCount={wallet.length}
-              cardWord={cardWord}
-              query={query}
-              setQuery={setQuery}
-              onBack={() => setStep("cards")}
-              onPlan={goToPlan}
-              prompts={SUGGESTED_PROMPTS}
-            />
-          )}
+      <div className="relative flex-1">
+        {step === "cards" && (
+          <CardsStep
+            cards={cards}
+            loading={loading}
+            error={error}
+            selected={selected}
+            wallet={wallet}
+            projectedCents={projectedCents}
+            cardWord={cardWord}
+            firstName={firstName}
+            pointsOnHand={pointsOnHand}
+            onToggle={toggle}
+            onContinue={() => setStep("ask")}
+          />
+        )}
 
-          {step === "plan" && (
-            <AgentConsole
-              queryText={query.trim()}
-              selectedCardIds={selected}
-              onRestart={() => setStep("cards")}
-            />
-          )}
-    </main>
+        {step === "ask" && (
+          <AskStep
+            walletCount={wallet.length}
+            cardWord={cardWord}
+            query={query}
+            setQuery={setQuery}
+            onBack={() => setStep("cards")}
+            onPlan={goToPlan}
+            prompts={SUGGESTED_PROMPTS}
+          />
+        )}
+
+        {step === "plan" && (
+          <AgentConsole
+            queryText={query.trim()}
+            selectedCardIds={selected}
+            onRestart={() => setStep("cards")}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -158,7 +200,6 @@ function CardsStep({
   cardWord,
   firstName,
   pointsOnHand,
-  prefilledCount,
   onToggle,
   onContinue,
 }: {
@@ -171,32 +212,38 @@ function CardsStep({
   cardWord: string;
   firstName: string | null;
   pointsOnHand: number;
-  prefilledCount: number;
   onToggle: (id: string) => void;
   onContinue: () => void;
 }) {
   const hasCards = wallet.length > 0;
+  const animCount = useCountUp(wallet.length, 380);
+  const animValue = useCountUp(projectedCents, 650);
 
   return (
-    <div className="absolute inset-0 z-[2] flex pt-11">
+    <div className="absolute inset-0 z-[2] flex">
       {/* left — catalog */}
-      <div className="flex min-w-0 flex-1 flex-col px-8 pb-7 pl-11 pt-2">
-        <h1 className="font-display text-2xl font-semibold uppercase leading-tight tracking-snug text-text-primary">
-          {firstName ? `welcome back, ${firstName}.` : "which cards do you carry?"}
+      <div className="flex min-w-0 flex-1 flex-col px-9 pb-8 pt-7">
+        <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
+          {firstName ? `welcome back, ${firstName}` : "build your wallet"}
+        </div>
+        <h1 className="mt-2 font-display text-3xl font-semibold uppercase leading-[0.98] tracking-snug text-text-primary">
+          which cards
+          <br />
+          do you carry?
         </h1>
-        <p className="mb-4 mt-1.5 text-sm text-text-tertiary">
-          {prefilledCount > 0
-            ? `we found ${prefilledCount} ${prefilledCount === 1 ? "card" : "cards"} on your account — tap to adjust your wallet`
-            : "tap a card to drop it in your wallet"}
+        <p className="mb-5 mt-2.5 max-w-[460px] text-sm leading-relaxed text-text-secondary">
+          tap the cards you carry to build your wallet — the agents plan across
+          everything you pick.
         </p>
 
-        <div className="-mr-1.5 flex-1 overflow-y-auto pr-2.5">
+        <div className="-mr-2 flex-1 overflow-y-auto pr-2.5">
           {loading && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-[118px] animate-pulse rounded-xl bg-neutral-200"
+                  className="h-[188px] animate-pulse rounded-2xl bg-neutral-200/70"
+                  style={{ animationDelay: `${i * 80}ms` }}
                 />
               ))}
             </div>
@@ -207,11 +254,12 @@ function CardsStep({
             </div>
           )}
           {!loading && !error && (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
-              {cards.map((card) => (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {cards.map((card, i) => (
                 <CardTile
                   key={card.id}
                   card={card}
+                  index={i}
                   selected={selected.includes(card.id)}
                   onToggle={onToggle}
                 />
@@ -221,62 +269,61 @@ function CardsStep({
         </div>
       </div>
 
-      {/* right — wallet */}
-      <aside className="flex w-[330px] flex-none flex-col border-l border-subtle bg-[var(--glass-light)] px-7 py-6 backdrop-blur-md">
-        <div className="font-display text-xs font-semibold uppercase tracking-widest text-text-tertiary">
-          your wallet
+      {/* right — wallet rail (theme grey, full height) */}
+      <aside className="relative flex w-[360px] flex-none flex-col overflow-hidden border-l border-strong bg-bg-elevated px-7 py-7">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" style={{ boxShadow: "0 0 8px var(--color-accent)" }} />
+          <span className="font-mono text-2xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+            your wallet
+          </span>
         </div>
-        <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="font-display text-5xl font-semibold leading-none text-text-primary">
-            {wallet.length}
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="font-display text-6xl font-semibold leading-none tracking-tighter text-text-primary tabular-nums">
+            {String(animCount).padStart(2, "0")}
           </span>
           <span className="text-sm text-text-secondary">{cardWord}</span>
         </div>
         {pointsOnHand > 0 && (
-          <div className="mt-1.5 font-mono text-xs text-text-tertiary">
-            {pointsOnHand.toLocaleString("en-US")} pts on hand
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs text-text-tertiary">
+            <span className="text-text-secondary tabular-nums">{pointsOnHand.toLocaleString("en-US")}</span>
+            pts on hand
           </div>
         )}
 
-        {/* stacked wallet preview */}
-        <div className="relative my-4 flex-1">
+        {/* vertical wallet stack — every card's header stays visible */}
+        <div className="relative my-5 flex-1 overflow-y-auto pr-1">
           {hasCards ? (
-            <div className="relative h-full">
+            <div className="relative mx-auto w-[280px]" style={{ height: 174 + (wallet.length - 1) * 64 }}>
               {wallet.map((w, i) => (
                 <div
                   key={w.id}
-                  className="absolute left-1/2 h-[148px] w-[236px] -translate-x-1/2 overflow-hidden rounded-lg p-4 shadow-float transition-all duration-base"
+                  className="absolute left-0 h-[174px] w-[280px] overflow-hidden rounded-2xl p-5 ring-1 ring-black/10"
                   style={{
-                    top: `${i * 30}px`,
+                    top: `${i * 64}px`,
                     background: w.face,
                     zIndex: i,
-                    transform: `translateX(-50%) rotate(${i % 2 === 0 ? -2 : 2}deg)`,
+                    boxShadow: "0 14px 32px -10px rgba(0,0,0,0.55)",
+                    animation: "gpCardIn 0.45s var(--spring-snappy, ease) both",
                   }}
                 >
-                  <span
-                    className="absolute left-0 top-0 h-full w-1"
-                    style={{ background: w.accent }}
-                  />
-                  <div className="text-2xs font-semibold uppercase tracking-wider text-white/50">
+                  <span className="absolute left-0 top-0 h-full w-1.5" style={{ background: w.accent }} />
+                  <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">
                     {w.bank}
                   </div>
-                  <div className="mt-1 text-base font-medium text-white/95">
-                    {w.name}
-                  </div>
-                  <div
-                    className="absolute bottom-4 right-4 text-xs font-semibold"
-                    style={{ color: w.accent }}
-                  >
+                  <div className="mt-1.5 truncate pr-2 text-lg font-semibold text-white/95">{w.name}</div>
+                  <div className="absolute bottom-4 left-5 h-6 w-9 rounded-md bg-gradient-to-br from-white/40 to-white/15" />
+                  <div className="absolute bottom-4 right-5 font-mono text-sm font-semibold" style={{ color: w.accent }}>
                     {w.rate}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-[148px] w-[236px] items-center justify-center rounded-lg border border-dashed border-strong text-center">
-                <span className="max-w-[150px] text-sm text-text-tertiary">
-                  your wallet is empty — tap a card to begin
+            <div className="flex h-full min-h-[174px] items-center justify-center">
+              <div className="flex h-[174px] w-[280px] items-center justify-center rounded-2xl border border-dashed border-strong text-center">
+                <span className="max-w-[180px] text-sm text-text-tertiary">
+                  your wallet is empty — pick the cards you carry
                 </span>
               </div>
             </div>
@@ -284,15 +331,28 @@ function CardsStep({
         </div>
 
         {/* projected value */}
-        <div className="mb-3.5 rounded-card bg-surface p-4 shadow-sm">
-          <div className="font-display text-2xs font-semibold uppercase tracking-wide text-text-tertiary">
+        <div className="relative mb-4 overflow-hidden rounded-card bg-surface p-4 shadow-sm">
+          <span className="absolute left-0 top-0 h-full w-1 bg-accent" />
+          {/* flowing sheen */}
+          {hasCards && (
+            <span
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: "linear-gradient(110deg, transparent 35%, var(--color-accent-muted) 50%, transparent 65%)",
+                backgroundSize: "220% 100%",
+                animation: "gpShimmer 3.6s linear infinite",
+                opacity: 0.7,
+              }}
+            />
+          )}
+          <div className="relative font-mono text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
             projected first-year value
           </div>
-          <div className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="font-display text-2xl font-semibold leading-none text-text-primary">
-              {dollars(projectedCents)}
+          <div className="relative mt-2 flex items-baseline gap-1.5">
+            <span className="font-display text-3xl font-semibold leading-none text-text-primary tabular-nums">
+              {dollars(animValue)}
             </span>
-            <span className="text-xs text-text-secondary">est. net of fees</span>
+            <span className="font-mono text-2xs text-text-tertiary">/ yr · net of fees</span>
           </div>
         </div>
 
@@ -300,9 +360,10 @@ function CardsStep({
           type="button"
           onClick={onContinue}
           disabled={!hasCards}
-          className="flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3.5 text-base font-medium text-white shadow-lg transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40"
+          className="group relative flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3.5 text-base font-medium text-white shadow-lg transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-float disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
         >
-          continue →
+          {hasCards ? "continue" : "pick a card to continue"}
+          <span className="transition-transform duration-base group-hover:translate-x-0.5">→</span>
         </button>
       </aside>
     </div>
@@ -329,23 +390,28 @@ function AskStep({
 }) {
   const ready = query.trim().length > 0;
   return (
-    <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center px-14 pb-9 pt-12">
-      <div className="w-full max-w-[680px]">
-        <h1 className="font-display text-3xl font-semibold uppercase leading-tight tracking-snug text-text-primary">
+    <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center px-14 pb-10 pt-10">
+      <div className="w-full max-w-[700px]" style={{ animation: "gpStepIn 0.5s var(--spring-snappy, ease) both" }}>
+        <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
+          step 02 · set the goal
+        </div>
+        <h1 className="mt-2.5 font-display text-4xl font-semibold uppercase leading-[0.96] tracking-snug text-text-primary">
           what do you want
           <br />
           your points to do?
         </h1>
-        <p className="mb-6 mt-3 max-w-[460px] text-sm leading-relaxed text-text-secondary">
+        <p className="mb-7 mt-3.5 max-w-[480px] text-sm leading-relaxed text-text-secondary">
           describe the trip or goal in a sentence — the agents turn it into a
-          typed plan across your {walletCount} {cardWord}.
+          typed plan across your{" "}
+          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}.
         </p>
 
-        <div className="flex items-end gap-3 rounded-2xl bg-surface py-2 pl-5 pr-2 shadow-lg ring-2 ring-accent-subtle">
+        <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
+          <span className="self-start pt-4 font-mono text-md text-accent-text">›</span>
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. fly LAX → Tokyo in business this fall using my points"
+            placeholder="fly LAX → Tokyo in business this fall using my points"
             rows={2}
             className="min-w-0 flex-1 resize-none bg-transparent py-3.5 text-md leading-normal text-text-primary outline-none placeholder:text-text-tertiary"
           />
@@ -353,37 +419,40 @@ function AskStep({
             type="button"
             onClick={onPlan}
             disabled={!ready}
-            className="h-12 flex-none self-end whitespace-nowrap rounded-lg bg-neutral-900 px-5 text-base font-medium text-white shadow-md transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40"
+            className="group h-12 flex-none self-end whitespace-nowrap rounded-xl bg-neutral-900 px-5 text-base font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
           >
-            plan it →
+            plan it <span className="inline-block transition-transform duration-base group-hover:translate-x-0.5">→</span>
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {prompts.map((p) => (
-            <button
-              key={p.text}
-              type="button"
-              onClick={() => setQuery(p.text)}
-              className="flex items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-sm font-medium text-text-secondary transition hover:-translate-y-px"
-            >
-              <span className="text-xs opacity-60">{p.tag}</span>
-              {p.text}
-            </button>
-          ))}
+        <div className="mt-2.5 flex items-center gap-2 pl-1">
+          <span className="font-mono text-2xs uppercase tracking-wide text-text-disabled">try</span>
+          <div className="flex flex-wrap gap-2">
+            {prompts.map((p) => (
+              <button
+                key={p.text}
+                type="button"
+                onClick={() => setQuery(p.text)}
+                className="flex items-center gap-1.5 rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-strong hover:text-text-primary"
+              >
+                <span className="text-accent-text">{p.tag}</span>
+                {p.text}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="mt-8 flex w-full max-w-[680px] items-center justify-between">
+      <div className="mt-9 flex w-full max-w-[700px] items-center justify-between">
         <button
           type="button"
           onClick={onBack}
-          className="text-sm text-text-secondary"
+          className="flex items-center gap-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary"
         >
-          ← back to wallet
+          <span>←</span> back to wallet
         </button>
-        <span className="text-xs text-text-tertiary">
-          agents coordinate via typed graph mutations — never free text
+        <span className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
+          coordination is typed graph state — never free text
         </span>
       </div>
     </div>

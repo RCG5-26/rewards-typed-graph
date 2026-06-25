@@ -118,6 +118,9 @@ function toCardView(seed: DemoSeed): CardView[] {
 }
 
 // ── Fixture adapter (default) ──
+// Cards come only from the seed `credit_cards` (no invented catalog). Expanding
+// the picker means adding vetted rows to the seed or wiring a card-rewards API —
+// the Postgres adapter already reads whatever `credit_cards` contains.
 class FixtureCardsRepository implements CardsRepository {
   async listCards(): Promise<CardView[]> {
     const file = path.join(process.cwd(), "fixtures", "demo-seed.json");

@@ -11,7 +11,16 @@ import type {
   PlanStep,
   StepStatus,
 } from "@/lib/plan/types";
+import BenchmarkView from "./BenchmarkView";
+import ContrastView from "./ContrastView";
 import TypedGraph from "./TypedGraph";
+
+type ConsoleView = "plan" | "baselines" | "benchmark";
+const VIEWS: { id: ConsoleView; label: string }[] = [
+  { id: "plan", label: "plan" },
+  { id: "baselines", label: "baselines" },
+  { id: "benchmark", label: "benchmark" },
+];
 
 /**
  * Agent console — stream-driven. Subscribes to `/api/plan/stream` (SSE) and
@@ -75,6 +84,7 @@ export default function AgentConsole({
   const [revision, setRevision] = useState(1);
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
   const [replanned, setReplanned] = useState(false);
+  const [view, setView] = useState<ConsoleView>("plan");
 
   const esRef = useRef<EventSource | null>(null);
   const doneRef = useRef(false);
@@ -207,15 +217,35 @@ export default function AgentConsole({
             <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={triggerReplan}
-              disabled={replanned || status !== "current"}
-              className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ background: "var(--status-stale-bg)", color: "var(--status-stale)" }}
-            >
-              ⚡ balance changed · replan
-            </button>
+            {/* view tabs */}
+            <div className="flex rounded-full bg-surface-subtle p-1">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setView(v.id)}
+                  className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-base"
+                  style={{
+                    background: view === v.id ? "var(--color-surface)" : "transparent",
+                    color: view === v.id ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+                    boxShadow: view === v.id ? "var(--shadow-xs)" : "none",
+                  }}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            {view === "plan" && (
+              <button
+                type="button"
+                onClick={triggerReplan}
+                disabled={replanned || status !== "current"}
+                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ background: "var(--status-stale-bg)", color: "var(--status-stale)" }}
+              >
+                ⚡ balance changed · replan
+              </button>
+            )}
             <button
               type="button"
               onClick={onRestart}
@@ -226,7 +256,11 @@ export default function AgentConsole({
           </div>
         </div>
 
-        {failed && steps.length === 0 ? (
+        {view === "baselines" ? (
+          <ContrastView planValueCents={valueCents} />
+        ) : view === "benchmark" ? (
+          <BenchmarkView />
+        ) : failed && steps.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-error-fg">
             Could not build a plan. Try resetting.
           </div>

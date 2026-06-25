@@ -4,23 +4,26 @@
 
 Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md grid before standup.
 
-## Today
+## Today (2026-06-25) — demo flow built end-to-end on fixture data
 
-- Card API research **done** — endpoints/shape understood, ready to feed the demo shell and mock event design.
-- Design system **landed** → [`design-system/`](../design-system/): tokens (colors, status/lifecycle, typography, spacing, effects, motion), global fonts, Tailwind preset. Components (Button/Card/Tag/CommandInput/Blob) are planned — build in the app from tokens. Usage: [`design-system/README.md`](../design-system/README.md). [design-context](../context/design-context.md) updated.
-- GPFree cinematic landing **conformed to the design system** — re-themed off the bespoke dark/gold + Bodoni look to light surfaces, iris accent, SF Pro/Fira Code; every color/type/radius/shadow/motion value now references a token (no hardcoded hex/px/easing). Wired `global.css` at the app root + dropped `next/font`. Split into `components/gpfree/` (`cinema` engine hook + `HeroStage`/`HowItWorks`/`SiteFooter`).
-- Wireframes flow mapped (query → plan → sidebar → contrast view).
-- Continue demo shell scaffold + graph-mutation sidebar against mocked events (RCG-27, RCG-24).
+The full post-sign-in spine runs without a backend: **sign in → pick cards → ask → agent console** at [`/onboarding`](../app/onboarding/page.tsx).
+
+- **Onboarding flow** ([`components/onboarding/`](../components/onboarding/)): `OnboardingFlow` (pick-cards + ask + console), `CardTile` (3D-tilt interactive), `TopBar` (wordmark→home, step rail, account menu = sign-out), `AgentConsole` (streaming), `TypedGraph` (SVG node view).
+- **Data layer** (fixture-first / DB-ready, swaps on `DATABASE_URL`): `lib/cards/`, `lib/user/`, `lib/plan/`. Routes: `GET /api/cards` (19-card catalog = 5 seed + 14 curated), `GET /api/me` (Clerk→persona graph), `POST /api/plan`, `GET /api/plan/stream` (SSE).
+- **Three visible moments — done:** (1) typed mutations **stream** into the log + light the graph; (2) **Hero Moment 1** — replan: a transfer edge goes stale, revision superseded, new current revision ($1,050→$900); plan-node dependency view lights stale nodes.
+- **Identity:** Clerk Google name + avatar via `currentUser()`; any session resolves to the seeded demo persona for graph data (ADR-0006).
+- **Design pass:** instrument-grade refinement on design-system tokens — ledger dot-grid, mono numerals, dark full-height wallet rail, staggered card entrances.
+- **Status:** all uncommitted in the working tree on `val/demo-flow` (0 commits ahead of `main`).
 
 ## Next
 
-- Auth: stand up **Clerk** sign-in (identity-only; [ADR 0006](../docs/adr/0006-clerk-identity-only.md)).
-- Match mock event shape to the agreed mutation-log fields (coordinate with Alan on RCG-14).
-- Plan-node dependency view that lights up stale nodes (RCG-26).
+- **Commit** the demo-flow work (grouped commits) + browser-verify the authed flow.
+- **#4 — real backend:** flip `DATABASE_URL` (swaps all repos to Postgres) + point `/api/plan/stream` at `apps/api` `/mutations` SSE + the real `Orchestrator.run()`.
+- **RCG-45/46:** head-to-head baseline contrast + benchmark views (still design-only).
 
 ## Blocked on
 
-- nothing (work on mocks from Day 3; wire real events Days 5-7)
+- nothing (fixture-first; real backend swap is the only remaining wire)
 
 ---
 

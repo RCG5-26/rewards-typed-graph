@@ -4,9 +4,11 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-23
+**Last updated:** 2026-06-25
 
 > **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
+
+> **Onboarding flow built (2026-06-25).** The full post-sign-in spine runs on fixture data at [`/onboarding`](../app/onboarding/page.tsx): **sign in → pick cards → ask → agent console**, with streaming typed mutations, a live typed-graph node view, and the stale→replan hero moment. Components in [`components/onboarding/`](../components/onboarding/); fixture-first / DB-ready data in `lib/{cards,user,plan}/`. Aesthetic: "instrument-grade rewards terminal" — ledger dot-grid, mono numerals, dual light-wallet / dark-console worlds, all on design-system tokens (card faces + agent/op colors are the scoped hex exception, like the hero). **Still uncommitted** on `val/demo-flow`.
 
 ---
 
@@ -93,12 +95,15 @@ The public landing is a **single self-contained component** ported verbatim from
 
 | Surface                   | Route / component   | Primary actions                                                                                        | Data source                                  |
 | ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Demo shell                | `[TBD]` (RCG-27)    | enter NL query; view multi-step plan + per-step reasoning; only `status = current` revision actionable | orchestrator (mocked → real Days 5–7)        |
-| Mutation sidebar          | `[TBD]` (RCG-24/25) | observe streaming typed mutations (`graph_mutations` / SSE)                                            | SSE replay + REST catch-up (mock → real)     |
-| Plan-node dependency view | `[TBD]` (RCG-26)    | watch stale steps/revision; see new current revision promoted                                          | invalidation + replan lifecycle events       |
+| Pick cards / wallet       | `/onboarding` · `OnboardingFlow`/`CardTile` (**built**) | pick cards you carry from the 19-card catalog; live wallet + projected value | `GET /api/cards` (fixture → Postgres)        |
+| Ask (NL goal)             | `/onboarding` · `OnboardingFlow` (**built**) | write the goal in plain words; suggested prompts                                       | client → `POST /api/plan` / stream           |
+| Demo shell / agent console| `/onboarding` · `AgentConsole` (**built**, RCG-27) | NL query → multi-step plan + per-step reasoning; only `current` revision actionable | `GET /api/plan/stream` (SSE; fixture builder → real orchestrator) |
+| Mutation sidebar          | `AgentConsole` log (**built**, RCG-24/25) | observe streaming typed mutations (`graph_mutations`)                              | SSE stream (fixture → real `/mutations`)     |
+| Plan-node dependency view | `TypedGraph` + replan (**built**, RCG-26) | watch stale steps/revision light up; new current revision promoted ($1,050→$900)  | invalidation + replan lifecycle events       |
 | Head-to-head contrast     | `[TBD]` (RCG-45)    | run same scenario across architectures                                                                 | benchmark run output                         |
 | Benchmark numbers         | `[TBD]` (RCG-46)    | view accuracy / hallucination / invalidation / token cost                                              | benchmark results                            |
-| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only)                                                                             | Clerk (identity-only; per-user demo persona) |
+| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only); signed-in → `/onboarding`                                                  | Clerk (identity-only; per-user demo persona) |
+| Chrome / account          | `TopBar` (**built**) | wordmark→home; step rail; account menu (sign out); Google name + avatar                               | Clerk `currentUser()`                        |
 
 ---
 
@@ -148,15 +153,14 @@ The public landing is a **single self-contained component** ported verbatim from
 }
 ```
 
-### Card / rewards API
+### Card / rewards API (wired — fixture-first, DB-ready)
 
-Research **done** — endpoints and response shape understood; feeds the demo shell and informs the mock event design. Concrete request/response shapes to be pinned here when wired.
+App routes (Next, Node runtime, Clerk-gated). All read the swappable repositories in `lib/{cards,user,plan}/` — fixture today, Postgres when `DATABASE_URL` is set.
 
-```json
-{
-  "_note": "fill from card API research when wiring; capture endpoints + response shape"
-}
-```
+- `GET /api/cards` → `{ cards: CardView[] }` — the 19-card catalog (5 seed hero cards + 14 curated). `CardView`: `{ id, slug, name, bank, network, annualFeeCents, programName, currencyName, signupBonusPoints, rate, firstYearValueCents, face, accent }`.
+- `GET /api/me` → `UserGraph` `{ user, balances[], goals[], holds[] }` — Clerk session resolved to the seeded persona; `user` identity (name/avatar) overlaid from Clerk `currentUser()`.
+- `POST /api/plan` `{ queryText, selectedCardIds }` → `PlanResult` (REST source of truth; superset of the orchestrator's result + steps/mutations/graph).
+- `GET /api/plan/stream?q=&cards=&replan=1` → SSE: `meta` → `mutation`×N (~320ms) → `invalidation` (replan) → `done`. Observability stream the console subscribes to; swaps for `apps/api` `/mutations` SSE at the real-backend step.
 
 ### NL query → plan (mock)
 

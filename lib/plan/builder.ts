@@ -47,10 +47,35 @@ interface SeedRedemption {
   min_points: number;
   description: string;
 }
+interface SeedCreditCard {
+  id: string;
+  reward_program_id: string;
+}
 interface SeedSeed {
   reward_programs: SeedProgram[];
   transfers_to: SeedTransfer[];
   redemption_options: SeedRedemption[];
+  credit_cards: SeedCreditCard[];
+}
+
+/**
+ * Restrict the user's balances to the reward programs their *selected* cards
+ * belong to. This is what makes the card picking matter: pick only United cards
+ * and the Chase→Hyatt path isn't reachable, so the plan changes. Empty/no-match
+ * selection falls back to the full graph.
+ */
+function filterGraphBySelection(
+  seed: SeedSeed,
+  graph: UserGraph,
+  selectedCardIds: string[],
+): UserGraph {
+  if (!selectedCardIds.length) return graph;
+  const sel = new Set(selectedCardIds);
+  const programIds = new Set(
+    seed.credit_cards.filter((c) => sel.has(c.id)).map((c) => c.reward_program_id),
+  );
+  if (!programIds.size) return graph;
+  return { ...graph, balances: graph.balances.filter((b) => programIds.has(b.programId)) };
 }
 
 const GOAL_LABEL: Record<GoalType, string> = {
@@ -274,11 +299,12 @@ async function loadSeed(): Promise<SeedSeed> {
 
 export async function buildPlan(
   graph: UserGraph,
-  _selectedCardIds: string[],
+  selectedCardIds: string[],
   queryText: string,
 ): Promise<PlanResult> {
   const seed = await loadSeed();
-  return computePlan(seed, graph, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
+  const eff = filterGraphBySelection(seed, graph, selectedCardIds);
+  return computePlan(seed, eff, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
 }
 
 /**
@@ -295,7 +321,8 @@ export async function buildReplan(
   queryText: string,
 ): Promise<ReplanResult | null> {
   const seed = await loadSeed();
-  const rev1 = computePlan(seed, graph, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
+  const eff = filterGraphBySelection(seed, graph, selectedCardIds);
+  const rev1 = computePlan(seed, eff, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
   if (rev1.status === "failed") return null;
 
   // The transfer edge that revision 1 relied on (if any).
@@ -328,7 +355,7 @@ export async function buildReplan(
     },
   };
 
-  const rev2 = computePlan(seed, graph, queryText, { revision: 2, excludedEdges: excluded, seqStart });
+  const rev2 = computePlan(seed, eff, queryText, { revision: 2, excludedEdges: excluded, seqStart });
 
   // Tag the leading mutation of the replan so the log reads as a re-plan.
   if (rev2.mutations[0]) {

@@ -79,6 +79,7 @@ function buildGraph(seed: DemoSeed, clerkId: string): UserGraph {
     clerkId,
     email: seedUser.email,
     displayName: seedUser.display_name,
+    imageUrl: null,
     isDemoPersona: !matched,
   };
 
@@ -190,6 +191,7 @@ class PostgresUserRepository implements UserRepository {
           clerkId,
           email: row.email,
           displayName: row.display_name,
+          imageUrl: null,
           isDemoPersona,
         },
         balances: balances.rows.map((b: Record<string, unknown>) => ({

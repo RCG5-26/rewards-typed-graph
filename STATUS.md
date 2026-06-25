@@ -40,7 +40,7 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
 | Alan · Graph | RCG-14 mutation replay/SSE scaffold | Verify spec 03 / RCG-14/25 compliance; harden SSE polling/cursors; tighten mutation route auth/schema coverage; raise Hono floor for security advisories | nothing |
-| Val · Frontend | kickoff | Set up demo shell scaffold; design sidebar against mock events (RCG-24, RCG-27) | nothing (works on mocks) |
+| Val · Frontend | Demo flow built end-to-end on fixtures: `/onboarding` (pick cards → ask → agent console), streaming mutations + live typed-graph + replan hero moment (RCG-24/26/27 done); cards/me/plan/plan-stream APIs; instrument-grade design pass | Commit demo-flow work + browser-verify authed flow; then real-backend swap (#4) | nothing (fixture-first; backend swap is the only wire) |
 | Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
 | Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
 
@@ -100,6 +100,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map                                                  | Raq        | `context/feature-specs/`                                                                                                                 |
 | Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`)                                  | Val        | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local`                                                               |
 | Jun 23 | Landing replaced with self-contained 3D-card hero (D029)                                                                   | Val        | scoped theme; see [design-context](context/design-context.md)                                                                            |
+| Jun 25 | Demo flow built end-to-end on fixtures (`/onboarding`: pick-cards → ask → agent console; streaming + live graph + replan)   | Val        | fixture-first / DB-ready (`DATABASE_URL` swap); RCG-24/26/27 done; cards/me/plan APIs; see [design-context](context/design-context.md) — uncommitted on `val/demo-flow` |
 |        | _Cash-price provider_                                                                                                      |            | open                                                                                                                                     |
 |        | _Hosted platform choice_                                                                                                   |            | open                                                                                                                                     |
 

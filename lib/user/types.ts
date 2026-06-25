@@ -15,6 +15,8 @@ export interface CurrentUser {
   clerkId: string;
   email: string | null;
   displayName: string | null;
+  /** Avatar from the Clerk/Google identity, if any. */
+  imageUrl: string | null;
   /** True when the Clerk id didn't match a row and we fell back to the demo persona. */
   isDemoPersona: boolean;
 }

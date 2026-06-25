@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth, useSignIn } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
+import Logo from "@/components/Logo";
+
 /** Where a signed-in user lands: the onboarding pick-cards flow. */
 const AFTER_SIGN_IN = "/onboarding";
 
@@ -81,6 +83,7 @@ export default function GoogleAuthCard({
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-6 px-6 text-center">
+      <Logo href="/" />
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">{heading}</h1>
         <p className="text-sm text-gray-500">{subheading}</p>
