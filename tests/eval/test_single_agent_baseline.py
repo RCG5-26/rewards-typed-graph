@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -7,7 +8,9 @@ from typing import Any
 from unittest.mock import patch
 
 from benchmark.single_agent_baseline import (
+    BaselineConfigError,
     BaselineOutputError,
+    DEFAULT_CASES_PATH,
     LLMResponse,
     OpenAIChatCompletionsClient,
     run_single_agent_baseline,
@@ -15,6 +18,14 @@ from benchmark.single_agent_baseline import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _gold_cases() -> list[dict[str, Any]]:
+    return json.loads(Path(DEFAULT_CASES_PATH).read_text(encoding="utf-8"))["cases"]
+
+
+GOLD_CASE_COUNT = len(_gold_cases())
+GOLD_INVALIDATION_TOTAL = sum(1 for case in _gold_cases() if "mutation" in case)
 
 
 class FakeLLMClient:
@@ -65,7 +76,7 @@ def _valid_llm_plan(award_slug: str | None = "award:demo_hyatt_ginza:tokyo:3n") 
 
 class SingleAgentBaselineTests(unittest.TestCase):
     def test_runs_llm_once_per_case_and_reports_baseline_metrics(self) -> None:
-        expected_case_count = 11
+        expected_case_count = GOLD_CASE_COUNT
         client = FakeLLMClient([_valid_llm_plan() for _ in range(expected_case_count)])
 
         report = run_single_agent_baseline(llm_client=client)
@@ -75,7 +86,7 @@ class SingleAgentBaselineTests(unittest.TestCase):
         self.assertEqual(len(client.calls), expected_case_count)
         self.assertEqual(report["metrics"]["token_cost_total"], expected_case_count * 124)
         self.assertEqual(report["metrics"]["invalidation_passed"], 0)
-        self.assertEqual(report["metrics"]["invalidation_total"], 2)
+        self.assertEqual(report["metrics"]["invalidation_total"], GOLD_INVALIDATION_TOTAL)
         self.assertEqual(report["cases"][0]["baseline_plan_record"]["plan_type"], "baseline_single_agent")
         self.assertEqual(report["cases"][0]["baseline_plan_record"]["status"], "completed")
         self.assertIn("raw_output", report["cases"][0]["baseline_plan_record"])
@@ -83,7 +94,7 @@ class SingleAgentBaselineTests(unittest.TestCase):
         self.assertNotIn("state_dependencies", report["cases"][0]["baseline_plan_record"])
 
     def test_prompt_includes_fixture_context_without_expected_answers_or_secrets(self) -> None:
-        client = FakeLLMClient([_valid_llm_plan() for _ in range(11)])
+        client = FakeLLMClient([_valid_llm_plan() for _ in range(GOLD_CASE_COUNT)])
 
         run_single_agent_baseline(llm_client=client)
         first_prompt = client.calls[0]["user_prompt"]
@@ -192,7 +203,23 @@ class SingleAgentBaselineTests(unittest.TestCase):
         self.assertEqual(captured["body"]["response_format"], {"type": "json_object"})
         self.assertEqual(response.total_tokens, 36)
 
+    def test_from_env_rejects_non_numeric_timeout(self) -> None:
+        env = {
+            "SINGLE_AGENT_BASELINE_API_KEY": "sk-test-secret",
+            "SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS": "not-a-number",
+        }
+
+        with self.assertRaisesRegex(BaselineConfigError, "TIMEOUT_SECONDS"):
+            OpenAIChatCompletionsClient.from_env(env)
+
     def test_cli_requires_api_secret_for_live_llm_path(self) -> None:
+        # Preserve PATH (and PYTHONPATH) so the subprocess starts reliably across
+        # platforms, but strip both API-key vars so the live path stays unset.
+        env = {
+            key: value
+            for key in ("PATH", "PYTHONPATH")
+            if (value := os.environ.get(key)) is not None
+        }
         completed = subprocess.run(
             [
                 sys.executable,
@@ -204,7 +231,7 @@ class SingleAgentBaselineTests(unittest.TestCase):
             cwd=ROOT,
             capture_output=True,
             text=True,
-            env={},
+            env=env,
         )
 
         self.assertEqual(completed.returncode, 2)

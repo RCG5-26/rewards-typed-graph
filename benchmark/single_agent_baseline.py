@@ -20,10 +20,10 @@ from typing import Any, Protocol
 
 from agents.redemption.planner import apply_balance_delta, load_fixture
 from benchmark.person_c_scorer import (
-    _accuracy_correct,
-    _case_current_balance,
-    _hallucination_issues,
-    _rate,
+    accuracy_correct as score_accuracy_correct,
+    case_current_balance as score_case_current_balance,
+    hallucination_issues as score_hallucination_issues,
+    rate as score_rate,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,11 +98,18 @@ class OpenAIChatCompletionsClient:
             raise BaselineConfigError(
                 f"set {API_KEY_ENV} (or {FALLBACK_API_KEY_ENV}) to run the live LLM baseline"
             )
+        timeout_raw = source.get("SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS", "60")
+        try:
+            timeout_seconds = int(timeout_raw)
+        except ValueError as error:
+            raise BaselineConfigError(
+                f"SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS must be an integer, got {timeout_raw!r}"
+            ) from error
         return cls(
             api_key=api_key,
             model=source.get("SINGLE_AGENT_BASELINE_MODEL", DEFAULT_MODEL),
             api_url=source.get("SINGLE_AGENT_BASELINE_API_URL", DEFAULT_API_URL),
-            timeout_seconds=int(source.get("SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS", "60")),
+            timeout_seconds=timeout_seconds,
         )
 
     def complete_json(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:
@@ -181,10 +188,17 @@ def run_single_agent_baseline(
         "architecture": "single_agent_llm_baseline",
         "evaluator_version": EVALUATOR_VERSION,
         "case_count": len(case_results),
+        # Metric keys mirror benchmark/person_c_scorer.py exactly so the baseline
+        # and the typed-graph system are directly comparable. Note the deliberate
+        # asymmetry: `strict_hallucination_count` is the total issue count while
+        # `strict_hallucination_rate` is the fraction of cases with >=1 issue.
+        # Award-level hallucinations are scored; step-level checks (transfer
+        # ratio, balance snapshot) don't apply because the baseline emits no
+        # typed-graph steps (see _scoring_plan).
         "metrics": {
             "accuracy_passed": sum(1 for result in case_results if result["accuracy_correct"]),
             "accuracy_total": len(case_results),
-            "accuracy_rate": _rate(
+            "accuracy_rate": score_rate(
                 sum(1 for result in case_results if result["accuracy_correct"]),
                 len(case_results),
             ),
@@ -192,7 +206,7 @@ def run_single_agent_baseline(
                 result["hallucination_count"]
                 for result in case_results
             ),
-            "strict_hallucination_rate": _rate(
+            "strict_hallucination_rate": score_rate(
                 len(hallucination_cases),
                 len(case_results),
             ),
@@ -202,7 +216,7 @@ def run_single_agent_baseline(
                 if result["invalidation_correct"]
             ),
             "invalidation_total": len(invalidation_results),
-            "invalidation_rate": _rate(
+            "invalidation_rate": score_rate(
                 sum(
                     1
                     for result in invalidation_results
@@ -232,8 +246,12 @@ def _run_case(
     _reject_forbidden_output(raw_output)
     plan = _normalize_plan(raw_output)
     scoring_plan = _scoring_plan(plan)
-    hallucination_issues = _hallucination_issues(fixture, scoring_plan, case)
-    accuracy_correct = _accuracy_correct(scoring_plan, case)
+    hallucination_issues = score_hallucination_issues(fixture, scoring_plan, case)
+    accuracy_correct = score_accuracy_correct(scoring_plan, case)
+    # Invalidation is assigned, not measured: a single-agent shot sees only the
+    # already-mutated balance, so it has no prior plan to detect as stale. By the
+    # architecture's nature it cannot do dependency invalidation, so every
+    # mutation case scores False (and non-mutation cases stay None / excluded).
     invalidation_correct = False if "mutation" in case else None
 
     return {
@@ -290,7 +308,7 @@ def _user_prompt(fixture: dict[str, Any], case: dict[str, Any]) -> str:
             "case_id": case["case_id"],
             "category": case["category"],
             "query": case["query"],
-            "current_balance_points": _case_current_balance(case),
+            "current_balance_points": score_case_current_balance(case),
             "mutation": case.get("mutation"),
             "overrides": case.get("overrides", {}),
         },
@@ -407,6 +425,10 @@ def _normalize_ranked_award(value: Any) -> dict[str, Any]:
 
 
 def _scoring_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    # Steps are intentionally emptied (no state_dependencies/payload): the
+    # baseline isn't held to typed-graph step semantics. This also means the
+    # scorer's step loop never runs, so it never dereferences the `balance_points`
+    # key this shape omits — keep state_dependencies empty if that ever changes.
     return {
         "status": plan["status"],
         "chosen_award_slug": plan["chosen_award_slug"],

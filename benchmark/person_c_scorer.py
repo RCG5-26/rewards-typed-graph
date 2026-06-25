@@ -234,6 +234,15 @@ def _rate(numerator: int, denominator: int) -> float | None:
     return numerator / denominator
 
 
+# Public scoring API. Alternative architectures (e.g. the single-agent LLM
+# baseline) reuse these so every architecture is graded by identical logic.
+# Exposed as stable names so callers don't import underscore-private helpers.
+accuracy_correct = _accuracy_correct
+hallucination_issues = _hallucination_issues
+case_current_balance = _case_current_balance
+rate = _rate
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Score the Person C seeded benchmark.")
     parser.add_argument("--fixture", default=str(DEFAULT_FIXTURE_PATH))
