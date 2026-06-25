@@ -323,13 +323,27 @@ def ensure_user_by_clerk_id(clerk_id: str, email: str | None) -> str:
         return str(rows[0][0])
 
     new_user_id = str(uuid.uuid4())
-    _psql_exec(
-        _format_psql_query(
-            "INSERT INTO users (id, clerk_id, email) VALUES (%s, %s, %s)",
-            (new_user_id, clerk_id, email),
+    try:
+        _psql_exec(
+            _format_psql_query(
+                "INSERT INTO users (id, clerk_id, email) VALUES (%s, %s, %s)",
+                (new_user_id, clerk_id, email),
+            )
         )
-    )
-    _clone_persona(new_user_id)
+        _clone_persona(new_user_id)
+    except RuntimeError as exc:
+        # Concurrent first-login requests can race on users.clerk_id UNIQUE.
+        if "duplicate key" not in str(exc).lower():
+            raise
+        rows = _psql_rows(
+            _format_psql_query(
+                "SELECT id FROM users WHERE clerk_id = %s",
+                (clerk_id,),
+            )
+        )
+        if not rows:
+            raise
+        return str(rows[0][0])
     return new_user_id
 
 
