@@ -162,7 +162,8 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 ## Data & schema
 
-- No schema changes. Reads/writes `plans`, `plan_steps`, `state_dependencies`, `user_balances`, `transfers_to`, `graph_mutations`, `replan_jobs` via the existing write service (`schema/mutations.py`) and mutation repository (`apps/api/src/mutations/repository.ts`).
+- No schema changes. **Plan + transfer** mutations go through the existing write service (`schema/mutations.py`, via `create_plan_from_query` / `replan_after_balance_transfer`) and are surfaced through the mutation repository (`apps/api/src/mutations/repository.ts`) — covering `plans`, `plan_steps`, `state_dependencies`, `user_balances`, `transfers_to`, `graph_mutations`, `replan_jobs`.
+- **Accepted demo-debt (Option B):** persona **bootstrap / seed-clone / `demo/reset`** bookkeeping is written as raw SQL through the `psql`-subprocess seam (each wrapped in one `BEGIN…COMMIT`), not through `graph-write`; and the bridge process is given the Postgres connection vars (`DATABASE_URL` / `PG*`) because under Option B it *is* the DB-access layer. Non-DB secrets (e.g. `CLERK_SECRET_KEY`) are withheld from the subprocess via an env allowlist (`apps/api/src/plans/bridge-service.ts`). Post-demo, fold these writes into `graph-write` when the seam graduates out of `tests/integration/` (see Implementation decision above).
 - Seed: `scripts/load_seed.py fixtures/demo-seed.json`; persona cloned per Clerk user on first `GET /session`.
 
 ---
