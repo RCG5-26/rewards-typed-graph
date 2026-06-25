@@ -150,39 +150,52 @@ class FakeCursor:
         return False
 
     def execute(self, sql, params=None):
-        compact_sql = " ".join(sql.split())
-        if compact_sql.startswith(
-            "SELECT user_id, plan_lineage_id, plan_type, status, benchmark_query_id FROM plans"
-        ):
+        query_kind = _classify_query(sql)
+        if query_kind == "source_plan":
             self.result = self.connection.source_plan
             return
-        if compact_sql.startswith("SELECT COUNT(*) AS dependent_step_count"):
+        if query_kind == "dependent_steps":
             dependent_step_count, stale_step_count = self.connection.dependent_steps
             self.result = (dependent_step_count, stale_step_count)
             return
-        if compact_sql.startswith(
-            "SELECT status, result_plan_id, trigger_mutation_txn_id FROM replan_jobs"
-        ):
+        if query_kind == "replan_job":
             self.result = self.connection.replan_job
             return
-        if compact_sql.startswith("SELECT status, supersedes_plan_id FROM plans"):
+        if query_kind == "result_plan":
             self.result = self.connection.result_plan
             return
-        if compact_sql.startswith(
-            "SELECT mutation_type, target_table, COUNT(*) FROM graph_mutations"
-        ):
+        if query_kind == "mutation_counts":
             self.result = self.connection.mutation_counts
             return
-        if compact_sql.startswith("SELECT COALESCE(SUM(ar.token_count), 0)"):
+        if query_kind == "token_cost":
             self.result = (self.connection.token_cost_total,)
             return
-        raise AssertionError(f"unexpected SQL: {compact_sql}")
+        raise AssertionError(f"unexpected query kind: {query_kind}")
 
     def fetchone(self):
         return self.result
 
     def fetchall(self):
         return self.result
+
+
+def _classify_query(sql: str) -> str:
+    """Identify which evidence query is running from tables and selected columns."""
+    compact = " ".join(sql.split()).lower()
+    if "from plan_steps" in compact:
+        return "dependent_steps"
+    if "from replan_jobs" in compact:
+        return "replan_job"
+    if "from graph_mutations" in compact:
+        return "mutation_counts"
+    if "from agent_runs" in compact:
+        return "token_cost"
+    if "from plans" in compact:
+        if "supersedes_plan_id" in compact:
+            return "result_plan"
+        if "plan_lineage_id" in compact and "plan_type" in compact:
+            return "source_plan"
+    raise AssertionError(f"unrecognized query shape: {compact}")
 
 
 if __name__ == "__main__":

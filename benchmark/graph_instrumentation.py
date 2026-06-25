@@ -73,6 +73,7 @@ def collect_graph_eval_metrics(
     ) = _normalize_replan_job(replan_job)
     result_plan_status, result_supersedes_source = _fetch_result_plan_signal(
         connection,
+        user_id=user_id,
         result_plan_id=result_plan_id,
         source_plan_id=source_plan_id,
     )
@@ -134,6 +135,7 @@ def _fetch_source_plan(
     user_id: str,
     source_plan_id: str,
 ) -> tuple[Any, ...] | None:
+    """Load the source plan row scoped to the requesting user."""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -152,6 +154,7 @@ def _fetch_dependent_step_counts(
     *,
     source_plan_id: str,
 ) -> tuple[int, int]:
+    """Count dependent steps and how many are stale or superseded."""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -183,6 +186,7 @@ def _fetch_latest_replan_job(
     user_id: str,
     source_plan_id: str,
 ) -> tuple[Any, ...] | None:
+    """Return the newest replan job for the source plan, if any."""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -201,9 +205,11 @@ def _fetch_latest_replan_job(
 def _fetch_result_plan_signal(
     connection: Any,
     *,
+    user_id: str,
     result_plan_id: str | None,
     source_plan_id: str,
 ) -> tuple[str | None, bool]:
+    """Load result-plan status and whether it directly supersedes the source plan."""
     if result_plan_id is None:
         return None, False
 
@@ -213,8 +219,9 @@ def _fetch_result_plan_signal(
             SELECT status, supersedes_plan_id
               FROM plans
              WHERE id = %s
+               AND user_id = %s
             """,
-            (result_plan_id,),
+            (result_plan_id, user_id),
         )
         row = cursor.fetchone()
 
@@ -231,6 +238,7 @@ def _fetch_mutation_counts(
     user_id: str,
     trigger_mutation_txn_id: str | None,
 ) -> dict[tuple[str, str], int]:
+    """Group graph mutations for the trigger transaction by type and target table."""
     if trigger_mutation_txn_id is None:
         return {}
 
@@ -261,6 +269,7 @@ def _fetch_token_cost_total(
     user_id: str,
     plan_lineage_id: str | None,
 ) -> int:
+    """Sum recorded agent-run token usage across the plan lineage."""
     if plan_lineage_id is None:
         return 0
 
@@ -286,6 +295,7 @@ def _fetch_token_cost_total(
 def _normalize_replan_job(
     replan_job: tuple[Any, ...] | None,
 ) -> tuple[str | None, str | None, str | None]:
+    """Coerce replan-job row values to optional strings."""
     if replan_job is None:
         return None, None, None
 
@@ -302,10 +312,12 @@ def _mutation_count(
     mutation_type: str,
     target_table: str,
 ) -> int:
+    """Return the mutation count for one type/table pair, defaulting to zero."""
     return mutation_counts.get((mutation_type, target_table), 0)
 
 
 def _invalidation_failure_reason(metric_scores: dict[str, Any]) -> str | None:
+    """Return the first structural invalidation failure reason, or None when valid."""
     if metric_scores["plan_type"] not in _STRUCTURAL_PLAN_TYPES:
         return "plan_type_not_agent_generated"
     if metric_scores["source_plan_status"] not in _INVALIDATED_SOURCE_STATUSES:
@@ -337,6 +349,7 @@ def _invalidation_failure_reason(metric_scores: dict[str, Any]) -> str | None:
 
 
 def _string_or_none(value: Any) -> str | None:
+    """Normalize database scalars to optional strings."""
     if value is None:
         return None
     return str(value)
