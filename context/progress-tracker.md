@@ -17,7 +17,7 @@ This file is **team-wide AI working memory** — milestone narrative, not daily 
 
 When **Completed** grows past ~15 items for the current phase, move older bullets to [`progress-archive.md`](progress-archive.md).
 
-**Last updated:** 2026-06-25 — repo→Linear→docs reconciliation: API service (RCG-18) + hero path (RCG-28/29) merged to `main` and live-verified
+**Last updated:** 2026-06-25 - RCG-51 clean Layer 4 cut contingency documented and test-guarded
 
 ---
 
@@ -62,6 +62,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] RCG-63 e2e integration test — 2026-06-25 — `tests/integration/test_hero_moment.py` passes live (2 tests, RUN_LIVE_POSTGRES_TESTS=1).
 - [x] RCG-52 graph eval instrumentation merged — 2026-06-25 — PR #30 to `main` @ 9a2bc77; `benchmark/graph_instrumentation.py` + eval tests; `unittest discover` 88 passed.
 - [x] Canonical backend setup guide — 2026-06-25 — `docs/development/backend-local-setup.md` (frontend-facing: env, startup, contract, hero smoke test, troubleshooting).
+- [x] RCG-51 clean Layer 4 cut contingency - 2026-06-25 - `docs/demo/layer4-cut-contingency.md`, `fixtures/demo-contingency-layer4-cut.json`, and `tests/test_demo_contingency.py` lock the Layers 1-3 demo path and presenter language.
 
 ---
 
@@ -102,6 +103,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 | Person C offline scorer    | 2026-06-23 | done      | PR #14; 11/11 on fixture cases                       |
 | RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
 | MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
+| Layer 4 go/no-go           | 2026-06-25 | no-go     | RCG-51 runbook locks a clean Layers 1-3 demo path |
 | Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script; frontend wired to live API |
 
 ---

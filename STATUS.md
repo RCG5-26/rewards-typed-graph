@@ -70,7 +70,7 @@ Raq clears these. Add a line when blocked, strike it when cleared.
 | RCG-21 redemption graph-writer bridge                     | -   | Jun 24     | done (merged PR #27)         | Michael + Raq       |
 | End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7   | Jun 23     | backend green; frontend wiring + Clerk browser run remain | Raq |
 | **MVP hero test green**                                   | -   | **Jun 25** | done (live `test_hero_moment` + API hero flow) | Raq + Michael       |
-| Layer 4 GO / NO-GO                                        | 10  | Jun 26     | open                         | Raq (lane: Michael) |
+| Layer 4 GO / NO-GO                                        | 10  | Jun 26     | done - NO-GO; RCG-51 path documented | Raq (lane: Michael) |
 | **Live demo** (10 min)                                    | 13  | Jun 29     | open                         | all                 |
 
 Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and benchmark, not new features. Hosted platform and demo script must be ready **before the June 29 live demo**; no separate rehearsal date is scheduled.
@@ -103,6 +103,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 18 | Closeout infra: plan-lineage/`replan_jobs`, `graph_mutations`, per-user advisory lock, runtime topology, contracts/codegen | team       | ADRs 0004-0008                                                                                                                           |
 | Jun 20 | Keep the research apparatus (benchmark + both baselines + eval)                                                            | team       | [ADR 0002](docs/adr/0002-mvp-scope-trim.md)                                                                                              |
 | Jun 20 | Team = 4 (Ruijing out); Layer 4 cut-by-default; eval harness = whole-team, **Raq DRI**; single-agent baseline to Raq       | team       | [ADR 0003](docs/adr/0003-team-four-eval-ownership.md); Linear reconciled                                                                 |
+| Jun 25 | Layer 4 is NO-GO for the live demo; RCG-51 keeps the demo on Layers 1-3                                                    | Raq        | D030; [docs/demo/layer4-cut-contingency.md](docs/demo/layer4-cut-contingency.md); fixture guard in `tests/test_demo_contingency.py`       |
 | Jun 21 | Design system landed (`design-system/`: tokens, fonts, Tailwind preset; components TBD in app)                             | Val        | lifecycle status tokens map 1:1 to `plans.status`/`plan_steps.status`; no hardcoded hex; see [design-context](context/design-context.md) |
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map                                                  | Raq        | `context/feature-specs/`                                                                                                                 |
 | Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`)                                  | Val        | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local`                                                               |
@@ -119,7 +120,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 - **Val — demo blocked on backend:** build on mocked streaming events; wire real events Days 5-7. Do not wait.
 - **Michael — weak baselines:** the free-text baseline must be well-tuned CrewAI, same agents and tools (JSON instead of graph fragments). Baseline quality is a first-class deliverable.
 - **Michael / Raq — eval load:** Michael carries redemption + benchmark + CrewAI baseline; Raq carries the eval-harness DRI + single-agent baseline on top of orchestration. Protect the hero + the Day 7 path first.
-- **Michael — Layer 4 timeline:** hard go/no-go Day 10. If not converging, cut cleanly. A half-working ingestion agent that corrupts the graph is worse than none.
+- **Michael — Layer 4 timeline:** NO-GO for the live demo. Use the RCG-51 Layers 1-3 runbook instead of attempting ingestion/verifier work during demo polish.
 - **All — Phase A3 contracts:** app lanes may use mocks until JSON Schema + codegen land.
 
 ---
