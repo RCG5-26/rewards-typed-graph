@@ -61,8 +61,14 @@ Shortest path once the DB is up (above):
 
 ```bash
 AUTH_DEV_USER_ID=00000000-0000-0000-0000-00000000a001 npm --prefix apps/api run dev   # API on :8787
-npm run dev                                                                            # web on :3000
+API_BASE_URL=http://localhost:8787 npm run dev                                         # web on :3000, plans via live API
 ```
+
+With `API_BASE_URL` (or `NEXT_PUBLIC_API_BASE_URL`) set, the web plan routes
+(`/api/plan`, `/api/plan/stream`) call the live orchestrator and stream the real
+`graph_mutations`; unset (or if the API is unreachable) they fall back to the
+deterministic fixture builder so the shell always runs. See
+[`lib/plan/orchestrator-client.ts`](lib/plan/orchestrator-client.ts).
 
 ## Deploy the demo (Railway)
 
@@ -74,7 +80,11 @@ handoff live in one place:
 
 ## Frontend (interim layout)
 
-The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy. To wire the shell to the live API (base URL, Clerk token header, route contract, SSE, mock fixtures), follow [`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md) § Frontend integration.
+The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy.
+
+The agent console is now wired to the live orchestrator: the plan routes call the API over `API_BASE_URL`/`NEXT_PUBLIC_API_BASE_URL` (forwarding the Clerk token), project the real `PlanView` into the console, and stream the persisted `graph_mutations`, with a transparent fallback to the fixture builder when no backend is configured. The baselines/benchmark tabs derive their value and token figures from the live run. Setup (base URL, Clerk token header, route contract, SSE) is in [`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md) § Frontend integration.
+
+**Known gaps:** typed-graph node-lighting still follows the derived traversal order, not native `prog:<slug>` ids on each mutation row (needs a backend change); the baseline *narratives* and the benchmark accuracy/hallucination rates remain illustrative (no real CrewAI/single-agent run); end-to-end against live Postgres is not yet browser-verified.
 
 ## Team and lanes
 

@@ -46,7 +46,7 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
 | Alan · Graph | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish | nothing |
-| Val · Frontend | Clerk auth + landing on `main` | Wire demo shell to live API (RCG-27/25/26) | nothing — see backend-local-setup guide |
+| Val · Frontend | Wired console plan routes to live orchestrator API + real `graph_mutations` (RCG-27/25/26, fixture fallback); live-derived baselines/benchmark; canvas polish | Browser run-through with real Clerk token (RCG-32); native node-id lighting follow-up | nothing — see backend-local-setup guide |
 | Michael · Redemption | RCG-21 graph-writer merged | Benchmark fixture work (RCG-33) | nothing |
 | Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff | nothing |
 
@@ -57,7 +57,7 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 Raq clears these. Add a line when blocked, strike it when cleared.
 
 - ~~**MVP hero live verification**~~ — cleared 2026-06-25: hero flow green on `main` (PR #29 API + #27 writer); `test_hero_moment` passes live; full API hero flow verified end-to-end.
-- **Frontend → live API** — backend contract merged + documented ([`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md)); Val wires the shell/sidebar (RCG-27/25/26). One browser run-through with a real Clerk token closes the Day-7 gate (RCG-32).
+- **Frontend → live API** — shell/sidebar wired (RCG-27/25/26): plan routes call the live orchestrator over `API_BASE_URL` (Clerk-token forwarded), project the real `PlanView`, and stream persisted `graph_mutations`, with fixture fallback. Remaining: one browser run-through with a real Clerk token against live Postgres to close the Day-7 gate (RCG-32). Follow-up: backend to emit `prog:<slug>` node ids for native typed-graph lighting (today it follows derived traversal order).
 - **Baseline model budget** — Michael/Raq still need eval config and model budget decisions.
 
 ---
@@ -79,7 +79,7 @@ Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and be
 
 ## Phase timeline
 
-**Current: Jun 25** — backend hero green on `main`; frontend wiring + Clerk browser run close the Day-7 gate.
+**Current: Jun 25** — backend hero green on `main`; frontend console wired to the live orchestrator (real plan + `graph_mutations`, fixture fallback); Clerk browser run against live Postgres closes the Day-7 gate.
 
 | Days  | Dates     | Focus                                                                                                                                       |
 | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -108,6 +108,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map                                                  | Raq        | `context/feature-specs/`                                                                                                                 |
 | Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`)                                  | Val        | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local`                                                               |
 | Jun 23 | Landing replaced with self-contained 3D-card hero (D029)                                                                   | Val        | scoped theme; see [design-context](context/design-context.md)                                                                            |
+| Jun 25 | Console plan routes call the live orchestrator over `API_BASE_URL` with a transparent fixture fallback; real `graph_mutations` streamed; baselines/benchmark derived from the live run | Val | `lib/plan/orchestrator-client.ts`; node-lighting still derived-order pending native `prog:<slug>` row ids |
 |        | _Cash-price provider_                                                                                                      |            | open                                                                                                                                     |
 |        | _Hosted platform choice_                                                                                                   |            | open                                                                                                                                     |
 
