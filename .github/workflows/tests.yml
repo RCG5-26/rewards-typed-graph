@@ -1,0 +1,121 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least-privilege; coverage-gate needs PR write to post the diff-coverage comment.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  web-vitest:
+    name: web-vitest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run web tests with coverage
+        run: npm run test:coverage
+      - name: Upload web coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-web
+          path: coverage/web/lcov.info
+          if-no-files-found: error
+
+  api-vitest:
+    name: api-vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run api tests with coverage
+        run: npm run test:coverage
+      - name: Upload api coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-api
+          path: apps/api/coverage/api/lcov.info
+          if-no-files-found: error
+
+  python-tests:
+    name: python-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install coverage
+        run: python3 -m pip install --upgrade coverage
+      # Runs the non-live unit suite (live Postgres integration tests are gated by
+      # RUN_LIVE_POSTGRES_TESTS and remain enforced by schema-postgres.yml).
+      - name: Run Python tests with coverage
+        run: |
+          python3 -m coverage run -m unittest discover -s tests
+          python3 -m coverage xml
+      - name: Upload python coverage
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-python
+          path: coverage/python/coverage.xml
+          if-no-files-found: error
+
+  coverage-gate:
+    name: coverage-gate
+    runs-on: ubuntu-latest
+    needs: [web-vitest, api-vitest, python-tests]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # diff-cover needs history to compute the changed lines
+      - name: Download coverage reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: cov
+      # api lcov paths are relative to apps/api; rewrite to repo-root-relative so
+      # diff-cover can match them against the git diff. The tested normalizer
+      # (tests/test_coverage_path_normalizer.py) fails loudly if nothing matched,
+      # so a future report-format change can't silently disable the api gate.
+      - name: Normalize api coverage paths
+        run: >-
+          python3 scripts/ci/normalize_coverage_paths.py
+          cov/coverage-api/lcov.info
+          --old-prefix "SF:src/" --new-prefix "SF:apps/api/src/"
+      - name: Enforce diff coverage on changed lines
+        uses: Affanmir/diff-cover-action@a35ea05c1c458490473f6fc2233737e809678273 # v2
+        with:
+          coverage-files: cov/coverage-web/lcov.info cov/coverage-api/lcov.info cov/coverage-python/coverage.xml
+          fail-under: "90"
