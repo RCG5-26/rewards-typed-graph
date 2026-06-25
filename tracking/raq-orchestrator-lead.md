@@ -22,6 +22,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Recently done
 
+- Documented the RCG-51 clean demo contingency for the Layer 4 cut: presenter runbook, machine-checked fixture, and unittest guard for the Layers 1-3 route/event path.
 - Shipped the spec 07 API service (RCG-18, PR #29 → `main`): Hono + Clerk auth + CORS + 6 routes + SSE/REST mount + psql-subprocess hero bridge. Hero path (RCG-28/29) green and live-verified end-to-end; wrote [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md) for the frontend handoff.
 - Co-owned the schema lock → **v3.1 Accepted** (RCG-5 done, ADR 0001).
 - Built and reconciled the Linear board (RCG-5–63): eval harness re-homed to me as DRI; single-agent baseline reassigned to me; Layer 4 cut-by-default; added eval-report (RCG-62) + e2e-integration (RCG-63) tickets.
@@ -46,11 +47,11 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-28 | Full Layer 1-3 integration (query → plan)                                                     | Day 5-7   | ✅ done (PR #20/#29, live)|
 | RCG-29 | Hero Moment 1 (balance change → auto re-plan)                                                 | Day 5-7   | ✅ done (PR #20/#29, live)|
 | RCG-32 | Day 7 gate: end-to-end demo path working                                                      | Day 7     | ◐ in progress (backend green; frontend wiring + Clerk browser run) |
-| RCG-39 | Day 10 Layer 4 GO / NO-GO decision                                                            | Day 10    | open                    |
+| RCG-39 | Day 10 Layer 4 GO / NO-GO decision                                                            | Day 10    | done - NO-GO for demo   |
 | RCG-62 | Head-to-head eval report + architecture write-up (co-own)                                     | Day 10-14 | blocked on RCG-37       |
 | RCG-47 | Demo script (persona, hero moments, head-to-head, closing)                                    | Day 10-14 | open                    |
 | RCG-48 | Full demo rehearsals                                                                          | Day 10-14 | open                    |
-| RCG-51 | Contingency: clean demo path with Layer 4 cut                                                 | Day 10-14 | open                    |
+| RCG-51 | Contingency: clean demo path with Layer 4 cut                                                 | Day 10-14 | done                    |
 
 ## Owner / lead responsibilities (beyond my lane)
 

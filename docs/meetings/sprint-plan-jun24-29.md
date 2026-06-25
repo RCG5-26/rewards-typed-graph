@@ -89,7 +89,7 @@ All the pieces are merged; this is wiring + debugging, not new features. Owners:
 
 **Sun Jun 28**
 - Polish; **rehearsal #1 and #2** (RCG-48); fix fragile transitions.
-- Rehearse the clean cut-Layer-4 path (RCG-51). Freeze code; demo-blocking fixes only.
+- Rehearse the clean cut-Layer-4 path (RCG-51); use [`../demo/layer4-cut-contingency.md`](../demo/layer4-cut-contingency.md). Freeze code; demo-blocking fixes only.
 
 **Mon Jun 29 — DEMO**
 - **AM:** rehearsal #3; final check (auth → seed → query → plan → sidebar → hero re-plan → head-to-head numbers).
@@ -105,7 +105,7 @@ All the pieces are merged; this is wiring + debugging, not new features. Owners:
 - [ ] Balance change → dependent plan nodes light up stale → redemption agent auto re-plans (Hero Moment 1)
 - [ ] Head-to-head vs single-agent + free-text baselines: accuracy, hallucination rate, plan-invalidation correctness
 - [ ] Closing: the contribution is the coordination primitive + the maintenance loop
-- [ ] Hero Moment 2 (Layer 4): **cut** — state cleanly if asked
+- [x] Hero Moment 2 (Layer 4): **cut** — state cleanly if asked; see [`../demo/layer4-cut-contingency.md`](../demo/layer4-cut-contingency.md)
 
 ---
 
