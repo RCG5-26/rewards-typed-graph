@@ -29,6 +29,35 @@ const ERROR_CODES = new Set<PlanServiceErrorCode>([
   "conflict",
 ]);
 
+/**
+ * Kill the bridge child if it stalls (hung `python`/`psql`) so a single request
+ * can't block an event-loop slot indefinitely. Generous for a demo.
+ */
+const BRIDGE_TIMEOUT_MS = 30_000;
+
+/**
+ * Only these vars cross the process boundary into the Python bridge. We do NOT
+ * forward the full `process.env`, so non-DB secrets (e.g. `CLERK_SECRET_KEY`)
+ * never reach the subprocess. The Postgres connection vars are included on
+ * purpose: per spec 07 (Option B) the bridge IS the demo DB-access layer and
+ * talks to Postgres via the proven `psql`-subprocess seam.
+ */
+const BRIDGE_ENV_ALLOWLIST = [
+  "PATH",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "PYTHON_BIN",
+  "PYTHONPATH",
+  "DATABASE_URL",
+  "PGHOST",
+  "PGPORT",
+  "PGUSER",
+  "PGPASSWORD",
+  "PGDATABASE",
+  "PGSSLMODE",
+] as const;
+
 interface BridgeOptions {
   pythonBin?: string;
   cwd?: string;
@@ -57,11 +86,7 @@ export class BridgePlanService implements PlanService {
     this.pythonBin = options.pythonBin ?? process.env.PYTHON_BIN ?? "python3";
     this.cwd = options.cwd ?? REPO_ROOT;
     this.scriptPath = options.scriptPath ?? BRIDGE_SCRIPT;
-    const baseEnv = options.env ?? process.env;
-    this.env = {
-      ...baseEnv,
-      PYTHONPATH: [REPO_ROOT, baseEnv.PYTHONPATH].filter(Boolean).join(path.delimiter),
-    };
+    this.env = buildBridgeEnv(options.env ?? process.env);
   }
 
   async getSession(identity: SessionIdentity): Promise<SessionView> {
@@ -129,25 +154,67 @@ export class BridgePlanService implements PlanService {
   }
 
   private async run<T>(command: string, args: string[]): Promise<T> {
-    const { stdout } = await execFileAsync(
-      this.pythonBin,
-      [this.scriptPath, command, ...args],
-      { cwd: this.cwd, env: this.env, maxBuffer: 16 * 1024 * 1024 },
-    ).catch((error: unknown) => {
+    let stdout: string;
+    try {
+      ({ stdout } = await execFileAsync(
+        this.pythonBin,
+        [this.scriptPath, command, ...args],
+        {
+          cwd: this.cwd,
+          env: this.env,
+          maxBuffer: 16 * 1024 * 1024,
+          timeout: BRIDGE_TIMEOUT_MS,
+          killSignal: "SIGKILL",
+        },
+      ));
+    } catch (error: unknown) {
+      // A non-zero exit still prints the JSON error envelope on stdout, so parse
+      // that first — otherwise typed domain errors (404/409) degrade to a 500.
+      const captured = readStdout(error);
+      if (captured.trim()) {
+        return this.fromEnvelope(parseEnvelope<T>(captured));
+      }
       throw new Error(`hero bridge failed: ${describeSpawnError(error)}`);
-    });
+    }
 
-    const envelope = parseEnvelope<T>(stdout);
+    return this.fromEnvelope(parseEnvelope<T>(stdout));
+  }
+
+  private fromEnvelope<T>(envelope: BridgeEnvelope<T>): T {
     if (envelope.ok) {
       return envelope.data;
     }
-
     const { code, message } = envelope.error;
     if (ERROR_CODES.has(code as PlanServiceErrorCode)) {
       throw new PlanServiceError(code as PlanServiceErrorCode, message);
     }
     throw new Error(`hero bridge error [${code}]: ${message}`);
   }
+}
+
+/**
+ * Whitelist the env handed to the Python subprocess (least privilege) and force
+ * the repo root onto `PYTHONPATH` so `hero_flow` imports resolve.
+ */
+function buildBridgeEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of BRIDGE_ENV_ALLOWLIST) {
+    if (source[key] !== undefined) {
+      env[key] = source[key];
+    }
+  }
+  env.PYTHONPATH = [REPO_ROOT, source.PYTHONPATH].filter(Boolean).join(path.delimiter);
+  return env;
+}
+
+function readStdout(error: unknown): string {
+  if (error && typeof error === "object" && "stdout" in error) {
+    const stdout = (error as { stdout?: unknown }).stdout;
+    if (typeof stdout === "string") {
+      return stdout;
+    }
+  }
+  return "";
 }
 
 function parseEnvelope<T>(stdout: string): BridgeEnvelope<T> {
