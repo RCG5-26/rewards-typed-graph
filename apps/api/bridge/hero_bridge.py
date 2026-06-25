@@ -171,11 +171,22 @@ def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
 
 
 def _format_psql_query(sql: str, params: tuple[Any, ...]) -> str:
-    """Interpolate ``%s`` placeholders with safely escaped ``psql`` literals."""
-    formatted = sql
-    for param in params:
-        formatted = formatted.replace("%s", _psql_literal(param), 1)
-    return formatted
+    """Interpolate ``%s`` placeholders with safely escaped ``psql`` literals.
+
+    Splits on placeholders once and interleaves escaped values, so an escaped
+    literal that itself contains ``%s`` can never be re-scanned and consume a
+    later placeholder.
+    """
+    parts = sql.split("%s")
+    if len(parts) != len(params) + 1:
+        raise ValueError("SQL placeholder count does not match parameter count")
+
+    formatted: list[str] = []
+    for prefix, param in zip(parts[:-1], params):
+        formatted.append(prefix)
+        formatted.append(_psql_literal(param))
+    formatted.append(parts[-1])
+    return "".join(formatted)
 
 
 def _psql_literal(value: Any) -> str:
