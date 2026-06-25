@@ -1,20 +1,20 @@
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-import { buildPlan } from "@/lib/plan/builder";
+import { createPlan } from "@/lib/api/client";
+import { toPlanResult } from "@/lib/api/adapters";
+import { ApiError } from "@/lib/api/types";
 import {
   planQueryError,
   selectedCardIdsError,
 } from "@/lib/plan/limits";
-import { resolveSessionGraph } from "@/lib/user/session";
 
 /**
  * POST /api/plan — turn a natural-language goal into a typed plan.
  *
- * Resolves the signed-in user's graph (Clerk → seed), then runs the
- * fixture-backed plan builder (the orchestrator stand-in) over the seeded graph
- * to traverse balances → transfer → redemption. When the real orchestrator
- * service is wired (#3), this route calls `Orchestrator.run()` and the
- * mutations stream over SSE — the response contract stays the same.
+ * Forwards `queryText` to the live Hono API (POST /plans) and maps the
+ * response to a PlanResult via toPlanResult(). `selectedCardIds` is
+ * validated locally but not forwarded — the API does not yet accept it.
  *
  * Body: `{ queryText: string, selectedCardIds?: string[] }`
  */
@@ -23,12 +23,6 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const session = await resolveSessionGraph();
-    if (!session.ok) {
-      return session.response;
-    }
-    const graph = session.graph;
-
     const body = (await request.json().catch(() => ({}))) as {
       queryText?: unknown;
       selectedCardIds?: unknown;
@@ -46,9 +40,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: cardsError }, { status: 400 });
     }
 
-    const plan = await buildPlan(graph, selectedCardIds, queryText);
-    return NextResponse.json(plan);
+    const { getToken } = await auth();
+    const token = await getToken();
+    if (!token) {
+      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    }
+
+    // selectedCardIds accepted but not forwarded — API does not yet support it
+    const apiPlan = await createPlan(queryText, token);
+    const result = toPlanResult(apiPlan);
+    return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof ApiError) {
+      const kind = err.kind;
+      if (kind.kind === "not-signed-in") {
+        return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+      }
+      if (kind.kind === "unprovisioned") {
+        return NextResponse.json({ error: "Account not provisioned." }, { status: 403 });
+      }
+    }
     console.error("POST /api/plan failed", err);
     return NextResponse.json(
       { error: "Could not build a plan." },
