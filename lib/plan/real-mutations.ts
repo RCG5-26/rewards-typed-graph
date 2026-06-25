@@ -69,14 +69,16 @@ function version(ev: MutationEvent): string {
   return `v${typeof v === "number" ? v : 1}`;
 }
 
-export function realMutationsToLog(
-  events: MutationEvent[],
-  derived: PlanResult,
-  seqStart = 1,
-): MutationLogEntry[] {
+/**
+ * A stateful mapper that turns one real `MutationEvent` into a log entry,
+ * carrying the running sequence number and the node-lighting cursor across
+ * calls — so it works for both the batch path and the live row-by-row tail.
+ */
+export function makeRealMutationMapper(derived: PlanResult, seqStart = 1) {
   const nodeIds = orderedNodeIds(derived);
   let cursor = 0;
-  return events.map((ev, i) => {
+  let seq = seqStart;
+  return (ev: MutationEvent): MutationLogEntry => {
     const { op, agentType, touchesNode } = classify(ev.mutation_type);
     let nodeId: string | undefined;
     if (touchesNode && nodeIds.length) {
@@ -85,7 +87,7 @@ export function realMutationsToLog(
       cursor += 1;
     }
     return {
-      seq: seqStart + i,
+      seq: seq++,
       agentType,
       op,
       node: nodeLabel(ev),
@@ -93,5 +95,14 @@ export function realMutationsToLog(
       version: version(ev),
       ...(nodeId ? { nodeId } : {}),
     };
-  });
+  };
+}
+
+export function realMutationsToLog(
+  events: MutationEvent[],
+  derived: PlanResult,
+  seqStart = 1,
+): MutationLogEntry[] {
+  const map = makeRealMutationMapper(derived, seqStart);
+  return events.map(map);
 }

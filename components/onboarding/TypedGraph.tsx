@@ -210,35 +210,43 @@ export default function TypedGraph({
       ctx.fillRect(0, 0, w, h * 0.8);
 
       // ── city lights ──
+      // Shape the whole field into a fuzzy CIRCLE (not the grid's rectangle):
+      // a soft radial mask centered on the light cluster culls anything past
+      // the edge and fades density toward it.
+      const maskCx = cx;
+      const maskCy = horizonY + (h - horizonY) * 0.4;
+      const maskR = Math.min(w, h) * 0.52;
       ctx.globalCompositeOperation = "lighter";
       for (const L of lights) {
         const p = project(L.x, L.depth, 0);
         if (p.y < horizonY - 2 || p.x < -20 || p.x > w + 20) continue;
-        let a = L.base * (0.4 + 0.6 * p.s);
+        const mDist = Math.hypot(p.x - maskCx, p.y - maskCy);
+        if (mDist > maskR) continue;
+        // 1 inside the core, easing to 0 at the rim → fuzzy circular edge
+        const mask = 1 - ease((mDist - maskR * 0.45) / (maskR * 0.55));
+        if (mask <= 0.001) continue;
+        let a = L.base * (0.4 + 0.6 * p.s) * mask;
         if (L.land) a *= 1.7;
         if (L.twinkle && !rm) a *= 0.6 + 0.4 * Math.sin(time * L.speed + L.phase);
         if (a <= 0.012) continue;
         const rad = L.size * p.s + 0.35;
         const col = L.warm ? "255,206,150" : "176,204,255";
-        // soft round halo: a gradual gaussian-like falloff (no hard inner
-        // plateau) reads as a fuzzy circle. Floor the radius so even the
-        // tiny far stars have room to resolve into a circle (a sub-pixel
-        // box just renders as a square).
-        const bloom = Math.max(4, rad * (L.land ? 6.5 : 5.0));
+        // Each light is ONE soft radial gradient with a bright, fuzzy center
+        // that fades smoothly to nothing — no hard-edged core disc (a crisp
+        // arc at ~1px reads as a square pixel). Floored radius gives even the
+        // far stars room to resolve as a fuzzy circle. The fill is clipped to a
+        // circle (arc), so the bounding box is never visible.
+        const bloom = Math.max(3.5, rad * (L.land ? 6 : 4.5));
         const gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, bloom);
-        gg.addColorStop(0, `rgba(${col},${a})`);
-        gg.addColorStop(0.18, `rgba(${col},${a * 0.55})`);
-        gg.addColorStop(0.45, `rgba(${col},${a * 0.16})`);
-        gg.addColorStop(0.75, `rgba(${col},${a * 0.04})`);
+        gg.addColorStop(0, `rgba(${col},${Math.min(1, a * 1.9)})`);
+        gg.addColorStop(0.1, `rgba(${col},${Math.min(1, a * 1.1)})`);
+        gg.addColorStop(0.28, `rgba(${col},${a * 0.4})`);
+        gg.addColorStop(0.55, `rgba(${col},${a * 0.1})`);
+        gg.addColorStop(0.8, `rgba(${col},${a * 0.03})`);
         gg.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = gg;
         ctx.beginPath();
         ctx.arc(p.x, p.y, bloom, 0, Math.PI * 2);
-        ctx.fill();
-        // bright round core: an anti-aliased arc (never a square box).
-        ctx.fillStyle = `rgba(${col},${Math.min(1, a * 1.7)})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(0.75, rad * 0.7), 0, Math.PI * 2);
         ctx.fill();
       }
 

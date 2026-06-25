@@ -15,11 +15,13 @@ import type {
 } from "@/lib/plan/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
+import PlanDependencyGraph from "./PlanDependencyGraph";
 import TypedGraph, { type HoverNode } from "./TypedGraph";
 
-type ConsoleView = "plan" | "baselines" | "benchmark";
+type ConsoleView = "plan" | "dependencies" | "baselines" | "benchmark";
 const VIEWS: { id: ConsoleView; label: string }[] = [
   { id: "plan", label: "plan" },
+  { id: "dependencies", label: "dependencies" },
   { id: "baselines", label: "baselines" },
   { id: "benchmark", label: "benchmark" },
 ];
@@ -78,6 +80,8 @@ export default function AgentConsole({
   const [steps, setSteps] = useState<PlanStep[]>([]);
   const [mutations, setMutations] = useState<MutationLogEntry[]>([]);
   const [graph, setGraph] = useState<PlanGraph>({ nodes: [], edges: [] });
+  const [planGraph, setPlanGraph] = useState<PlanGraph | null>(null);
+  const [stalePlanIds, setStalePlanIds] = useState<Set<string>>(new Set());
   const [lit, setLit] = useState<Set<string>>(new Set());
   const [liveNodes, setLiveNodes] = useState(0);
   const [route, setRoute] = useState("");
@@ -111,12 +115,16 @@ export default function AgentConsole({
       setGraph((g) => applyInvalidation(g, inv));
       setMutations((m) => [...m, inv.mutation]);
       if (inv.mutation.nodeId) setLit((s) => new Set(s).add(inv.mutation.nodeId as string));
+      // ripple stale through the plan-dependency graph (still showing revision 1)
+      setStalePlanIds(new Set(inv.stalePlanNodeIds));
     });
 
     es.addEventListener("meta", (ev) => {
       const meta = JSON.parse((ev as MessageEvent).data) as Meta;
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
+      setPlanGraph(meta.planGraph);
+      setStalePlanIds(new Set()); // the new revision is clean
       setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
@@ -311,14 +319,14 @@ export default function AgentConsole({
 
       {/* ── right: header + plan + mutation log ── */}
       <div className="flex min-w-0 flex-1 flex-col p-7">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="font-display text-xl font-semibold uppercase leading-none tracking-snug text-text-primary">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="whitespace-nowrap font-display text-xl font-semibold uppercase leading-none tracking-snug text-text-primary">
               agent console
             </div>
             <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-none items-center gap-2">
             {/* view tabs */}
             <div className="flex rounded-full bg-surface-subtle p-1">
               {VIEWS.map((v) => (
@@ -337,12 +345,12 @@ export default function AgentConsole({
                 </button>
               ))}
             </div>
-            {view === "plan" && (
+            {(view === "plan" || view === "dependencies") && (
               <button
                 type="button"
                 onClick={triggerReplan}
                 disabled={replanned || status !== "current"}
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium leading-none transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ background: "var(--status-stale-bg)", color: "var(--status-stale)" }}
               >
                 ⚡ balance changed · replan
@@ -351,14 +359,16 @@ export default function AgentConsole({
             <button
               type="button"
               onClick={onRestart}
-              className="flex items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-xs font-medium text-text-secondary shadow-xs"
+              className="flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-xs font-medium leading-none text-text-secondary shadow-xs"
             >
               ↺ reset
             </button>
           </div>
         </div>
 
-        {view === "baselines" ? (
+        {view === "dependencies" ? (
+          <PlanDependencyGraph planGraph={planGraph} staleIds={stalePlanIds} />
+        ) : view === "baselines" ? (
           <ContrastView metrics={liveMetrics} />
         ) : view === "benchmark" ? (
           <BenchmarkView metrics={liveMetrics} />
@@ -486,9 +496,9 @@ function PhaseChip({
     failed: { color: "var(--status-failed)", bg: "var(--status-failed-bg)", text: "no plan · failed" },
   }[status];
   return (
-    <div className="flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: map.bg }}>
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: map.color }} />
-      <span className="text-xs font-semibold" style={{ color: map.color }}>{map.text}</span>
+    <div className="flex flex-none items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5" style={{ background: map.bg }}>
+      <span className="h-1.5 w-1.5 flex-none animate-pulse rounded-full" style={{ background: map.color }} />
+      <span className="text-xs font-semibold leading-none" style={{ color: map.color }}>{map.text}</span>
     </div>
   );
 }

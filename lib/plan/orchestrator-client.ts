@@ -146,3 +146,62 @@ export async function latestMutationCursor(): Promise<number> {
     return 0;
   }
 }
+
+/** Parse one SSE frame; return the `graph_mutation` payload or null. */
+function parseGraphMutationFrame(frame: string): MutationEvent | null {
+  let event = "message";
+  const data: string[] = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+  }
+  if (event !== "graph_mutation" || data.length === 0) return null;
+  try {
+    return JSON.parse(data.join("\n")) as MutationEvent;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Subscribe to the Graph lane's live mutation stream (`GET /mutations/stream`,
+ * the real append-only `graph_mutations` tail) from a cursor, invoking
+ * `onEvent` for each row as it arrives. Resolves when the body ends or
+ * `signal` aborts. The caller owns the stop policy (idle/timeout) via `signal`.
+ */
+export async function streamMutationsViaOrchestrator(
+  cursor: number,
+  onEvent: (e: MutationEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const base = apiBaseUrl();
+  if (!base) throw new Error("orchestrator API base URL not configured");
+  const res = await fetch(`${base}/mutations/stream`, {
+    headers: { "Last-Event-ID": String(cursor), ...(await authHeaders()) },
+    cache: "no-store",
+    signal,
+  });
+  if (!res.ok || !res.body) throw new Error(`mutations stream failed: ${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buf.indexOf("\n\n")) !== -1) {
+        const ev = parseGraphMutationFrame(buf.slice(0, idx));
+        buf = buf.slice(idx + 2);
+        if (ev) onEvent(ev);
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* already closed */
+    }
+  }
+}

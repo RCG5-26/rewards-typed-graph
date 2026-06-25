@@ -21,6 +21,7 @@ import type {
   GraphNode,
   Invalidation,
   MutationLogEntry,
+  PlanGraph,
   PlanResult,
   PlanStep,
   ReplanResult,
@@ -102,6 +103,49 @@ function stableId(prefix: string, seed: string): string {
 
 const progNodeId = (slug: string) => `prog:${slug}`;
 const redeemNodeId = (optionId: string) => `redeem:${optionId}`;
+/** Plan-dependency-graph node id for a step (by 1-based order). */
+const pnodeId = (order: number) => `pnode:${order}`;
+
+/**
+ * Assemble the plan-dependency graph: a `plan` node per step plus the state
+ * nodes they read, wired by the given `dependency`/`produces` edges. The state
+ * nodes are shared (same ids) with the traversal graph so a stale program node
+ * can ripple into the dependent plan nodes.
+ */
+function buildPlanGraph(steps: PlanStep[], stateNodes: GraphNode[], links: GraphEdge[]): PlanGraph {
+  const planNodes: GraphNode[] = steps.map((s) => ({
+    id: pnodeId(s.order),
+    label: s.title,
+    kind: "plan",
+    col: s.order,
+    state: "active",
+  }));
+  return { nodes: [...stateNodes, ...planNodes], edges: links };
+}
+
+/**
+ * Ripple `stale` from a changed state node through the plan-dependency graph: a
+ * plan node that *depends on* a stale node goes stale, and a node a stale plan
+ * node *produces* goes stale — to a fixpoint. Returns every reached node id.
+ */
+function propagateStale(planGraph: PlanGraph, startId: string): string[] {
+  const stale = new Set<string>([startId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const e of planGraph.edges) {
+      if (e.kind === "dependency" && stale.has(e.to) && !stale.has(e.from)) {
+        stale.add(e.from);
+        changed = true;
+      }
+      if (e.kind === "produces" && stale.has(e.from) && !stale.has(e.to)) {
+        stale.add(e.to);
+        changed = true;
+      }
+    }
+  }
+  return Array.from(stale);
+}
 
 interface Candidate {
   option: SeedRedemption;
@@ -228,12 +272,16 @@ function computePlan(
 
   if (!winner) {
     mut({ agentType: "orchestrator", op: "UPDATE", node: `plans:${planLineageId}`, detail: "no reachable redemption · failed", version: `v${opts.revision}` });
+    const failedLinks: GraphEdge[] = nodes.map((pn) => ({
+      id: `dep:wallet:${pn.id}`, from: pnodeId(2), to: pn.id, kind: "dependency", state: "active",
+    }));
     return {
       planId, planLineageId, status: "failed", agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
       revision: opts.revision, goalType, goalLabel: GOAL_LABEL[goalType], queryText,
       route: "no affordable redemption from current balances",
       planValueCents: 0, liveNodes: nodes.length, steps, mutations,
       graph: { nodes, edges },
+      planGraph: buildPlanGraph(steps, nodes, failedLinks),
     };
   }
 
@@ -286,11 +334,32 @@ function computePlan(
     ? `${sourceProgram.name} → ${destProgram.name} → ${option.description}`
     : `${destProgram.name} → ${option.description}`;
 
+  // ── plan-dependency edges (orchestrator=1, wallet=2, transfer=3?, book=last) ──
+  const WALLET_ORDER = 2;
+  const transferOrder = requiredTransfer > 0 && sourceProgram ? 3 : null;
+  const bookOrder = transferOrder ? 4 : 3;
+  const depLinks: GraphEdge[] = [];
+  // the wallet step reads every held program balance
+  for (const pn of nodes.filter((n) => n.kind === "program")) {
+    depLinks.push({ id: `dep:wallet:${pn.id}`, from: pnodeId(WALLET_ORDER), to: pn.id, kind: "dependency", state: "active" });
+  }
+  if (transferOrder && sourceProgram) {
+    // the transfer reads the source balance (the one a balance change invalidates)
+    depLinks.push({ id: "dep:transfer:src", from: pnodeId(transferOrder), to: progNodeId(sourceProgram.slug), kind: "dependency", state: "active" });
+    depLinks.push({ id: "dep:transfer:wallet", from: pnodeId(transferOrder), to: pnodeId(WALLET_ORDER), kind: "dependency", state: "active" });
+  }
+  // the book step depends on the transferred (dest) balance and the prior step,
+  // and produces the redemption node
+  depLinks.push({ id: "dep:book:dest", from: pnodeId(bookOrder), to: destNodeId, kind: "dependency", state: "active" });
+  depLinks.push({ id: "dep:book:prev", from: pnodeId(bookOrder), to: pnodeId(transferOrder ?? WALLET_ORDER), kind: "dependency", state: "active" });
+  depLinks.push({ id: "dep:book:award", from: pnodeId(bookOrder), to: awardNodeId, kind: "produces", state: "active" });
+
   return {
     planId, planLineageId, status: "current", agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
     revision: opts.revision, goalType, goalLabel: GOAL_LABEL[goalType], queryText,
     route, planValueCents: valueCents, liveNodes: nodes.length, steps, mutations,
     graph: { nodes, edges },
+    planGraph: buildPlanGraph(steps, nodes, depLinks),
   };
 }
 
@@ -342,10 +411,15 @@ export async function buildReplan(
   const destId = slugToId.get(destSlug);
   if (srcId && destId) excluded.add(`${srcId}->${destId}`);
 
+  // Ripple stale from the changed source balance through the plan-dependency
+  // graph → every dependent plan node (and the redemption it produced).
+  const stalePlanNodeIds = propagateStale(rev1.planGraph, usedTransfer.from);
+
   const seqStart = rev1.mutations.length + 2; // leave room for the STALE row
   const invalidation: Invalidation = {
     staleEdgeId: usedTransfer.id,
     staleNodeIds: staleAward ? [staleAward.id] : [],
+    stalePlanNodeIds,
     reason: `${srcSlug} → ${destSlug} transfer suspended — the booked award is no longer reachable on this path.`,
     mutation: {
       seq: rev1.mutations.length + 1,

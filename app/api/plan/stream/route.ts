@@ -11,9 +11,10 @@ import {
   fetchMutationsViaOrchestrator,
   isOrchestratorEnabled,
   latestMutationCursor,
+  streamMutationsViaOrchestrator,
   transferBalanceViaOrchestrator,
 } from "@/lib/plan/orchestrator-client";
-import { realMutationsToLog } from "@/lib/plan/real-mutations";
+import { makeRealMutationMapper, realMutationsToLog } from "@/lib/plan/real-mutations";
 import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
 import { resolveSessionGraph } from "@/lib/user/session";
 
@@ -41,6 +42,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PACE_MS = 320;
+/** Hold between the invalidation and the new revision so the stale ripple shows. */
+const RIPPLE_HOLD_MS = 1100;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(request: Request) {
@@ -115,6 +118,54 @@ export async function GET(request: Request) {
         }
       };
 
+      /**
+       * Live tail: subscribe to the Graph lane's `GET /mutations/stream` from
+       * `cursor` and forward each lineage row as a `mutation` event the moment
+       * it arrives — no client-side re-pacing. Stops on an idle gap (the write
+       * already committed, so rows arrive up-front) or a hard cap. Returns the
+       * count forwarded so the caller can fall back when nothing came through.
+       */
+      const liveForward = async (
+        cursor: number,
+        lineageId: string | null,
+        derived: PlanResult,
+        seqStart: number,
+      ): Promise<number> => {
+        const IDLE_MS = 2000;
+        const MAX_MS = 9000;
+        const controller = new AbortController();
+        const map = makeRealMutationMapper(derived, seqStart);
+        let count = 0;
+        let idle: ReturnType<typeof setTimeout> | null = null;
+        const resetIdle = () => {
+          if (idle) clearTimeout(idle);
+          idle = setTimeout(() => controller.abort(), IDLE_MS);
+        };
+        const hard = setTimeout(() => controller.abort(), MAX_MS);
+        resetIdle();
+        try {
+          await streamMutationsViaOrchestrator(
+            cursor,
+            (ev) => {
+              if (lineageId && ev.plan_lineage_id !== lineageId) return;
+              send("mutation", map(ev));
+              count += 1;
+              resetIdle();
+            },
+            controller.signal,
+          );
+        } catch (err) {
+          // AbortError is our normal stop; surface only genuine failures.
+          if ((err as Error)?.name !== "AbortError") {
+            console.warn("live mutation tail failed", err);
+          }
+        } finally {
+          if (idle) clearTimeout(idle);
+          clearTimeout(hard);
+        }
+        return count;
+      };
+
       try {
         if (isReplan) {
           const replan = await buildReplan(graph, selectedCardIds, queryText);
@@ -125,42 +176,59 @@ export async function GET(request: Request) {
           // Persist the real transfer + re-plan when a backend is wired; project
           // its authoritative revision-2 onto the fixture's invalidation visual.
           let plan = replan.plan;
+          let live: { cursor: number; lineageId: string } | null = null;
           if (isOrchestratorEnabled() && replan.transfer) {
             try {
               const cursor = await latestMutationCursor();
               const result = await transferBalanceViaOrchestrator(replan.transfer);
               plan = planResultFromView(result.currentPlan, replan.plan);
-              plan = await withRealMutations(
-                plan,
-                replan.plan,
-                cursor,
-                result.planLineageId,
-                replan.invalidation.mutation.seq + 1,
-              );
+              live = { cursor, lineageId: result.planLineageId };
             } catch (err) {
               console.warn("orchestrator replan failed; using fixture re-plan", err);
             }
           }
           await sleep(PACE_MS);
           send("invalidation", replan.invalidation);
+          // hold so the stale ripple is visible on the (still revision-1) plan
+          // dependency graph before the new revision replaces it
+          await sleep(RIPPLE_HOLD_MS);
           send("meta", metaOf(plan));
-          await streamMutations(plan.mutations);
+          const seqStart = replan.invalidation.mutation.seq + 1;
+          if (live) {
+            const forwarded = await liveForward(live.cursor, live.lineageId, replan.plan, seqStart);
+            if (forwarded === 0) {
+              const real = await withRealMutations(plan, replan.plan, live.cursor, live.lineageId, seqStart);
+              await streamMutations(real.mutations);
+            }
+          } else {
+            await streamMutations(plan.mutations);
+          }
           done(plan);
         } else {
           const derived = await buildPlan(graph, selectedCardIds, queryText);
           let plan = derived;
+          let live: { cursor: number; lineageId: string } | null = null;
           if (isOrchestratorEnabled()) {
             try {
               const cursor = await latestMutationCursor();
               const view = await createPlanViaOrchestrator(queryText);
-              plan = planResultFromView(view, derived);
-              plan = await withRealMutations(plan, derived, cursor, view.planLineageId, 1);
+              plan = planResultFromView(view, derived); // real header/steps; mutations TBD
+              live = { cursor, lineageId: view.planLineageId };
             } catch (err) {
               console.warn("orchestrator plan failed; using fixture plan", err);
             }
           }
           send("meta", metaOf(plan));
-          await streamMutations(plan.mutations);
+          if (live) {
+            // live tail → one-shot fetch → derived, in order of fidelity
+            const forwarded = await liveForward(live.cursor, live.lineageId, derived, 1);
+            if (forwarded === 0) {
+              const real = await withRealMutations(plan, derived, live.cursor, live.lineageId, 1);
+              await streamMutations(real.mutations);
+            }
+          } else {
+            await streamMutations(plan.mutations);
+          }
           done(plan);
         }
       } catch (err) {

@@ -87,7 +87,13 @@ export interface GraphEdge {
   id: string;
   from: string;
   to: string;
-  kind: "transfer" | "redeem";
+  /**
+   * `transfer`/`redeem` are traversal edges (the flight path). `dependency` and
+   * `produces` are plan-graph edges: a plan node *depends on* the state it read
+   * (so a change to that state invalidates it), and *produces* the node it
+   * commits. Only traversal edges feed `buildTraversalChain`.
+   */
+  kind: "transfer" | "redeem" | "dependency" | "produces";
   state?: "active" | "stale" | "superseded";
 }
 
@@ -124,7 +130,14 @@ export interface PlanResult {
   liveNodes: number;
   steps: PlanStep[];
   mutations: MutationLogEntry[];
+  /** The traversal graph (programs → redemption) the flight path renders. */
   graph: PlanGraph;
+  /**
+   * The plan-dependency graph: one `plan` node per step plus the state nodes
+   * they read, wired by `dependency`/`produces` edges. This is what the
+   * dependency view renders and what a balance change ripples `stale` through.
+   */
+  planGraph: PlanGraph;
 }
 
 /** The invalidation that opens a replan (Hero Moment 1). */
@@ -132,6 +145,12 @@ export interface Invalidation {
   /** Graph edge/node that went stale. */
   staleEdgeId: string;
   staleNodeIds: string[];
+  /**
+   * Every node in the plan-dependency graph reached by rippling `stale` from
+   * the changed balance along `dependency`/`produces` edges — the affected plan
+   * nodes (and the redemption they produced) that light up stale.
+   */
+  stalePlanNodeIds: string[];
   reason: string;
   /** The STALE mutation row to append to the log. */
   mutation: MutationLogEntry;
