@@ -35,7 +35,7 @@ export default function CardTile({
     if (!r) return;
     const px = (e.clientX - r.left) / r.width;
     const py = (e.clientY - r.top) / r.height;
-    setTilt({ rx: (0.5 - py) * 12, ry: (px - 0.5) * 16, active: true });
+    setTilt({ rx: (0.5 - py) * 8, ry: (px - 0.5) * 11, active: true });
     setGlare({ x: px * 100, y: py * 100 });
   }
   function onLeave() {
@@ -43,7 +43,7 @@ export default function CardTile({
     setGlare({ x: 50, y: 50 });
   }
 
-  const transform = `perspective(900px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateY(${tilt.active ? -6 : 0}px) scale(${tilt.active ? 1.025 : 1})`;
+  const transform = `perspective(900px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateY(${tilt.active ? -4 : 0}px) scale(${tilt.active ? 1.015 : 1})`;
 
   return (
     <div

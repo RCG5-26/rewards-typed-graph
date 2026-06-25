@@ -236,7 +236,7 @@ function CardsStep({
           everything you pick.
         </p>
 
-        <div className="-mr-2 flex-1 overflow-y-auto pr-2.5">
+        <div className="flex-1 overflow-y-auto px-2 pb-6 pt-3">
           {loading && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
