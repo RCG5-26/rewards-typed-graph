@@ -23,6 +23,7 @@ from benchmark.person_c_scorer import (
     accuracy_correct as score_accuracy_correct,
     case_current_balance as score_case_current_balance,
     hallucination_issues as score_hallucination_issues,
+    invalidation_kind_for_case,
 )
 from benchmark.metric_summary import (
     build_metric_definitions,
@@ -228,7 +229,7 @@ def _run_case(
         "case_id": case["case_id"],
         "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
-        "invalidation_kind": case.get("invalidation_kind"),
+        "invalidation_kind": invalidation_kind_for_case(case),
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),
         "hallucination_issues": hallucination_issues,

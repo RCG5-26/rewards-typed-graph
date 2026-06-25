@@ -105,7 +105,7 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
         "case_id": case["case_id"],
         "benchmark_axis": case["benchmark_axis"],
         "category": case["category"],
-        "invalidation_kind": case.get("invalidation_kind"),
+        "invalidation_kind": invalidation_kind_for_case(case),
         "accuracy_correct": accuracy_correct,
         "hallucination_count": len(hallucination_issues),
         "hallucination_issues": hallucination_issues,
@@ -117,6 +117,23 @@ def _score_case(base_fixture: dict[str, Any], case: dict[str, Any]) -> dict[str,
         "actual_fallback": plan.get("fallback"),
         "status": plan["status"],
     }
+
+
+def invalidation_kind_for_case(case: dict[str, Any]) -> str | None:
+    """Return a case's invalidation_kind, requiring it on mutation cases.
+
+    A mutation case without an explicit kind would otherwise be silently grouped
+    as "unspecified" in the per-kind benchmark totals (metric_summary.py), which
+    skews the comparison. Fail fast instead so the gold corpus stays well-formed.
+    """
+    if "mutation" in case:
+        kind = case.get("invalidation_kind")
+        if not kind:
+            raise ValueError(
+                f"mutation case {case.get('case_id')!r} must set invalidation_kind"
+            )
+        return kind
+    return case.get("invalidation_kind")
 
 
 def _balance_by_slug(fixture: dict[str, Any], balance_slug: str) -> dict[str, Any]:

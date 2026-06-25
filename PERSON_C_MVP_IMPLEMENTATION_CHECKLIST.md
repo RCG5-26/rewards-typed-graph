@@ -167,15 +167,17 @@ Success criteria:
 - The new recommendation respects the updated balance.
 - The explanation says why the recommendation changed.
 
-### 6. Create 10-12 MVP Benchmark Cases
+### 6. Create the 30-Case MVP Benchmark Corpus
 
-Suggested split:
+Balanced across three benchmark axes (10 earning, 10 redemption, 10 portfolio).
+By category, the shipped corpus splits as:
 
-- 4 normal redemption cases.
-- 5 balance-change invalidation cases.
-- 2 hallucination traps.
+- 10 earning-to-redemption cases.
+- 9 normal redemption cases.
+- 5 balance-change invalidation cases (each tagged with an `invalidation_kind`).
+- 3 hallucination traps.
 - 2 cash fallback cases.
-- Optional 1 explanation-quality case.
+- 1 explanation-quality case.
 
 Each benchmark case should include:
 

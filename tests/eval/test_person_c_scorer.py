@@ -5,7 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark.person_c_scorer import report_passed, run_benchmark
+from benchmark.person_c_scorer import (
+    invalidation_kind_for_case,
+    report_passed,
+    run_benchmark,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -159,6 +163,15 @@ class PersonCScorerTests(unittest.TestCase):
         self.assertTrue(report_passed(report))
         self.assertEqual(report["metrics"]["invalidation_passed"], EXPECTED_INVALIDATION_TOTAL)
         self.assertEqual(report["metrics"]["invalidation_total"], EXPECTED_INVALIDATION_TOTAL)
+
+    def test_invalidation_kind_required_on_mutation_cases(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invalidation_kind"):
+            invalidation_kind_for_case(
+                {"case_id": "bad_case", "mutation": {"delta_points": -1}}
+            )
+
+    def test_invalidation_kind_optional_on_non_mutation_cases(self) -> None:
+        self.assertIsNone(invalidation_kind_for_case({"case_id": "plain"}))
 
     def test_cli_emits_json_report(self) -> None:
         completed = subprocess.run(
