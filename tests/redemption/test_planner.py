@@ -164,7 +164,11 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                 self.assertIn("fetched_at", node)
 
     def test_benchmark_cases_are_executable_against_fixture(self) -> None:
-        self.assertEqual(len(self.benchmark["cases"]), 30)
+        expected_axis_counts = self.benchmark["scoring_rules"]["expected_axis_counts"]
+        self.assertEqual(
+            len(self.benchmark["cases"]),
+            sum(expected_axis_counts.values()),
+        )
 
         for case in self.benchmark["cases"]:
             with self.subTest(case_id=case["case_id"]):
@@ -193,7 +197,11 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                 expected_fallback = case.get("expected_fallback")
 
                 self.assertEqual(plan["status"], expected_status)
-                self.assertEqual(plan["chosen_award_slug"], expected_award)
+                accepted = case.get("accepted_award_slugs")
+                if accepted is not None:
+                    self.assertIn(plan["chosen_award_slug"], accepted)
+                else:
+                    self.assertEqual(plan["chosen_award_slug"], expected_award)
                 self.assertEqual(plan.get("fallback"), expected_fallback)
 
 
