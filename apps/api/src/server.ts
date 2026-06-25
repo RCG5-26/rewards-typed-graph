@@ -1,11 +1,11 @@
 import { serve } from "@hono/node-server";
-import { verifyToken } from "@clerk/backend";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { Pool } from "pg";
 
 import { type AuthEnv } from "./http/auth";
+import { resolveIdentity } from "./http/clerk-auth";
 import { createMutationRoutes } from "./mutations/routes";
 import { BridgePlanService } from "./plans/bridge-service";
 import { createPlanRoutes } from "./plans/routes";
@@ -32,53 +32,32 @@ app.use(
 );
 
 app.use("*", async (c, next) => {
-  c.set("userId", await resolveUserId(c.req.header("Authorization")));
+  const identity = await resolveIdentity(
+    c.req.header("Authorization"),
+    { clerkSecretKey, devUserId },
+    {
+      findUserIdByClerkId: async (clerkId) => {
+        const result = await pool.query<{ id: string }>(
+          "SELECT id FROM users WHERE clerk_id = $1",
+          [clerkId],
+        );
+        return result.rows[0]?.id;
+      },
+    },
+  );
+  if (identity.userId) {
+    c.set("userId", identity.userId);
+  }
+  if (identity.clerkId) {
+    c.set("clerkId", identity.clerkId);
+  }
+  c.set("email", identity.email ?? null);
   await next();
 });
 
 app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", createMutationRoutes(pool));
 app.route("/", createPlanRoutes(planService));
-
-/**
- * Resolve the caller to a `users.id`. Production verifies the Clerk bearer token
- * and maps `sub` (clerk_id) → users.id. For local curl/testing without Clerk,
- * `AUTH_DEV_USER_ID` short-circuits to a fixed seeded user.
- */
-async function resolveUserId(
-  authorization: string | undefined,
-): Promise<string | undefined> {
-  if (devUserId) {
-    return devUserId;
-  }
-
-  const token = parseBearer(authorization);
-  if (!token || !clerkSecretKey) {
-    return undefined;
-  }
-
-  let clerkId: string;
-  try {
-    const claims = await verifyToken(token, { secretKey: clerkSecretKey });
-    clerkId = claims.sub;
-  } catch {
-    return undefined;
-  }
-
-  const result = await pool.query<{ id: string }>(
-    "SELECT id FROM users WHERE clerk_id = $1",
-    [clerkId],
-  );
-  return result.rows[0]?.id;
-}
-
-function parseBearer(authorization: string | undefined): string | undefined {
-  if (!authorization) {
-    return undefined;
-  }
-  const [scheme, value] = authorization.split(" ");
-  return scheme?.toLowerCase() === "bearer" && value ? value : undefined;
-}
 
 function requireEnv(name: string): string {
   const value = process.env[name];

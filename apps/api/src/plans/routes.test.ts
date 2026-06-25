@@ -34,8 +34,13 @@ const samplePlan: PlanView = {
 
 function createFakeService(overrides: Partial<PlanService> = {}): PlanService {
   const base: PlanService = {
-    async getSession(userId) {
-      return { userId, clerkId: "clerk_demo", seeded: true } satisfies SessionView;
+    async getSession(identity) {
+      const userId = identity.userId ?? "bootstrapped-user-id";
+      return {
+        userId,
+        clerkId: identity.clerkId ?? "clerk_demo",
+        seeded: true,
+      } satisfies SessionView;
     },
     async resetDemo(userId) {
       return { userId, clerkId: "clerk_demo", seeded: true } satisfies SessionView;
@@ -63,13 +68,18 @@ function createFakeService(overrides: Partial<PlanService> = {}): PlanService {
 
 function createTestApp(
   service: PlanService,
-  options: { injectUserId?: boolean } = {},
+  options: { injectUserId?: boolean; injectClerkId?: string } = {},
 ) {
-  const { injectUserId = true } = options;
+  const { injectUserId = true, injectClerkId } = options;
   const app = new Hono<AuthEnv>();
-  if (injectUserId) {
+  if (injectUserId || injectClerkId) {
     app.use("*", async (c, next) => {
-      c.set("userId", USER_ID);
+      if (injectUserId) {
+        c.set("userId", USER_ID);
+      }
+      if (injectClerkId) {
+        c.set("clerkId", injectClerkId);
+      }
       await next();
     });
   }
@@ -101,6 +111,18 @@ describe("plan routes", () => {
     const app = createTestApp(createFakeService(), { injectUserId: false });
     const res = await app.request("/session");
     expect(res.status).toBe(401);
+  });
+
+  it("bootstraps a session from a clerkId alone (new user, no userId)", async () => {
+    const app = createTestApp(createFakeService(), {
+      injectUserId: false,
+      injectClerkId: "user_new_clerk_sub",
+    });
+    const res = await app.request("/session");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { userId: string; clerkId: string };
+    expect(body.userId).toBe("bootstrapped-user-id");
+    expect(body.clerkId).toBe("user_new_clerk_sub");
   });
 
   it("creates a plan synchronously and returns the full body", async () => {
