@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration — Rewards Agent (RCG5-26/rewards-typed-graph)
-# Merge policy: see ruleset "main — protected" in AGENTS.md (CodeRabbit + apply-schema + 1 human approval).
-# See repo ruleset "main — protected" and AGENTS.md.
+# Merge policy & required checks: see AGENTS.md → "Merging to `main`" and
+# docs/development/ci-required-checks.md (single source of truth — do not restate here).
 
 language: "en-US"
 early_access: false
@@ -58,7 +58,17 @@ reviews:
     - path: "tests/**"
       instructions: |
         Prefer behavioral tests over string-grep of SQL. Schema tests should apply schema.sql to
-        PostgreSQL 16 when possible.
+        PostgreSQL 16 when possible. Removing or weakening assertions should be challenged unless
+        the PR explains why.
+    # Single canonical TDD rule for all production source (CodeRabbit concatenates
+    # instructions from every matching path, so this layers on top of the
+    # domain-specific blocks above without duplicating the policy text).
+    - path: "**/*.{ts,tsx,py}"
+      instructions: |
+        TDD is required (canonical policy: context/code-standards.md → Testing, ADR 0009).
+        Flag any added or changed function, route, or behavior that lacks a corresponding
+        new/updated test, and flag PRs whose red-phase (test-first) attestation in the
+        description is left unchecked.
 
 chat:
   auto_reply: true
