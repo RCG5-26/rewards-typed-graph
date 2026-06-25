@@ -164,19 +164,11 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                 self.assertIn("fetched_at", node)
 
     def test_benchmark_cases_are_executable_against_fixture(self) -> None:
-        expected_by_case = {
-            "mvp_001_initial_best_value": ("award:demo_hyatt_ginza:tokyo:3n", None, "current"),
-            "mvp_002_affordability_filter_35k": ("award:demo_hyatt_shinjuku:tokyo:3n", None, "current"),
-            "mvp_003_low_balance_cash_fallback": (None, "cash", "current"),
-            "mvp_004_balance_change_replan": ("award:demo_hyatt_shinjuku:tokyo:3n", None, "current"),
-            "mvp_005_second_balance_change_no_award": (None, "cash", "current"),
-            "mvp_006_wrong_program_trap": (None, None, "unsupported"),
-            "mvp_007_wrong_ratio_trap": ("award:demo_hyatt_ginza:tokyo:3n", None, "current"),
-            "mvp_008_unavailable_top_option": ("award:demo_hyatt_shinjuku:tokyo:3n", None, "current"),
-            "mvp_009_all_awards_unavailable": (None, "cash", "current"),
-            "mvp_010_explanation_quality": ("award:demo_hyatt_ginza:tokyo:3n", None, "current"),
-            "mvp_011_baseline_output_sink": ("award:demo_hyatt_ginza:tokyo:3n", None, "current"),
-        }
+        expected_axis_counts = self.benchmark["scoring_rules"]["expected_axis_counts"]
+        self.assertEqual(
+            len(self.benchmark["cases"]),
+            sum(expected_axis_counts.values()),
+        )
 
         for case in self.benchmark["cases"]:
             with self.subTest(case_id=case["case_id"]):
@@ -200,10 +192,16 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                     query_text=case["query"],
                     overrides=case.get("overrides"),
                 )
-                expected_award, expected_fallback, expected_status = expected_by_case[case["case_id"]]
+                expected_status = "unsupported" if "expected_response" in case else "current"
+                expected_award = case.get("expected_top_award_slug")
+                expected_fallback = case.get("expected_fallback")
 
                 self.assertEqual(plan["status"], expected_status)
-                self.assertEqual(plan["chosen_award_slug"], expected_award)
+                accepted = case.get("accepted_award_slugs")
+                if accepted is not None:
+                    self.assertIn(plan["chosen_award_slug"], accepted)
+                else:
+                    self.assertEqual(plan["chosen_award_slug"], expected_award)
                 self.assertEqual(plan.get("fallback"), expected_fallback)
 
 

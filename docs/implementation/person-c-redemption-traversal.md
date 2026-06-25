@@ -148,7 +148,7 @@ python -m unittest discover -s tests -v
 python -m benchmark.person_c_scorer --pretty
 ```
 
-Current typed fixture-path result: 11 / 11 accuracy, 0 strict hallucinations, and 2 / 2 invalidation cases passing.
+Current typed fixture-path result: 30 / 30 accuracy, 0 strict hallucinations, and 5 / 5 invalidation cases passing. The report includes RCG-34 hallucination issue counts and RCG-38 invalidation wins by kind.
 
 ## Manual Verification Checklist
 

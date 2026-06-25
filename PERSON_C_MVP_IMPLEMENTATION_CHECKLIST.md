@@ -12,7 +12,7 @@ This checklist is backed by executable Person C artifacts aligned to schema-fina
 
 - `docs/implementation/person-c-redemption-traversal.md` - RCG-20 paper design for the redemption traversal and invalidation flow.
 - `fixtures/person-c-mvp-seed.json` - tiny seeded Tokyo Hyatt domain for the MVP.
-- `benchmark/gold/person-c-mvp-cases.json` - 11 MVP benchmark cases covering normal redemption, invalidation, cash fallback, hallucination traps, and benchmark integrity.
+- `benchmark/gold/person-c-mvp-cases.json` - 30 MVP benchmark cases covering earning, redemption, portfolio, invalidation, cash fallback, hallucination traps, and benchmark integrity.
 - `agents/redemption/planner.py` - deterministic fixture-backed planner that ranks awards, emits dependency-bearing plan drafts, and proves balance-change invalidation.
 - `agents/redemption/award_tool.py` - seeded award-search tool that returns typed `RedemptionOption` and `ExternalQuote` fragments.
 - `benchmark/person_c_scorer.py` - offline scorer for the typed fixture path.
@@ -21,7 +21,7 @@ This checklist is backed by executable Person C artifacts aligned to schema-fina
 
 Current execution status:
 
-- Done now: RCG-20 paper design, Tokyo seed fixture, 11-case benchmark draft, deterministic planner, seeded award tool, offline scorer, and unit tests.
+- Done now: RCG-20 paper design, Tokyo seed fixture, 30-case benchmark corpus, deterministic planner, seeded award tool, offline scorer, metric definitions, and unit tests.
 - Still blocked: database-backed RCG-21 writes until the graph-write path, MutationBatch contract, and graph fragment merge contract are ready.
 
 ## Locked MVP Direction
@@ -167,15 +167,17 @@ Success criteria:
 - The new recommendation respects the updated balance.
 - The explanation says why the recommendation changed.
 
-### 6. Create 10-12 MVP Benchmark Cases
+### 6. Create the 30-Case MVP Benchmark Corpus
 
-Suggested split:
+Balanced across three benchmark axes (10 earning, 10 redemption, 10 portfolio).
+By category, the shipped corpus splits as:
 
-- 4 normal redemption cases.
-- 3 balance-change invalidation cases.
-- 2 hallucination traps.
+- 10 earning-to-redemption cases.
+- 9 normal redemption cases.
+- 5 balance-change invalidation cases (each tagged with an `invalidation_kind`).
+- 3 hallucination traps.
 - 2 cash fallback cases.
-- Optional 1 explanation-quality case.
+- 1 explanation-quality case.
 
 Each benchmark case should include:
 
@@ -245,9 +247,9 @@ Success criteria:
 
 Current typed fixture-path result:
 
-- 11 / 11 accuracy cases pass.
+- 30 / 30 accuracy cases pass.
 - 0 strict hallucinations.
-- 2 / 2 invalidation cases pass.
+- 5 / 5 invalidation cases pass.
 
 Run it with `python -m benchmark.person_c_scorer --pretty`.
 
