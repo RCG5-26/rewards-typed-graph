@@ -62,6 +62,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] RCG-63 e2e integration test — 2026-06-25 — `tests/integration/test_hero_moment.py` passes live (2 tests, RUN_LIVE_POSTGRES_TESTS=1).
 - [x] RCG-52 graph eval instrumentation merged — 2026-06-25 — PR #30 to `main` @ 9a2bc77; `benchmark/graph_instrumentation.py` + eval tests; `unittest discover` 88 passed.
 - [x] Canonical backend setup guide — 2026-06-25 — `docs/development/backend-local-setup.md` (frontend-facing: env, startup, contract, hero smoke test, troubleshooting).
+- [x] RCG-35 single-agent baseline — 2026-06-25 — `benchmark/single_agent_baseline.py` adds the live LLM-call baseline with env-secret config, output-sink validation, token accounting, and mocked HTTP/LLM tests.
 
 ---
 
@@ -79,7 +80,7 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 1. **RCG-27/25/26** - Val wires the demo shell + sidebar to the live API/SSE (or mocks); see [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md).
 2. **RCG-32** - one browser run-through of the hero flow with a real Clerk token closes the Day-7 gate.
 3. **RCG-66** - graduate the Option B psql-subprocess bridge into a real graph-write boundary (post-demo).
-4. Baseline runners + eval harness (Michael/Raq) - post-hero.
+4. CrewAI baseline + eval harness (Michael/Raq) - post-hero; RCG-35 single-agent runner is implemented.
 
 ---
 

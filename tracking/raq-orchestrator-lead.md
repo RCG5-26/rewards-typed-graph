@@ -40,7 +40,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-17 | Earning agent — [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md)           | Day 3-5   | next                    |
 | RCG-18 | Integration contract / API surface (spec 07)                                                  | Day 1-5   | ✅ done (PR #29, live-verified) |
 | RCG-19 | Cross-lane conflict resolution path                                                           | Day 1-5   | pending write path      |
-| RCG-35 | Single-agent baseline (mine per ADR 0003)                                                     | Day 7-10  | not started             |
+| RCG-35 | Single-agent baseline (mine per ADR 0003)                                                     | Day 7-10  | ✅ implemented (LLM-call runner, tests) |
 | RCG-40 | Eval harness / benchmark runner (DRI)                                                         | Day 7-10  | not started             |
 | RCG-55 | Pre-commit benchmark win thresholds (all four sign off)                                       | Day 7     | not started             |
 | RCG-28 | Full Layer 1-3 integration (query → plan)                                                     | Day 5-7   | ✅ done (PR #20/#29, live)|
