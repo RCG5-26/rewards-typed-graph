@@ -103,11 +103,29 @@ def _psql_exec(sql: str) -> None:
         raise RuntimeError(f"psql failed: {result.stderr.strip() or result.stdout.strip()}")
 
 
+def _psql_tx(statements: list[str]) -> None:
+    """Run statements atomically in one transaction.
+
+    A single `psql` process with ON_ERROR_STOP=1 aborts on the first failure, so
+    the wrapping BEGIN/COMMIT never commits a partial result — the connection
+    closes and Postgres rolls the transaction back.
+    """
+    body = ";\n".join(statement.strip().rstrip(";") for statement in statements)
+    _psql_exec(f"BEGIN;\n{body};\nCOMMIT;")
+
+
+# Marker psql prints for SQL NULL so we can keep it distinct from an empty
+# string (both render blank otherwise). ASCII Group Separator, matching the
+# control-char field/record separators below.
+_PSQL_NULL = "\x1d"
+
+
 def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
     result = subprocess.run(
         _psql_command(
             "--no-align",
             "--tuples-only",
+            f"--pset=null={_PSQL_NULL}",
             "--field-separator",
             "\x1f",
             "--record-separator",
@@ -124,7 +142,10 @@ def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
     if not output:
         return []
     return [
-        tuple(_parse_psql_value(value) for value in row.split("\x1f"))
+        tuple(
+            None if value == _PSQL_NULL else _parse_psql_value(value)
+            for value in row.split("\x1f")
+        )
         for row in output.split("\x1e")
         if row
     ]
@@ -152,8 +173,8 @@ def _psql_literal(value: Any) -> str:
 
 
 def _parse_psql_value(value: str) -> Any:
-    if value == "":
-        return None
+    # SQL NULL is decoded by the caller via the null sentinel, so a bare empty
+    # string here is a genuine empty string, not NULL.
     if value == "t":
         return True
     if value == "f":
@@ -311,7 +332,13 @@ def do_session(
 
 
 def ensure_user_by_clerk_id(clerk_id: str, email: str | None) -> str:
-    """Return the user id for a Clerk subject, cloning the seed persona if new."""
+    """Return the user id for a Clerk subject, cloning the seed persona if new.
+
+    The user row and its persona clone are written in a single transaction so a
+    failure can never leave a half-seeded user. A pre-existing row (including the
+    winner of a concurrent first-login race) is verified complete and repaired
+    if an older partial seed is found.
+    """
 
     rows = _psql_rows(
         _format_psql_query(
@@ -320,17 +347,17 @@ def ensure_user_by_clerk_id(clerk_id: str, email: str | None) -> str:
         )
     )
     if rows:
-        return str(rows[0][0])
+        existing_id = str(rows[0][0])
+        _ensure_persona_seeded(existing_id)
+        return existing_id
 
     new_user_id = str(uuid.uuid4())
+    insert_user = _format_psql_query(
+        "INSERT INTO users (id, clerk_id, email) VALUES (%s, %s, %s)",
+        (new_user_id, clerk_id, email),
+    )
     try:
-        _psql_exec(
-            _format_psql_query(
-                "INSERT INTO users (id, clerk_id, email) VALUES (%s, %s, %s)",
-                (new_user_id, clerk_id, email),
-            )
-        )
-        _clone_persona(new_user_id)
+        _psql_tx([insert_user, *_persona_clone_statements(new_user_id)])
     except RuntimeError as exc:
         # Concurrent first-login requests can race on users.clerk_id UNIQUE.
         if "duplicate key" not in str(exc).lower():
@@ -343,21 +370,61 @@ def ensure_user_by_clerk_id(clerk_id: str, email: str | None) -> str:
         )
         if not rows:
             raise
-        return str(rows[0][0])
+        existing_id = str(rows[0][0])
+        _ensure_persona_seeded(existing_id)
+        return existing_id
     return new_user_id
 
 
-def _clone_persona(new_user_id: str) -> None:
-    """Copy the seed persona's personal-tier rows to a new user.
+def _ensure_persona_seeded(user_id: str) -> None:
+    """Repair a user that predates atomic bootstrap and has no persona rows.
+
+    Post-fix every bootstrap is atomic, so a complete persona is guaranteed; this
+    only rebuilds a legacy half-seeded row. Delete-then-clone in one transaction
+    keeps it idempotent regardless of the partial state found.
+    """
+
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT 1 FROM user_balances WHERE user_id = %s LIMIT 1",
+            (user_id,),
+        )
+    )
+    if rows:
+        return
+    _psql_tx(
+        [*_persona_delete_statements(user_id), *_persona_clone_statements(user_id)]
+    )
+
+
+def _persona_delete_statements(user_id: str) -> list[str]:
+    """Clear any per-user persona rows (FK-safe order) before a re-clone."""
+
+    return [
+        _format_psql_query("DELETE FROM holds WHERE user_id = %s", (user_id,)),
+        _format_psql_query("DELETE FROM user_goals WHERE user_id = %s", (user_id,)),
+        _format_psql_query(
+            "DELETE FROM user_program_statuses WHERE user_id = %s", (user_id,)
+        ),
+        _format_psql_query(
+            "DELETE FROM user_balances WHERE user_id = %s", (user_id,)
+        ),
+    ]
+
+
+def _persona_clone_statements(new_user_id: str) -> list[str]:
+    """Build the INSERTs that copy the seed persona's per-user rows to a new user.
 
     World-tier rows (programs, cards, awards) are shared and referenced by the
-    same ids, so only per-user nodes are cloned, each with a fresh row id.
+    same ids, so only per-user nodes are cloned, each with a fresh row id. The
+    statements are returned (not executed) so the caller can run them atomically.
     """
 
     seed = json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
+    statements: list[str] = []
 
     for balance in seed.get("user_balances", []):
-        _psql_exec(
+        statements.append(
             _format_psql_query(
                 """
                 INSERT INTO user_balances
@@ -375,7 +442,7 @@ def _clone_persona(new_user_id: str) -> None:
         )
 
     for status in seed.get("user_program_statuses", []):
-        _psql_exec(
+        statements.append(
             _format_psql_query(
                 """
                 INSERT INTO user_program_statuses
@@ -393,7 +460,7 @@ def _clone_persona(new_user_id: str) -> None:
         )
 
     for goal in seed.get("user_goals", []):
-        _psql_exec(
+        statements.append(
             _format_psql_query(
                 """
                 INSERT INTO user_goals
@@ -415,7 +482,7 @@ def _clone_persona(new_user_id: str) -> None:
         )
 
     for hold in seed.get("holds", []):
-        _psql_exec(
+        statements.append(
             _format_psql_query(
                 """
                 INSERT INTO holds
@@ -431,6 +498,8 @@ def _clone_persona(new_user_id: str) -> None:
                 ),
             )
         )
+
+    return statements
 
 
 def do_demo_reset(user_id: str) -> dict[str, Any]:
