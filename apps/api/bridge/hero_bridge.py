@@ -279,20 +279,148 @@ def current_plan_id_for_user(user_id: str) -> str | None:
 # --------------------------------------------------------------------------- #
 
 
-def do_session(user_id: str) -> dict[str, Any]:
+def do_session(
+    *,
+    user_id: str | None = None,
+    clerk_id: str | None = None,
+    email: str | None = None,
+) -> dict[str, Any]:
+    """Resolve the caller, bootstrapping a fresh persona for a new Clerk user.
+
+    Two identity paths: an already-resolved `user_id` (existing row / dev
+    bypass) reads the row as-is; a `clerk_id` with no matching row triggers an
+    idempotent persona clone on first login.
+    """
+
+    if user_id:
+        rows = _psql_rows(
+            _format_psql_query(
+                "SELECT clerk_id FROM users WHERE id = %s",
+                (user_id,),
+            )
+        )
+        if not rows:
+            raise BridgeError("not_found", f"user not found: {user_id}")
+        return {"userId": user_id, "clerkId": rows[0][0], "seeded": True}
+
+    if clerk_id:
+        resolved_id = ensure_user_by_clerk_id(clerk_id, email)
+        return {"userId": resolved_id, "clerkId": clerk_id, "seeded": True}
+
+    raise BridgeError("validation", "session requires user-id or clerk-id")
+
+
+def ensure_user_by_clerk_id(clerk_id: str, email: str | None) -> str:
+    """Return the user id for a Clerk subject, cloning the seed persona if new."""
+
     rows = _psql_rows(
         _format_psql_query(
-            "SELECT clerk_id FROM users WHERE id = %s",
-            (user_id,),
+            "SELECT id FROM users WHERE clerk_id = %s",
+            (clerk_id,),
         )
     )
-    if not rows:
-        raise BridgeError("not_found", f"user not found: {user_id}")
-    return {"userId": user_id, "clerkId": rows[0][0], "seeded": True}
+    if rows:
+        return str(rows[0][0])
+
+    new_user_id = str(uuid.uuid4())
+    _psql_exec(
+        _format_psql_query(
+            "INSERT INTO users (id, clerk_id, email) VALUES (%s, %s, %s)",
+            (new_user_id, clerk_id, email),
+        )
+    )
+    _clone_persona(new_user_id)
+    return new_user_id
+
+
+def _clone_persona(new_user_id: str) -> None:
+    """Copy the seed persona's personal-tier rows to a new user.
+
+    World-tier rows (programs, cards, awards) are shared and referenced by the
+    same ids, so only per-user nodes are cloned, each with a fresh row id.
+    """
+
+    seed = json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
+
+    for balance in seed.get("user_balances", []):
+        _psql_exec(
+            _format_psql_query(
+                """
+                INSERT INTO user_balances
+                  (id, user_id, program_id, balance_points, source, version)
+                VALUES (%s, %s, %s, %s, %s, 1)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    new_user_id,
+                    balance["program_id"],
+                    balance["balance_points"],
+                    balance.get("source", "manual_entry"),
+                ),
+            )
+        )
+
+    for status in seed.get("user_program_statuses", []):
+        _psql_exec(
+            _format_psql_query(
+                """
+                INSERT INTO user_program_statuses
+                  (id, user_id, program_id, status_tier, status_payload, version)
+                VALUES (%s, %s, %s, %s, %s, 1)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    new_user_id,
+                    status["program_id"],
+                    status["status_tier"],
+                    status.get("status_payload", {}),
+                ),
+            )
+        )
+
+    for goal in seed.get("user_goals", []):
+        _psql_exec(
+            _format_psql_query(
+                """
+                INSERT INTO user_goals
+                  (id, user_id, goal_type, description, target_program_id,
+                   target_location, target_date, payload)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    new_user_id,
+                    goal["goal_type"],
+                    goal["description"],
+                    goal.get("target_program_id"),
+                    goal.get("target_location"),
+                    goal.get("target_date"),
+                    goal.get("payload", {}),
+                ),
+            )
+        )
+
+    for hold in seed.get("holds", []):
+        _psql_exec(
+            _format_psql_query(
+                """
+                INSERT INTO holds
+                  (id, user_id, credit_card_id, opened_date, is_primary)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    new_user_id,
+                    hold["credit_card_id"],
+                    hold.get("opened_date"),
+                    hold.get("is_primary", False),
+                ),
+            )
+        )
 
 
 def do_demo_reset(user_id: str) -> dict[str, Any]:
-    session = do_session(user_id)
+    session = do_session(user_id=user_id)
     # Order matters: replan_jobs.result_plan_id has no cascade, so it must be
     # cleared before the plans it points at can be deleted.
     _psql_exec(
@@ -430,7 +558,13 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--user-id", required=True)
         return p
 
-    with_user(sub.add_parser("session"))
+    # session accepts either an already-resolved user id (dev / existing) or a
+    # clerk id that bootstraps a fresh persona on first login.
+    session = sub.add_parser("session")
+    session.add_argument("--user-id")
+    session.add_argument("--clerk-id")
+    session.add_argument("--email")
+
     with_user(sub.add_parser("demo-reset"))
 
     create = with_user(sub.add_parser("create-plan"))
@@ -451,7 +585,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def dispatch(args: argparse.Namespace) -> Any:
     if args.command == "session":
-        return do_session(args.user_id)
+        if not args.user_id and not args.clerk_id:
+            raise BridgeError("validation", "session requires --user-id or --clerk-id")
+        return do_session(
+            user_id=args.user_id,
+            clerk_id=args.clerk_id,
+            email=args.email,
+        )
     if args.command == "demo-reset":
         return do_demo_reset(args.user_id)
     if args.command == "create-plan":

@@ -2,6 +2,7 @@ import {
   type BalanceTransferInput,
   type BalanceTransferResult,
   type PlanView,
+  type SessionIdentity,
   type SessionView,
 } from "./types";
 
@@ -29,7 +30,7 @@ export class PlanServiceError extends Error {
  * source of truth for plan shapes.
  */
 export interface PlanService {
-  getSession(userId: string): Promise<SessionView>;
+  getSession(identity: SessionIdentity): Promise<SessionView>;
   resetDemo(userId: string): Promise<SessionView>;
   createPlan(userId: string, query: string): Promise<PlanView>;
   getPlanById(userId: string, planId: string): Promise<PlanView | null>;

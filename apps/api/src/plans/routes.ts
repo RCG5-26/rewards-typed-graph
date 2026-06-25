@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { type AuthEnv, getAuthenticatedUserId } from "../http/auth";
+import { type AuthEnv, getAuthIdentity, getAuthenticatedUserId } from "../http/auth";
 import { PlanServiceError, type PlanService } from "./service";
 import { type BalanceTransferInput } from "./types";
 
@@ -20,8 +20,8 @@ export function createPlanRoutes(service: PlanService) {
   const app = new Hono<AuthEnv>();
 
   app.get("/session", async (c) => {
-    const userId = getAuthenticatedUserId(c);
-    return c.json(await service.getSession(userId));
+    const identity = getAuthIdentity(c);
+    return c.json(await service.getSession(identity));
   });
 
   app.post("/demo/reset", async (c) => {

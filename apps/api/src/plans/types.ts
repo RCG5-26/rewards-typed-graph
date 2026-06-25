@@ -41,6 +41,17 @@ export interface SessionView {
   seeded: boolean;
 }
 
+/**
+ * Caller identity for session bootstrap. Either an already-resolved `userId`
+ * (existing user / dev bypass) or a Clerk `clerkId` that triggers an idempotent
+ * persona clone on first login.
+ */
+export interface SessionIdentity {
+  userId?: string;
+  clerkId?: string;
+  email?: string | null;
+}
+
 export interface BalanceTransferInput {
   sourceProgramId: string;
   destProgramId: string;

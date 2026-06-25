@@ -12,6 +12,7 @@ import {
   type BalanceTransferInput,
   type BalanceTransferResult,
   type PlanView,
+  type SessionIdentity,
   type SessionView,
 } from "./types";
 
@@ -63,8 +64,18 @@ export class BridgePlanService implements PlanService {
     };
   }
 
-  async getSession(userId: string): Promise<SessionView> {
-    return this.run<SessionView>("session", ["--user-id", userId]);
+  async getSession(identity: SessionIdentity): Promise<SessionView> {
+    const args: string[] = [];
+    if (identity.userId) {
+      args.push("--user-id", identity.userId);
+    }
+    if (identity.clerkId) {
+      args.push("--clerk-id", identity.clerkId);
+    }
+    if (identity.email) {
+      args.push("--email", identity.email);
+    }
+    return this.run<SessionView>("session", args);
   }
 
   async resetDemo(userId: string): Promise<SessionView> {
