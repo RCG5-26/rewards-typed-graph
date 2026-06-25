@@ -33,17 +33,11 @@ Read these files **in order**:
 
 ## Merging to `main`
 
-Pull requests targeting `main` are enforced by the repository ruleset **main — protected** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)). Direct pushes to `main` are not allowed.
-
-**Required before merge:**
-
-1. **One approving review** from someone other than the PR author (stale approvals are dismissed when new commits are pushed).
-2. **Passing status checks:** `CodeRabbit` (automatic review via [`.coderabbit.yaml`](.coderabbit.yaml); `fail_commit_status: true` if review is skipped) and `apply-schema` (PostgreSQL 16 schema integration workflow).
-3. Branch must be **up to date** with `main` (strict required-status-checks policy).
+Pull requests targeting `main` require a passing **CodeRabbit** commit status check only — automatic review via [`.coderabbit.yaml`](.coderabbit.yaml) on each PR (`auto_review` on `main`; `fail_commit_status: true` if review is skipped).
 
 CodeRabbit posts review comments and may request changes when it finds issues. Manual review trigger: `@coderabbitai review`.
 
-Lead (Raq) or another teammate must approve graph/integration PRs before merge — do not self-merge.
+Repository ruleset: **main — CodeRabbit** ([Settings → Rules](https://github.com/RCG5-26/rewards-typed-graph/rules/17850632)).
 
 ---
 
@@ -75,6 +69,15 @@ Lead (Raq) or another teammate must approve graph/integration PRs before merge �
 **Feature PRs:** code only — no `STATUS.md`, no `progress-tracker.md`.
 
 Implementation agents: **`STATUS.md` and `tracking/` are excluded** from automated implementation touch lists (see active feature spec). Humans maintain them in the standup flow.
+
+## Before you finish (quality gates)
+
+Run these on every meaningful change before handing off or opening a PR:
+
+1. **Format** — `npm run format` (Prettier). Verify with `npm run format:check`; keep the diff formatting-clean. Config: [`.prettierrc.json`](.prettierrc.json) / [`.prettierignore`](.prettierignore).
+2. **Lint** — `npm run lint` (ESLint via `next lint`). Resolve any warnings you introduced.
+3. **Simplify** — do a simplification pass (reuse, dead code, right altitude) and apply the safe cleanups. Run the `/simplify` review on the diff.
+4. **Security review** — run `/security-review` on the branch diff. Check auth boundaries (Clerk identity-only, per [`docs/adr/0006-clerk-identity-only.md`](docs/adr/0006-clerk-identity-only.md)), per-user data scoping, input handling, and secrets. Never commit secrets or `.env*` files — only [`.env.example`](.env.example).
 
 ---
 

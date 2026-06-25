@@ -8,19 +8,19 @@ Reusable context templates for any software project. Fill these in at project ki
 
 ## What each file answers
 
-| File | Questions it answers |
-|---|---|
-| [`project-overview.md`](project-overview.md) | What is this? Who is it for? What's in/out of scope? What does success look like? |
-| [`architecture-context.md`](architecture-context.md) | How does it fit together? What are the boundaries, storage model, and invariants? |
-| [`design-context.md`](design-context.md) | How should it look and feel? (UI projects) API/event contracts? (all projects) |
-| [`code-standards.md`](code-standards.md) | What are the implementation rules and conventions? |
-| [`ai-workflow-rules.md`](ai-workflow-rules.md) | How do we build incrementally? When to split work? How to keep docs in sync? |
-| [`progress-tracker.md`](progress-tracker.md) | AI working memory: current state + recent history (read first, update last). |
-| [`progress-archive.md`](progress-archive.md) | Deep historical record; opened only for history older than the current phase. |
-| [`decisions-log.md`](decisions-log.md) | **Master index** of all decisions — links to ADRs and architecture docs |
-| [`risks-and-failure-modes.md`](risks-and-failure-modes.md) | What could go wrong? What are we watching? |
-| [`feature-specs/`](feature-specs/) | Per-unit implementation specs (one file per feature or subsystem) |
-| [`AGENTS.md`](AGENTS.md) | Entry point for AI agents — read order and update rules |
+| File                                                       | Questions it answers                                                              |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [`project-overview.md`](project-overview.md)               | What is this? Who is it for? What's in/out of scope? What does success look like? |
+| [`architecture-context.md`](architecture-context.md)       | How does it fit together? What are the boundaries, storage model, and invariants? |
+| [`design-context.md`](design-context.md)                   | How should it look and feel? (UI projects) API/event contracts? (all projects)    |
+| [`code-standards.md`](code-standards.md)                   | What are the implementation rules and conventions?                                |
+| [`ai-workflow-rules.md`](ai-workflow-rules.md)             | How do we build incrementally? When to split work? How to keep docs in sync?      |
+| [`progress-tracker.md`](progress-tracker.md)               | AI working memory: current state + recent history (read first, update last).      |
+| [`progress-archive.md`](progress-archive.md)               | Deep historical record; opened only for history older than the current phase.     |
+| [`decisions-log.md`](decisions-log.md)                     | **Master index** of all decisions — links to ADRs and architecture docs           |
+| [`risks-and-failure-modes.md`](risks-and-failure-modes.md) | What could go wrong? What are we watching?                                        |
+| [`feature-specs/`](feature-specs/)                         | Per-unit implementation specs (one file per feature or subsystem)                 |
+| [`AGENTS.md`](AGENTS.md)                                   | Entry point for AI agents — read order and update rules                           |
 
 ---
 
@@ -52,4 +52,5 @@ Reusable context templates for any software project. Fill these in at project ki
 |---|---|
 | Formal ADRs | [`docs/adr/`](../docs/adr/) — one file per major decision; always linked from [`decisions-log.md`](decisions-log.md) |
 | Team coordination | Linear (daily) + `tracking/` (daily) + `STATUS.md` (lead snapshot) — see [`AGENTS.md`](../AGENTS.md) |
+| Backend local setup | [`docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md) — frontend-facing API guide |
 | Interview prep | Personal `STUDY_GUIDE.md` (gitignored, not in context/) |

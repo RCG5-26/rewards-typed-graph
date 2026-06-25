@@ -1,0 +1,20 @@
+# Local dev Postgres for RCG-9 (ADR 0004). Web/api services land later.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: rewards_test
+      POSTGRES_USER: rewards
+      POSTGRES_PASSWORD: rewards
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rewards -d rewards_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

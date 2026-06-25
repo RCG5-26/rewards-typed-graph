@@ -57,8 +57,8 @@ Numbered, each step verifiable.
 
 ## Files / modules (expected touch list)
 
-| Path | Change |
-|---|---|
+| Path     | Change                   |
+| -------- | ------------------------ |
 | `[path]` | [create / modify — what] |
 
 _Agent: do not touch files outside this list unless the spec is updated first._
@@ -106,9 +106,9 @@ _Agent: do not touch files outside this list unless the spec is updated first._
 
 ## Open questions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | [Question] | yes/no | [pending / link to decisions-log] |
+| #   | Question   | Blocking? | Resolution                        |
+| --- | ---------- | --------- | --------------------------------- |
+| 1   | [Question] | yes/no    | [pending / link to decisions-log] |
 
 ---
 

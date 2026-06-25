@@ -1,0 +1,341 @@
+{
+  "fixture_id": "demo-seed-v1",
+  "description": "RCG-8 canonical demo seed: five cards, three programs, and 240000 points for the Tokyo hero flow.",
+  "as_of": "2026-06-23T00:00:00Z",
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-00000000a001",
+      "clerk_id": "clerk_hero_demo",
+      "email": "hero-demo@example.com",
+      "display_name": "Hero Demo User"
+    }
+  ],
+  "reward_programs": [
+    {
+      "id": "00000000-0000-0000-0000-00000000b001",
+      "slug": "program:chase_ur",
+      "name": "Chase Ultimate Rewards",
+      "issuer": "Chase",
+      "program_kind": "issuer_transferable",
+      "currency_name": "points",
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000b002",
+      "slug": "program:hyatt",
+      "name": "World of Hyatt",
+      "issuer": "Hyatt",
+      "program_kind": "hotel",
+      "currency_name": "points",
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000b003",
+      "slug": "program:united",
+      "name": "United MileagePlus",
+      "issuer": "United Airlines",
+      "program_kind": "airline",
+      "currency_name": "miles",
+      "is_active": true
+    }
+  ],
+  "credit_cards": [
+    {
+      "id": "00000000-0000-0000-0000-00000000c001",
+      "slug": "card:chase_sapphire_reserve",
+      "name": "Chase Sapphire Reserve",
+      "issuer": "Chase",
+      "network": "visa",
+      "annual_fee_cents": 55000,
+      "reward_program_id": "00000000-0000-0000-0000-00000000b001",
+      "signup_bonus_points": 60000,
+      "signup_bonus_spend_cents": 400000,
+      "signup_bonus_deadline_days": 90,
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c002",
+      "slug": "card:chase_sapphire_preferred",
+      "name": "Chase Sapphire Preferred",
+      "issuer": "Chase",
+      "network": "visa",
+      "annual_fee_cents": 9500,
+      "reward_program_id": "00000000-0000-0000-0000-00000000b001",
+      "signup_bonus_points": 60000,
+      "signup_bonus_spend_cents": 400000,
+      "signup_bonus_deadline_days": 90,
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c003",
+      "slug": "card:chase_freedom_unlimited",
+      "name": "Chase Freedom Unlimited",
+      "issuer": "Chase",
+      "network": "visa",
+      "annual_fee_cents": 0,
+      "reward_program_id": "00000000-0000-0000-0000-00000000b001",
+      "signup_bonus_points": 20000,
+      "signup_bonus_spend_cents": 50000,
+      "signup_bonus_deadline_days": 90,
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c004",
+      "slug": "card:world_of_hyatt",
+      "name": "World of Hyatt Credit Card",
+      "issuer": "Chase",
+      "network": "visa",
+      "annual_fee_cents": 9500,
+      "reward_program_id": "00000000-0000-0000-0000-00000000b002",
+      "signup_bonus_points": 30000,
+      "signup_bonus_spend_cents": 300000,
+      "signup_bonus_deadline_days": 90,
+      "is_active": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c005",
+      "slug": "card:united_explorer",
+      "name": "United Explorer Card",
+      "issuer": "Chase",
+      "network": "visa",
+      "annual_fee_cents": 9500,
+      "reward_program_id": "00000000-0000-0000-0000-00000000b003",
+      "signup_bonus_points": 50000,
+      "signup_bonus_spend_cents": 300000,
+      "signup_bonus_deadline_days": 90,
+      "is_active": true
+    }
+  ],
+  "spend_categories": [
+    {
+      "id": "00000000-0000-0000-0000-00000000d101",
+      "slug": "spend:travel",
+      "name": "Travel",
+      "mcc_codes": [3000, 3351, 3501, 4511, 4722]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d102",
+      "slug": "spend:dining",
+      "name": "Dining",
+      "mcc_codes": [5812, 5813, 5814]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d103",
+      "slug": "spend:groceries",
+      "name": "Groceries",
+      "mcc_codes": [5411]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d104",
+      "slug": "spend:gas",
+      "name": "Gas",
+      "mcc_codes": [5541, 5542]
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d105",
+      "slug": "spend:everyday",
+      "name": "Everyday",
+      "mcc_codes": []
+    }
+  ],
+  "transfers_to": [
+    {
+      "id": "00000000-0000-0000-0000-00000000e001",
+      "source_program_id": "00000000-0000-0000-0000-00000000b001",
+      "dest_program_id": "00000000-0000-0000-0000-00000000b002",
+      "transfer_ratio_basis_points": 10000,
+      "transfer_time_days": 1,
+      "is_active": true,
+      "version": 1
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e002",
+      "source_program_id": "00000000-0000-0000-0000-00000000b001",
+      "dest_program_id": "00000000-0000-0000-0000-00000000b003",
+      "transfer_ratio_basis_points": 10000,
+      "transfer_time_days": 1,
+      "is_active": true,
+      "version": 1
+    }
+  ],
+  "redemption_options": [
+    {
+      "id": "00000000-0000-0000-0000-00000000f001",
+      "program_id": "00000000-0000-0000-0000-00000000b002",
+      "option_type": "transfer_partner",
+      "cpp_basis_points": 23333,
+      "min_points": 45000,
+      "description": "Demo Hyatt Ginza 3-night Tokyo award"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000f002",
+      "program_id": "00000000-0000-0000-0000-00000000b003",
+      "option_type": "transfer_partner",
+      "cpp_basis_points": 15000,
+      "min_points": 60000,
+      "description": "United MileagePlus Tokyo saver award"
+    }
+  ],
+  "redeems_via": [
+    {
+      "id": "00000000-0000-0000-0000-00000000f101",
+      "program_id": "00000000-0000-0000-0000-00000000b002",
+      "redemption_option_id": "00000000-0000-0000-0000-00000000f001"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000f102",
+      "program_id": "00000000-0000-0000-0000-00000000b003",
+      "redemption_option_id": "00000000-0000-0000-0000-00000000f002"
+    }
+  ],
+  "user_balances": [
+    {
+      "id": "00000000-0000-0000-0000-00000000d001",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b001",
+      "balance_points": 180000,
+      "version": 1,
+      "source": "manual_entry"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d002",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b002",
+      "balance_points": 30000,
+      "version": 1,
+      "source": "manual_entry"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d003",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b003",
+      "balance_points": 30000,
+      "version": 1,
+      "source": "manual_entry"
+    }
+  ],
+  "user_program_statuses": [
+    {
+      "id": "00000000-0000-0000-0000-00000000d201",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b001",
+      "status_tier": "member",
+      "status_payload": {},
+      "version": 1
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d202",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b002",
+      "status_tier": "discoverist",
+      "status_payload": {
+        "late_checkout": true
+      },
+      "version": 1
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000d203",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "program_id": "00000000-0000-0000-0000-00000000b003",
+      "status_tier": "general",
+      "status_payload": {},
+      "version": 1
+    }
+  ],
+  "user_goals": [
+    {
+      "id": "00000000-0000-0000-0000-00000000d301",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "goal_type": "specific_redemption",
+      "description": "Book a 3-night Tokyo award stay in October.",
+      "target_program_id": "00000000-0000-0000-0000-00000000b002",
+      "target_location": "Tokyo",
+      "target_date": "2026-10-15",
+      "payload": {
+        "nights": 3,
+        "preferred_program_slug": "program:hyatt"
+      }
+    }
+  ],
+  "holds": [
+    {
+      "id": "00000000-0000-0000-0000-00000000c101",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c001",
+      "opened_date": "2021-03-01",
+      "is_primary": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c102",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c002",
+      "opened_date": "2019-08-15",
+      "is_primary": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c103",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c003",
+      "opened_date": "2020-11-10",
+      "is_primary": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c104",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c004",
+      "opened_date": "2022-06-05",
+      "is_primary": false
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000c105",
+      "user_id": "00000000-0000-0000-0000-00000000a001",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c005",
+      "opened_date": "2023-01-20",
+      "is_primary": false
+    }
+  ],
+  "earns": [
+    {
+      "id": "00000000-0000-0000-0000-00000000e101",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c001",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d101",
+      "earn_rate_basis_points": 30000,
+      "earn_type": "points"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e102",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c001",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d102",
+      "earn_rate_basis_points": 30000,
+      "earn_type": "points"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e103",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c002",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d102",
+      "earn_rate_basis_points": 30000,
+      "earn_type": "points"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e104",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c003",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d105",
+      "earn_rate_basis_points": 15000,
+      "earn_type": "points"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e105",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c004",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d101",
+      "earn_rate_basis_points": 40000,
+      "earn_type": "points"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000e106",
+      "credit_card_id": "00000000-0000-0000-0000-00000000c005",
+      "spend_category_id": "00000000-0000-0000-0000-00000000d101",
+      "earn_rate_basis_points": 20000,
+      "earn_type": "miles"
+    }
+  ]
+}

@@ -12,21 +12,25 @@ Early drafts used in-place step refresh and a denormalized `plan_steps.is_stale`
 ## Decision
 
 **Lineage model**
+
 - Every plan belongs to a stable `plan_lineage_id` (uuid, constant across revisions).
 - `revision_number` increments on each re-plan.
 - `supersedes_plan_id` links revision chain.
 - Partial unique index: **one `status = 'current'` per lineage** — not one current plan per user globally.
 
 **Status lifecycle (source of truth — no parallel booleans)**
+
 - Plan: `generating | current | stale | failed | superseded`
 - Step: `proposed | current | stale | superseded`
 - Only `plans.status = 'current'` is actionable in the UI.
 
 **Invalidation (same transaction as personal-state mutation)**
+
 1. Current revision → `stale`; dependent steps → `stale`.
 2. Insert `replan_jobs` row (`status = pending`, `source_plan_id` = the stale revision).
 
 **Re-plan worker**
+
 1. Claim job with `FOR UPDATE SKIP LOCKED`; set `processing`, lease (`locked_by`, `lease_expires_at`), increment `attempt_count`.
 2. Reclaim expired `processing` jobs when `lease_expires_at < now()`.
 3. Create new revision with `status = generating`; invoke redemption agent subprocess.

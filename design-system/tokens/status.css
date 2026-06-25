@@ -1,48 +1,48 @@
 :root {
   /* ── Feedback hues (used heavily in head-to-head contrast) ── */
-  --color-success-50:  oklch(96% 0.03 150);
+  --color-success-50: oklch(96% 0.03 150);
   --color-success-200: oklch(88% 0.09 150);
   --color-success-500: oklch(68% 0.15 150);
   --color-success-700: oklch(52% 0.15 150);
 
-  --color-warning-50:  oklch(97% 0.03 85);
+  --color-warning-50: oklch(97% 0.03 85);
   --color-warning-200: oklch(90% 0.09 85);
   --color-warning-500: oklch(78% 0.15 85);
   --color-warning-700: oklch(62% 0.15 85);
 
-  --color-error-50:    oklch(96% 0.03 25);
-  --color-error-200:   oklch(89% 0.09 25);
-  --color-error-500:   oklch(64% 0.20 25);
-  --color-error-700:   oklch(52% 0.20 25);
+  --color-error-50: oklch(96% 0.03 25);
+  --color-error-200: oklch(89% 0.09 25);
+  --color-error-500: oklch(64% 0.2 25);
+  --color-error-700: oklch(52% 0.2 25);
 
   /* ── Semantic feedback aliases ── */
-  --color-success:      var(--color-success-500);
-  --color-success-bg:   var(--color-success-50);
-  --color-success-fg:   var(--color-success-700);
-  --color-warning:      var(--color-warning-500);
-  --color-warning-bg:   var(--color-warning-50);
-  --color-warning-fg:   var(--color-warning-700);
-  --color-error:        var(--color-error-500);
-  --color-error-bg:     var(--color-error-50);
-  --color-error-fg:     var(--color-error-700);
+  --color-success: var(--color-success-500);
+  --color-success-bg: var(--color-success-50);
+  --color-success-fg: var(--color-success-700);
+  --color-warning: var(--color-warning-500);
+  --color-warning-bg: var(--color-warning-50);
+  --color-warning-fg: var(--color-warning-700);
+  --color-error: var(--color-error-500);
+  --color-error-bg: var(--color-error-50);
+  --color-error-fg: var(--color-error-700);
 
   /* ── Plan / step lifecycle (plans.status · plan_steps.status) ──
      One token set per lifecycle state. Drive node + chip color from
      these only — never hardcode a state color in a component.        */
-  --status-generating:    var(--color-iris-400);   /* plan being produced  */
+  --status-generating: var(--color-iris-400); /* plan being produced  */
   --status-generating-bg: var(--color-iris-100);
-  --status-proposed:      var(--color-neutral-500); /* step proposed        */
-  --status-proposed-bg:   var(--color-neutral-100);
-  --status-current:       var(--color-iris-600);    /* live / actionable    */
-  --status-current-bg:    var(--color-iris-100);
-  --status-stale:         var(--color-warning-500);  /* invalidated          */
-  --status-stale-bg:      var(--color-warning-50);
-  --status-superseded:    var(--color-neutral-400);  /* replaced revision    */
+  --status-proposed: var(--color-neutral-500); /* step proposed        */
+  --status-proposed-bg: var(--color-neutral-100);
+  --status-current: var(--color-iris-600); /* live / actionable    */
+  --status-current-bg: var(--color-iris-100);
+  --status-stale: var(--color-warning-500); /* invalidated          */
+  --status-stale-bg: var(--color-warning-50);
+  --status-superseded: var(--color-neutral-400); /* replaced revision    */
   --status-superseded-bg: var(--color-neutral-50);
-  --status-failed:        var(--color-error-500);    /* baseline failure     */
-  --status-failed-bg:     var(--color-error-50);
+  --status-failed: var(--color-error-500); /* baseline failure     */
+  --status-failed-bg: var(--color-error-50);
 
   /* ── Mutation-log accent (typed graph writes in the sidebar) ── */
-  --mutation-accent:   var(--color-iris-600);
-  --mutation-rail:     var(--color-iris-200);
+  --mutation-accent: var(--color-iris-600);
+  --mutation-rail: var(--color-iris-200);
 }

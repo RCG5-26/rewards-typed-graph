@@ -23,10 +23,12 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import unittest
 import uuid
 from pathlib import Path
 
+from benchmark.graph_instrumentation import collect_graph_eval_metrics
 from schema.mutations import (
     CreatePlanRequest,
     CreatePlanStepRequest,
@@ -79,7 +81,12 @@ class LivePostgresMixin:
         """Prefer Alan's seed loader; fall back to inline Tokyo MVP rows."""
         if LOAD_SEED_SCRIPT.is_file() and DEMO_SEED_PATH.is_file():
             subprocess.run(
-                ["python3", str(LOAD_SEED_SCRIPT), str(DEMO_SEED_PATH)],
+                [
+                    sys.executable,
+                    str(LOAD_SEED_SCRIPT),
+                    str(DEMO_SEED_PATH),
+                    "--include-demo-persona",
+                ],
                 env=os.environ.copy(),
                 check=True,
                 cwd=REPO_ROOT,
@@ -237,6 +244,29 @@ class HeroMomentDbPathTest(LivePostgresMixin, unittest.TestCase):
             ),
         )
 
+        eval_metrics = collect_graph_eval_metrics(
+            _PsqlConnection(),
+            user_id=DEMO_USER_ID,
+            source_plan_id=plan_id,
+        )
+        self.assertTrue(eval_metrics["plan_invalidation_correct"])
+        self.assertIsNone(eval_metrics["benchmark_query_id"])
+        self.assertEqual(eval_metrics["token_cost_total"], 0)
+        self.assertEqual(eval_metrics["metric_scores"]["source_plan_status"], "stale")
+        self.assertEqual(eval_metrics["metric_scores"]["replan_job_status"], "pending")
+        self.assertEqual(
+            eval_metrics["metric_scores"]["transfer_points_mutation_count"],
+            2,
+        )
+        self.assertEqual(
+            eval_metrics["metric_scores"]["mark_stale_plan_mutation_count"],
+            1,
+        )
+        self.assertGreaterEqual(
+            eval_metrics["metric_scores"]["mark_stale_step_mutation_count"],
+            1,
+        )
+
 
 class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
     """Full hero gate — green when hero_flow.py is wired."""
@@ -319,6 +349,9 @@ class _PsqlCursor:
             return None
         return self.result[0]
 
+    def fetchall(self):
+        return self.result or []
+
 
 def _format_psql_query(sql, params):
     formatted = sql
@@ -351,9 +384,18 @@ def _is_safe_test_database_name(name: str) -> bool:
     return name.endswith("_test") or name.startswith("test_")
 
 
+def _psql_command(*extra: str) -> list[str]:
+    """Build a psql argv list honoring DATABASE_URL and suppressing command tags."""
+    command = ["psql", "--set", "ON_ERROR_STOP=1", "--quiet", *extra]
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        command.append(database_url)
+    return command
+
+
 def _psql_file(path: Path) -> None:
     subprocess.run(
-        ["psql", "--set", "ON_ERROR_STOP=1", "--file", str(path)],
+        _psql_command("--file", str(path)),
         env=os.environ.copy(),
         check=True,
         stdout=subprocess.PIPE,
@@ -364,7 +406,7 @@ def _psql_file(path: Path) -> None:
 
 def _psql_exec(sql: str) -> None:
     subprocess.run(
-        ["psql", "--set", "ON_ERROR_STOP=1"],
+        _psql_command(),
         input=sql,
         env=os.environ.copy(),
         check=True,
@@ -376,17 +418,14 @@ def _psql_exec(sql: str) -> None:
 
 def _psql_rows(sql: str):
     result = subprocess.run(
-        [
-            "psql",
-            "--set",
-            "ON_ERROR_STOP=1",
+        _psql_command(
             "--no-align",
             "--tuples-only",
             "--field-separator",
             "\x1f",
             "--record-separator",
             "\x1e",
-        ],
+        ),
         input=sql,
         env=os.environ.copy(),
         check=True,

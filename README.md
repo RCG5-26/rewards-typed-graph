@@ -13,30 +13,69 @@ Coordination is state, not messages. Every interaction between agents is a typed
 New to the repo? Read **[AGENTS.md](AGENTS.md)** — it's the working guide for humans and AI agents alike (read order, the build workflow, and update rules). In short:
 
 - **The spec is the unit of work.** Each lane owner writes a spec in [`context/feature-specs/`](context/feature-specs/) from the template, clears its Definition-of-Ready gate, and the lead marks it **Ready**; then it's implemented with the prompt in [`context/ai-workflow-rules.md`](context/ai-workflow-rules.md). One owner per spec.
-- **Build against the contracts, never around them.** The locked data model is [`schema-final.md` v3.1](docs/architecture/schema-final.md); the *why* lives in [`docs/adr/`](docs/adr/). Schema is additive-only.
+- **Build against the contracts, never around them.** The locked data model is [`schema-final.md` v3.1](docs/architecture/schema-final.md); the _why_ lives in [`docs/adr/`](docs/adr/). Schema is additive-only.
 - **Keep things in sync.** One source of truth per fact; link, don't duplicate; update docs as part of the change (see "Keeping docs in sync" in [`ai-workflow-rules.md`](context/ai-workflow-rules.md)). Tasks are tracked in Linear (**RCG**).
 
 ## How this team coordinates
 
-**Linear** is the live daily board (RCG tickets). The repo holds snapshots and lane logs:
+This repo is the source of truth for daily coordination. Linear is an optional backbone for the timeline view.
 
-- **[`tracking/`](tracking/)** — each person updates their lane file daily (tiny PR, merge same day). **This is your daily standup write-up.**
-- **[`STATUS.md`](STATUS.md)** — weekly snapshot: standup grid, gates, blockers. **Lead syncs** from `tracking/` + Linear before standup — do not edit in feature PRs.
-- **[`context/progress-tracker.md`](context/progress-tracker.md)** — milestone narrative when specs/PRs land (lead). See [`AGENTS.md`](AGENTS.md) § Team status & visibility.
-- **[`docs/`](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
+- **[STATUS.md](STATUS.md)** — the shared team board. Standup grid, blockers, gates, decisions log. Read it daily.
+- **[tracking/](tracking/)** — one self-tracking file per person.
+- **[docs/](docs/)** — schema spec ([schema-final.md v3.1](docs/architecture/schema-final.md); [schema.sql](schema/schema.sql)), [meeting prep + agenda](docs/meetings/), and [ADR decision log](docs/adr/). Historical: [schema-v2.md](docs/architecture/schema-v2.md).
+
+## Local database setup (RCG-9)
+
+Shared Postgres for hero integration tests and seed loading:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres          # or: ./scripts/dev-db-setup.sh (starts + loads)
+./scripts/dev-db-setup.sh              # reset schema, apply DDL, load demo persona
+```
+
+Verify the demo persona loaded:
+
+```bash
+source .env
+psql "$DATABASE_URL" -c "SELECT count(*) FROM user_balances;"
+```
+
+Run the hero gate test (requires seed + schema):
+
+```bash
+source .env
+export RUN_LIVE_POSTGRES_TESTS=1
+python3 -m unittest tests.integration.test_hero_moment -v
+```
+
+Reset the database volume: `docker compose down -v`.
+
+## Run the demo locally
+
+The full hero flow (Next.js shell → Hono API → Clerk → Postgres → Python plan bridge) is on `main` and runs locally. The end-to-end setup, environment table, API contract, hero-flow smoke test, and troubleshooting live in one place:
+
+**→ [`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md)** (frontend-facing backend guide)
+
+Shortest path once the DB is up (above):
+
+```bash
+AUTH_DEV_USER_ID=00000000-0000-0000-0000-00000000a001 npm --prefix apps/api run dev   # API on :8787
+npm run dev                                                                            # web on :3000
+```
 
 ## Frontend (interim layout)
 
-The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy.
+The marketing landing (`npm run dev` at repo root) ships here for the integration sprint. Per [ADR 0004](docs/adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy. To wire the shell to the live API (base URL, Clerk token header, route contract, SSE, mock fixtures), follow [`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md) § Frontend integration.
 
 ## Team and lanes
 
-| Person | Lane | Owns |
-|---|---|---|
-| Alan (Person A) | Graph / Persistence | Schema, Postgres graph layer, dependency tracking, optimistic concurrency |
-| Val (Person B) | Frontend / Demo | Demo shell, graph-mutation sidebar, baseline comparison UI |
-| Michael (Person C) | Redemption / Eval | Redemption agent, graph-typed tools, 30-query benchmark, baselines, Layer 4 (ingestion + verifier) |
-| Raq (Person D, owner/lead) | Orchestrator / Agents | Orchestrator, wallet agent, earning agent, integration glue, cross-lane unblocking |
+| Person                     | Lane                  | Owns                                                                                               |
+| -------------------------- | --------------------- | -------------------------------------------------------------------------------------------------- |
+| Alan (Person A)            | Graph / Persistence   | Schema, Postgres graph layer, dependency tracking, optimistic concurrency                          |
+| Val (Person B)             | Frontend / Demo       | Demo shell, graph-mutation sidebar, baseline comparison UI                                         |
+| Michael (Person C)         | Redemption / Eval     | Redemption agent, graph-typed tools, 30-query benchmark, baselines, Layer 4 (ingestion + verifier) |
+| Raq (Person D, owner/lead) | Orchestrator / Agents | Orchestrator, wallet agent, earning agent, integration glue, cross-lane unblocking                 |
 
 ## Architecture in brief
 
@@ -49,4 +88,4 @@ Four layers over Postgres (Postgres only, no Neo4j):
 
 ## Scope (MVP)
 
-Manually-entered wallet, 20 pre-seeded cards, one real external tool (cash-price lookup), fixture-based award availability. Demo-grade proof of concept, not a consumer product.
+Manually-entered wallet, a locked five-card demo seed across three programs, one real external tool (cash-price lookup), fixture-based award availability. Demo-grade proof of concept, not a consumer product.

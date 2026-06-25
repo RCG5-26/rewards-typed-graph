@@ -5,7 +5,8 @@
 Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this file only) — merge same day. Update **Linear** (RCG-##) to match. **Do not** edit `STATUS.md` in feature PRs — the lead syncs the standup grid from `tracking/` + Linear.
 
 ## Today
-- Build the postgres database and deploy it.  Deployment options are up to the discretion of implementer (RCG-9)
+
+- Build the postgres database and deploy it. Deployment options are up to the discretion of implementer (RCG-9)
 - Align PR #2 plan lifecycle with v3.1 lineage/revision semantics.
 - Add v3.1 operational tables/write paths flagged by PR #2 review.
 - Align PR #2 operational table/column names with v3.1 vocabulary.
@@ -15,20 +16,29 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 - Reject duplicate `TransferPoints` calls while an idempotency record is still `in_progress`.
 - Replace canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim.
 - Complete RCG-10 canonical mutation layer for plan, plan-step, dependency, and transfer writes.
+- Complete RCG-14 mutation replay/SSE API scaffold for Val's sidebar contract.
 - Remove residual v3.1 DDL drift around plan-step staleness and direct balance-update invalidation.
 - Align `graph_mutations` with ADR 0008/main so Val can consume the mutation stream contract.
 - Cover the live `TransferPoints` service path against Postgres for Day 7 demo risk.
 - Harden state-dependency target lookup to avoid dynamic table-name interpolation.
 - Replace stale-plan view string coverage with a live PostgreSQL 16 contract test.
 - Create local branches and implementation plans for RCG-11, RCG-12, RCG-13, and RCG-14.
-- Complete RCG-11 optimistic-concurrency read-set validation and bounded retry in the v3.1 mutation adapter.
+- Harden RCG-14 mutation SSE polling so cursor reads do not overlap and poll failures are handled.
+- Validate RCG-14 mutation replay cursors before REST/SSE DB queries.
+- Preserve the `@rewards-agent/api` manifest while merging RCG-14 route dependencies.
+- Verify spec 03 / RCG-14/25 checklist with route-level SSE payload and replay coverage.
+- Tighten mutation route review coverage for REST schema validation and missing-user rejection.
+- Raise the Hono dependency floor to `^4.12.27` for path/static-file security advisories.
 
 ## Next
+
 - Lock the seed fixture with stable IDs (RCG-8).
+- Implement dependency-edge tracking on plan nodes (RCG-13).
 - Wire redemption re-plan code to canonical v3.1 `plans` / `plan_steps` promotion semantics.
 - Add recursive traversal/query helpers (RCG-12).
 
 ## Blocked on
+
 - nothing
 
 ---
@@ -43,21 +53,24 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 
 ## My tickets
 
-| ID | Task | Phase | Done when |
-|---|---|---|---|
-| RCG-6 | Draft schema spec (node/edge types, attrs, versioning, validation) | Day 1 | reviewed; feeds the lock |
-| RCG-5 | Schema lock (co-own with Raq) | Day 1 | all four lanes sign off |
-| RCG-7 | Canonical schema artifact (DDL + TS/Python types) | Day 1 | committed; both stacks validate against it |
-| RCG-8 | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs | Day 1 | committed |
-| RCG-9 | Postgres v3.1 table-per-type schema (version cols, FKs) | Day 1-5 | migrations run clean |
-| RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5 | invalid mutations rejected before commit |
-| RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry) | Day 1-5 | stale-version commit rejected; retries bounded |
-| RCG-12 | Recursive-CTE traversal + query helpers | Day 1-5 | multi-hop paths returned at MVP scale |
-| RCG-13 | Dependency-edge tracking on plan nodes (~250 lines, plan nodes only) | Day 3-5 | stale detection works; no transitive propagation |
-| RCG-14 | Append-only mutation/event log (powers sidebar + audit) | Day 1-5 | every commit logged; Val can subscribe |
+| ID     | Task                                                                      | Phase    | Done when                                                                 |
+| ------ | ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------- |
+| RCG-6  | Draft schema spec (node/edge types, attrs, versioning, validation)        | Day 1    | reviewed; feeds the lock                                                  |
+| RCG-5  | Schema lock (co-own with Raq)                                             | Day 1    | all four lanes sign off                                                   |
+| RCG-7  | Canonical schema artifact (DDL + TS/Python types)                         | Day 1    | committed; both stacks validate against it                                |
+| RCG-8  | Seed fixture (5 cards, 3 programs, 240k pts), stable IDs                  | Day 1    | merged to main; shared loader + opt-in persona                            |
+| RCG-9  | Postgres v3.1 table-per-type + docker-compose dev DB                      | Day 1-5  | schema on main; `docker compose` + `DATABASE_URL` in PR #27               |
+| RCG-10 | Mutation layer with schema validation (structural + referential + domain) | Day 1-5  | invalid mutations rejected before commit                                  |
+| RCG-11 | Optimistic-concurrency commit (read-set versions, reject, bounded retry)  | Day 1-5  | stale-version commit rejected; retries bounded                            |
+| RCG-12 | Recursive-CTE traversal + query helpers                                   | Day 1-5  | multi-hop paths returned at MVP scale                                     |
+| RCG-13 | Dependency-edge tracking on plan nodes (~250 lines, plan nodes only)      | Day 3-5  | stale detection works; no transitive propagation                          |
+| RCG-14 | Append-only mutation/event log (powers sidebar + audit)                   | Day 1-5  | every commit logged; Val can subscribe                                    |
+| RCG-52 | Graph-lane eval instrumentation                                           | Day 7-10 | eval harness can score structural invalidation evidence from graph tables |
 
 ## My open schema decisions to drive
+
 A1 storage model · A3 transfer-partner-as-role + balance-as-node · B4 rational ratios · C2 concurrency version vs effective-dating · D2 observed-version placement · D3 staleness computed vs stored · E3 retry numbers · E4 mutation ownership matrix.
 
 ## My risk
+
 Dependency-tracking scope creep. Hold the cut: plan nodes only, explicit reads only, no transitive propagation, 200-300 lines. Postgres serializable isolation handles concurrent writes at this scale; document the locking strategy so Michael knows the consistency model.

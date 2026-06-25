@@ -20,13 +20,14 @@
 ### Repository files inspected
 
 Read in order per AGENTS.md:
+
 1. `AGENTS.md` · 2. `context/project-overview.md` · 3. `context/architecture-context.md`
-4. `context/design-context.md` · 5. `context/code-standards.md` · 6. `context/ai-workflow-rules.md`
-7. `context/decisions-log.md` · 8. `context/risks-and-failure-modes.md` · 9. `context/progress-tracker.md`
-10. `context/feature-specs/05-orchestrator-harness.md` · 11. `context/feature-specs/02-graph-write-path.md`
-12. `context/feature-specs/04-redemption-traversal.md` · 13. `context/feature-specs/06-wallet-and-earning-agents.md`
-14. `README.md` · 15. `STATUS.md` · 16. `docs/architecture/schema-final.md` · 17. `schema/schema.sql`
-18. `docs/adr/0001-schema-lock.md` · 19. `docs/adr/0002-mvp-scope-trim.md`
+2. `context/design-context.md` · 5. `context/code-standards.md` · 6. `context/ai-workflow-rules.md`
+3. `context/decisions-log.md` · 8. `context/risks-and-failure-modes.md` · 9. `context/progress-tracker.md`
+4. `context/feature-specs/05-orchestrator-harness.md` · 11. `context/feature-specs/02-graph-write-path.md`
+5. `context/feature-specs/04-redemption-traversal.md` · 13. `context/feature-specs/06-wallet-and-earning-agents.md`
+6. `README.md` · 15. `STATUS.md` · 16. `docs/architecture/schema-final.md` · 17. `schema/schema.sql`
+7. `docs/adr/0001-schema-lock.md` · 19. `docs/adr/0002-mvp-scope-trim.md`
 
 Also inspected: root directory listing, `tests/` directory, `agents/` directory, find for package.json/tsconfig.json/pyproject.toml, first 40 lines of `tests/test_mutations.py`.
 
@@ -168,7 +169,7 @@ Entry 002 closed the major contradictions but left contracts that an implementer
 4. **No runtime validation of decomposer output.** → Added `validateDecomposedQuery` (manual type guard, no new dependency) + `OrchestrationError('DecompositionInvalid')`. Validates the whole `DecomposedQuery` before any `AgentRun`: unknown agentType, unknown operation kind, agentType/operation mismatch, wrong kind for agent, missing identifiers, invalid enums, unexpected keys, empty sequence. On failure: no `AgentRun`, no agent, generating Plan → `failed`, throw. Tests T22–T28. (§6.5, §3)
 5. **Manual verification overclaimed reporter output.** → §18 is now an explicit code-and-result review: run T12 verbose to confirm it passed, then read the committed T12 assertion block to confirm coverage, then record the review in `AI_USAGE.md`. No claim that the reporter prints internal values. (§18)
 6. **Checkpoint-persistence failure was undefined.** → Chose the **atomic** design (matches spec 02 "single transaction"): a successful commit records the specialist mutation and merges `last_read_versions` as one all-or-nothing block via `onCommitSucceeded`. If the checkpoint merge fails, the mutation is rolled back and `commit` rejects `UnexpectedCommitError` — no partial state, so no recovery procedure is needed. In-memory `failCheckpointOnce` seam + test T21. (§9, §10.6)
-7. **Orchestrator mutation modeling was inconsistent** (`MutationKind` named orchestrator commands with no corresponding interfaces). → Chose **Option B (typed method-command port)**: removed orchestrator names from the mutation vocabulary; renamed `MutationKind` → `SpecialistMutationKind`; `MUTATION_OWNERSHIP` is keyed by `SpecialistAgentType` only; the `OrchestratorGraphWrite` method signatures *are* the closed orchestrator command contract. Specialist-vs-orchestrator ownership kept separate. (§6.4, §9)
+7. **Orchestrator mutation modeling was inconsistent** (`MutationKind` named orchestrator commands with no corresponding interfaces). → Chose **Option B (typed method-command port)**: removed orchestrator names from the mutation vocabulary; renamed `MutationKind` → `SpecialistMutationKind`; `MUTATION_OWNERSHIP` is keyed by `SpecialistAgentType` only; the `OrchestratorGraphWrite` method signatures _are_ the closed orchestrator command contract. Specialist-vs-orchestrator ownership kept separate. (§6.4, §9)
 8. **Remaining interfaces made exact:** `GraphSnapshotBuilder`, `AgentRegistry`, `OrchestratorDeps` (constructor), `OrchestrationError`, `validateDecomposedQuery`, and the "registry is exhaustive → no missing-agent branch" behavior. (§6.3, §6.5, §8)
 9. **Tests + touch list updated:** 32 named tests across 4 files (added `decomposition.test.ts`; added operation-coupling, atomicity, and decomposition tests). Added production files `orchestrator/decomposition.ts`; added `RawDecomposer` / `SpecialistNamingPlanCommand` doubles and the `failCheckpointOnce` seam. No schema files or manual scripts added. (§14, §16)
 
@@ -232,7 +233,7 @@ No production code, test files, schema files, package files, lockfiles, other sp
 
 ---
 
-*This file will be updated by implementation agents executing each feature spec's completion gate.*
+_This file will be updated by implementation agents executing each feature spec's completion gate._
 
 ---
 
@@ -245,11 +246,13 @@ No production code, test files, schema files, package files, lockfiles, other sp
 ### Red-phase result (recorded before production code)
 
 **Command:**
+
 ```bash
 cd apps/api && npm test -- tests/orchestrator tests/agents
 ```
 
 **Actual outcome (exit code 1):**
+
 - Test Files: 3 failed | 1 passed (4)
 - Tests: 4 passed (4) — only `agent-harness.test.ts` loaded (type-only imports from missing `src/` modules)
 - Failed suites: `commit-ownership.test.ts`, `decomposition.test.ts`, `orchestrator.test.ts`
@@ -390,11 +393,12 @@ cd apps/api && npm run typecheck && npm test
 The `stableFingerprint` function used `JSON.stringify(mutation, Object.keys(mutation).sort())`. When `JSON.stringify`'s second argument is an array, it acts as a recursive key whitelist at every nesting level — nested objects whose keys are not in the top-level array serialize as `{}`. Two `CreatePlanStep` mutations differing only in `payload.spendCategoryId` produced the same fingerprint and would incorrectly replay instead of producing `IdempotencyConflict`.
 
 Fix: replaced the array replacer with a function replacer that recursively sorts object keys:
+
 ```ts
 (_, val: unknown) =>
   val !== null && typeof val === "object" && !Array.isArray(val)
     ? Object.fromEntries(Object.entries(val as Record<string, unknown>).sort())
-    : val
+    : val;
 ```
 
 **Finding 2 (Medium) — Tautological T2 assertion in `orchestrator.test.ts:65`**
@@ -425,3 +429,69 @@ cd apps/api && npm run typecheck
 
 No production contracts changed. All deferred items from Entry 005 remain unchanged. The fingerprint fix is in the in-memory double only; the production adapter (spec 02) will implement fingerprinting inside the database transaction using a server-side stable serialization strategy.
 
+---
+
+## Entry 008 — Spec 07 API Service Implementation (2026-06-24)
+
+**Task:** Implement the demo-shell HTTP service per `context/feature-specs/07-api-service.md` (RCG-18)
+**Branch:** `raq/demo-mocks`
+**Commit:** `feat(api): implement spec 07 sync HTTP surface + hero bridge (RCG-18)`
+**Files created:** `apps/api/src/plans/{types,service,routes,bridge-service}.ts`, `apps/api/src/http/auth.ts`, `apps/api/src/server.ts`, `apps/api/bridge/hero_bridge.py`
+**Files updated:** `apps/api/package.json`, `apps/api/package-lock.json`, `.env.example`, `context/feature-specs/07-api-service.md`, `fixtures/mock-plan.json`, `fixtures/mock-mutation-events.json`
+**Production code changed:** Yes
+
+### Tools used
+
+- Cursor Agent — spec 07 implementation (`2d7afa6`): routes, bridge, server, mocks, spec amendments
+- Claude Code (Sonnet 4.6) — ce-work verification pass: re-ran 75 TS + 22 Python unit tests, typecheck; documented decisions and remaining gates
+
+### Test evidence
+
+`src/plans/routes.test.ts` exercises all six plan routes via an in-memory `PlanService` fake (no DB/Python). Suite is part of commit `2d7afa6` and gates HTTP validation + error-code mapping.
+
+### Implementation decisions
+
+1. **Option B (psql-subprocess bridge)**: `psycopg` not installed; reused the exact `_PsqlConnection` / `_PsqlCursor` adapter from `tests/integration/test_hero_moment.py`. Bridge lives at `apps/api/bridge/hero_bridge.py`; spawned once per request by `BridgePlanService`.
+2. **`PlanService` port** (`src/plans/service.ts`): routes depend only on this interface → unit-tested with an in-memory fake, no DB or Python required.
+3. **Synchronous `200` for `POST /plans` and `POST /balance-transfer`**: resolved Open Question #2 from the spec; the bridge builds and commits the plan in-request.
+4. **Single projection source**: Python bridge owns both reads and writes and returns the `PlanView` shape. TypeScript only marshals args, parses the `{ok, data|error}` envelope, and maps `error.code` → `PlanServiceError` → HTTP status.
+5. **`AUTH_DEV_USER_ID` local bypass**: `server.ts` short-circuits Clerk verification when this env var is set, so the API is curl-testable without a real Clerk token.
+6. **Bridge import path**: `hero_bridge.py` prepends `REPO_ROOT` to `sys.path`; `BridgePlanService` also sets spawn `cwd` + `PYTHONPATH` so `schema.*` and `tests.integration.*` resolve reliably.
+7. **Route ordering**: `GET /plans/current` registered before `GET /plans/:planId` to avoid Hono matching `current` as a param.
+
+### Validation commands and results
+
+```bash
+npm --prefix apps/api test
+# 75 tests, 8 test files — all passed
+
+npm --prefix apps/api run typecheck
+# exit 0 — 0 errors
+
+python3 -m unittest tests.test_v31_mutations -v
+# 22 tests passed, 1 skipped (live Postgres — expected without RUN_LIVE_POSTGRES_TESTS=1)
+```
+
+### Remaining manual gates (blocks "Done" status)
+
+1. **Live Clerk token smoke-test** — `CLERK_SECRET_KEY` not exercised in CI/sandbox:
+
+```bash
+npm --prefix apps/api run dev
+curl -s localhost:8787/session -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8787/plans -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"query":"Best way to Tokyo in October?"}'
+```
+
+2. **`GET /session` persona bootstrap clone** — implemented: new Clerk users (`clerkId` only) trigger idempotent persona clone from `fixtures/demo-seed.json` (balances, statuses, goals, holds). Verified live against docker Postgres + bridge smoke. Clerk JWT path unit-tested via `clerk-auth.test.ts` (mocked `verifyToken`).
+
+Live Postgres hero smoke (session → create-plan → balance-transfer → demo-reset) passed against docker-compose. **Remaining gate:** manual `npm --prefix apps/api run dev` + real Clerk bearer curl (blocked in agent sandbox for server boot; run locally).
+
+### Files not touched (per spec touch list)
+
+`STATUS.md`, `tracking/`, other feature specs, schema DDL, Python graph-write behavior, existing mutation route behavior, `apps/web/**`.
+
+### Deferred
+
+- Graduate `tests/integration/hero_flow.py` to a non-test package (`agents/hero/`) post-demo — bridge import path is the only line to change.
+- Live `tsx` server boot auto-verification — `tsx`'s IPC pipe is sandbox-incompatible; verify manually with `npm --prefix apps/api run dev`.

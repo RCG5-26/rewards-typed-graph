@@ -65,13 +65,13 @@ One commit path that **every** agent calls to change the graph. It validates the
 
 ## Files / modules (expected touch list)
 
-| Path | Change |
-|---|---|
-| `src/graph/write-path.*` | create — `commitMutation`, advisory lock, OCC, retry |
-| `src/graph/validate.*` | create — structural/referential/domain validators |
-| `src/graph/staleness.*` | create — dependency → stale propagation query |
-| `schema/schema.sql` | modify — `graph_mutations`, `idempotency_records` if not present |
-| `tests/graph/write-path.*` | create — see acceptance |
+| Path                       | Change                                                           |
+| -------------------------- | ---------------------------------------------------------------- |
+| `src/graph/write-path.*`   | create — `commitMutation`, advisory lock, OCC, retry             |
+| `src/graph/validate.*`     | create — structural/referential/domain validators                |
+| `src/graph/staleness.*`    | create — dependency → stale propagation query                    |
+| `schema/schema.sql`        | modify — `graph_mutations`, `idempotency_records` if not present |
+| `tests/graph/write-path.*` | create — see acceptance                                          |
 
 ---
 
@@ -101,6 +101,6 @@ npm test -- graph/write-path
 
 ## Open questions
 
-| # | Question | Blocking? | Resolution |
-|---|---|---|---|
-| 1 | Is `schema/schema.sql` in the repo yet? | no | Treat `schema-final.md` v3.1 as the spec until DDL lands (RCG-7) |
+| #   | Question                                | Blocking? | Resolution                                                       |
+| --- | --------------------------------------- | --------- | ---------------------------------------------------------------- |
+| 1   | Is `schema/schema.sql` in the repo yet? | no        | Treat `schema-final.md` v3.1 as the spec until DDL lands (RCG-7) |

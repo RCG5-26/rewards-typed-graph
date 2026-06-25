@@ -11,6 +11,11 @@ These files are the machine-usable schema artifacts for the MVP described in
   contract.
 - `types.py` imports generated Python constants and adds lightweight validators
   for node and edge payloads.
+- `../fixtures/demo-seed.json` is the RCG-8 demo seed fixture with stable IDs
+  for the shared rewards data and five-card / three-program / 240k-point
+  bootstrap persona template.
+- `../scripts/load_seed.py` loads the shared rewards seed into a database that
+  already has `schema.sql` applied.
 
 Regenerate contract artifacts after editing `contracts/graph.schema.json`:
 
@@ -60,8 +65,42 @@ dependent current plans and plan steps stale without enqueuing re-plan jobs.
 adapter for RCG-10. It validates plan creation, plan-step creation, state
 dependency recording, and `TransferPoints` before executing write SQL.
 
+## Demo Seed
+
+One-command local setup (RCG-9): starts Postgres via Docker, applies schema, loads shared world seed.
+
+```bash
+cp .env.example .env
+./scripts/dev-db-setup.sh
+```
+
+Or manually after `schema.sql` is applied:
+
+```bash
+source .env   # DATABASE_URL=postgresql://rewards:rewards@localhost:5432/rewards_test
+python3 scripts/load_seed.py fixtures/demo-seed.json
+```
+
+`load_seed.py` reads `DATABASE_URL` when set; otherwise uses libpq env vars (`PGHOST`, etc.).
+
+The loader is idempotent by stable UUID primary keys. By default it loads shared
+reward programs, cards, earn rates, redemption options, and both 1:1 Chase
+Ultimate Rewards transfer routes: Chase-to-Hyatt and Chase-to-United.
+
+For isolated local or eval databases that need the fixed demo persona rows, opt
+in explicitly:
+
+```bash
+python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+```
+
+Do not use `--include-demo-persona` for the shared app database; use the
+first-login bootstrap path to clone the fixture rows for each signed-in Clerk
+user. The persona template includes the five held cards, three balances totaling
+240,000 points, and the October Tokyo Hyatt goal used by the hero flow tests.
+
 ## Still Not Fully Implemented
 
-- `seed.sql` fixture with stable IDs for the demo user, cards, programs,
-  balances, goal, plan query, plan step, and dependency edges.
+- Broader world catalog seed coverage from schema-final §11: about 20 cards and
+  top MCC categories. RCG-8 locks the demo bootstrap slice only.
 - Retry/backoff orchestration around optimistic update conflicts.

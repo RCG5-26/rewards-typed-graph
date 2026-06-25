@@ -2,8 +2,6 @@
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-23 by Raq — merge PR #14 (Person C scorer) onto `main`
-
 ### How to update (all lanes)
 
 This file is **team-wide AI working memory** — milestone narrative, not daily standup.
@@ -19,18 +17,20 @@ This file is **team-wide AI working memory** — milestone narrative, not daily 
 
 When **Completed** grows past ~15 items for the current phase, move older bullets to [`progress-archive.md`](progress-archive.md).
 
+**Last updated:** 2026-06-25 — repo→Linear→docs reconciliation: API service (RCG-18) + hero path (RCG-28/29) merged to `main` and live-verified
+
 ---
 
 ## Current phase
 
-**Phase:** MVP build (integration sprint)  
-**Active focus:** Wire orchestrator to spec 02 write path + hero path (RCG-28/29/32); Michael RCG-21 graph-writer; Person C planner/scorer landed (PR #14); PR #15 + PR #13 on `main`
+**Phase:** MVP build (integration sprint) — backend hero path green; frontend integration next
+**Active focus:** Wire the Next.js demo shell to the live API (RCG-27/25/26); browser run-through with a real Clerk token (RCG-32)
 
 ---
 
 ## Current goal
 
-Wire `create_plan_from_query()` and the hero path (RCG-28/29/32) against Alan's real graph-write adapters — `test_hero_end_to_end` green in Postgres before the Jun 25 gate. Person C planner/scorer (PR #14) feeds the RCG-21 graph-writer.
+Backend hero flow is green on `origin/main` (PRs #27/#21/#14/#29/#30). Next: frontend consumes the live API + SSE; one end-to-end browser run-through with real Clerk auth closes the Day-7 gate.
 
 ---
 
@@ -38,11 +38,7 @@ Wire `create_plan_from_query()` and the hero path (RCG-28/29/32) against Alan's 
 
 _Check off or list with date. Keep recent; archive old phases elsewhere if needed._
 
-- [x] **Person C offline slice (PR #14)** — 2026-06-23 — Tokyo Hyatt fixture, deterministic planner, seeded award tool, 11-case benchmark tests, offline scorer (`python -m benchmark.person_c_scorer --pretty`). Typed fixture path: 11/11 accuracy, 0 strict hallucinations, 2/2 invalidation. Review fixes: query-scoped fallback diagnostics; Chase balance slug lookup for invalidation scoring.
-- [x] PR #13 — GPFree marketing landing (Val) — 2026-06-23 — merged to `main`; design-system conform, Next.js shell at repo root (migrates to `apps/web` per ADR 0004).
-- [x] Spec 05 — Orchestrator + agent harness (RCG-15) — 2026-06-23 — merged to `main` ([PR #15](https://github.com/RCG5-26/rewards-typed-graph/pull/15)); 43 tests, typecheck clean. **Gotcha:** when `finalizeAgentRun(failed)` throws during cleanup, AgentRun may remain `running` — primary agent error is not overwritten. Documented in spec 05 §10.3.
-- [x] Hero moment test skeleton — 2026-06-22 — `tests/integration/test_hero_moment.py` + `hero_flow.py` seams; DB-path test for transfer → stale; hardened PGDATABASE guard; `NotImplementedError` fails (not skips) on e2e path.
-- [x] Orchestration flow doc — 2026-06-22 — `docs/architecture/orchestration-flow.md` companion to spec 05.
+- [x] PR #2 plan lifecycle alignment — 2026-06-21 — preserved v3.1 lineage/revision semantics in MVP polymorphic storage.
 - [x] PR #2 operational schema alignment — 2026-06-21 — added user-scoped graph mutations, re-plan jobs, idempotency records, eval tables, and atomic transfer write path.
 - [x] PR #2 v3.1 operational naming alignment — 2026-06-21 — renamed operational columns to v3.1 vocabulary (`clerk_id`, `mutation_txn_id`, `source_plan_id`, `operation_type`, `result_reference`, lease fields).
 - [x] PR #2 canonical schema split — 2026-06-21 — restored v3.1 table-per-type as default and moved polymorphic storage to `schema/experimental/polymorphic/`.
@@ -55,73 +51,84 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] `graph_mutations` contract alignment — 2026-06-21 — restored ADR 0008/main DDL shape and mapped write-path logging into `mutation_type` event rows.
 - [x] Live `TransferPoints` service coverage — 2026-06-21 — `V31GraphWriteService.transfer_points` now runs against real Postgres in CI for debit/credit, replay, and re-plan enqueue.
 - [x] Mutation adapter SQL hardening — 2026-06-21 — replaced dynamic target-table interpolation with hardcoded reference queries.
-- [x] GPFree landing → design-system conform — 2026-06-22 — re-themed the cinematic landing to Malleable UI tokens (light surfaces, iris accent, SF Pro/Fira Code); no hardcoded hex/px/easing; wired `global.css` + dropped `next/font`; split into `components/gpfree/` (cinema engine hook + HeroStage/HowItWorks/SiteFooter).
-- [x] Phase A3 JSON Schema + codegen (RCG-61) — 2026-06-21 — landed in PR #2; `schema/contracts/` + generated types exist. App-lane wiring into `apps/api` still pending.
+- [x] RCG-14 SSE polling hardening — 2026-06-23 — serialized mutation-stream polling and caught poll failures to avoid cursor races/unhandled rejections.
+- [x] Mutation replay cursor validation — 2026-06-23 — `GET /mutations` and SSE replay reject invalid cursors before repository queries.
+- [x] RCG-14 API manifest merge — 2026-06-24 — preserved `@rewards-agent/api` metadata/tooling while adding Hono/Postgres/AJV dependencies.
+- [x] RCG-14/25 spec 03 compliance pass — 2026-06-24 — added stream-boundary coverage for schema-valid SSE payloads and replay frames.
+- [x] Mutation routes review follow-up — 2026-06-24 — REST replay events now validate against `mutationEventSchema`; route tests cover missing-user rejection.
+- [x] Hono security range hardening — 2026-06-24 — raised API manifest floor to `^4.12.27` for Hono path/static-file advisories.
+- [x] RCG-18 API service (spec 07) merged — 2026-06-25 — PR #29 to `main` @ f53aa36; Hono server + Clerk auth + CORS + 6 routes + SSE/REST mount + psql-subprocess hero bridge; 86 vitest + typecheck green; live HTTP + bridge + hero flow verified on Docker Postgres.
+- [x] RCG-28/29 hero path green — 2026-06-25 — PR #20 wiring + PR #29 routes; live: create-plan (rev 1, 3 steps) → balance-transfer (rev 2 current, prior superseded, replan job) → current-plan → demo-reset.
+- [x] RCG-63 e2e integration test — 2026-06-25 — `tests/integration/test_hero_moment.py` passes live (2 tests, RUN_LIVE_POSTGRES_TESTS=1).
+- [x] RCG-52 graph eval instrumentation merged — 2026-06-25 — PR #30 to `main` @ 9a2bc77; `benchmark/graph_instrumentation.py` + eval tests; `unittest discover` 88 passed.
+- [x] Canonical backend setup guide — 2026-06-25 — `docs/development/backend-local-setup.md` (frontend-facing: env, startup, contract, hero smoke test, troubleshooting).
 
 ---
 
 ## In progress
 
-| Item | Owner | Blocked on | Notes |
-|---|---|---|---|
-| RCG-28/29/32 — `create_plan_from_query()` + hero path | Raq | Alan seed + Michael RCG-21 | Spec 05 on `main`; `hero_flow.py` Beats 1–3 wired to write path |
-| Spec 02 — real graph-write adapters | Alan | — | `OrchestratorGraphWrite` / `AgentCommitFactory` behind Postgres |
-| RCG-21 — redemption graph-writer | Michael | Spec 02 interface | Map PR #14 planner output → `create_plan_step` + `record_state_dependency` |
-| RCG-11–14 — graph infrastructure | Alan | — | OCC, traversal, deps, mutation log |
-| RCG-24/27/26 — demo UI on mocks | Val | Alan RCG-14 event shape | Parallel to hero |
+| Item                               | Owner | Blocked on                 | Notes                                                              |
+| ---------------------------------- | ----- | -------------------------- | ------------------------------------------------------------------ |
+| **RCG-32** Day-7 gate              | Raq   | frontend shell wiring + Clerk browser run | Backend path green & live-verified on `main`; blockers RCG-28/29 Done |
+| **RCG-27/25/26** demo UI           | Val   | nothing (API + SSE live)   | Integrate against live API or mocks; see backend-local-setup guide |
 
 ---
 
 ## Next up
 
-1. **RCG-21** — Michael maps planner → graph-write (unblocks hero Beat 1)
-2. **RCG-28** — wire orchestrator → write path; implement `create_plan_from_query()` (Beat 1)
-3. **RCG-29 / RCG-32** — `replan_after_balance_transfer()` + `test_hero_end_to_end` green (Jun 25 gate)
-4. Spec 02 — real graph-write adapters (Alan)
-5. **RCG-16 / RCG-17** — wallet + earning agents (spec 06)
-6. Wire generated mutation types into `apps/api` (replace temporary `SpecialistMutation` union per ADR 0007)
-7. Baseline runners (Michael) — post-hero
+1. **RCG-27/25/26** - Val wires the demo shell + sidebar to the live API/SSE (or mocks); see [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md).
+2. **RCG-32** - one browser run-through of the hero flow with a real Clerk token closes the Day-7 gate.
+3. **RCG-66** - graduate the Option B psql-subprocess bridge into a real graph-write boundary (post-demo).
+4. Baseline runners + eval harness (Michael/Raq) - post-hero.
 
 ---
 
 ## Open questions
 
-| # | Question | Owner | Status |
-|---|---|---|---|
-| 1 | Hosted platform choice (Vercel + Railway/Render PG) | Raq | open — see `STATUS.md` |
-| 2 | Eval config / model budget for baselines | Michael + Raq | open |
-| 3 | Does ADR 0004 storage-only compromise have all-four lane sign-off? | Alan/Raq | resolved → no; polymorphic path is experimental only |
+| #   | Question                                                         | Owner         | Status                                                                   |
+| --- | ---------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| 1   | Hosted platform choice                                           | Raq           | open                                                                     |
+| 2   | Eval config / model budget for baselines                         | Michael + Raq | open                                                                     |
+| 3   | ADR 0004 storage-only compromise sign-off                        | Alan/Raq      | resolved → polymorphic experimental only                                 |
+| 4   | Does RCG-9 require canonical single-table JSONB `nodes`/`edges`? | Alan/Raq      | resolved → ADR 0001 v3.1 table-per-type; docker-compose dev DB in PR #27 |
 
 ---
 
 ## Gates / milestones
 
-| Gate | Date | Status | Criteria |
-|---|---|---|---|
-| Schema v3.1 lock | 2026-06-18 | ☑ done | ADR 0001; DDL on `main` |
-| Person C offline scorer | 2026-06-23 | ☑ done | PR #14; 11/11 on fixture cases |
-| End-to-end demo path (Layers 1–3 + Hero Moment 1) | 2026-06-23 | ☐ open | RCG-32; `test_hero_end_to_end` passes |
-| MVP hero green | 2026-06-25 | ☐ open | Beat 1–3 in Postgres; revision 2 `current` |
-| Layer 4 GO / NO-GO | 2026-06-26 | ☐ open | Raq call; Michael lane |
-| Live demo (10 min) | 2026-06-29 | ☐ open | Hosted URL + demo script (RCG-47) |
+| Gate                       | Date       | Status    | Criteria                                             |
+| -------------------------- | ---------- | --------- | ---------------------------------------------------- |
+| Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
+| Person C offline scorer    | 2026-06-23 | done      | PR #14; 11/11 on fixture cases                       |
+| RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
+| MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
+| Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script; frontend wired to live API |
 
 ---
 
 ## Session notes _(optional — scratch pad)_
 
-- 2026-06-23: Merged PR #14 onto `main` — Person C planner/scorer + conflict resolution in STATUS/progress-tracker.
-- 2026-06-23: PR #15 + PR #13 on `main`; hero integration test skeleton in place.
-- 2026-06-22: Person C executable slice: `agents/redemption/`, `benchmark/person_c_scorer.py`, 11 eval cases.
+Brief bullets from recent work sessions. Trim when stale.
 
-- 2026-06-23: Addressed CodeRabbit review on PR #15 — `failInvocation` persistence fix, hero test PGDATABASE allowlist, removed `NotImplementedError` → skip masking; documented accepted deferrals (idempotency scoping, stale→current guard, JSON Schema contracts).
-- 2026-06-22: Spec 05 lifecycle error-handling hardening; 43 Vitest tests; spec marked Done; AI_USAGE entries 006/007 reconciled.
-- 2026-06-22: Added hero moment integration skeleton + orchestration-flow architecture doc.
-- 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
 - 2026-06-21: Completed TDD-covered RCG-10 schema-lane mutation adapter in `schema/mutations.py` for plan, plan-step, state-dependency, and `TransferPoints` writes.
-- 2026-06-21: PR #2 operational write path + Phase A3 contracts merged; canonical v3.1 restored.
-
-**Run Person C tests:** `python -m unittest discover -s tests -v`  
-**Scorer report:** `python -m benchmark.person_c_scorer --pretty`
+- 2026-06-21: PR #2 briefly explored polymorphic storage with v3.1 lifecycle-compatible names, then restored v3.1 as canonical when all-lane sign-off was not available.
+- 2026-06-21: Canonical path restored to v3.1 table-per-type; polymorphic artifacts preserved only under `schema/experimental/polymorphic/`.
+- 2026-06-21: Added direct-successor validation to atomic re-plan promotion and covered invalid lineage in PostgreSQL integration.
+- 2026-06-21: Added max-attempt enforcement to re-plan job claiming and covered exhausted jobs in PostgreSQL integration.
+- 2026-06-21: Added `in_progress` idempotency handling to canonical and experimental `transfer_points` functions with regression coverage.
+- 2026-06-21: Replaced canonical `TransferPoints` idempotency select-then-insert claim with an upsert claim and focused schema-artifact regression.
+- 2026-06-21: Aligned canonical DDL with v3.1 status-only plan-step staleness and restored a direct-update `user_balances` staleness trigger backstop.
+- 2026-06-21: Restored `docs/` from current `origin/main` and aligned `graph_mutations` DDL/write logging with ADR 0008 for Val sidebar compatibility.
+- 2026-06-21: Added a live Postgres integration test for `V31GraphWriteService.transfer_points` and wired it into the schema workflow.
+- 2026-06-21: Hardened state-dependency target lookup by removing f-string table interpolation from the v3.1 mutation adapter.
+- 2026-06-22: Replaced stale-plan view string coverage with a live PostgreSQL 16 schema-artifact contract test for `stale_plan_steps`.
+- 2026-06-23: Added an RCG-14 regression for overlapping SSE polls and guarded the mutation stream poll loop against concurrent cursor updates.
+- 2026-06-23: Added route-boundary validation for mutation replay cursors and regression coverage for invalid REST/SSE cursors.
+- 2026-06-24: Merged RCG-14 API dependencies into the existing `@rewards-agent/api` manifest instead of replacing the orchestrator package setup.
+- 2026-06-24: Verified spec 03 / RCG-14/25 checklist against the mutation API and added route-level SSE payload/replay compliance coverage.
+- 2026-06-24: Addressed mutation-route review nits with schema validation on REST replay payloads and unauthenticated REST/SSE route coverage.
+- 2026-06-24: Bumped the declared Hono dependency range to `^4.12.27`; production `npm audit --omit=dev` reports no vulnerabilities.
+- 2026-06-24: Implemented spec 07 HTTP service (RCG-18) — Hono server with Clerk auth, `PlanService` port, `BridgePlanService` (psql-subprocess bridge to `hero_flow.py`), all six routes, SSE/REST mutation mount; 86 `npm test` unit tests + typecheck green. Remaining gate: live Clerk smoke-test.
 
 ---
 

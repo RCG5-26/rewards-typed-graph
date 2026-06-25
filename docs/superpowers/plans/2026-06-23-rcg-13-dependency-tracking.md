@@ -15,6 +15,7 @@
 ## Task 1: Cover Precise Stale-Step Behavior
 
 **Files:**
+
 - Modify: `tests/test_v31_mutations.py`
 
 - [x] **Step 1: Write live precision test**
@@ -37,6 +38,7 @@ Expected: failure with current broad `UPDATE plan_steps ... WHERE plan_id = stal
 ## Task 2: Add Direct-Dependency SQL Helper
 
 **Files:**
+
 - Modify: `schema/schema.sql`
 - Modify: `tests/test_schema_artifacts.py`
 
@@ -69,6 +71,7 @@ Expected: pass, with live tests skipped unless opted in.
 ## Task 3: Wire TransferPoints to the Helper
 
 **Files:**
+
 - Modify: `schema/schema.sql`
 - Modify: `tests/test_v31_mutations.py`
 
@@ -89,6 +92,7 @@ Expected: pass.
 ## Task 4: Add Negative-Control Non-Transitive Test
 
 **Files:**
+
 - Modify: `tests/test_schema_artifacts.py`
 
 - [x] **Step 1: Add live test fixture**
@@ -104,6 +108,7 @@ Expected: non-live tests pass, live tests skipped unless opted in.
 ## Task 5: Update Tracking
 
 **Files:**
+
 - Modify: `STATUS.md`
 - Modify: `context/progress-tracker.md`
 - Modify: `tracking/alan-graph.md`

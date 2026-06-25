@@ -58,11 +58,11 @@ User state:
 
 Hotel options:
 
-| Demo Hotel | Award Cost | Seeded Cash Total | Value | Role |
-| --- | ---: | ---: | ---: | --- |
-| Demo Hyatt Ginza | 45,000 points | $1,050 | 2.33 cpp | Best value before balance change |
-| Demo Hyatt Shinjuku | 30,000 points | $540 | 1.80 cpp | Backup after balance change |
-| Demo Hyatt Ueno | 24,000 points | $300 | 1.25 cpp | Poor-value contrast option |
+| Demo Hotel          |    Award Cost | Seeded Cash Total |    Value | Role                             |
+| ------------------- | ------------: | ----------------: | -------: | -------------------------------- |
+| Demo Hyatt Ginza    | 45,000 points |            $1,050 | 2.33 cpp | Best value before balance change |
+| Demo Hyatt Shinjuku | 30,000 points |              $540 | 1.80 cpp | Backup after balance change      |
+| Demo Hyatt Ueno     | 24,000 points |              $300 | 1.25 cpp | Poor-value contrast option       |
 
 The first plan should pick Demo Hyatt Ginza. After the user spends 40,000 points, the old 45,000-point plan should become stale and the agent should re-plan to Demo Hyatt Shinjuku.
 
