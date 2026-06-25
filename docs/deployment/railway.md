@@ -5,11 +5,15 @@ Canonical deployment guide for the hosted demo. Platform: **Railway**
 [0004 — Runtime Topology](../adr/0004-runtime-topology.md) listed Railway as an
 allowed managed-Postgres option).
 
-> **Status (2026-06-25).** The container, local verification, and these commands
-> are complete and verified locally. The Railway-side steps (project provision,
-> deploy, hosted Clerk verification) require a Railway project and a real Clerk
-> Bearer token and are **pending external execution** — see
-> [Verification](#verification) for which gates are proven vs. not-yet-run.
+> **Status (2026-06-25).** Fully deployed. Project `rewards-typed-graph-demo`
+> (Railway, production environment) has two live services: managed Postgres
+> (schema applied, demo persona seeded) and the API container.
+>
+> **Live API URL:** `https://api-production-d6f4c.up.railway.app`
+>
+> Health, auth-guard, and anonymous gates verified hosted. Token-gated gates
+> (session, plan, SSE, transfer+replan, demo-reset) require a real Clerk Bearer
+> token — see [Verification](#verification).
 
 ---
 
@@ -145,21 +149,26 @@ changes (additive-only after lock — see ADR 0001) or to reset demo data.
 
 ## Verification
 
-Hosted checks once the service is up. `$API_BASE_URL` is the Railway API URL;
-`$CLERK_TOKEN` is a **real Clerk development Bearer token** (obtained from a
-signed-in session — cannot be generated server-side).
+Hosted checks against the live service. Set:
 
-| Gate | Command | Expected | Proven locally |
+```bash
+API_BASE_URL=https://api-production-d6f4c.up.railway.app
+CLERK_TOKEN=<real Clerk development Bearer token — from a signed-in session, cannot be generated server-side>
+```
+
+| Gate | Command | Expected | Status |
 |---|---|---|---|
-| Health | `curl -i $API_BASE_URL/health` | `200 {"ok":true}` | ✅ in container |
-| Auth guard | `curl -i $API_BASE_URL/session` | `401` | ✅ (route tests) |
-| Session | `curl -i $API_BASE_URL/session -H "Authorization: Bearer $CLERK_TOKEN"` | `200` + internal user id, clerk id, seeded persona; idempotent on repeat | ⏳ needs hosted Clerk |
-| Create plan | `curl -i -X POST $API_BASE_URL/plans -H "Authorization: Bearer $CLERK_TOKEN" -H "Content-Type: application/json" -d '{"query":"Best way to get to Tokyo in October?"}'` | revision 1, `status:current`, steps + reasoning + dependsOn | ✅ hero flow (local live DB) |
-| Mutation REST | `curl -i $API_BASE_URL/mutations -H "Authorization: Bearer $CLERK_TOKEN"` | user-scoped list | ✅ (route tests) |
+| Health | `curl -i $API_BASE_URL/health` | `200 {"ok":true}` | ✅ verified hosted |
+| Auth guard — session | `curl -i $API_BASE_URL/session` | `401` | ✅ verified hosted |
+| Auth guard — mutations | `curl -i $API_BASE_URL/mutations` | `401` | ✅ verified hosted |
+| Root path | `curl -i $API_BASE_URL/` | `404` — no route at `/`, expected | ✅ verified hosted |
+| Session | `curl -i $API_BASE_URL/session -H "Authorization: Bearer $CLERK_TOKEN"` | `200` + internal user id, clerk id, seeded persona; idempotent on repeat | ⏳ needs Clerk Bearer |
+| Create plan | `curl -i -X POST $API_BASE_URL/plans -H "Authorization: Bearer $CLERK_TOKEN" -H "Content-Type: application/json" -d '{"query":"Best way to get to Tokyo in October?"}'` | revision 1, `status:current`, steps + reasoning + dependsOn | ✅ hero flow (local live DB); ⏳ hosted |
+| Mutation REST | `curl -i $API_BASE_URL/mutations -H "Authorization: Bearer $CLERK_TOKEN"` | user-scoped list | ✅ (route tests); ⏳ hosted |
 | Mutation SSE | `curl -N $API_BASE_URL/mutations/stream -H "Authorization: Bearer $CLERK_TOKEN"` | `text/event-stream`, `graph_mutation` events with ids; `Last-Event-ID` resume | ✅ (events tests); ⏳ hosted always-on |
-| Transfer + replan | `POST $API_BASE_URL/balance-transfer` with seeded program ids | transfer ok; prior plan staled→superseded; revision 2 current; same lineage | ✅ hero flow (local live DB) |
-| Current plan | `curl -i "$API_BASE_URL/plans/current?lineageId=$LINEAGE_ID" -H "Authorization: Bearer $CLERK_TOKEN"` | revision 2, current, same lineage | ✅ hero flow (local live DB) |
-| Demo reset | `curl -i -X POST $API_BASE_URL/demo/reset -H "Authorization: Bearer $CLERK_TOKEN"` | balances restored; plans/mutations cleared; flow re-runnable | ✅ (`do_demo_reset`) |
+| Transfer + replan | `POST $API_BASE_URL/balance-transfer` with seeded program ids | transfer ok; prior plan staled→superseded; revision 2 current; same lineage | ✅ hero flow (local live DB); ⏳ hosted |
+| Current plan | `curl -i "$API_BASE_URL/plans/current?lineageId=$LINEAGE_ID" -H "Authorization: Bearer $CLERK_TOKEN"` | revision 2, current, same lineage | ✅ hero flow (local live DB); ⏳ hosted |
+| Demo reset | `curl -i -X POST $API_BASE_URL/demo/reset -H "Authorization: Bearer $CLERK_TOKEN"` | balances restored; plans/mutations cleared; flow re-runnable | ✅ (`do_demo_reset`); ⏳ hosted |
 
 `✅` = verified locally (container `/health`, route/unit tests, or the live
 Postgres hero-flow integration test). `⏳` = requires the hosted service and a
