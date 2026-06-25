@@ -49,6 +49,7 @@ class BridgeError(Exception):
     """Domain error mapped to an HTTP status by the TS caller."""
 
     def __init__(self, code: str, message: str) -> None:
+        """Attach an HTTP-mappable error ``code`` to the exception message."""
         super().__init__(message)
         self.code = code
 
@@ -59,30 +60,41 @@ class BridgeError(Exception):
 
 
 class _PsqlConnection:
+    """Minimal connection shim so ``hero_flow`` can run over ``psql`` subprocesses."""
+
     def cursor(self) -> "_PsqlCursor":
+        """Return a cursor that executes SQL via ``_psql_rows``."""
         return _PsqlCursor()
 
 
 class _PsqlCursor:
+    """Single-statement cursor: one ``execute`` → one ``fetchone`` result set."""
+
     def __init__(self) -> None:
+        """Initialize with no pending result."""
         self.result: list[tuple[Any, ...]] | None = None
 
     def __enter__(self) -> "_PsqlCursor":
+        """Enter a ``with`` block (no-op; satisfies the connection protocol)."""
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        """Exit a ``with`` block without suppressing exceptions."""
         return False
 
     def execute(self, sql: str, params: tuple[Any, ...] | None = None) -> None:
+        """Run parameterized SQL and stash the first result set on this cursor."""
         self.result = _psql_rows(_format_psql_query(sql, params or ()))
 
     def fetchone(self) -> tuple[Any, ...] | None:
+        """Return the first row of the last ``execute`` result, or ``None``."""
         if not self.result:
             return None
         return self.result[0]
 
 
 def _psql_command(*extra: str) -> list[str]:
+    """Build a ``psql`` argv list, appending ``DATABASE_URL`` when set."""
     command = ["psql", "--set", "ON_ERROR_STOP=1", "--quiet", *extra]
     database_url = os.environ.get("DATABASE_URL")
     if database_url:
@@ -91,6 +103,7 @@ def _psql_command(*extra: str) -> list[str]:
 
 
 def _psql_exec(sql: str) -> None:
+    """Run a SQL script via ``psql``; raise ``RuntimeError`` on non-zero exit."""
     result = subprocess.run(
         _psql_command(),
         input=sql,
@@ -121,6 +134,7 @@ _PSQL_NULL = "\x1d"
 
 
 def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
+    """Execute a read-only query and return all rows as typed Python tuples."""
     result = subprocess.run(
         _psql_command(
             "--no-align",
@@ -157,6 +171,7 @@ def _psql_rows(sql: str) -> list[tuple[Any, ...]]:
 
 
 def _format_psql_query(sql: str, params: tuple[Any, ...]) -> str:
+    """Interpolate ``%s`` placeholders with safely escaped ``psql`` literals."""
     formatted = sql
     for param in params:
         formatted = formatted.replace("%s", _psql_literal(param), 1)
@@ -164,6 +179,7 @@ def _format_psql_query(sql: str, params: tuple[Any, ...]) -> str:
 
 
 def _psql_literal(value: Any) -> str:
+    """Render a Python value as a Postgres literal for inline SQL."""
     if value is None:
         return "NULL"
     if isinstance(value, bool):
@@ -178,6 +194,7 @@ def _psql_literal(value: Any) -> str:
 
 
 def _parse_psql_value(value: str) -> Any:
+    """Decode a single ``psql`` text field (booleans, ints, or plain strings)."""
     # SQL NULL is decoded by the caller via the null sentinel, so a bare empty
     # string here is a genuine empty string, not NULL.
     if value == "t":
@@ -195,6 +212,7 @@ def _parse_psql_value(value: str) -> Any:
 
 
 def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
+    """Project a ``plans`` row + steps into the spec-07 ``PlanView`` JSON shape."""
     header = _psql_rows(
         _format_psql_query(
             """
@@ -247,6 +265,7 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
 
 
 def _depends_on_by_step(plan_id: str) -> dict[str, list[str]]:
+    """Map each plan-step id to the ``state_dependencies`` target node ids it reads."""
     rows = _psql_rows(
         _format_psql_query(
             """
@@ -268,6 +287,7 @@ def _depends_on_by_step(plan_id: str) -> dict[str, list[str]]:
 
 
 def resolve_balance(user_id: str, program_id: str) -> tuple[str, int]:
+    """Return ``(balance_id, version)`` for a user's program balance row."""
     rows = _psql_rows(
         _format_psql_query(
             """
@@ -285,6 +305,7 @@ def resolve_balance(user_id: str, program_id: str) -> tuple[str, int]:
 
 
 def current_plan_id_for_user(user_id: str) -> str | None:
+    """Return the user's newest ``plans.status = 'current'`` row id, if any."""
     rows = _psql_rows(
         _format_psql_query(
             """
@@ -529,6 +550,7 @@ def _persona_clone_statements(new_user_id: str) -> list[str]:
 
 
 def do_demo_reset(user_id: str) -> dict[str, Any]:
+    """Clear plans/mutations for the user and restore seed balances for the demo."""
     session = do_session(user_id=user_id)
     # Order matters: replan_jobs.result_plan_id has no cascade, so it must be
     # cleared before the plans it points at can be deleted.
@@ -547,6 +569,7 @@ def do_demo_reset(user_id: str) -> dict[str, Any]:
 
 
 def _reset_seed_balances(user_id: str) -> None:
+    """Overwrite the user's balance rows with the values from ``demo-seed.json``."""
     seed = json.loads(DEMO_SEED_PATH.read_text(encoding="utf-8"))
     for balance in seed.get("user_balances", []):
         _psql_exec(
@@ -562,6 +585,7 @@ def _reset_seed_balances(user_id: str) -> None:
 
 
 def do_create_plan(user_id: str, query: str) -> dict[str, Any]:
+    """Run the hero planner and return the projected ``PlanView`` for revision 1."""
     connection = _PsqlConnection()
     snapshot = create_plan_from_query(
         connection, user_id=user_id, query_text=query
@@ -573,10 +597,12 @@ def do_create_plan(user_id: str, query: str) -> dict[str, Any]:
 
 
 def do_get_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
+    """Fetch a single plan by id, or ``None`` when the row is missing."""
     return project_plan(user_id, plan_id)
 
 
 def do_current_plan(user_id: str, lineage_id: str) -> dict[str, Any] | None:
+    """Return the current revision in a plan lineage, or ``None`` if none is current."""
     rows = _psql_rows(
         _format_psql_query(
             """
@@ -601,6 +627,7 @@ def do_balance_transfer(
     dest_program_id: str,
     amount_points: int,
 ) -> dict[str, Any]:
+    """Transfer points, stale the prior plan, re-plan, and return the sync result."""
     connection = _PsqlConnection()
     source_balance_id, source_version = resolve_balance(user_id, source_program_id)
     dest_balance_id, dest_version = resolve_balance(user_id, dest_program_id)
@@ -639,6 +666,7 @@ def do_balance_transfer(
 
 
 def _replan_job_id(source_plan_id: str) -> str | None:
+    """Look up the most recent ``replan_jobs`` row for a staled source plan."""
     rows = _psql_rows(
         _format_psql_query(
             """
@@ -660,10 +688,12 @@ def _replan_job_id(source_plan_id: str) -> str | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI subcommand parser consumed by ``main``."""
     parser = argparse.ArgumentParser(description="Demo API hero bridge")
     sub = parser.add_subparsers(dest="command", required=True)
 
     def with_user(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        """Add the required ``--user-id`` flag to a subcommand parser."""
         p.add_argument("--user-id", required=True)
         return p
 
@@ -693,6 +723,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def dispatch(args: argparse.Namespace) -> Any:
+    """Route a parsed CLI subcommand to the matching ``do_*`` handler."""
     if args.command == "session":
         if not args.user_id and not args.clerk_id:
             raise BridgeError("validation", "session requires --user-id or --clerk-id")
@@ -720,6 +751,7 @@ def dispatch(args: argparse.Namespace) -> Any:
 
 
 def main() -> int:
+    """CLI entry: parse args, dispatch, and print one JSON envelope to stdout."""
     args = build_parser().parse_args()
     try:
         data = dispatch(args)

@@ -82,6 +82,7 @@ export class BridgePlanService implements PlanService {
   private readonly scriptPath: string;
   private readonly env: NodeJS.ProcessEnv;
 
+  /** Spawn the hero bridge with the configured Python binary and env whitelist. */
   constructor(options: BridgeOptions = {}) {
     this.pythonBin = options.pythonBin ?? process.env.PYTHON_BIN ?? "python3";
     this.cwd = options.cwd ?? REPO_ROOT;
@@ -89,6 +90,7 @@ export class BridgePlanService implements PlanService {
     this.env = buildBridgeEnv(options.env ?? process.env);
   }
 
+  /** Resolve or bootstrap the caller and return the session view model. */
   async getSession(identity: SessionIdentity): Promise<SessionView> {
     const args: string[] = [];
     if (identity.userId) {
@@ -103,10 +105,12 @@ export class BridgePlanService implements PlanService {
     return this.run<SessionView>("session", args);
   }
 
+  /** Reset demo state for the authenticated user via the bridge. */
   async resetDemo(userId: string): Promise<SessionView> {
     return this.run<SessionView>("demo-reset", ["--user-id", userId]);
   }
 
+  /** Create revision 1 of a plan from a natural-language query. */
   async createPlan(userId: string, query: string): Promise<PlanView> {
     return this.run<PlanView>("create-plan", [
       "--user-id",
@@ -116,6 +120,7 @@ export class BridgePlanService implements PlanService {
     ]);
   }
 
+  /** Fetch a single plan projection by id, or null when missing. */
   async getPlanById(userId: string, planId: string): Promise<PlanView | null> {
     return this.run<PlanView | null>("get-plan", [
       "--user-id",
@@ -125,6 +130,7 @@ export class BridgePlanService implements PlanService {
     ]);
   }
 
+  /** Return the current revision for a plan lineage, if one exists. */
   async getCurrentPlan(
     userId: string,
     lineageId: string,
@@ -137,6 +143,7 @@ export class BridgePlanService implements PlanService {
     ]);
   }
 
+  /** Transfer points, stale the prior plan, and return the sync replan result. */
   async transferBalance(
     userId: string,
     input: BalanceTransferInput,
@@ -153,6 +160,7 @@ export class BridgePlanService implements PlanService {
     ]);
   }
 
+  /** Spawn hero_bridge.py for one subcommand and decode its JSON envelope. */
   private async run<T>(command: string, args: string[]): Promise<T> {
     let stdout: string;
     try {
@@ -180,6 +188,7 @@ export class BridgePlanService implements PlanService {
     return this.fromEnvelope(parseEnvelope<T>(stdout));
   }
 
+  /** Turn a bridge envelope into data or a typed PlanServiceError. */
   private fromEnvelope<T>(envelope: BridgeEnvelope<T>): T {
     if (envelope.ok) {
       return envelope.data;
@@ -207,6 +216,7 @@ function buildBridgeEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
+/** Read stdout from a failed execFile rejection when present. */
 function readStdout(error: unknown): string {
   if (error && typeof error === "object" && "stdout" in error) {
     const stdout = (error as { stdout?: unknown }).stdout;
@@ -217,6 +227,7 @@ function readStdout(error: unknown): string {
   return "";
 }
 
+/** Parse the final JSON envelope line printed by the Python bridge. */
 function parseEnvelope<T>(stdout: string): BridgeEnvelope<T> {
   const trimmed = stdout.trim();
   if (!trimmed) {
@@ -231,6 +242,7 @@ function parseEnvelope<T>(stdout: string): BridgeEnvelope<T> {
   }
 }
 
+/** Summarize a subprocess spawn failure for operator-facing error messages. */
 function describeSpawnError(error: unknown): string {
   if (error && typeof error === "object" && "stderr" in error) {
     const stderr = (error as { stderr?: string }).stderr;

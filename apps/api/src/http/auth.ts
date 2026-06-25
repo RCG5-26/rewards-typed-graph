@@ -23,6 +23,7 @@ export interface AuthIdentity {
   email?: string | null;
 }
 
+/** Require a resolved users.id from upstream Clerk middleware. */
 export function getAuthenticatedUserId(c: Context<AuthEnv>): string {
   const userId = c.get("userId");
   if (!userId) {

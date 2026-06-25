@@ -90,6 +90,7 @@ async function callService<T>(call: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Map domain errors then pass the successful value to a response builder. */
 async function runService<T>(
   call: () => Promise<T>,
   respond: (value: T) => Response,
@@ -97,6 +98,7 @@ async function runService<T>(
   return respond(await callService(call));
 }
 
+/** Parse JSON from the request body or reject with HTTP 400. */
 async function readJsonBody(request: Request): Promise<unknown> {
   try {
     return await request.json();
@@ -105,6 +107,7 @@ async function readJsonBody(request: Request): Promise<unknown> {
   }
 }
 
+/** Validate and normalize the natural-language plan query from ``POST /plans``. */
 function parseQuery(body: unknown): string {
   const query = asRecord(body).query;
   if (typeof query !== "string" || query.trim().length === 0) {
@@ -113,6 +116,7 @@ function parseQuery(body: unknown): string {
   return query.trim();
 }
 
+/** Validate the balance-transfer payload from ``POST /balance-transfer``. */
 function parseTransferInput(body: unknown): BalanceTransferInput {
   const record = asRecord(body);
   const sourceProgramId = parseRequiredId(record.sourceProgramId, "sourceProgramId");
@@ -137,6 +141,7 @@ function parseTransferInput(body: unknown): BalanceTransferInput {
   return { sourceProgramId, destProgramId, amountPoints };
 }
 
+/** Require a non-empty string id field from a JSON body or query param. */
 function parseRequiredId(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new HTTPException(400, { message: `${field} is required` });
@@ -144,6 +149,7 @@ function parseRequiredId(value: unknown, field: string): string {
   return value.trim();
 }
 
+/** Narrow an unknown JSON body to a plain object or reject with HTTP 400. */
 function asRecord(body: unknown): Record<string, unknown> {
   if (typeof body !== "object" || body === null) {
     throw new HTTPException(400, { message: "request body must be an object" });

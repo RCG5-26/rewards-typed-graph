@@ -68,6 +68,7 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.route("/", createMutationRoutes(pool));
 app.route("/", createPlanRoutes(planService));
 
+/** Require a named environment variable at process boot. */
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {

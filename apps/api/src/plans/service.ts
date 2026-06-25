@@ -14,6 +14,7 @@ import {
 export type PlanServiceErrorCode = "validation" | "not_found" | "conflict";
 
 export class PlanServiceError extends Error {
+  /** Carry a route-mappable error code alongside the human-readable message. */
   constructor(
     readonly code: PlanServiceErrorCode,
     message: string,
