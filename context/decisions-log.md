@@ -32,6 +32,7 @@
 | [ADR 0006](../docs/adr/0006-clerk-identity-only.md)        | 2026-06-18 | Clerk identity-only scope                                              | Accepted | ADR file         |
 | [ADR 0007](../docs/adr/0007-contract-ownership-codegen.md) | 2026-06-18 | Contract ownership + codegen + subprocess contract                     | Accepted | ADR file         |
 | [ADR 0008](../docs/adr/0008-per-user-serialization-sse.md) | 2026-06-18 | Per-user write serialization + SSE                                     | Accepted | ADR file         |
+| [ADR 0009](../docs/adr/0009-tdd-enforcement.md)            | 2026-06-25 | TDD enforced repo-wide (CI all-suites + diff-coverage ratchet + attestation) | Accepted | ADR file   |
 
 ### ~~Planned ADRs~~ _(promoted 2026-06-18 — see Formal ADRs above)_
 
