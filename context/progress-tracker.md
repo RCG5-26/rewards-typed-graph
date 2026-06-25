@@ -1,21 +1,36 @@
-# Progress Tracker - Rewards Typed Graph (RCG)
+# Progress Tracker — Rewards Typed Graph (RCG)
 
 > Current state of the project. Update after each meaningful milestone or phase change.
 
-**Last updated:** 2026-06-25 — RCG-52 graph eval instrumentation added on branch
+### How to update (all lanes)
+
+This file is **team-wide AI working memory** — milestone narrative, not daily standup.
+
+| You want to… | Who | Update here | Also update |
+|---|---|---|---|
+| Finish a spec, PR, or gate | Lead (or spec owner if required) | **Completed** — one line: `[owner]` + `RCG-##` + date + files/gotcha | Spec header → `Done`; PR template docs checkbox |
+| Start or continue work | Lead | **In progress** table — owner, blocker, short note | Spec header → `In progress` |
+| Shift sprint focus | Lead | **Current phase** / **Current goal** / **Active focus** | Standup agreement; sync `STATUS.md` |
+| Resolve or raise ambiguity | Anyone → lead | **Open questions** | [`decisions-log.md`](decisions-log.md) if it becomes a decision |
+
+**Daily lane status:** each person → [`tracking/<lane>.md`](../tracking/) (tiny PR) + **Linear**. **Do not** update this file or `STATUS.md` in feature PRs.
+
+When **Completed** grows past ~15 items for the current phase, move older bullets to [`progress-archive.md`](progress-archive.md).
+
+**Last updated:** 2026-06-25 — repo→Linear→docs reconciliation: API service (RCG-18) + hero path (RCG-28/29) merged to `main` and live-verified
 
 ---
 
 ## Current phase
 
-**Phase:** MVP build (integration sprint)
-**Active focus:** Merge PR #27; live hero gate verification; RCG-21 graph-writer + docker dev DB
+**Phase:** MVP build (integration sprint) — backend hero path green; frontend integration next
+**Active focus:** Wire the Next.js demo shell to the live API (RCG-27/25/26); browser run-through with a real Clerk token (RCG-32)
 
 ---
 
 ## Current goal
 
-`test_hero_end_to_end` green by EOD Jun 25; Person C planner/scorer now feeds the DB graph-writer.
+Backend hero flow is green on `origin/main` (PRs #27/#21/#14/#29/#30). Next: frontend consumes the live API + SSE; one end-to-end browser run-through with real Clerk auth closes the Day-7 gate.
 
 ---
 
@@ -42,8 +57,11 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 - [x] RCG-14/25 spec 03 compliance pass — 2026-06-24 — added stream-boundary coverage for schema-valid SSE payloads and replay frames.
 - [x] Mutation routes review follow-up — 2026-06-24 — REST replay events now validate against `mutationEventSchema`; route tests cover missing-user rejection.
 - [x] Hono security range hardening — 2026-06-24 — raised API manifest floor to `^4.12.27` for Hono path/static-file advisories.
-- [ ] [Unit / milestone] — [YYYY-MM-DD] — [one-line note]
-- [ ] [Unit / milestone] — [date] — [note]
+- [x] RCG-18 API service (spec 07) merged — 2026-06-25 — PR #29 to `main` @ f53aa36; Hono server + Clerk auth + CORS + 6 routes + SSE/REST mount + psql-subprocess hero bridge; 86 vitest + typecheck green; live HTTP + bridge + hero flow verified on Docker Postgres.
+- [x] RCG-28/29 hero path green — 2026-06-25 — PR #20 wiring + PR #29 routes; live: create-plan (rev 1, 3 steps) → balance-transfer (rev 2 current, prior superseded, replan job) → current-plan → demo-reset.
+- [x] RCG-63 e2e integration test — 2026-06-25 — `tests/integration/test_hero_moment.py` passes live (2 tests, RUN_LIVE_POSTGRES_TESTS=1).
+- [x] RCG-52 graph eval instrumentation merged — 2026-06-25 — PR #30 to `main` @ 9a2bc77; `benchmark/graph_instrumentation.py` + eval tests; `unittest discover` 88 passed.
+- [x] Canonical backend setup guide — 2026-06-25 — `docs/development/backend-local-setup.md` (frontend-facing: env, startup, contract, hero smoke test, troubleshooting).
 
 ---
 
@@ -51,18 +69,17 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 | Item                               | Owner | Blocked on                 | Notes                                                              |
 | ---------------------------------- | ----- | -------------------------- | ------------------------------------------------------------------ |
-| **RCG-18** API service (spec 07)   | Raq   | manual dev-server Clerk curl | `raq/demo-mocks`; 86 `npm test` unit tests + typecheck green; persona bootstrap + hero bridge verified on live Postgres |
-| **RCG-28/29/32** hero path         | Raq   | live Postgres verification | PR #27; `hero_flow.py` Beats 1-3 wired through RCG-21 graph-writer |
-| **RCG-11-14** graph infrastructure | Alan  | -                          | OCC, traversal, deps, mutation log                                 |
-| **RCG-24/27/26** demo UI on mocks  | Val   | Alan RCG-14 event shape    | Clerk auth on `main`; parallel to hero                             |
+| **RCG-32** Day-7 gate              | Raq   | frontend shell wiring + Clerk browser run | Backend path green & live-verified on `main`; blockers RCG-28/29 Done |
+| **RCG-27/25/26** demo UI           | Val   | nothing (API + SSE live)   | Integrate against live API or mocks; see backend-local-setup guide |
 
 ---
 
 ## Next up
 
-1. **RCG-28/29/32** - Raq runs the live Postgres hero path end-to-end and closes remaining orchestration gaps.
-2. Spec 02 - real graph-write adapters (Alan).
-3. Baseline runners (Michael) - post-hero.
+1. **RCG-27/25/26** - Val wires the demo shell + sidebar to the live API/SSE (or mocks); see [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md).
+2. **RCG-32** - one browser run-through of the hero flow with a real Clerk token closes the Day-7 gate.
+3. **RCG-66** - graduate the Option B psql-subprocess bridge into a real graph-write boundary (post-demo).
+4. Baseline runners + eval harness (Michael/Raq) - post-hero.
 
 ---
 
@@ -83,9 +100,9 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 | -------------------------- | ---------- | --------- | ---------------------------------------------------- |
 | Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
 | Person C offline scorer    | 2026-06-23 | done      | PR #14; 11/11 on fixture cases                       |
-| RCG-21 graph-writer bridge | 2026-06-24 | in PR #27 | Unit tests green; live hero test with docker-compose |
-| MVP hero green             | 2026-06-25 | open      | `test_hero_end_to_end` passes with live Postgres     |
-| Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script                             |
+| RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
+| MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
+| Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script; frontend wired to live API |
 
 ---
 

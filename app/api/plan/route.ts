@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { buildPlan } from "@/lib/plan/builder";
+import {
+  planQueryError,
+  selectedCardIdsError,
+} from "@/lib/plan/limits";
 import { getCurrentUserGraph } from "@/lib/user/current";
 
 /**
@@ -29,15 +33,17 @@ export async function POST(request: Request) {
       selectedCardIds?: unknown;
     };
     const queryText = typeof body.queryText === "string" ? body.queryText.trim() : "";
-    if (!queryText) {
-      return NextResponse.json(
-        { error: "A goal (queryText) is required." },
-        { status: 400 },
-      );
+    const queryError = planQueryError(queryText);
+    if (queryError) {
+      return NextResponse.json({ error: queryError }, { status: 400 });
     }
     const selectedCardIds = Array.isArray(body.selectedCardIds)
       ? body.selectedCardIds.filter((id): id is string => typeof id === "string")
       : [];
+    const cardsError = selectedCardIdsError(selectedCardIds);
+    if (cardsError) {
+      return NextResponse.json({ error: cardsError }, { status: 400 });
+    }
 
     const plan = await buildPlan(graph, selectedCardIds, queryText);
     return NextResponse.json(plan);

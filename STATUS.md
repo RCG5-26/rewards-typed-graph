@@ -1,10 +1,17 @@
 # Team Status Board
 
-The shared source of truth for the sprint. Update your own row before standup. Keep it skimmable.
+**Weekly snapshot** for standup, gates, and blockers. **Raq (lead) syncs this** from [`tracking/`](tracking/) + **Linear** before standup — lane owners do **not** edit this file in feature PRs.
 
-**Live demo:** Mon June 29 (10 min) - **Today:** Jun 24 - **Phase:** Integration sprint - hero path to green
+| Where | Who | Cadence |
+|---|---|---|
+| **Linear** (RCG-##) | Each person | Daily — live task board |
+| **`tracking/<lane>.md`** | Each person | Daily — tiny PR, merge same day |
+| **`STATUS.md` (this file)** | Lead | Before standup / gates |
+| **`context/progress-tracker.md`** | Lead | When a spec or PR lands |
+
+**Live demo:** Mon June 29 (10 min) · **Today:** Jun 25 · **Phase:** Integration sprint — backend hero green; frontend wiring next
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
-**Linear:** optional backbone (milestones + gates). This board is the daily driver. Task ids below map to `RCG-##` in Linear.
+**Linear:** live daily board (RCG tickets). This file is the **weekly repo snapshot** for gates and standup.
 
 **Team:** Alan (A - Graph) - Val (B - Frontend) - Michael (C - Redemption/Eval + Layer 4) - Raq (D - Orchestrator, owner/lead)
 
@@ -24,7 +31,7 @@ The shared source of truth for the sprint. Update your own row before standup. K
 | Dependency-tracking implementation (RCG-13)                                        | done                                                                        |
 | Seed fixture committed, stable IDs (RCG-8)                                         | done                                                                        |
 | All four lanes signed off on v3.1                                                  | done: Alan, Val, Michael, Raq ([ADR 0001](docs/adr/0001-schema-lock.md))    |
-| **Implementation wiring on real contracts**                                        | in progress — RCG-21 graph-writer in PR #27; Val Clerk auth merged (PR #22) |
+| **Implementation wiring on real contracts**                                        | hero path green on `main` — RCG-21 graph-writer (PR #27), mutation REST+SSE (PR #21), API service spec 07 / RCG-18 (PR #29); Clerk auth (PR #22) |
 
 **Architecture locked (v3.1):** plan revision lifecycle via `plans.status` / `plan_steps.status` (no `is_current`, no `plan_steps.is_stale`); durable `replan_jobs` with leases; `graph_mutations` as user-scoped audit/SSE replay only (not a work queue).
 
@@ -34,15 +41,14 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 
 ## Standup grid
 
-Update only your own row. Format: short phrases, not paragraphs.
-_Rows reflect repo + Linear evidence; each owner confirms/edits their own line at standup._
+**Lead-maintained** — synced from [`tracking/`](tracking/) + Linear before standup. Format: short phrases, not paragraphs.
 
 | Person | Yesterday | Today | Blocked on |
 |---|---|---|---|
-| Alan · Graph | RCG-14 mutation replay/SSE scaffold | Verify spec 03 / RCG-14/25 compliance; harden SSE polling/cursors; tighten mutation route auth/schema coverage; raise Hono floor for security advisories | nothing |
-| Val · Frontend | Demo flow built end-to-end on fixtures: `/onboarding` (pick cards → ask → agent console), streaming mutations + live typed-graph + replan hero moment (RCG-24/26/27 done); cards/me/plan/plan-stream APIs; instrument-grade design pass | Commit demo-flow work + browser-verify authed flow; then real-backend swap (#4) | nothing (fixture-first; backend swap is the only wire) |
-| Michael · Redemption | kickoff | Paper-design redemption traversal (RCG-20); does not wait on lock | nothing |
-| Raq · Orchestrator (owner, lead) | kickoff | Review schema; scaffold orchestrator + agent harness (RCG-15) | schema draft from Alan |
+| Alan · Graph | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish | nothing |
+| Val · Frontend | Clerk auth + landing on `main` | Wire demo shell to live API (RCG-27/25/26) | nothing — see backend-local-setup guide |
+| Michael · Redemption | RCG-21 graph-writer merged | Benchmark fixture work (RCG-33) | nothing |
+| Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff | nothing |
 
 ---
 
@@ -50,7 +56,8 @@ _Rows reflect repo + Linear evidence; each owner confirms/edits their own line a
 
 Raq clears these. Add a line when blocked, strike it when cleared.
 
-- **MVP hero live verification** — PR #27 adds docker-compose + `dev-db-setup.sh`; run `test_hero_end_to_end` after merge.
+- ~~**MVP hero live verification**~~ — cleared 2026-06-25: hero flow green on `main` (PR #29 API + #27 writer); `test_hero_moment` passes live; full API hero flow verified end-to-end.
+- **Frontend → live API** — backend contract merged + documented ([`docs/development/backend-local-setup.md`](docs/development/backend-local-setup.md)); Val wires the shell/sidebar (RCG-27/25/26). One browser run-through with a real Clerk token closes the Day-7 gate (RCG-32).
 - **Baseline model budget** — Michael/Raq still need eval config and model budget decisions.
 
 ---
@@ -60,9 +67,9 @@ Raq clears these. Add a line when blocked, strike it when cleared.
 | Gate                                                      | Day | Date       | Status                       | Owner               |
 | --------------------------------------------------------- | --- | ---------- | ---------------------------- | ------------------- |
 | Schema v3.1 spec + DDL authored + locked                  | 1-2 | Jun 18     | done                         | Alan + Raq          |
-| RCG-21 redemption graph-writer bridge                     | -   | Jun 24     | in PR #27                    | Michael + Raq       |
-| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7   | Jun 23     | slipped - recovery Jun 23-25 | Raq                 |
-| **MVP hero test green**                                   | -   | **Jun 25** | open                         | Raq + Michael       |
+| RCG-21 redemption graph-writer bridge                     | -   | Jun 24     | done (merged PR #27)         | Michael + Raq       |
+| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7   | Jun 23     | backend green; frontend wiring + Clerk browser run remain | Raq |
+| **MVP hero test green**                                   | -   | **Jun 25** | done (live `test_hero_moment` + API hero flow) | Raq + Michael       |
 | Layer 4 GO / NO-GO                                        | 10  | Jun 26     | open                         | Raq (lane: Michael) |
 | **Live demo** (10 min)                                    | 13  | Jun 29     | open                         | all                 |
 
@@ -72,7 +79,7 @@ Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and be
 
 ## Phase timeline
 
-**Current: Jun 23** - integration sprint; Jun 25 MVP gate is the line.
+**Current: Jun 25** — backend hero green on `main`; frontend wiring + Clerk browser run close the Day-7 gate.
 
 | Days  | Dates     | Focus                                                                                                                                       |
 | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -100,7 +107,6 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map                                                  | Raq        | `context/feature-specs/`                                                                                                                 |
 | Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`)                                  | Val        | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local`                                                               |
 | Jun 23 | Landing replaced with self-contained 3D-card hero (D029)                                                                   | Val        | scoped theme; see [design-context](context/design-context.md)                                                                            |
-| Jun 25 | Demo flow built end-to-end on fixtures (`/onboarding`: pick-cards → ask → agent console; streaming + live graph + replan)   | Val        | fixture-first / DB-ready (`DATABASE_URL` swap); RCG-24/26/27 done; cards/me/plan APIs; see [design-context](context/design-context.md) — uncommitted on `val/demo-flow` |
 |        | _Cash-price provider_                                                                                                      |            | open                                                                                                                                     |
 |        | _Hosted platform choice_                                                                                                   |            | open                                                                                                                                     |
 
@@ -123,5 +129,6 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 - Schema spec (current): [docs/architecture/schema-final.md](docs/architecture/schema-final.md) **v3.1** - Canonical DDL: [schema/schema.sql](schema/schema.sql)
 - Architecture context: [context/architecture-context.md](context/architecture-context.md) - Risk register: [context/risks-and-failure-modes.md](context/risks-and-failure-modes.md)
 - Feature specs: [context/feature-specs/](context/feature-specs/) - Workflow + implement prompt: [context/ai-workflow-rules.md](context/ai-workflow-rules.md)
+- Backend local setup: [docs/development/backend-local-setup.md](docs/development/backend-local-setup.md)
 - ADRs: [docs/adr/](docs/adr/) - [0001](docs/adr/0001-schema-lock.md) schema lock - [0002](docs/adr/0002-mvp-scope-trim.md) research apparatus - [0003](docs/adr/0003-team-four-eval-ownership.md) team + Layer 4
 - Per-person tracking: [tracking/](tracking/) - Linear project: Rewards Agent - Typed Graph Sprint (RCG)

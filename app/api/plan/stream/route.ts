@@ -1,4 +1,10 @@
+import { NextResponse } from "next/server";
+
 import { buildPlan, buildReplan } from "@/lib/plan/builder";
+import {
+  planQueryError,
+  selectedCardIdsError,
+} from "@/lib/plan/limits";
 import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
 import { getCurrentUserGraph } from "@/lib/user/current";
 
@@ -25,18 +31,23 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function GET(request: Request) {
   const graph = await getCurrentUserGraph();
   if (!graph) {
-    return new Response("Not signed in.", { status: 401 });
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
   const url = new URL(request.url);
   const queryText = (url.searchParams.get("q") ?? "").trim();
-  if (!queryText) {
-    return new Response("A goal (q) is required.", { status: 400 });
+  const queryError = planQueryError(queryText);
+  if (queryError) {
+    return NextResponse.json({ error: queryError }, { status: 400 });
   }
   const selectedCardIds = (url.searchParams.get("cards") ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const cardsError = selectedCardIdsError(selectedCardIds);
+  if (cardsError) {
+    return NextResponse.json({ error: cardsError }, { status: 400 });
+  }
   const isReplan = url.searchParams.get("replan") === "1";
 
   const encoder = new TextEncoder();
@@ -65,7 +76,6 @@ export async function GET(request: Request) {
           const replan = await buildReplan(graph, selectedCardIds, queryText);
           if (!replan) {
             send("error", { message: "No replan path available." });
-            controller.close();
             return;
           }
           await sleep(PACE_MS);

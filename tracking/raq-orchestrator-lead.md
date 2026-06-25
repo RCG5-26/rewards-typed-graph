@@ -22,6 +22,7 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 
 ## Recently done
 
+- Shipped the spec 07 API service (RCG-18, PR #29 → `main`): Hono + Clerk auth + CORS + 6 routes + SSE/REST mount + psql-subprocess hero bridge. Hero path (RCG-28/29) green and live-verified end-to-end; wrote [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md) for the frontend handoff.
 - Co-owned the schema lock → **v3.1 Accepted** (RCG-5 done, ADR 0001).
 - Built and reconciled the Linear board (RCG-5–63): eval harness re-homed to me as DRI; single-agent baseline reassigned to me; Layer 4 cut-by-default; added eval-report (RCG-62) + e2e-integration (RCG-63) tickets.
 - Wrote the feature-spec system + specs 02–06; the implement prompt; the source-of-truth map; README "how we work"; PR template; progress-tracker as AI memory + archive.
@@ -37,14 +38,14 @@ Update Today / Next / Blockers daily. Mirror your one-liner into the STATUS.md g
 | RCG-15 | Orchestrator + agent harness — [spec 05](../context/feature-specs/05-orchestrator-harness.md) | Day 1-5   | ◐ scaffolding on mocks  |
 | RCG-16 | Wallet agent — [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md)            | Day 3-5   | next                    |
 | RCG-17 | Earning agent — [spec 06](../context/feature-specs/06-wallet-and-earning-agents.md)           | Day 3-5   | next                    |
-| RCG-18 | Integration contract / API surface                                                            | Day 1-5   | next (→ spec 07)        |
+| RCG-18 | Integration contract / API surface (spec 07)                                                  | Day 1-5   | ✅ done (PR #29, live-verified) |
 | RCG-19 | Cross-lane conflict resolution path                                                           | Day 1-5   | pending write path      |
 | RCG-35 | Single-agent baseline (mine per ADR 0003)                                                     | Day 7-10  | not started             |
 | RCG-40 | Eval harness / benchmark runner (DRI)                                                         | Day 7-10  | not started             |
 | RCG-55 | Pre-commit benchmark win thresholds (all four sign off)                                       | Day 7     | not started             |
-| RCG-28 | Full Layer 1-3 integration (query → plan)                                                     | Day 5-7   | pending agents          |
-| RCG-29 | Hero Moment 1 (balance change → auto re-plan)                                                 | Day 5-7   | pending                 |
-| RCG-32 | Day 7 gate: end-to-end demo path working                                                      | Day 7     | open                    |
+| RCG-28 | Full Layer 1-3 integration (query → plan)                                                     | Day 5-7   | ✅ done (PR #20/#29, live)|
+| RCG-29 | Hero Moment 1 (balance change → auto re-plan)                                                 | Day 5-7   | ✅ done (PR #20/#29, live)|
+| RCG-32 | Day 7 gate: end-to-end demo path working                                                      | Day 7     | ◐ in progress (backend green; frontend wiring + Clerk browser run) |
 | RCG-39 | Day 10 Layer 4 GO / NO-GO decision                                                            | Day 10    | open                    |
 | RCG-62 | Head-to-head eval report + architecture write-up (co-own)                                     | Day 10-14 | blocked on RCG-37       |
 | RCG-47 | Demo script (persona, hero moments, head-to-head, closing)                                    | Day 10-14 | open                    |

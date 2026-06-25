@@ -13,17 +13,17 @@ The full post-sign-in spine runs without a backend: **sign in → pick cards →
 - **Three visible moments — done:** (1) typed mutations **stream** into the log + light the graph; (2) **Hero Moment 1** — replan: a transfer edge goes stale, revision superseded, new current revision ($1,050→$900); plan-node dependency view lights stale nodes.
 - **Identity:** Clerk Google name + avatar via `currentUser()`; any session resolves to the seeded demo persona for graph data (ADR-0006).
 - **Design pass:** instrument-grade refinement on design-system tokens — ledger dot-grid, mono numerals, dark full-height wallet rail, staggered card entrances.
-- **Status:** all uncommitted in the working tree on `val/demo-flow` (0 commits ahead of `main`).
+- **Status:** on `val/demo-flow` (PR #32); browser-verify authed flow next.
 
 ## Next
 
-- **Commit** the demo-flow work (grouped commits) + browser-verify the authed flow.
+- Browser-verify the authed fixture flow end-to-end.
 - **#4 — real backend:** flip `DATABASE_URL` (swaps all repos to Postgres) + point `/api/plan/stream` at `apps/api` `/mutations` SSE + the real `Orchestrator.run()`.
 - **RCG-45/46:** head-to-head baseline contrast + benchmark views (still design-only).
 
 ## Blocked on
 
-- nothing (fixture-first; real backend swap is the only remaining wire)
+- nothing. Fixture-first demo runs today; backend API + live SSE are merged on `main` and documented for the swap. Setup + contract: [`../docs/development/backend-local-setup.md`](../docs/development/backend-local-setup.md). API base `http://localhost:8787`, `Authorization: Bearer <getToken()>`, `GET /mutations/stream` for the sidebar, `POST /plans` (synchronous full plan), `fixtures/mock-*.json` for offline.
 
 ---
 
