@@ -495,3 +495,97 @@ Live Postgres hero smoke (session → create-plan → balance-transfer → demo-
 
 - Graduate `tests/integration/hero_flow.py` to a non-test package (`agents/hero/`) post-demo — bridge import path is the only line to change.
 - Live `tsx` server boot auto-verification — `tsx`'s IPC pipe is sandbox-incompatible; verify manually with `npm --prefix apps/api run dev`.
+
+## Entry 009 — RCG-60 Railway Deployment: API container + local verification (2026-06-25)
+
+### Tools and models used
+
+- Claude Code (Opus 4.8, 1M context) — `ce-work` execution skill.
+- Local: `docker` (Desktop), `npm`, `python3`, `psql`, `railway` CLI.
+
+### Platform decision
+
+Railway, per the RCG-60 brief and ADR 0004 (which lists Railway as an allowed
+managed-Postgres option). Scope this pass: **API container + managed Postgres**.
+Web deploy deferred — the frontend does not consume the API yet.
+
+### Dockerfile decisions (root `Dockerfile`)
+
+- Base `node:22-bookworm-slim`; apt-installs `python3`, `postgresql-client`,
+  `ca-certificates`. **No `pip install`** — the hero bridge imports only stdlib +
+  in-repo `schema.*`/`tests.integration.*` and shells out to `psql`.
+- **Install only `apps/api` deps** (`npm --prefix apps/api ci`). Deviation from the
+  brief's suggested dual `npm ci`: root `package.json` has no `workspaces` and is
+  the Next.js web app — root `npm ci` would install React/Next, irrelevant to the
+  API, and bloat the image. Verified `apps/api` is a standalone npm project.
+- `COPY . .` (full tree) so the Python bridge's `schema/`, `tests/integration/`,
+  `fixtures/` imports resolve. `.dockerignore` keeps those in; excludes
+  `node_modules`, `.next`, `.env*`, caches, `.git`.
+- `start` = `tsx src/server.ts` (no build step; `tsx` is a runtime dep).
+
+### Port decision
+
+Server reads `process.env.API_PORT ?? 8787` (`apps/api/src/server.ts:13`).
+Setting `API_PORT=8080` binds 8080 with **no code change** — verified locally. No
+`PORT` fallback added (not required). No Commit 2.
+
+### Commands executed (local) and results
+
+| Command | Result |
+|---|---|
+| `docker build --no-cache -t rcg-api .` | success, image **631 MB** |
+| `docker run rcg-api node --version` | `v22.23.1` |
+| `docker run rcg-api python3 --version` | `Python 3.11.2` |
+| `docker run rcg-api psql --version` | `psql (PostgreSQL) 15.18` |
+| `python3 -c "import schema.mutations; import tests.integration.hero_flow"` (in image) | `bridge-imports-ok` |
+| container `GET /health` (vs local Postgres via `host.docker.internal`) | `200 {"ok":true}` |
+| `docker stop` (SIGTERM) | graceful, 0s (npm CMD forwards signal) |
+| `npm --prefix apps/api run typecheck` | exit 0, no errors |
+| `npm --prefix apps/api test` (vitest) | **86 passed** (9 files), exit 0 |
+| `python3 -m unittest discover -v` | **88 passed, 8 skipped** (live), exit 0 |
+| `RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_test … test_hero_moment` | **2 passed** (8.07s), exit 0 |
+
+### Mistakes / review findings caught during the pass
+
+- Brief's import probe assumed `tests.integration.hero_flow` — confirmed correct
+  against `hero_bridge.py:38` (not a guess).
+- Initial container smoke test reported false failures: `curl --retry-connrefused`
+  does **not** retry on *connection reset* (error 56), which Docker Desktop's port
+  proxy returns before the app binds. The server was always healthy; fixed the
+  probe with `--retry-all-errors`. Documented in `docs/deployment/railway.md`.
+- Brief's dual `npm ci` corrected to `apps/api`-only (see Dockerfile decisions).
+
+### Railway config (documented, not yet executed)
+
+`docs/deployment/railway.md` records: API service from root Dockerfile, target
+port 8080, health check `/health`, **min instances = 1 / no scale-to-zero**
+(ADR 0004 — SSE + replan + subprocess need a persistent process), restart on
+failure, and the full variable table. Schema/seed via `psql`/`load_seed.py`
+(`--include-demo-persona`, verified to exist at `scripts/load_seed.py:277`), with
+the `PGSSLMODE=require` external variant and the reason `dev-db-setup.sh` must not
+be used remotely (host + `*_test` guard).
+
+### Documentation changes
+
+- `Dockerfile`, `.dockerignore` (new).
+- `docs/deployment/railway.md` (new, canonical).
+- `README.md` — concise deploy link.
+- `.env.example` — commented hosted-deployment variables (placeholders only).
+
+### Deferred / blocked (external gate)
+
+`IMPLEMENTED — EXTERNAL DEPLOYMENT GATE REMAINS`. Not yet done, requires
+user-owned external resources:
+
+- Railway project provision + Postgres + `railway up` (paid, user's account).
+- Hosted `/health`, real Clerk Bearer-token `/session`, hosted Plan/replan,
+  hosted SSE, `/demo/reset` — a Clerk session token cannot be generated
+  server-side.
+- Web deploy + browser run — blocked on the frontend consuming
+  `NEXT_PUBLIC_API_BASE_URL` (Val-owned; no consumer exists yet).
+
+### Secrets
+
+No secrets recorded. No `.env` read for values; `.env.example` holds placeholders
+only; `DATABASE_URL`/tokens never logged. Local verification used the throwaway
+`rewards:rewards@…/rewards_test` compose credentials only.
