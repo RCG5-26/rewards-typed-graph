@@ -255,10 +255,9 @@ describe("OnboardingFlow demo reset", () => {
     errorSpy.mockRestore();
   });
 
-  it("clears the stale graph and returns to cards when the post-reset refetch fails", async () => {
-    // Reset succeeds, but the follow-up /api/me refetch is non-ok. The refetch
-    // is best-effort (like bootstrap), so `me` is cleared rather than surfacing
-    // a misleading "reset failed" error — the greeting just disappears.
+  it("surfaces feedback and clears the stale graph when the post-reset refetch fails", async () => {
+    // Reset succeeds, but the follow-up /api/me refetch is non-ok. The user
+    // should see explicit feedback while the flow still returns to cards.
     let meCalls = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
@@ -282,10 +281,10 @@ describe("OnboardingFlow demo reset", () => {
 
     fireEvent.click(restart);
 
-    // Back on the cards step (restart/AgentConsole unmounted)...
-    await waitFor(() => expect(screen.queryByTestId("restart")).toBeNull());
-    // ...the refetch was attempted (bootstrap + post-reset), and because it
-    // failed the graph was cleared, so the stale greeting is gone.
+    await waitFor(() =>
+      expect(screen.getByText(/balance could not be refreshed/i)).toBeTruthy(),
+    );
+    expect(screen.queryByTestId("restart")).toBeNull();
     expect(meCalls).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText(/welcome back/i)).toBeNull();
   });

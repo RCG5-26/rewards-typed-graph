@@ -93,7 +93,14 @@ export default function OnboardingFlow() {
         const graph = await fetch("/api/me")
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null);
-        setMe(graph && isUserGraph(graph) ? graph : null);
+        if (graph && isUserGraph(graph)) {
+          setMe(graph);
+        } else {
+          setMe(null);
+          setError(
+            "Demo was reset, but your balance could not be refreshed. You can keep going from the cards step.",
+          );
+        }
       }
     } catch (err) {
       console.error("demo reset failed", err);
