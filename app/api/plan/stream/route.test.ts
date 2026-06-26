@@ -70,7 +70,7 @@ describe("GET /api/plan/stream", () => {
   it("initial stream: meta → mutations → done(revision=1) [RCG-25]", async () => {
     const { createPlan } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(createPlan).mockResolvedValue(mockPlan.createPlan as ApiPlan);
 
     const response = await GET(makeRequest("?q=test+query"));
@@ -89,7 +89,7 @@ describe("GET /api/plan/stream", () => {
   it("replan stream: invalidation → meta → mutations → done(revision=2) [RCG-26]", async () => {
     const { balanceTransfer, getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
     vi.mocked(balanceTransfer).mockResolvedValue(
       mockPlan.balanceTransfer as ApiBalanceTransferResponse,
