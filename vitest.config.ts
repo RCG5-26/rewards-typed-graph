@@ -8,6 +8,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    setupFiles: ["./test/setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
     // Glob patterns match nested paths too: apps/api has its own runner, and
     // .claude/worktrees holds full repo copies (agent worktrees) that must not
