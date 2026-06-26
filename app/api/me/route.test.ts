@@ -108,7 +108,7 @@ describe("GET /api/me", () => {
     const body = await response.json();
 
     expect(response.status).toBe(401);
-    expect(body).toHaveProperty("error");
+    expect(body).toEqual({ error: "Not signed in." });
     expect(mockResolveSessionGraph).not.toHaveBeenCalled();
   });
 
@@ -119,7 +119,7 @@ describe("GET /api/me", () => {
     const body = await response.json();
 
     expect(response.status).toBe(403);
-    expect(body).toHaveProperty("error");
+    expect(body).toEqual({ error: "Account not provisioned." });
     expect(mockResolveSessionGraph).not.toHaveBeenCalled();
   });
 
@@ -161,10 +161,7 @@ describe("GET /api/me", () => {
     mockGetSession.mockResolvedValue({ userId: "u1", clerkId: CLERK_ID, seeded: true });
     mockResolveSessionGraph.mockResolvedValue({
       ok: false,
-      response: NextResponse.json(
-        { error: "Could not load your account." },
-        { status: 500 },
-      ),
+      response: NextResponse.json({ error: "Could not load your account." }, { status: 500 }),
     });
 
     const response = await GET();
