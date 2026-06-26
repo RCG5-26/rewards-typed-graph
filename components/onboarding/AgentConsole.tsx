@@ -15,6 +15,7 @@ import type {
 } from "@/lib/plan/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
+import NodeDetailPopover from "./NodeDetailPopover";
 import TypedGraph, { type HoverNode } from "./TypedGraph";
 
 type ConsoleView = "plan" | "baselines" | "benchmark";
@@ -188,75 +189,16 @@ export default function AgentConsole({
       >
         <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
 
-        {selected && (() => {
-          const node = graph.nodes.find((n) => n.id === selected.id);
-          const ops = mutations.filter((m) => m.nodeId === selected.id);
-          const isLit = lit.has(selected.id);
-          const state = node?.state ?? "active";
-          const pw = railRef.current?.clientWidth ?? 0;
-          const left = pw ? Math.min(Math.max(selected.x, 132), pw - 132) : selected.x;
-          const above = selected.y > 220;
-          return (
-            <div
-              className="absolute z-20 w-[252px] rounded-xl p-3.5"
-              style={{
-                left,
-                top: selected.y,
-                transform: above ? "translate(-50%, calc(-100% - 20px))" : "translate(-50%, 20px)",
-                background: "rgba(10,16,28,0.94)",
-                border: "1px solid rgba(134,168,255,0.32)",
-                boxShadow: "0 10px 34px rgba(4,8,20,0.55), inset 0 0 0 1px rgba(125,166,255,0.06)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate font-display text-sm font-semibold text-white">{selected.label}</div>
-                  <div className="mt-0.5 font-mono text-2xs font-semibold uppercase tracking-wide text-[#a0beff]/80">
-                    {selected.kind}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="-mr-1 -mt-1 flex-none rounded-md px-1.5 py-0.5 text-sm leading-none text-[#a0beff]/60 transition hover:text-white"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="mt-2.5 flex items-center gap-1.5">
-                <span
-                  className="rounded font-mono text-2xs font-semibold"
-                  style={{
-                    color: isLit ? "var(--status-current)" : "#a0beff",
-                    background: isLit ? "var(--status-current-bg)" : "rgba(134,168,255,0.12)",
-                    padding: "2px 7px",
-                  }}
-                >
-                  {state}
-                </span>
-                {ops.length > 0 && (
-                  <span className="font-mono text-2xs text-[#a0beff]/60">{ops.length} op{ops.length > 1 ? "s" : ""}</span>
-                )}
-              </div>
-
-              {ops.length > 0 && (
-                <div className="mt-2.5 flex flex-col gap-1">
-                  {ops.slice(-3).map((op) => (
-                    <div key={op.seq} className="flex items-center gap-1.5">
-                      <span className="rounded px-1.5 py-0.5 font-mono text-2xs font-semibold" style={{ color: opColor(op.op), background: `${opColor(op.op)}1f` }}>
-                        {op.op}
-                      </span>
-                      <span className="truncate font-mono text-2xs text-[#bed2fa]/70">{op.detail}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {selected && (
+          <NodeDetailPopover
+            node={selected}
+            state={graph.nodes.find((n) => n.id === selected.id)?.state ?? "active"}
+            isLit={lit.has(selected.id)}
+            ops={mutations.filter((m) => m.nodeId === selected.id)}
+            containerWidth={railRef.current?.clientWidth ?? 0}
+            onClose={() => setSelected(null)}
+          />
+        )}
 
         <div className="pointer-events-none relative z-10">
           <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
