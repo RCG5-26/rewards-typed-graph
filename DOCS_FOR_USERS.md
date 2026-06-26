@@ -22,6 +22,7 @@ python scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
 - Review Person C's first redemption scenario: a seeded Tokyo Hyatt trip using Chase Ultimate Rewards points.
 - Write that seeded redemption plan into the project database as a current plan with plan steps and dependency records.
 - Run the current demo path locally: create the Tokyo plan, transfer Chase points to Hyatt, watch the old plan become stale or superseded, and show the new current plan.
+- Use the signed-in demo shell to see the typed-graph traversal path for each user's cloned demo persona.
 - Use the Layer 4 cut runbook in `docs/demo/layer4-cut-contingency.md` when rehearsing the June 29 demo.
 - Run the Person C planner tests with:
 
@@ -58,4 +59,5 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added the RCG-51 clean demo contingency for the Layer 4 cut, with a presenter runbook and a checked fixture for the Layers 1-3 path.
 - Expanded the Person C benchmark to 30 seeded questions across earning, redemption, and portfolio scenarios.
 - Added explicit benchmark metric breakdowns for hallucination cases and invalidation wins by kind.
+- The plan API now includes typed graph details, so signed-in users see the traversal view even though their personal demo data uses cloned IDs.
 - Added free-text multi-agent baseline reporting and a comparison report across typed-graph, single-agent, and free-text benchmark architectures.

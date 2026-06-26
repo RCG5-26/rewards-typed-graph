@@ -243,7 +243,7 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
         _format_psql_query(
             """
             SELECT id, step_order, step_type, status,
-                   payload->>'action', payload->>'reasoning'
+                   payload::text, payload->>'action', payload->>'reasoning'
               FROM plan_steps
              WHERE plan_id = %s
              ORDER BY step_order
@@ -252,18 +252,32 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
         )
     )
 
-    depends_by_step = _depends_on_by_step(plan_id)
-    steps = [
-        {
-            "order": int(step_order),
-            "type": step_type,
-            "summary": action or "",
-            "reasoning": reasoning or "",
-            "status": status_value,
-            "dependsOn": depends_by_step.get(str(step_id), []),
-        }
-        for (step_id, step_order, step_type, status_value, action, reasoning) in step_rows
-    ]
+    dependencies_by_step = _dependencies_by_step(plan_id)
+    steps = []
+    step_payloads: list[dict[str, Any]] = []
+    for (
+        step_id,
+        step_order,
+        step_type,
+        status_value,
+        payload_text,
+        action,
+        reasoning,
+    ) in step_rows:
+        payload = _json_object(payload_text)
+        step_payloads.append(payload)
+        dependencies = dependencies_by_step.get(str(step_id), [])
+        steps.append(
+            {
+                "order": int(step_order),
+                "type": step_type,
+                "summary": action or "",
+                "reasoning": reasoning or "",
+                "status": status_value,
+                "dependsOn": [dependency["id"] for dependency in dependencies],
+                "dependencies": dependencies,
+            }
+        )
 
     return {
         "planId": str(plan_id),
@@ -273,15 +287,20 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
         "query": query_text,
         "summary": summary,
         "steps": steps,
+        "graph": _build_plan_graph(steps, step_payloads),
     }
 
 
-def _depends_on_by_step(plan_id: str) -> dict[str, list[str]]:
-    """Map each plan-step id to the ``state_dependencies`` target node ids it reads."""
+def _dependencies_by_step(plan_id: str) -> dict[str, list[dict[str, Any]]]:
+    """Map each plan-step id to typed dependency metadata for its graph reads."""
     rows = _psql_rows(
         _format_psql_query(
             """
-            SELECT sd.plan_step_id, sd.target_node_id
+            SELECT sd.plan_step_id,
+                   sd.target_node_id,
+                   sd.target_node_type,
+                   sd.target_table,
+                   sd.snapshot_value::text
               FROM state_dependencies sd
               JOIN plan_steps ps ON ps.id = sd.plan_step_id
              WHERE ps.plan_id = %s
@@ -290,12 +309,377 @@ def _depends_on_by_step(plan_id: str) -> dict[str, list[str]]:
             (plan_id,),
         )
     )
-    grouped: dict[str, list[str]] = {}
-    for plan_step_id, target_node_id in rows:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for (
+        plan_step_id,
+        target_node_id,
+        target_node_type,
+        target_table,
+        snapshot_value,
+    ) in rows:
         if target_node_id is None:
             continue
-        grouped.setdefault(str(plan_step_id), []).append(str(target_node_id))
+        grouped.setdefault(str(plan_step_id), []).append(
+            _dependency_metadata(
+                target_node_id=str(target_node_id),
+                target_node_type=str(target_node_type),
+                target_table=str(target_table),
+                snapshot_value=_json_object(snapshot_value),
+            )
+        )
     return grouped
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    """Return a JSON object from a psql text field, or an empty object."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str) or not value:
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _dependency_metadata(
+    *,
+    target_node_id: str,
+    target_node_type: str,
+    target_table: str,
+    snapshot_value: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve a polymorphic dependency id to typed display metadata."""
+    if target_table == "user_balances":
+        rows = _psql_rows(
+            _format_psql_query(
+                """
+                SELECT rp.id, rp.slug, rp.name
+                  FROM user_balances ub
+                  JOIN reward_programs rp ON rp.id = ub.program_id
+                 WHERE ub.id = %s
+                """,
+                (target_node_id,),
+            )
+        )
+        if rows:
+            program_id, slug, label = rows[0]
+            return _dependency_view(
+                target_node_id,
+                target_node_type,
+                target_table,
+                str(slug),
+                str(label),
+                str(program_id),
+            )
+        slug = str(snapshot_value.get("program_slug") or target_node_id)
+        return _dependency_view(
+            target_node_id,
+            target_node_type,
+            target_table,
+            slug,
+            _label_from_slug(slug),
+            None,
+        )
+
+    if target_table == "user_program_statuses":
+        rows = _psql_rows(
+            _format_psql_query(
+                """
+                SELECT rp.id, rp.slug, rp.name
+                  FROM user_program_statuses ups
+                  JOIN reward_programs rp ON rp.id = ups.program_id
+                 WHERE ups.id = %s
+                """,
+                (target_node_id,),
+            )
+        )
+        if rows:
+            program_id, slug, label = rows[0]
+            return _dependency_view(
+                target_node_id,
+                target_node_type,
+                target_table,
+                str(slug),
+                str(label),
+                str(program_id),
+            )
+
+    if target_table == "reward_programs":
+        rows = _psql_rows(
+            _format_psql_query(
+                "SELECT id, slug, name FROM reward_programs WHERE id = %s",
+                (target_node_id,),
+            )
+        )
+        if rows:
+            program_id, slug, label = rows[0]
+            return _dependency_view(
+                target_node_id,
+                target_node_type,
+                target_table,
+                str(slug),
+                str(label),
+                str(program_id),
+            )
+
+    if target_table == "transfers_to":
+        rows = _psql_rows(
+            _format_psql_query(
+                """
+                SELECT src.slug, src.name, dest.id, dest.slug, dest.name
+                  FROM transfers_to route
+                  JOIN reward_programs src ON src.id = route.source_program_id
+                  JOIN reward_programs dest ON dest.id = route.dest_program_id
+                 WHERE route.id = %s
+                """,
+                (target_node_id,),
+            )
+        )
+        if rows:
+            src_slug, src_name, dest_id, dest_slug, dest_name = rows[0]
+            slug = _transfer_slug(str(src_slug), str(dest_slug))
+            label = f"{src_name} -> {dest_name}"
+            return _dependency_view(
+                target_node_id,
+                target_node_type,
+                target_table,
+                slug,
+                label,
+                str(dest_id),
+            )
+
+    if target_table == "redemption_options":
+        rows = _psql_rows(
+            _format_psql_query(
+                """
+                SELECT ro.program_id,
+                       rp.slug,
+                       COALESCE(ro.description, rp.name)
+                  FROM redemption_options ro
+                  JOIN reward_programs rp ON rp.id = ro.program_id
+                 WHERE ro.id = %s
+                """,
+                (target_node_id,),
+            )
+        )
+        if rows:
+            program_id, program_slug, label = rows[0]
+            return _dependency_view(
+                target_node_id,
+                target_node_type,
+                target_table,
+                f"redemption:{target_node_id}",
+                str(label),
+                str(program_id),
+                program_slug=str(program_slug),
+            )
+
+    return _dependency_view(
+        target_node_id,
+        target_node_type,
+        target_table,
+        str(snapshot_value.get("slug") or target_node_id),
+        str(snapshot_value.get("label") or _label_from_slug(target_node_type)),
+        None,
+    )
+
+
+def _dependency_view(
+    target_node_id: str,
+    target_node_type: str,
+    target_table: str,
+    slug: str,
+    label: str,
+    program_id: str | None,
+    *,
+    program_slug: str | None = None,
+) -> dict[str, Any]:
+    view = {
+        "id": target_node_id,
+        "kind": target_node_type,
+        "table": target_table,
+        "slug": slug,
+        "label": label,
+        "programId": program_id,
+    }
+    if program_slug is not None:
+        view["programSlug"] = program_slug
+    return view
+
+
+def _build_plan_graph(
+    steps: list[dict[str, Any]],
+    step_payloads: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Build the typed traversal projection consumed by the database-less web tier."""
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: dict[str, dict[str, Any]] = {}
+    last_dest_program_slug: str | None = None
+
+    for step, payload in zip(steps, step_payloads, strict=True):
+        for dependency in step["dependencies"]:
+            if dependency["slug"].startswith("program:"):
+                _add_program_node(
+                    nodes,
+                    dependency["slug"],
+                    label=dependency["label"],
+                    program_id=dependency["programId"],
+                )
+
+        planner_payload = payload.get("planner_payload")
+        planner = planner_payload if isinstance(planner_payload, dict) else {}
+        candidate_fact_slugs = planner.get("candidate_fact_slugs") or []
+        candidate_slugs = [
+            slug
+            for slug in candidate_fact_slugs
+            if isinstance(slug, str)
+        ]
+        candidate_transfer = next(
+            (slug for slug in candidate_slugs if slug.startswith("transfer:")),
+            None,
+        )
+
+        source_slug = _string_or_none(planner.get("source_program_slug"))
+        dest_slug = _string_or_none(planner.get("dest_program_slug"))
+        if source_slug is None or dest_slug is None:
+            parsed_source, parsed_dest = _parse_transfer_slug(candidate_transfer)
+            source_slug = source_slug or parsed_source
+            dest_slug = dest_slug or parsed_dest
+
+        if source_slug is not None:
+            _add_program_node(nodes, source_slug)
+        if dest_slug is not None:
+            _add_program_node(nodes, dest_slug)
+            last_dest_program_slug = dest_slug
+
+        if (
+            step["type"] == "transfer_recommendation"
+            and source_slug is not None
+            and dest_slug is not None
+        ):
+            edge_id = candidate_transfer or _transfer_slug(source_slug, dest_slug)
+            edges[edge_id] = {
+                "id": edge_id,
+                "from": source_slug,
+                "to": dest_slug,
+                "kind": "transfer",
+            }
+
+        award_slug = _string_or_none(planner.get("award_slug"))
+        if award_slug is None:
+            award_slug = next(
+                (slug for slug in candidate_slugs if slug.startswith("award:")),
+                None,
+            )
+        if award_slug is None:
+            continue
+
+        program_slug = dest_slug or last_dest_program_slug or _program_slug_from_dependencies(
+            step["dependencies"]
+        )
+        if program_slug is None:
+            continue
+        _add_program_node(nodes, program_slug)
+
+        award_label = _string_or_none(planner.get("hotel_name")) or step["summary"]
+        nodes[award_slug] = {
+            "id": award_slug,
+            "kind": "redemption",
+            "slug": award_slug,
+            "label": award_label,
+            "programId": _program_id_for_slug(program_slug),
+        }
+        edge_id = f"redeem:{program_slug}->{award_slug}"
+        edges[edge_id] = {
+            "id": edge_id,
+            "from": program_slug,
+            "to": award_slug,
+            "kind": "redeem",
+        }
+
+    return {"nodes": list(nodes.values()), "edges": list(edges.values())}
+
+
+def _add_program_node(
+    nodes: dict[str, dict[str, Any]],
+    slug: str,
+    *,
+    label: str | None = None,
+    program_id: str | None = None,
+) -> None:
+    if slug in nodes:
+        if label and nodes[slug].get("label") == _label_from_slug(slug):
+            nodes[slug]["label"] = label
+        if program_id and nodes[slug].get("programId") is None:
+            nodes[slug]["programId"] = program_id
+        return
+
+    program = _program_by_slug(slug)
+    nodes[slug] = {
+        "id": slug,
+        "kind": "program",
+        "slug": slug,
+        "label": label or program.get("label") or _label_from_slug(slug),
+        "programId": program_id or program.get("programId"),
+    }
+
+
+def _program_by_slug(slug: str) -> dict[str, str | None]:
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT id, name FROM reward_programs WHERE slug = %s",
+            (slug,),
+        )
+    )
+    if not rows:
+        return {"programId": None, "label": None}
+    program_id, label = rows[0]
+    return {"programId": str(program_id), "label": str(label)}
+
+
+def _program_id_for_slug(slug: str) -> str | None:
+    return _program_by_slug(slug).get("programId")
+
+
+def _program_slug_from_dependencies(
+    dependencies: list[dict[str, Any]],
+) -> str | None:
+    for dependency in dependencies:
+        slug = dependency.get("slug")
+        if isinstance(slug, str) and slug.startswith("program:"):
+            return slug
+        program_slug = dependency.get("programSlug")
+        if isinstance(program_slug, str) and program_slug.startswith("program:"):
+            return program_slug
+    return None
+
+
+def _parse_transfer_slug(slug: str | None) -> tuple[str | None, str | None]:
+    if not slug or not slug.startswith("transfer:"):
+        return None, None
+    parts = slug.split(":")
+    if len(parts) != 3:
+        return None, None
+    return f"program:{parts[1]}", f"program:{parts[2]}"
+
+
+def _transfer_slug(source_slug: str, dest_slug: str) -> str:
+    return f"transfer:{_strip_prefix(source_slug)}:{_strip_prefix(dest_slug)}"
+
+
+def _strip_prefix(slug: str) -> str:
+    return slug.split(":", 1)[1] if ":" in slug else slug
+
+
+def _string_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _label_from_slug(slug: str) -> str:
+    tail = _strip_prefix(slug)
+    return tail.replace("_", " ").replace("-", " ").title()
 
 
 def resolve_balance(user_id: str, program_id: str) -> tuple[str, int]:

@@ -28,8 +28,44 @@ const samplePlan: PlanView = {
       reasoning: "1:1 transfer path covers the award.",
       status: "current",
       dependsOn: ["balance-node-1"],
+      dependencies: [
+        {
+          id: "balance-node-1",
+          kind: "UserBalance",
+          table: "user_balances",
+          slug: "program:chase_ur",
+          label: "Chase Ultimate Rewards",
+          programId: "program-node-1",
+        },
+      ],
     },
   ],
+  graph: {
+    nodes: [
+      {
+        id: "program:chase_ur",
+        kind: "program",
+        slug: "program:chase_ur",
+        label: "Chase Ultimate Rewards",
+        programId: "program-node-1",
+      },
+      {
+        id: "program:hyatt",
+        kind: "program",
+        slug: "program:hyatt",
+        label: "World of Hyatt",
+        programId: "program-node-2",
+      },
+    ],
+    edges: [
+      {
+        id: "transfer:chase_ur:hyatt",
+        from: "program:chase_ur",
+        to: "program:hyatt",
+        kind: "transfer",
+      },
+    ],
+  },
 };
 
 function createFakeService(overrides: Partial<PlanService> = {}): PlanService {
@@ -154,9 +190,7 @@ describe("plan routes", () => {
 
   it("returns the current plan for a known lineage", async () => {
     const app = createTestApp(createFakeService());
-    const res = await app.request(
-      `/plans/current?lineageId=${samplePlan.planLineageId}`,
-    );
+    const res = await app.request(`/plans/current?lineageId=${samplePlan.planLineageId}`);
     expect(res.status).toBe(200);
   });
 

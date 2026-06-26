@@ -6,6 +6,64 @@ import type { ApiPlan, ApiSessionResponse } from "./types";
 const rev1: ApiPlan = mockPlan.createPlan as ApiPlan;
 const rev2: ApiPlan = mockPlan.balanceTransfer.currentPlan as ApiPlan;
 
+const clonedGraphRev1 = {
+  ...rev1,
+  steps: rev1.steps.map((step) => ({
+    ...step,
+    dependsOn: [`clone-${step.order}`],
+  })),
+  graph: {
+    nodes: [
+      {
+        id: "program:chase_ur",
+        kind: "program",
+        slug: "program:chase_ur",
+        label: "Chase Ultimate Rewards",
+        programId: "00000000-0000-0000-0000-00000000b001",
+      },
+      {
+        id: "program:hyatt",
+        kind: "program",
+        slug: "program:hyatt",
+        label: "World of Hyatt",
+        programId: "00000000-0000-0000-0000-00000000b002",
+      },
+      {
+        id: "award:demo_hyatt_ginza:tokyo:3n",
+        kind: "redemption",
+        slug: "award:demo_hyatt_ginza:tokyo:3n",
+        label: "Demo Hyatt Ginza",
+        programId: "00000000-0000-0000-0000-00000000b002",
+      },
+    ],
+    edges: [
+      {
+        id: "transfer:chase_ur:hyatt",
+        from: "program:chase_ur",
+        to: "program:hyatt",
+        kind: "transfer",
+      },
+      {
+        id: "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+        from: "program:hyatt",
+        to: "award:demo_hyatt_ginza:tokyo:3n",
+        kind: "redeem",
+      },
+    ],
+  },
+} satisfies ApiPlan;
+
+const clonedGraphRev2 = {
+  ...clonedGraphRev1,
+  planId: "revision-2",
+  revisionNumber: 2,
+  steps: clonedGraphRev1.steps.filter((step) => step.type !== "transfer_recommendation"),
+  graph: {
+    nodes: clonedGraphRev1.graph.nodes.filter((node) => node.id !== "program:chase_ur"),
+    edges: clonedGraphRev1.graph.edges.filter((edge) => edge.kind !== "transfer"),
+  },
+} satisfies ApiPlan;
+
 describe("toPlanResult", () => {
   it("maps revisionNumber → revision and preserves planId/lineageId", () => {
     const result = toPlanResult(rev1);
@@ -51,6 +109,22 @@ describe("toPlanResult", () => {
     const result = toPlanResult(rev1);
     expect(result.graph.nodes.length).toBeGreaterThan(0);
     expect(result.liveNodes).toBe(result.graph.nodes.length);
+  });
+
+  it("uses API graph metadata instead of template dependency UUIDs", () => {
+    const result = toPlanResult(clonedGraphRev1);
+
+    expect(result.steps[0].deps).toEqual(["clone-1"]);
+    expect(result.graph.nodes.map((node) => node.id)).toEqual([
+      "program:chase_ur",
+      "program:hyatt",
+      "award:demo_hyatt_ginza:tokyo:3n",
+    ]);
+    expect(result.graph.edges.map((edge) => edge.id)).toEqual([
+      "transfer:chase_ur:hyatt",
+      "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+    ]);
+    expect(result.liveNodes).toBe(3);
   });
 
   it("includes agentRunIds as an array", () => {
@@ -103,12 +177,16 @@ describe("diffStale", () => {
         ...step,
         dependsOn: step.dependsOn.filter((id) => id !== "00000000-0000-0000-0000-00000000f001"),
       })),
+      graph: {
+        nodes: rev2.graph.nodes.filter((node) => node.id !== "award:demo_hyatt_ginza:tokyo:3n"),
+        edges: rev2.graph.edges.filter((edge) => edge.to !== "award:demo_hyatt_ginza:tokyo:3n"),
+      },
     };
 
     const result = diffStale(rev1WithDroppedRedemption, rev2WithoutDroppedRedemption);
 
     expect(result.staleEdgeId).toBeTruthy();
-    expect(result.staleNodeIds).toEqual(["redeem:00000000-0000-0000-0000-00000000f001"]);
+    expect(result.staleNodeIds).toEqual(["award:demo_hyatt_ginza:tokyo:3n"]);
     expect(result.reason).toBeTruthy();
     expect(result.mutation.op).toBe("STALE");
     expect(result.mutation.agentType).toBe("system");
@@ -118,6 +196,14 @@ describe("diffStale", () => {
     const result = diffStale(rev1, rev1);
     expect(result.staleEdgeId).toBe("");
     expect(result.staleNodeIds).toEqual([]);
+  });
+
+  it("detects stale transfer edges from graph metadata with cloned dependency UUIDs", () => {
+    const result = diffStale(clonedGraphRev1, clonedGraphRev2);
+
+    expect(result.staleEdgeId).toBe("transfer:chase_ur:hyatt");
+    expect(result.mutation.nodeId).toBe("program:chase_ur");
+    expect(result.reason).toContain("Chase Ultimate Rewards");
   });
 });
 
