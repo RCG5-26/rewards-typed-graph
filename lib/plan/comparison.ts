@@ -70,3 +70,11 @@ export function deriveComparison(m: LiveMetrics): Comparison {
 
 /** Compact token label, e.g. 4350 → "4.4k". */
 export const fmtTokens = (n: number) => `${(n / 1000).toFixed(1)}k`;
+
+/**
+ * Whole-dollar label from cents; em dash when zero so a not-yet-resolved plan
+ * value never renders as a misleading "$0". Shared by the baselines + benchmark
+ * tabs and the console header so the formatting never drifts.
+ */
+export const dollars = (cents: number) =>
+  cents === 0 ? "—" : `$${Math.round(cents / 100).toLocaleString("en-US")}`;

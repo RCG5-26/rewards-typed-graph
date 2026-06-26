@@ -2,6 +2,7 @@
 
 import {
   deriveComparison,
+  dollars,
   fmtTokens,
   type LiveMetrics,
 } from "@/lib/plan/comparison";
@@ -18,9 +19,6 @@ import {
  * session. The baseline value/token figures are derived from those live numbers
  * via the documented model — illustrative projections, not a real CrewAI run.
  */
-
-const dollars = (cents: number) =>
-  cents === 0 ? "—" : `$${Math.round(cents / 100).toLocaleString("en-US")}`;
 
 type Mark = "ok" | "bad" | "warn";
 

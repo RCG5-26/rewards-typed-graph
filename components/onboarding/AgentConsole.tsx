@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { LiveMetrics } from "@/lib/plan/comparison";
+import { dollars, type LiveMetrics } from "@/lib/plan/comparison";
 import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
@@ -41,10 +41,6 @@ const STATUS_VARS: Record<StepStatus, { color: string; bg: string }> = {
 };
 
 type Meta = Omit<PlanResult, "mutations">;
-
-function dollars(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
-}
 
 /** Merge a streamed revision's graph into the live map (never deletes). */
 function mergeGraph(prev: PlanGraph, next: PlanGraph): PlanGraph {
