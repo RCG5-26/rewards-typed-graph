@@ -118,6 +118,47 @@ describe("apiFetch", () => {
     await assertion;
   });
 
+  it("keeps the timeout active while parsing a stalled response body", async () => {
+    vi.useFakeTimers();
+    process.env.API_FETCH_TIMEOUT_MS = "5";
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            });
+          }),
+      }),
+    );
+    const { apiFetch } = await getClient();
+
+    let settled: "pending" | "resolved" | "rejected" = "pending";
+    let rejection: unknown;
+    void apiFetch("/plans", { method: "POST", body: {}, token: "t" }).then(
+      () => {
+        settled = "resolved";
+      },
+      (error) => {
+        settled = "rejected";
+        rejection = error;
+      },
+    );
+    await vi.advanceTimersByTimeAsync(5);
+    await Promise.resolve();
+
+    expect(settled).toBe("rejected");
+    expect(rejection).toMatchObject({
+      kind: {
+        kind: "server-error",
+        status: 504,
+        message: "Hono API request timed out",
+      },
+    });
+  });
+
   it("throws misconfigured ApiError when API_BASE_URL is not set", async () => {
     delete process.env.API_BASE_URL;
     const { apiFetch } = await import("./client");

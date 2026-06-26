@@ -40,9 +40,8 @@ export async function apiFetch<T>(path: string, opts: FetchOpts): Promise<T> {
   const url = `${baseUrl()}${path}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs());
-  let res: Response;
   try {
-    res = await fetch(url, {
+    const res = await fetch(url, {
       method: opts.method,
       headers: {
         "Content-Type": "application/json",
@@ -51,7 +50,26 @@ export async function apiFetch<T>(path: string, opts: FetchOpts): Promise<T> {
       signal: controller.signal,
       ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new ApiError({ kind: "not-signed-in", status: 401 });
+      }
+      if (res.status === 403) {
+        throw new ApiError({ kind: "unprovisioned", status: 403 });
+      }
+      throw new ApiError({
+        kind: "server-error",
+        status: res.status,
+        message: `Hono API responded ${res.status}`,
+      });
+    }
+
+    return (await res.json()) as T;
   } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
     if (controller.signal.aborted || (error as Error).name === "AbortError") {
       throw new ApiError({
         kind: "server-error",
@@ -67,22 +85,6 @@ export async function apiFetch<T>(path: string, opts: FetchOpts): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      throw new ApiError({ kind: "not-signed-in", status: 401 });
-    }
-    if (res.status === 403) {
-      throw new ApiError({ kind: "unprovisioned", status: 403 });
-    }
-    throw new ApiError({
-      kind: "server-error",
-      status: res.status,
-      message: `Hono API responded ${res.status}`,
-    });
-  }
-
-  return res.json() as Promise<T>;
 }
 
 export async function getSession(token: string): Promise<ApiSessionResponse> {
