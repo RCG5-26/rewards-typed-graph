@@ -43,6 +43,9 @@ const STATUS_VARS: Record<StepStatus, { color: string; bg: string }> = {
 
 type Meta = Omit<PlanResult, "mutations">;
 
+/** Where a keyboard-selected node's popover anchors (no pointer coordinates). */
+const KEYBOARD_POPOVER_Y = 160;
+
 /** Merge a streamed revision's graph into the live map (never deletes). */
 function mergeGraph(prev: PlanGraph, next: PlanGraph): PlanGraph {
   const nodes = new Map(prev.nodes.map((n) => [n.id, n]));
@@ -179,6 +182,22 @@ export default function AgentConsole({
     openStream(true);
   }
 
+  // Keyboard-accessible entry point to the same node detail the canvas exposes
+  // via pointer. The canvas is aria-hidden, so this is the only path for
+  // keyboard / assistive-tech users; it anchors the popover centered in the rail.
+  function selectNodeById(id: string) {
+    const node = graph.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const railWidth = railRef.current?.clientWidth ?? 0;
+    setSelected({
+      id: node.id,
+      label: node.label,
+      kind: node.kind,
+      x: railWidth ? railWidth / 2 : 0,
+      y: KEYBOARD_POPOVER_Y,
+    });
+  }
+
   return (
     <div className="absolute inset-0 z-[2] flex">
       {/* ── left: typed-graph traversal rail ── */}
@@ -188,6 +207,22 @@ export default function AgentConsole({
         style={{ background: "#060912", boxShadow: "inset -1px 0 0 rgba(125,166,255,0.14)" }}
       >
         <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
+
+        {/* Keyboard / assistive-tech path to node details (canvas is aria-hidden). */}
+        {graph.nodes.length > 0 && (
+          <div className="sr-only">
+            <h2>Plan graph nodes</h2>
+            <ul>
+              {graph.nodes.map((n) => (
+                <li key={n.id}>
+                  <button type="button" onClick={() => selectNodeById(n.id)}>
+                    View details for {n.label} ({n.kind})
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {selected && (
           <NodeDetailPopover

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import AgentConsole from "./AgentConsole";
 
 /** Minimal EventSource stub: capture listeners so tests can drive SSE events. */
@@ -66,6 +66,23 @@ function renderConsole() {
 }
 
 describe("AgentConsole", () => {
+  it("exposes a keyboard-accessible list of graph nodes once they stream in", () => {
+    renderConsole();
+    emit("meta", meta());
+    expect(screen.getByRole("button", { name: /view details for chase ur/i })).toBeTruthy();
+  });
+
+  it("opens and closes the node-detail popover from the keyboard list", () => {
+    renderConsole();
+    emit("meta", meta());
+
+    fireEvent.click(screen.getByRole("button", { name: /view details for chase ur/i }));
+    expect(screen.getByRole("dialog", { name: /chase ur details/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("preserves an explicit zero plan value instead of keeping a stale value", () => {
     renderConsole();
     emit("meta", meta({ planValueCents: 12000 }));
