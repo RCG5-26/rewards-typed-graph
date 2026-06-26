@@ -116,8 +116,9 @@ export default function AgentConsole({
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
       // the authoritative plan value is in meta — seed it now so the
-      // baselines/benchmark tabs aren't $0 mid-stream (done refines it)
-      if (meta.planValueCents) setValueCents(meta.planValueCents);
+      // baselines/benchmark tabs aren't $0 mid-stream (done refines it).
+      // Check presence, not truthiness, so an explicit 0 is not dropped.
+      if (typeof meta.planValueCents === "number") setValueCents(meta.planValueCents);
       setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
