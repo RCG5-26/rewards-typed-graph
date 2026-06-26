@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { opColor } from "@/lib/plan/presentation";
 import type { MutationLogEntry } from "@/lib/plan/types";
 import type { HoverNode } from "./TypedGraph";
@@ -44,11 +46,21 @@ export default function NodeDetailPopover({
   const above = node.y > FLIP_ABOVE_Y;
   const recentOps = ops.slice(-MAX_OPS);
 
+  // The keyboard launcher lives in an sr-only list, so move focus into the
+  // dialog on open; otherwise focus is stranded on a hidden control.
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
   return (
     <div
       className="absolute z-20 w-[252px] rounded-xl p-3.5"
       role="dialog"
       aria-label={`${node.label} details`}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
       style={{
         left,
         top: node.y,
@@ -67,6 +79,7 @@ export default function NodeDetailPopover({
           </div>
         </div>
         <button
+          ref={closeRef}
           type="button"
           onClick={onClose}
           className="-mr-1 -mt-1 flex-none rounded-md px-1.5 py-0.5 text-sm leading-none text-[#a0beff]/60 transition hover:text-white"
