@@ -180,6 +180,30 @@ class FreeTextMultiAgentBaselineTests(unittest.TestCase):
         self.assertEqual(unsupported_case["case_id"], "mvp_006_wrong_program_trap")
         self.assertTrue(unsupported_case["accuracy_correct"])
         self.assertEqual(unsupported_case["status"], "unsupported")
+        self.assertEqual(
+            unsupported_case["baseline_plan_record"]["raw_output"]["final_plan"][
+                "unsupported_reason"
+            ],
+            "unsupported_by_seed_fixture",
+        )
+
+    def test_rejects_unsupported_final_plan_without_reason(self) -> None:
+        unsupported_plan = {
+            "status": "unsupported",
+            "chosen_award_slug": None,
+            "fallback": None,
+            "ranked_awards": [],
+            "steps": [
+                {
+                    "summary": "Only seeded facts were used.",
+                    "reasoning": "No matching seeded facts were available.",
+                }
+            ],
+        }
+        client = FakeRoleLLMClient(_responses_for_case(unsupported_plan))
+
+        with self.assertRaisesRegex(BaselineOutputError, "unsupported_reason"):
+            run_free_text_multiagent_baseline(llm_client=client, limit=1)
 
     def test_from_env_rejects_non_numeric_timeout(self) -> None:
         env = {
@@ -189,6 +213,17 @@ class FreeTextMultiAgentBaselineTests(unittest.TestCase):
 
         with self.assertRaisesRegex(BaselineConfigError, "TIMEOUT_SECONDS"):
             OpenAIChatCompletionsClient.from_env(env)
+
+    def test_from_env_rejects_non_positive_timeout(self) -> None:
+        for timeout in ("0", "-1"):
+            with self.subTest(timeout=timeout):
+                env = {
+                    "FREE_TEXT_MULTIAGENT_BASELINE_API_KEY": "sk-test-secret",
+                    "FREE_TEXT_MULTIAGENT_BASELINE_TIMEOUT_SECONDS": timeout,
+                }
+
+                with self.assertRaisesRegex(BaselineConfigError, "positive"):
+                    OpenAIChatCompletionsClient.from_env(env)
 
     def test_cli_requires_api_secret_for_live_llm_path(self) -> None:
         env = {

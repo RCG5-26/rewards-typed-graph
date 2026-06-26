@@ -5,10 +5,9 @@ on:
   push:
     branches: [main]
 
-# Least-privilege; coverage-gate needs PR write to post the diff-coverage comment.
+# Least-privilege by default; coverage-gate gets PR write for its comment.
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   web-vitest:
@@ -95,6 +94,9 @@ jobs:
     name: coverage-gate
     runs-on: ubuntu-latest
     needs: [web-vitest, api-vitest, python-tests]
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

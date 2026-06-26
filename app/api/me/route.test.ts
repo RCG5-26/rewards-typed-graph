@@ -62,7 +62,7 @@ describe("GET /api/me", () => {
     const body = await response.json();
 
     expect(response.status).toBe(401);
-    expect(body).toHaveProperty("error");
+    expect(body).toEqual({ error: "Not signed in." });
   });
 
   it("returns 403 when getSession throws unprovisioned ApiError", async () => {
@@ -72,6 +72,22 @@ describe("GET /api/me", () => {
     const body = await response.json();
 
     expect(response.status).toBe(403);
-    expect(body).toHaveProperty("error");
+    expect(body).toEqual({ error: "Account not provisioned." });
+  });
+
+  it("returns a generic message for upstream server errors", async () => {
+    mockGetSession.mockRejectedValue(
+      new ApiError({
+        kind: "server-error",
+        status: 502,
+        message: "upstream stack trace",
+      }),
+    );
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(body).toEqual({ error: "Could not load your account." });
   });
 });

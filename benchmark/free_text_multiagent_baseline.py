@@ -74,6 +74,10 @@ class OpenAIChatCompletionsClient(_BaseOpenAIChatCompletionsClient):
             raise BaselineConfigError(
                 f"FREE_TEXT_MULTIAGENT_BASELINE_TIMEOUT_SECONDS must be an integer, got {timeout_raw!r}"
             ) from error
+        if timeout_seconds <= 0:
+            raise BaselineConfigError(
+                "FREE_TEXT_MULTIAGENT_BASELINE_TIMEOUT_SECONDS must be positive"
+            )
         return cls(
             api_key=api_key,
             model=source.get("FREE_TEXT_MULTIAGENT_BASELINE_MODEL", DEFAULT_MODEL),
@@ -330,6 +334,10 @@ def _normalize_plan(raw_output: dict[str, Any]) -> dict[str, Any]:
     unsupported_reason = raw_output.get("unsupported_reason")
     if unsupported_reason is not None and not isinstance(unsupported_reason, str):
         raise BaselineOutputError("unsupported_reason must be a string or null")
+    if status == "unsupported" and (
+        not isinstance(unsupported_reason, str) or not unsupported_reason.strip()
+    ):
+        raise BaselineOutputError("unsupported output must include unsupported_reason")
 
     ranked_awards = raw_output.get("ranked_awards")
     if not isinstance(ranked_awards, list):

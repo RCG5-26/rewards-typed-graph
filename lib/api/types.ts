@@ -51,7 +51,11 @@ export type ApiErrorKind =
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   constructor(kind: ApiErrorKind) {
-    super(kind.kind === "misconfigured" ? kind.message : `API error: ${kind.status}`);
+    super(
+      kind.kind === "misconfigured" || kind.kind === "server-error"
+        ? kind.message
+        : `API error: ${kind.status}`,
+    );
     this.kind = kind;
   }
 }

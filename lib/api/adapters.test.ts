@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import mockPlan from "@/fixtures/mock-plan.json";
-import {
-  toPlanResult,
-  toMutationRows,
-  diffStale,
-  transferParamsFromPersona,
-} from "./adapters";
+import { toPlanResult, toMutationRows, diffStale, transferParamsFromPersona } from "./adapters";
 import type { ApiPlan, ApiSessionResponse } from "./types";
 
 const rev1: ApiPlan = mockPlan.createPlan as ApiPlan;
@@ -91,9 +86,29 @@ describe("toMutationRows", () => {
 
 describe("diffStale", () => {
   it("returns staleEdgeId and staleNodeIds for a rev1→rev2 with a dropped transfer step", () => {
-    const result = diffStale(rev1, rev2);
+    const rev1WithDroppedRedemption: ApiPlan = {
+      ...rev1,
+      steps: rev1.steps.map((step) =>
+        step.type === "transfer_recommendation"
+          ? {
+              ...step,
+              dependsOn: [...step.dependsOn, "00000000-0000-0000-0000-00000000f001"],
+            }
+          : step,
+      ),
+    };
+    const rev2WithoutDroppedRedemption: ApiPlan = {
+      ...rev2,
+      steps: rev2.steps.map((step) => ({
+        ...step,
+        dependsOn: step.dependsOn.filter((id) => id !== "00000000-0000-0000-0000-00000000f001"),
+      })),
+    };
+
+    const result = diffStale(rev1WithDroppedRedemption, rev2WithoutDroppedRedemption);
+
     expect(result.staleEdgeId).toBeTruthy();
-    expect(result.staleNodeIds.length).toBeGreaterThanOrEqual(0);
+    expect(result.staleNodeIds).toEqual(["redeem:00000000-0000-0000-0000-00000000f001"]);
     expect(result.reason).toBeTruthy();
     expect(result.mutation.op).toBe("STALE");
     expect(result.mutation.agentType).toBe("system");

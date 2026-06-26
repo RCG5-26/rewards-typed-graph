@@ -277,12 +277,9 @@ export function diffStale(rev1: ApiPlan, rev2: ApiPlan): Invalidation {
   const te = transferEdgeId ? TRANSFER_EDGE_SLUGS[transferEdgeId] : null;
   const staleEdgeId = te ? `edge:transfer:${te.srcSlug}->${te.destSlug}` : "";
 
-  // Nodes reachable only via the stale transfer (redemption nodes in rev1 not in rev2)
-  const rev1Deps = new Set(rev1.steps.flatMap((s) => s.dependsOn));
-  const rev2Deps = new Set(rev2.steps.flatMap((s) => s.dependsOn));
-  const staleRedemptionIds = [...rev1Deps].filter(
-    (id) => id in REDEMPTION_NODES && !rev2Deps.has(id),
-  );
+  // Nodes attached to the stale transfer step. They identify the old revision's
+  // affected redemption surface even if the replan later recreates a similar node.
+  const staleRedemptionIds = transferStep.dependsOn.filter((id) => id in REDEMPTION_NODES);
   const staleNodeIds = staleRedemptionIds.map((id) => `redeem:${id}`);
 
   const srcLabel = te ? `${te.srcSlug} → ${te.destSlug}` : "transfer edge";

@@ -134,6 +134,13 @@ class ArchitectureComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "case ids"):
             build_architecture_comparison(reports)
 
+    def test_rejects_duplicate_case_ids_before_building_matrix(self) -> None:
+        reports = _all_reports()
+        reports[0]["cases"][1]["case_id"] = reports[0]["cases"][0]["case_id"]
+
+        with self.assertRaisesRegex(ValueError, "duplicate case_id"):
+            build_architecture_comparison(reports)
+
     def test_cli_combines_report_files(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             paths = []

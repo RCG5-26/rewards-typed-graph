@@ -21,6 +21,8 @@ def build_architecture_comparison(reports: list[dict[str, Any]]) -> dict[str, An
     reports_by_architecture = _reports_by_architecture(reports)
     benchmark_id = _shared_field(reports, "benchmark_id")
     fixture_id = _shared_field(reports, "fixture_id")
+    for report in reports:
+        _validate_unique_case_ids(report)
     case_ids = _case_ids(reports[0])
     for report in reports[1:]:
         if _case_ids(report) != case_ids:
@@ -82,6 +84,20 @@ def _shared_field(reports: list[dict[str, Any]], field_name: str) -> Any:
 
 def _case_ids(report: dict[str, Any]) -> list[str]:
     return [case["case_id"] for case in report["cases"]]
+
+
+def _validate_unique_case_ids(report: dict[str, Any]) -> None:
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for case_id in _case_ids(report):
+        if case_id in seen:
+            duplicates.append(case_id)
+        seen.add(case_id)
+    if duplicates:
+        architecture = report.get("architecture")
+        raise ValueError(
+            f"duplicate case_id values in {architecture} report: {sorted(set(duplicates))}"
+        )
 
 
 def _architecture_summary(report: dict[str, Any]) -> dict[str, Any]:
