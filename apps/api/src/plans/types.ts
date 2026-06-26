@@ -7,14 +7,42 @@
  * the user reads. Keep these in sync with `fixtures/mock-plan.json`.
  */
 
-export type PlanStatus =
-  | "generating"
-  | "current"
-  | "stale"
-  | "superseded"
-  | "failed";
+export type PlanStatus = "generating" | "current" | "stale" | "superseded" | "failed";
 
 export type PlanStepStatus = "proposed" | "current" | "stale" | "superseded";
+
+export type PlanGraphNodeKind = "program" | "redemption" | "plan";
+
+export type PlanGraphEdgeKind = "transfer" | "redeem";
+
+export interface PlanDependencyView {
+  id: string;
+  kind: string;
+  table: string;
+  slug: string;
+  label: string;
+  programId: string | null;
+}
+
+export interface PlanGraphNodeView {
+  id: string;
+  kind: PlanGraphNodeKind;
+  slug: string;
+  label: string;
+  programId: string | null;
+}
+
+export interface PlanGraphEdgeView {
+  id: string;
+  from: string;
+  to: string;
+  kind: PlanGraphEdgeKind;
+}
+
+export interface PlanGraphView {
+  nodes: PlanGraphNodeView[];
+  edges: PlanGraphEdgeView[];
+}
 
 export interface PlanStepView {
   order: number;
@@ -23,6 +51,7 @@ export interface PlanStepView {
   reasoning: string;
   status: PlanStepStatus;
   dependsOn: string[];
+  dependencies: PlanDependencyView[];
 }
 
 export interface PlanView {
@@ -33,6 +62,7 @@ export interface PlanView {
   query: string;
   summary: string | null;
   steps: PlanStepView[];
+  graph: PlanGraphView;
 }
 
 export interface SessionView {

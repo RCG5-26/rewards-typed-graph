@@ -10,9 +10,9 @@ prs: [36, 38]
 
 # feat: Migrate PR #36 UI contributions onto PR #38's canonical lib/api/ layer
 
-**Date:** 2026-06-25  
-**Status:** active  
-**PR conflicts:** #38 (`feat/tdd-enforcement`) and #36 (`val/flow-updates`)  
+**Date:** 2026-06-25
+**Status:** active
+**PR conflicts:** #38 (`feat/tdd-enforcement`) and #36 (`val/flow-updates`)
 **Owner:** ValeriiaMur (new PR); robin-raq (PR #38 merge + PR #36 close)
 
 ---
@@ -27,19 +27,19 @@ PR #38 and PR #36 both modify `app/api/plan/route.ts` and `app/api/plan/stream/r
 
 Three direct file conflicts exist between the two open PRs:
 
-| File | PR #38 | PR #36 |
-|---|---|---|
-| `app/api/plan/route.ts` | +26/-15 via `lib/api/client.ts` | +22/-6 via `lib/plan/orchestrator-client.ts` |
-| `app/api/plan/stream/route.ts` | +64/-20 via `lib/api/client.ts` | +80/-7 via `lib/plan/orchestrator-client.ts` |
-| `.env.example` | Corrects `API_BASE_URL` as server-only | Adds orchestrator wiring comment block |
+| File                           | PR #38                                 | PR #36                                       |
+| ------------------------------ | -------------------------------------- | -------------------------------------------- |
+| `app/api/plan/route.ts`        | +26/-15 via `lib/api/client.ts`        | +22/-6 via `lib/plan/orchestrator-client.ts` |
+| `app/api/plan/stream/route.ts` | +64/-20 via `lib/api/client.ts`        | +80/-7 via `lib/plan/orchestrator-client.ts` |
+| `.env.example`                 | Corrects `API_BASE_URL` as server-only | Adds orchestrator wiring comment block       |
 
 Beyond the file conflicts, the two PRs introduce competing abstraction layers for identical jobs:
 
-| Job | PR #38 (canonical) | PR #36 (redundant) |
-|---|---|---|
-| Fetch from Hono API | `lib/api/client.ts` → `apiFetch()` | `lib/plan/orchestrator-client.ts` → `createPlanViaOrchestrator()` |
-| Map PlanView → PlanResult | `lib/api/adapters.ts` → `toPlanResult()` | `lib/plan/from-plan-view.ts` → `planResultFromView()` |
-| Map mutations → log rows | `lib/api/adapters.ts` → `toMutationRows()` | `lib/plan/real-mutations.ts` → `realMutationsToLog()` |
+| Job                       | PR #38 (canonical)                         | PR #36 (redundant)                                                |
+| ------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| Fetch from Hono API       | `lib/api/client.ts` → `apiFetch()`         | `lib/plan/orchestrator-client.ts` → `createPlanViaOrchestrator()` |
+| Map PlanView → PlanResult | `lib/api/adapters.ts` → `toPlanResult()`   | `lib/plan/from-plan-view.ts` → `planResultFromView()`             |
+| Map mutations → log rows  | `lib/api/adapters.ts` → `toMutationRows()` | `lib/plan/real-mutations.ts` → `realMutationsToLog()`             |
 
 PR #36 also carries **unique, non-conflicting contributions** that have no equivalent in PR #38 and must be preserved:
 
@@ -66,16 +66,16 @@ PR #36 also carries **unique, non-conflicting contributions** that have no equiv
 
 ## Key Technical Decisions
 
-**KTD-1: `lib/api/` is the canonical BFF client layer.**  
+**KTD-1: `lib/api/` is the canonical BFF client layer.**
 PR #38's `lib/api/client.ts` is server-only (enforced by the `'server-only'` sentinel), independently tested, and has no UI coupling. PR #36's `lib/plan/orchestrator-client.ts` mixes network concerns into the domain model layer and has no tests. The `lib/api/` placement wins on every axis: testability, isolation, coverage gate compliance.
 
-**KTD-2: Route files from PR #38 are authoritative; PR #36's route changes are discarded.**  
+**KTD-2: Route files from PR #38 are authoritative; PR #36's route changes are discarded.**
 Both PRs rewire the same two routes. PR #38's versions are TDD-attested (6 route tests). Keeping PR #38's routes and dropping PR #36's route changes is the only path that preserves test coverage and avoids a three-way merge conflict.
 
-**KTD-3: `lib/plan/comparison.ts` stays in `lib/plan/`, not `lib/api/`.**  
+**KTD-3: `lib/plan/comparison.ts` stays in `lib/plan/`, not `lib/api/`.**
 `deriveComparison()` and `fmtTokens()` compute UI-facing metrics from a `PlanResult` — they have no network dependency. Domain logic belongs in `lib/plan/`. Moving it to `lib/api/` would violate the layer's single responsibility (network + shape mapping only).
 
-**KTD-4: Tests for migrated code = `comparison.ts` unit tests + shallow component renders.**  
+**KTD-4: Tests for migrated code = `comparison.ts` unit tests + shallow component renders.**
 `comparison.ts` is a pure function: straightforward to test with specific input/output assertions. The four component files are tested with Vitest + jsdom shallow renders — enough to catch import/prop-shape mismatches without testing implementation details. This combination achieves 90% diff coverage on the new lines.
 
 ---
@@ -132,6 +132,7 @@ flowchart LR
 ## Scope Boundaries
 
 ### In Scope
+
 - Sequencing and merging PR #38
 - Closing PR #36 with a clear migration comment
 - Creating a new branch (`val/ui-live-metrics`) with the salvaged UI work
@@ -139,12 +140,14 @@ flowchart LR
 - Porting `README.md` / `STATUS.md` doc updates with updated references
 
 ### Deferred to Follow-Up Work
+
 - **U6 / RCG-32 hosted hero pass** — Manual browser checklist on the deployed URL (already tracked in PR #38 as a post-merge step; not in scope here)
 - **Native `prog:<slug>` node-id lighting** — Requires a backend change to emit stable node IDs on each `graph_mutations` row; noted as a known gap in PR #36 itself
 - **`latestMutationCursor()` paging** — PR #36's mutation cursor assumes <100 prior mutations; fixing cursor-correct paging is a separate backend concern
 - **Flipping CI jobs to required checks on `main`** — Tracked in `docs/development/ci-required-checks.md`; admin step post-PR #38 merge
 
 ### Out of Scope
+
 - Redesigning the Hono API contract
 - Changing the SSE event sequence
 - UI changes beyond what PR #36 already introduced
@@ -164,14 +167,16 @@ flowchart LR
 **Dependencies:** None
 
 **Files:**
+
 - Merge decision on GitHub for `feat/tdd-enforcement` → `main`
 
-**Approach:**  
+**Approach:**
 Verify CI passes on PR #38 (web-vitest, api-vitest, python-tests, coverage-gate all green). Obtain approval and merge. After merge, confirm `lib/api/client.ts`, `lib/api/adapters.ts`, `lib/api/types.ts`, the two rewired route files, and the coverage-gate workflow are all present on `main`.
 
 **Test scenarios:**
+
 - CI reports `web-vitest`, `api-vitest`, `python-tests`, `coverage-gate` all green before merge
-- Post-merge: verify the merged *artifacts*, not commit count (squash/rebase merges collapse history) — `lib/api/client.ts` and `lib/api/adapters.ts` exist on `main` and export `apiFetch`, `toPlanResult`, `toMutationRows`, `diffStale`
+- Post-merge: verify the merged _artifacts_, not commit count (squash/rebase merges collapse history) — `lib/api/client.ts` and `lib/api/adapters.ts` exist on `main` and export `apiFetch`, `toPlanResult`, `toMutationRows`, `diffStale`
 - Post-merge: the two rewired route files and the coverage-gate workflow are present on `main`
 
 **Verification:** `main` branch HEAD has PR #38's commits; CI is green; `lib/api/` exists on `main`.
@@ -187,12 +192,14 @@ Verify CI passes on PR #38 (web-vitest, api-vitest, python-tests, coverage-gate 
 **Dependencies:** U1
 
 **Files:**
+
 - PR #36 comment + close action on GitHub
 
-**Approach:**  
+**Approach:**
 Post a comment on PR #36 explaining: (1) the three direct file conflicts, (2) which of its files are now redundant (`lib/plan/orchestrator-client.ts`, `lib/plan/from-plan-view.ts`, `lib/plan/real-mutations.ts`) and why (duplicated by `lib/api/`), (3) which files carry unique value and must migrate forward (the four component files + `comparison.ts`), (4) that a new branch `val/ui-live-metrics` should be opened from `main` carrying only the unique work. Then close the PR (do not merge).
 
 **Test scenarios:**
+
 - PR #36 is in closed (not merged) state
 - Comment is present explaining conflict and migration path with specific file names
 - No commits from `val/flow-updates` appear in `main` history
@@ -210,6 +217,7 @@ Post a comment on PR #36 explaining: (1) the three direct file conflicts, (2) wh
 **Dependencies:** U1, U2
 
 **Files (to create/modify in new branch):**
+
 - `lib/plan/comparison.ts` — new file (pure domain logic; no changes needed)
 - `components/onboarding/AgentConsole.tsx` — cherry-picked from PR #36
 - `components/onboarding/BenchmarkView.tsx` — cherry-picked from PR #36
@@ -218,8 +226,9 @@ Post a comment on PR #36 explaining: (1) the three direct file conflicts, (2) wh
 - `README.md` — port PR #36's additions; replace all references to `lib/plan/orchestrator-client.ts` with `lib/api/client.ts`
 - `STATUS.md` — port PR #36's additions; same reference update
 
-**Approach:**  
+**Approach:**
 Branch from `main` post-merge. Manually apply the diffs for the seven files above (per-file extraction using `git show <commit> -- <file>` is required — see ADV-2 note below; git cherry-pick lands the entire commit including the rejected wiring files). Explicitly **do not** add:
+
 - `lib/plan/orchestrator-client.ts` (replaced by `lib/api/client.ts`)
 - `lib/plan/from-plan-view.ts` (replaced by `lib/api/adapters.ts::toPlanResult`)
 - `lib/plan/real-mutations.ts` (replaced by `lib/api/adapters.ts::toMutationRows`)
@@ -230,6 +239,7 @@ Branch from `main` post-merge. Manually apply the diffs for the seven files abov
 Verify that the component files compile cleanly after cherry-pick: `AgentConsole.tsx` imports `LiveMetrics` from `lib/plan/comparison.ts`; `BenchmarkView.tsx` and `ContrastView.tsx` import `deriveComparison` and `fmtTokens` from the same file. No imports should reference the dropped files.
 
 **Test scenarios:**
+
 - `tsc --noEmit` passes on the new branch with no type errors
 - `grep -r "orchestrator-client\|from-plan-view\|real-mutations" components/ lib/plan/comparison.ts` returns no matches (no dropped-file imports survived)
 - `AgentConsole.tsx` renders `<TypedGraph ... onSelect={setSelected} />` with no type errors
@@ -248,20 +258,23 @@ Verify that the component files compile cleanly after cherry-pick: `AgentConsole
 **Dependencies:** U3
 
 **Files:**
+
 - `lib/plan/comparison.test.ts` — new file
 - `components/onboarding/AgentConsole.test.tsx` — new or updated
 - `components/onboarding/BenchmarkView.test.tsx` — new or updated
 - `components/onboarding/ContrastView.test.tsx` — new or updated
 - `components/onboarding/TypedGraph.test.tsx` — new or updated
 
-**Approach:**  
+**Approach:**
 **comparison.ts unit tests** (write these test-first; these are the highest value):
+
 - `deriveComparison()` with a representative `LiveMetrics` fixture: verify the returned rows contain the expected `live: true` cells for token-cost and typed-invalidations-caught
 - `deriveComparison()` with `invalidationCaught: false`: verify the invalidation-caught cell reflects "not fired" state
 - `fmtTokens()` with sub-1k, 1k-10k, and 10k+ values: verify formatting (e.g., `"1.2k"`, `"12k"`) matches display expectations
 - `LiveMetrics` zero-state: `deriveComparison()` never divides, so assert the concrete derived outputs when `planValueCents`/`opCount` are zero (typed/crewai/single `valueCents` = 0, `tokens` = `TOKENS.base`) and that no value is `NaN`/`Infinity`
 
 **Shallow render tests** (catch import/prop mismatches):
+
 - `BenchmarkView` renders without throwing given a minimal `LiveMetrics` object
 - `ContrastView` renders without throwing given a minimal `LiveMetrics` object
 - `AgentConsole` renders with required props (graph, mutations, etc.) without throwing; `selected` state starts null
@@ -270,6 +283,7 @@ Verify that the component files compile cleanly after cherry-pick: `AgentConsole
 **Execution note:** Per repo TDD policy (`context/code-standards.md` → Testing, ADR 0009), every changed `**/*.{ts,tsx}` needs test-first (red → green → refactor) coverage. Write `comparison.test.ts` **and** red-phase coverage for `AgentConsole`, `BenchmarkView`, `ContrastView`, and `TypedGraph` before their implementation/cherry-pick lands — component code must not merge ahead of its tests. Pure logic (`deriveComparison`, `nearestHub`, `agentDarkColor`, `dollars`) gets unit tests; components get shallow-render/interaction tests.
 
 **Test scenarios:**
+
 - `npm run test:coverage` passes on the new branch locally with ≥90% coverage on diff lines
 - No test imports reference the dropped files (`orchestrator-client`, `from-plan-view`, `real-mutations`)
 - `deriveComparison()` unit tests exercise both the `live: true` and illustrative-fixture paths
@@ -288,10 +302,12 @@ Verify that the component files compile cleanly after cherry-pick: `AgentConsole
 **Dependencies:** U1–U4
 
 **Files:**
+
 - New PR on GitHub (`val/ui-live-metrics` → `main`)
 
-**Approach:**  
+**Approach:**
 Push `val/ui-live-metrics` and open the PR. The PR description should:
+
 - List the dropped files and why (`orchestrator-client.ts`, `from-plan-view.ts`, `real-mutations.ts` — replaced by `lib/api/`)
 - List the kept unique contributions (four components + `comparison.ts`)
 - Include the TDD attestation checklist (red phase for `comparison.test.ts` recorded; all tests green)
@@ -299,12 +315,14 @@ Push `val/ui-live-metrics` and open the PR. The PR description should:
 - Note that RCG-25/26/27 behavior is preserved via the PR #38 route rewire
 
 After CI runs, verify:
+
 - `web-vitest` — green (new component tests pass)
 - `api-vitest` — green (no regressions)
 - `python-tests` — green (no regressions)
 - `coverage-gate` — green (≥90% diff coverage on the new lines)
 
 **Test scenarios:**
+
 - All four CI jobs pass on the new PR
 - PR description contains TDD attestation checklist with red-phase evidence for `comparison.test.ts`
 - No files from the dropped wiring layer (`orchestrator-client.ts` etc.) appear in the PR file diff
@@ -323,12 +341,12 @@ After CI runs, verify:
 
 ## Risks and Dependencies
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| PR #36 merged before PR #38 | Low | High — creates three-way merge conflicts on `main`; untested code bypasses CI | Close PR #36 (U2) immediately after PR #38 merges; communicate to Val before U1 |
-| Component shallow renders require jsdom config not yet present | Medium | Medium — blocks U4 until config is added | Check `vitest.config.ts` `environment` field; add `environment: 'jsdom'` if missing (1-line change) |
-| `deriveComparison()` has undiscovered edge cases that break benchmark view | Low | Medium | Zero-state and divide-by-zero unit tests in U4 catch this before CI |
-| `STATUS.md` / `README.md` doc updates conflict with other in-flight PRs | Low | Low | These are append-only; standard merge handles it |
+| Risk                                                                       | Likelihood | Impact                                                                        | Mitigation                                                                                          |
+| -------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| PR #36 merged before PR #38                                                | Low        | High — creates three-way merge conflicts on `main`; untested code bypasses CI | Close PR #36 (U2) immediately after PR #38 merges; communicate to Val before U1                     |
+| Component shallow renders require jsdom config not yet present             | Medium     | Medium — blocks U4 until config is added                                      | Check `vitest.config.ts` `environment` field; add `environment: 'jsdom'` if missing (1-line change) |
+| `deriveComparison()` has undiscovered edge cases that break benchmark view | Low        | Medium                                                                        | Zero-state and divide-by-zero unit tests in U4 catch this before CI                                 |
+| `STATUS.md` / `README.md` doc updates conflict with other in-flight PRs    | Low        | Low                                                                           | These are append-only; standard merge handles it                                                    |
 
 ---
 

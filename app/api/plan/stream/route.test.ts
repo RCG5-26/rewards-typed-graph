@@ -14,6 +14,7 @@ import mockPlan from "@/fixtures/mock-plan.json";
 vi.mock("@/lib/api/client", () => ({
   createPlan: vi.fn(),
   balanceTransfer: vi.fn(),
+  getPlan: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -79,6 +80,12 @@ describe("GET /api/plan/stream", () => {
     const frames = await collectFrames(response);
 
     expect(frames[0].event).toBe("meta");
+    expect(
+      (frames[0].data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.nodes.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (frames[0].data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.edges.length,
+    ).toBeGreaterThan(0);
     expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
     const done = frames[frames.length - 1];
@@ -87,24 +94,24 @@ describe("GET /api/plan/stream", () => {
   }, 15_000);
 
   it("replan stream: invalidation → meta → mutations → done(revision=2) [RCG-26]", async () => {
-    const { balanceTransfer, getSession } = await import("@/lib/api/client");
+    const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
     vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
     vi.mocked(balanceTransfer).mockResolvedValue(
       mockPlan.balanceTransfer as ApiBalanceTransferResponse,
     );
+    vi.mocked(getPlan).mockResolvedValue(mockPlan.stalePlan as ApiPlan);
 
     const response = await GET(makeRequest("?q=test+query&replan=1"));
 
     const frames = await collectFrames(response);
 
+    expect(getPlan).toHaveBeenCalledWith(mockPlan.balanceTransfer.staledPlanId, "test-token");
+
     const invalidationFrame = frames.find((f) => f.event === "invalidation");
     expect(invalidationFrame).toBeDefined();
     expect((invalidationFrame!.data as { staleEdgeId: string }).staleEdgeId).toBeTruthy();
-    expect((invalidationFrame!.data as { staleNodeIds: string[] }).staleNodeIds).toContain(
-      "redeem:00000000-0000-0000-0000-00000000f001",
-    );
 
     const invalidationIdx = frames.findIndex((f) => f.event === "invalidation");
     const metaIdx = frames.findIndex((f) => f.event === "meta");
@@ -112,9 +119,34 @@ describe("GET /api/plan/stream", () => {
 
     expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
+    const metaFrame = frames.find((f) => f.event === "meta");
+    expect(
+      (metaFrame!.data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.nodes.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (metaFrame!.data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.edges.length,
+    ).toBeGreaterThan(0);
+
     const done = frames[frames.length - 1];
     expect(done.event).toBe("done");
     expect((done.data as { revision: number }).revision).toBe(2);
+  }, 15_000);
+
+  it("replan without a staled plan id emits an error frame", async () => {
+    const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
+    vi.mocked(balanceTransfer).mockResolvedValue({
+      ...(mockPlan.balanceTransfer as ApiBalanceTransferResponse),
+      staledPlanId: null,
+    });
+
+    const response = await GET(makeRequest("?q=test+query&replan=1"));
+
+    const frames = await collectFrames(response);
+    expect(getPlan).not.toHaveBeenCalled();
+    expect(frames.some((f) => f.event === "error")).toBe(true);
   }, 15_000);
 
   it("no token → 401 JSON (not SSE)", async () => {

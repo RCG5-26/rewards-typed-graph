@@ -52,6 +52,25 @@ describe("apiFetch", () => {
     expect(result).toMatchObject({ planId: mockPlan.createPlan.planId });
   });
 
+  it("fetches a plan by id with the bearer token", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockPlan.stalePlan,
+    });
+    const { getPlan } = await getClient();
+    const result = await getPlan("plan-123", "tok123");
+
+    expect(result.planId).toBe(mockPlan.stalePlan.planId);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${FAKE_BASE}/plans/plan-123`,
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer tok123" }),
+      }),
+    );
+  });
+
   it("throws ApiError with kind not-signed-in on 401", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
     const { apiFetch } = await getClient();
