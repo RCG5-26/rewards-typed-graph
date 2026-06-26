@@ -171,8 +171,8 @@ Verify CI passes on PR #38 (web-vitest, api-vitest, python-tests, coverage-gate 
 
 **Test scenarios:**
 - CI reports `web-vitest`, `api-vitest`, `python-tests`, `coverage-gate` all green before merge
-- Post-merge: `git log --oneline main` shows all 10 PR #38 commits in history
-- Post-merge: `lib/api/client.ts` and `lib/api/adapters.ts` are present and contain the expected exports (`apiFetch`, `toPlanResult`, `toMutationRows`, `diffStale`)
+- Post-merge: verify the merged *artifacts*, not commit count (squash/rebase merges collapse history) — `lib/api/client.ts` and `lib/api/adapters.ts` exist on `main` and export `apiFetch`, `toPlanResult`, `toMutationRows`, `diffStale`
+- Post-merge: the two rewired route files and the coverage-gate workflow are present on `main`
 
 **Verification:** `main` branch HEAD has PR #38's commits; CI is green; `lib/api/` exists on `main`.
 
@@ -259,7 +259,7 @@ Verify that the component files compile cleanly after cherry-pick: `AgentConsole
 - `deriveComparison()` with a representative `LiveMetrics` fixture: verify the returned rows contain the expected `live: true` cells for token-cost and typed-invalidations-caught
 - `deriveComparison()` with `invalidationCaught: false`: verify the invalidation-caught cell reflects "not fired" state
 - `fmtTokens()` with sub-1k, 1k-10k, and 10k+ values: verify formatting (e.g., `"1.2k"`, `"12k"`) matches display expectations
-- `LiveMetrics` shape: verify a zero-state (all zeros/false) metrics object produces no divide-by-zero errors
+- `LiveMetrics` zero-state: `deriveComparison()` never divides, so assert the concrete derived outputs when `planValueCents`/`opCount` are zero (typed/crewai/single `valueCents` = 0, `tokens` = `TOKENS.base`) and that no value is `NaN`/`Infinity`
 
 **Shallow render tests** (catch import/prop mismatches):
 - `BenchmarkView` renders without throwing given a minimal `LiveMetrics` object
@@ -267,7 +267,7 @@ Verify that the component files compile cleanly after cherry-pick: `AgentConsole
 - `AgentConsole` renders with required props (graph, mutations, etc.) without throwing; `selected` state starts null
 - `TypedGraph` renders without throwing; `onSelect` prop is accepted; a simulated click on a node calls `onSelect` with a `HoverNode` shape containing `{ id, label, kind, x, y }`
 
-**Execution note:** Write `comparison.test.ts` test-first (red → green → refactor) before touching `comparison.ts`. Component tests may be written after cherry-pick since they test existing behavior.
+**Execution note:** Per repo TDD policy (`context/code-standards.md` → Testing, ADR 0009), every changed `**/*.{ts,tsx}` needs test-first (red → green → refactor) coverage. Write `comparison.test.ts` **and** red-phase coverage for `AgentConsole`, `BenchmarkView`, `ContrastView`, and `TypedGraph` before their implementation/cherry-pick lands — component code must not merge ahead of its tests. Pure logic (`deriveComparison`, `nearestHub`, `agentDarkColor`, `dollars`) gets unit tests; components get shallow-render/interaction tests.
 
 **Test scenarios:**
 - `npm run test:coverage` passes on the new branch locally with ≥90% coverage on diff lines
