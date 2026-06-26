@@ -38,6 +38,31 @@ export interface HoverNode {
   y: number;
 }
 
+/** A hub's screen position + hit radius, used for pointer hit-testing. */
+export interface HubHit extends HoverNode {
+  r: number;
+}
+
+/**
+ * The hub nearest to `(mx, my)` within its hit radius, or `null`. The radius is
+ * padded (≥20px, or 2.6× the bead) so small beads stay comfortably clickable.
+ * Returns `null` for an empty set, so a cleared route never resolves to a stale
+ * target.
+ */
+export function nearestHub(hubs: HubHit[], mx: number, my: number): HubHit | null {
+  let best: HubHit | null = null;
+  let bestD = Infinity;
+  for (const hp of hubs) {
+    const d = Math.hypot(mx - hp.x, my - hp.y);
+    const hit = Math.max(20, hp.r * 2.6);
+    if (d < hit && d < bestD) {
+      bestD = d;
+      best = hp;
+    }
+  }
+  return best;
+}
+
 const ease = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -84,7 +109,7 @@ export default function TypedGraph({
   const reduced = useReducedMotion();
   const stateRef = useRef({ graph, litNodeIds, reduced, onHover, onSelect });
   stateRef.current = { graph, litNodeIds, reduced, onHover, onSelect };
-  const hubPosRef = useRef<{ id: string; label: string; kind: string; x: number; y: number; r: number }[]>([]);
+  const hubPosRef = useRef<HubHit[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -176,6 +201,9 @@ export default function TypedGraph({
       const acc = (a: number) => `rgba(${ACCENT.r},${ACCENT.g},${ACCENT.b},${a})`;
       const hubs = buildTraversalChain(g);
       const S = Math.max(1, hubs.length - 1);
+      // Collected each frame; assigned to the ref AFTER the route block so a
+      // cleared/short route resets hit-testing to an empty set (no stale hubs).
+      const hubPos: HubHit[] = [];
 
       // ── background sky → ground ──
       ctx.globalCompositeOperation = "source-over";
@@ -293,7 +321,6 @@ export default function TypedGraph({
         }
 
         // ── hubs as luminous beads ──
-        const hubPos: typeof hubPosRef.current = [];
         for (let i = 0; i < hubs.length; i++) {
           const hub = hubs[i];
           const isStale = hub.stale;
@@ -371,7 +398,6 @@ export default function TypedGraph({
             ctx.textBaseline = "alphabetic";
           }
         }
-        hubPosRef.current = hubPos;
 
         // ── the plane at the head ──
         const i = Math.min(Math.floor(prog), S - 1);
@@ -392,6 +418,9 @@ export default function TypedGraph({
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, w, h);
 
+      // Refresh hit-test targets every frame — empty when no route is drawn.
+      hubPosRef.current = hubPos;
+
       raf = requestAnimationFrame(loop);
     };
 
@@ -400,21 +429,9 @@ export default function TypedGraph({
     // shared hit-test → the hub nearest the cursor (within its radius)
     const hitTest = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const mx = clientX - rect.left;
-      const my = clientY - rect.top;
-      let best: (typeof hubPosRef.current)[number] | null = null;
-      let bestD = Infinity;
-      for (const hp of hubPosRef.current) {
-        const d = Math.hypot(mx - hp.x, my - hp.y);
-        const hit = Math.max(20, hp.r * 2.6);
-        if (d < hit && d < bestD) {
-          bestD = d;
-          best = hp;
-        }
-      }
-      return best;
+      return nearestHub(hubPosRef.current, clientX - rect.left, clientY - rect.top);
     };
-    const toNode = (hp: (typeof hubPosRef.current)[number] | null): HoverNode | null =>
+    const toNode = (hp: HubHit | null): HoverNode | null =>
       hp ? { id: hp.id, label: hp.label, kind: hp.kind, x: hp.x, y: hp.y } : null;
 
     // hover hit-testing → emit the node under the cursor
