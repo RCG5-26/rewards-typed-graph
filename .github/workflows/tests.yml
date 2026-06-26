@@ -29,7 +29,11 @@ jobs:
         run: npm ci
       - name: Typecheck, lint, and build web app
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+          # Clerk validates the key's *format* at prerender time (base64 of the
+          # frontend domain), so a literal placeholder crashes `next build`. This
+          # is a structurally valid dummy test key (decodes to clerk.example.com$),
+          # not a real instance — no network calls happen at build time.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
         run: |
           npm run typecheck
           npm run lint
