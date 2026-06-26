@@ -54,6 +54,12 @@ function makeRequest(search: string): Request {
   return new Request(`http://localhost:3000/api/plan/stream${search}`);
 }
 
+type AuthResult = Awaited<ReturnType<typeof import("@clerk/nextjs/server").auth>>;
+
+function mockAuthWithToken(token: string | null) {
+  return { getToken: async () => token } as AuthResult;
+}
+
 // ── Test suite ───────────────────────────────────────────────────────────────
 
 describe("GET /api/plan/stream", () => {
@@ -113,7 +119,7 @@ describe("GET /api/plan/stream", () => {
 
   it("no token → 401 JSON (not SSE)", async () => {
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => null });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken(null));
 
     const response = await GET(makeRequest("?q=test+query"));
 
@@ -125,7 +131,7 @@ describe("GET /api/plan/stream", () => {
   it("API error mid-stream → error frame", async () => {
     const { createPlan } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(createPlan).mockRejectedValue(
       new ApiError({ kind: "server-error", status: 500, message: "bridge failed" }),
     );
@@ -140,7 +146,7 @@ describe("GET /api/plan/stream", () => {
     const { getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
     const adaptersMod = await import("@/lib/api/adapters");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: false });
     vi.mocked(adaptersMod.transferParamsFromPersona).mockImplementation(() => {
       throw new ApiError({ kind: "server-error", status: 422, message: "non-seeded" });

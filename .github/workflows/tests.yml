@@ -10,6 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  web-build:
+    name: web-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck, lint, and build web app
+        env:
+          # Clerk validates the key's *format* at prerender time (base64 of the
+          # frontend domain), so a literal placeholder crashes `next build`. This
+          # is a structurally valid dummy test key (decodes to clerk.example.com$),
+          # not a real instance — no network calls happen at build time.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run build
+
   web-vitest:
     name: web-vitest
     runs-on: ubuntu-latest
