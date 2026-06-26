@@ -36,10 +36,16 @@ function renderPopover(props: Partial<NodeDetailPopoverProps> = {}) {
 afterEach(cleanup);
 
 describe("NodeDetailPopover", () => {
-  it("clamps the left position inside the rail", () => {
+  it("clamps to the right bound for nodes past the right rail", () => {
     renderPopover({ node: node({ x: 1000 }), containerWidth: 400 });
     // half-width clamp = 126 → max left = 400 - 126 = 274
     expect(screen.getByRole("dialog")).toHaveStyle({ left: "274px" });
+  });
+
+  it("clamps to the left bound for nodes near the left rail", () => {
+    renderPopover({ node: node({ x: 10 }), containerWidth: 400 });
+    // min left = half-width clamp = 126
+    expect(screen.getByRole("dialog")).toHaveStyle({ left: "126px" });
   });
 
   it("does not clamp when containerWidth is 0", () => {
