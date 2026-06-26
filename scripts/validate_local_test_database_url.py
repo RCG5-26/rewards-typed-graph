@@ -5,15 +5,28 @@ from __future__ import annotations
 
 import argparse
 import sys
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 ALLOWED_HOSTS = {"localhost", "127.0.0.1", "::1"}
+FORBIDDEN_TARGET_QUERY_PARAMS = {"host", "hostaddr", "dbname"}
 
 
 def validate_local_test_database_url(database_url: str) -> None:
     parsed = urlparse(database_url)
     host = (parsed.hostname or "").lower()
     db_name = (parsed.path or "/").lstrip("/").split("?")[0]
+    query_params = {
+        key.lower()
+        for key, _ in parse_qsl(parsed.query, keep_blank_values=True)
+    }
+
+    target_overrides = query_params & FORBIDDEN_TARGET_QUERY_PARAMS
+    if target_overrides:
+        names = ", ".join(sorted(target_overrides))
+        raise ValueError(
+            "Refusing to reset schema: DATABASE_URL must not include libpq "
+            f"target override query params ({names})."
+        )
 
     if host not in ALLOWED_HOSTS:
         raise ValueError(
