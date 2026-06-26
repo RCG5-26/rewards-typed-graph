@@ -14,6 +14,7 @@ vi.mock("@clerk/nextjs/server", () => ({
 
 // Import route after mocks are hoisted so it picks up the mocked client
 const { POST } = await import("./route");
+const { auth } = await import("@clerk/nextjs/server");
 
 async function callRoute(body: unknown) {
   const request = new Request("http://localhost/api/plan", {
@@ -27,6 +28,9 @@ async function callRoute(body: unknown) {
 describe("POST /api/plan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" } as Awaited<
+      ReturnType<typeof auth>
+    >);
   });
 
   it("returns 200 with a mapped PlanResult for a valid queryText", async () => {
@@ -58,9 +62,7 @@ describe("POST /api/plan", () => {
   });
 
   it("returns 401 when createPlan throws ApiError not-signed-in", async () => {
-    vi.mocked(createPlan).mockRejectedValue(
-      new ApiError({ kind: "not-signed-in", status: 401 }),
-    );
+    vi.mocked(createPlan).mockRejectedValue(new ApiError({ kind: "not-signed-in", status: 401 }));
 
     const res = await callRoute({ queryText: "best hotel for Tokyo?" });
 
@@ -68,9 +70,7 @@ describe("POST /api/plan", () => {
   });
 
   it("returns 403 when createPlan throws ApiError unprovisioned", async () => {
-    vi.mocked(createPlan).mockRejectedValue(
-      new ApiError({ kind: "unprovisioned", status: 403 }),
-    );
+    vi.mocked(createPlan).mockRejectedValue(new ApiError({ kind: "unprovisioned", status: 403 }));
 
     const res = await callRoute({ queryText: "best hotel for Tokyo?" });
 
@@ -85,5 +85,18 @@ describe("POST /api/plan", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Could not build a plan.");
+  });
+
+  it("returns 401 and skips createPlan when auth has no token", async () => {
+    vi.mocked(auth).mockResolvedValue({ getToken: async () => null } as Awaited<
+      ReturnType<typeof auth>
+    >);
+
+    const res = await callRoute({ queryText: "best hotel for Tokyo?" });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body).toEqual({ error: "Not signed in." });
+    expect(vi.mocked(createPlan)).not.toHaveBeenCalled();
   });
 });

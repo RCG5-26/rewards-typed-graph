@@ -46,7 +46,13 @@ export async function GET() {
   } catch (err) {
     if (err instanceof ApiError) {
       const status = "status" in err.kind ? err.kind.status : 500;
-      return NextResponse.json({ error: err.message }, { status });
+      if (err.kind.kind === "not-signed-in") {
+        return NextResponse.json({ error: "Not signed in." }, { status });
+      }
+      if (err.kind.kind === "unprovisioned") {
+        return NextResponse.json({ error: "Account not provisioned." }, { status });
+      }
+      return NextResponse.json({ error: "Could not load your account." }, { status });
     }
     console.error("GET /api/me failed", err);
     return NextResponse.json({ error: "Could not load your account." }, { status: 500 });

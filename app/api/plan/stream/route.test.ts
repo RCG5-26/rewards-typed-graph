@@ -37,18 +37,14 @@ import { GET } from "./route";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function collectFrames(
-  response: Response,
-): Promise<{ event: string; data: unknown }[]> {
+async function collectFrames(response: Response): Promise<{ event: string; data: unknown }[]> {
   const text = await response.text();
   const frames: { event: string; data: unknown }[] = [];
   const blocks = text.split("\n\n").filter(Boolean);
   for (const block of blocks) {
     const lines = block.split("\n");
-    const event =
-      lines.find((l) => l.startsWith("event: "))?.replace("event: ", "") ?? "";
-    const dataLine =
-      lines.find((l) => l.startsWith("data: "))?.replace("data: ", "") ?? "{}";
+    const event = lines.find((l) => l.startsWith("event: "))?.replace("event: ", "") ?? "";
+    const dataLine = lines.find((l) => l.startsWith("data: "))?.replace("data: ", "") ?? "{}";
     frames.push({ event, data: JSON.parse(dataLine) });
   }
   return frames;
@@ -71,62 +67,55 @@ describe("GET /api/plan/stream", () => {
     vi.clearAllMocks();
   });
 
-  it(
-    "initial stream: meta → mutations → done(revision=1) [RCG-25]",
-    async () => {
-      const { createPlan } = await import("@/lib/api/client");
-      const { auth } = await import("@clerk/nextjs/server");
-      vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
-      vi.mocked(createPlan).mockResolvedValue(mockPlan.createPlan as ApiPlan);
+  it("initial stream: meta → mutations → done(revision=1) [RCG-25]", async () => {
+    const { createPlan } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(createPlan).mockResolvedValue(mockPlan.createPlan as ApiPlan);
 
-      const response = await GET(makeRequest("?q=test+query"));
+    const response = await GET(makeRequest("?q=test+query"));
 
-      expect(response.headers.get("Content-Type")).toBe("text/event-stream");
-      const frames = await collectFrames(response);
+    expect(response.headers.get("Content-Type")).toBe("text/event-stream");
+    const frames = await collectFrames(response);
 
-      expect(frames[0].event).toBe("meta");
-      expect(frames.some((f) => f.event === "mutation")).toBe(true);
+    expect(frames[0].event).toBe("meta");
+    expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
-      const done = frames[frames.length - 1];
-      expect(done.event).toBe("done");
-      expect((done.data as { revision: number }).revision).toBe(1);
-    },
-    15_000,
-  );
+    const done = frames[frames.length - 1];
+    expect(done.event).toBe("done");
+    expect((done.data as { revision: number }).revision).toBe(1);
+  }, 15_000);
 
-  it(
-    "replan stream: invalidation → meta → mutations → done(revision=2) [RCG-26]",
-    async () => {
-      const { balanceTransfer, getSession } = await import("@/lib/api/client");
-      const { auth } = await import("@clerk/nextjs/server");
-      vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
-      vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
-      vi.mocked(balanceTransfer).mockResolvedValue(
-        mockPlan.balanceTransfer as ApiBalanceTransferResponse,
-      );
+  it("replan stream: invalidation → meta → mutations → done(revision=2) [RCG-26]", async () => {
+    const { balanceTransfer, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
+    vi.mocked(balanceTransfer).mockResolvedValue(
+      mockPlan.balanceTransfer as ApiBalanceTransferResponse,
+    );
 
-      const response = await GET(makeRequest("?q=test+query&replan=1"));
+    const response = await GET(makeRequest("?q=test+query&replan=1"));
 
-      const frames = await collectFrames(response);
+    const frames = await collectFrames(response);
 
-      const invalidationFrame = frames.find((f) => f.event === "invalidation");
-      expect(invalidationFrame).toBeDefined();
-      expect(
-        (invalidationFrame!.data as { staleEdgeId: string }).staleEdgeId,
-      ).toBeTruthy();
+    const invalidationFrame = frames.find((f) => f.event === "invalidation");
+    expect(invalidationFrame).toBeDefined();
+    expect((invalidationFrame!.data as { staleEdgeId: string }).staleEdgeId).toBeTruthy();
+    expect((invalidationFrame!.data as { staleNodeIds: string[] }).staleNodeIds).toContain(
+      "redeem:00000000-0000-0000-0000-00000000f001",
+    );
 
-      const invalidationIdx = frames.findIndex((f) => f.event === "invalidation");
-      const metaIdx = frames.findIndex((f) => f.event === "meta");
-      expect(invalidationIdx).toBeLessThan(metaIdx);
+    const invalidationIdx = frames.findIndex((f) => f.event === "invalidation");
+    const metaIdx = frames.findIndex((f) => f.event === "meta");
+    expect(invalidationIdx).toBeLessThan(metaIdx);
 
-      expect(frames.some((f) => f.event === "mutation")).toBe(true);
+    expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
-      const done = frames[frames.length - 1];
-      expect(done.event).toBe("done");
-      expect((done.data as { revision: number }).revision).toBe(2);
-    },
-    15_000,
-  );
+    const done = frames[frames.length - 1];
+    expect(done.event).toBe("done");
+    expect((done.data as { revision: number }).revision).toBe(2);
+  }, 15_000);
 
   it("no token → 401 JSON (not SSE)", async () => {
     const { auth } = await import("@clerk/nextjs/server");
