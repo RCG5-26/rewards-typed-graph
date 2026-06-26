@@ -30,10 +30,9 @@ export async function GET() {
     // compare against the live Clerk session id, not the graph.
     const session = await getSession(token);
     if (session.clerkId !== userId) {
-      console.error("session identity mismatch", {
-        sessionClerkId: session.clerkId,
-        userId,
-      });
+      // Fail closed without logging the principals — the Clerk ids are user
+      // identifiers and must not be written to application logs.
+      console.error("session identity mismatch between Hono session and Clerk");
       return NextResponse.json(
         { error: "Could not load your account." },
         { status: 500 },

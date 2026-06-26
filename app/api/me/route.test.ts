@@ -86,6 +86,21 @@ describe("GET /api/me", () => {
     expect(mockGetSession).not.toHaveBeenCalled();
   });
 
+  it("returns 401 when a token is present but the Clerk userId is missing", async () => {
+    mockAuth.mockResolvedValue({
+      getToken: async () => "test-token",
+      userId: null,
+    } as ReturnType<typeof auth> extends Promise<infer T> ? T : never);
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body).toEqual({ error: "Not signed in." });
+    expect(mockGetSession).not.toHaveBeenCalled();
+    expect(mockResolveSessionGraph).not.toHaveBeenCalled();
+  });
+
   it("returns 401 when getSession throws not-signed-in ApiError", async () => {
     mockGetSession.mockRejectedValue(new ApiError({ kind: "not-signed-in", status: 401 }));
 

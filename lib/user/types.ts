@@ -54,18 +54,32 @@ export interface UserGraph {
   holds: UserHold[];
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
 function isCurrentUser(value: unknown): value is CurrentUser {
   if (!value || typeof value !== "object") return false;
   const user = value as CurrentUser;
-  return typeof user.id === "string" && typeof user.clerkId === "string";
+  return (
+    typeof user.id === "string" &&
+    typeof user.clerkId === "string" &&
+    isNullableString(user.email) &&
+    isNullableString(user.displayName) &&
+    isNullableString(user.imageUrl) &&
+    typeof user.isDemoPersona === "boolean"
+  );
 }
 
 function isUserBalance(value: unknown): value is UserBalance {
   if (!value || typeof value !== "object") return false;
   const balance = value as UserBalance;
   return (
+    typeof balance.programId === "string" &&
     typeof balance.programName === "string" &&
-    typeof balance.balancePoints === "number"
+    typeof balance.currencyName === "string" &&
+    // Finite guards against NaN/Infinity, which would poison the points sum.
+    Number.isFinite(balance.balancePoints)
   );
 }
 

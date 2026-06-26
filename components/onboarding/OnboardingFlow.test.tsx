@@ -254,4 +254,39 @@ describe("OnboardingFlow demo reset", () => {
     expect(screen.queryByTestId("restart")).toBeNull();
     errorSpy.mockRestore();
   });
+
+  it("clears the stale graph and returns to cards when the post-reset refetch fails", async () => {
+    // Reset succeeds, but the follow-up /api/me refetch is non-ok. The refetch
+    // is best-effort (like bootstrap), so `me` is cleared rather than surfacing
+    // a misleading "reset failed" error — the greeting just disappears.
+    let meCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/cards") {
+        return Promise.resolve({ ok: true, json: async () => ({ cards: [sampleCard] }) });
+      }
+      if (url === "/api/me") {
+        meCalls += 1;
+        return meCalls === 1
+          ? Promise.resolve({ ok: true, json: async () => sampleGraph })
+          : Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+      }
+      if (url === "/api/demo/reset") {
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const restart = await driveToPlanStep();
+
+    fireEvent.click(restart);
+
+    // Back on the cards step (restart/AgentConsole unmounted)...
+    await waitFor(() => expect(screen.queryByTestId("restart")).toBeNull());
+    // ...the refetch was attempted (bootstrap + post-reset), and because it
+    // failed the graph was cleared, so the stale greeting is gone.
+    expect(meCalls).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText(/welcome back/i)).toBeNull();
+  });
 });

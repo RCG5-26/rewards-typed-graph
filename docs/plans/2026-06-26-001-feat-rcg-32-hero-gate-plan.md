@@ -227,7 +227,7 @@ sequenceDiagram
 
 ### Local automated (after U1–U4, before merge)
 
-```
+```bash
 npm run typecheck && npm run lint && npm test && npm run build
 npm --prefix apps/api run typecheck && npm --prefix apps/api test
 python3 -m unittest discover -s tests -v
@@ -235,7 +235,7 @@ python3 -m unittest discover -s tests -v
 
 ### Live Postgres (Alan lane; supports gate, not blocking web PR)
 
-```
+```bash
 RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_test \
   python3 -m unittest tests.integration.test_hero_moment -v
 ```
