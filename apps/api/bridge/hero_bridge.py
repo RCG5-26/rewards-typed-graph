@@ -518,7 +518,7 @@ def _build_plan_graph(
     edges: dict[str, dict[str, Any]] = {}
     last_dest_program_slug: str | None = None
 
-    for step, payload in zip(steps, step_payloads):
+    for step, payload in zip(steps, step_payloads, strict=True):
         for dependency in step["dependencies"]:
             if dependency["slug"].startswith("program:"):
                 _add_program_node(
@@ -530,9 +530,10 @@ def _build_plan_graph(
 
         planner_payload = payload.get("planner_payload")
         planner = planner_payload if isinstance(planner_payload, dict) else {}
+        candidate_fact_slugs = planner.get("candidate_fact_slugs") or []
         candidate_slugs = [
             slug
-            for slug in planner.get("candidate_fact_slugs", [])
+            for slug in candidate_fact_slugs
             if isinstance(slug, str)
         ]
         candidate_transfer = next(

@@ -36,6 +36,8 @@ python -m unittest discover -s tests -v
 python -m benchmark.person_c_scorer --pretty
 ```
 
+- Compare the fixture-backed planner with the single-agent and free-text multi-agent benchmark baselines.
+
 The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision. Its benchmark now includes 30 seeded questions across earning, redemption, and portfolio scenarios, with explicit hallucination and invalidation metric breakdowns.
 
 ## Current Limitations
@@ -58,3 +60,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Expanded the Person C benchmark to 30 seeded questions across earning, redemption, and portfolio scenarios.
 - Added explicit benchmark metric breakdowns for hallucination cases and invalidation wins by kind.
 - The plan API now includes typed graph details, so signed-in users see the traversal view even though their personal demo data uses cloned IDs.
+- Added free-text multi-agent baseline reporting and a comparison report across typed-graph, single-agent, and free-text benchmark architectures.

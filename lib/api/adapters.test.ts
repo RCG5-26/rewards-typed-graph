@@ -160,9 +160,33 @@ describe("toMutationRows", () => {
 
 describe("diffStale", () => {
   it("returns staleEdgeId and staleNodeIds for a rev1→rev2 with a dropped transfer step", () => {
-    const result = diffStale(rev1, rev2);
+    const rev1WithDroppedRedemption: ApiPlan = {
+      ...rev1,
+      steps: rev1.steps.map((step) =>
+        step.type === "transfer_recommendation"
+          ? {
+              ...step,
+              dependsOn: [...step.dependsOn, "00000000-0000-0000-0000-00000000f001"],
+            }
+          : step,
+      ),
+    };
+    const rev2WithoutDroppedRedemption: ApiPlan = {
+      ...rev2,
+      steps: rev2.steps.map((step) => ({
+        ...step,
+        dependsOn: step.dependsOn.filter((id) => id !== "00000000-0000-0000-0000-00000000f001"),
+      })),
+      graph: {
+        nodes: rev2.graph.nodes.filter((node) => node.id !== "award:demo_hyatt_ginza:tokyo:3n"),
+        edges: rev2.graph.edges.filter((edge) => edge.to !== "award:demo_hyatt_ginza:tokyo:3n"),
+      },
+    };
+
+    const result = diffStale(rev1WithDroppedRedemption, rev2WithoutDroppedRedemption);
+
     expect(result.staleEdgeId).toBeTruthy();
-    expect(result.staleNodeIds.length).toBeGreaterThanOrEqual(0);
+    expect(result.staleNodeIds).toEqual(["award:demo_hyatt_ginza:tokyo:3n"]);
     expect(result.reason).toBeTruthy();
     expect(result.mutation.op).toBe("STALE");
     expect(result.mutation.agentType).toBe("system");

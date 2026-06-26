@@ -21,6 +21,8 @@ What exists on `origin/main` today:
 
 ## Prerequisites
 
+These are locally verified versions from the June 25 smoke test, not a canonical support matrix.
+
 | Tool    | Version (verified)      | Notes                                                                                                   |
 | ------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | Node.js | 23.x (used 23.11)       | API uses `tsx`; ESM.                                                                                    |

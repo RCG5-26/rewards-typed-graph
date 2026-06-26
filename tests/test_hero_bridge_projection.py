@@ -46,6 +46,28 @@ class HeroBridgeProjectionTest(unittest.TestCase):
                 ],
             },
         }
+        dependencies_by_step = {
+            "step-1": [
+                {
+                    "id": cloned_balance_id,
+                    "kind": "UserBalance",
+                    "table": "user_balances",
+                    "slug": "program:chase_ur",
+                    "label": "Chase Ultimate Rewards",
+                    "programId": "program-id-chase",
+                }
+            ]
+        }
+        programs_by_slug = {
+            "program:chase_ur": {
+                "programId": "program-id-chase",
+                "label": "Chase Ultimate Rewards",
+            },
+            "program:hyatt": {
+                "programId": "program-id-hyatt",
+                "label": "World of Hyatt",
+            },
+        }
 
         def rows_for(sql):
             if "FROM plans" in sql and "query_text" in sql:
@@ -71,37 +93,23 @@ class HeroBridgeProjectionTest(unittest.TestCase):
                         redemption_payload["reasoning"],
                     ),
                 ]
-            if "FROM state_dependencies" in sql:
-                return [
-                    (
-                        "step-1",
-                        cloned_balance_id,
-                        "UserBalance",
-                        "user_balances",
-                        json.dumps(
-                            {
-                                "balance_points": 180000,
-                                "program_slug": "program:chase_ur",
-                            }
-                        ),
-                    )
-                ]
-            if "FROM user_balances ub" in sql:
-                return [
-                    ("program-id-chase", "program:chase_ur", "Chase Ultimate Rewards")
-                ]
-            if "SELECT id, name FROM reward_programs" in sql:
-                if "program:hyatt" in sql:
-                    return [("program-id-hyatt", "World of Hyatt")]
-                return [("program-id-chase", "Chase Ultimate Rewards")]
-            if "FROM reward_programs" in sql:
-                return [
-                    ("program-id-chase", "program:chase_ur", "Chase Ultimate Rewards"),
-                    ("program-id-hyatt", "program:hyatt", "World of Hyatt"),
-                ]
             return []
 
-        with patch.object(bridge, "_psql_rows", side_effect=rows_for):
+        with (
+            patch.object(bridge, "_psql_rows", side_effect=rows_for),
+            patch.object(
+                bridge,
+                "_dependencies_by_step",
+                return_value=dependencies_by_step,
+            ),
+            patch.object(
+                bridge,
+                "_program_by_slug",
+                side_effect=lambda slug: programs_by_slug.get(
+                    slug, {"programId": None, "label": None}
+                ),
+            ),
+        ):
             plan = bridge.project_plan("user-1", "plan-1")
 
         self.assertIsNotNone(plan)

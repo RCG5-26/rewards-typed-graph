@@ -55,6 +55,12 @@ function makeRequest(search: string): Request {
   return new Request(`http://localhost:3000/api/plan/stream${search}`);
 }
 
+type AuthResult = Awaited<ReturnType<typeof import("@clerk/nextjs/server").auth>>;
+
+function mockAuthWithToken(token: string | null) {
+  return { getToken: async () => token } as AuthResult;
+}
+
 // ── Test suite ───────────────────────────────────────────────────────────────
 
 describe("GET /api/plan/stream", () => {
@@ -65,7 +71,7 @@ describe("GET /api/plan/stream", () => {
   it("initial stream: meta → mutations → done(revision=1) [RCG-25]", async () => {
     const { createPlan } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(createPlan).mockResolvedValue(mockPlan.createPlan as ApiPlan);
 
     const response = await GET(makeRequest("?q=test+query"));
@@ -74,6 +80,12 @@ describe("GET /api/plan/stream", () => {
     const frames = await collectFrames(response);
 
     expect(frames[0].event).toBe("meta");
+    expect(
+      (frames[0].data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.nodes.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (frames[0].data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.edges.length,
+    ).toBeGreaterThan(0);
     expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
     const done = frames[frames.length - 1];
@@ -84,7 +96,7 @@ describe("GET /api/plan/stream", () => {
   it("replan stream: invalidation → meta → mutations → done(revision=2) [RCG-26]", async () => {
     const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
     vi.mocked(balanceTransfer).mockResolvedValue(
       mockPlan.balanceTransfer as ApiBalanceTransferResponse,
@@ -107,14 +119,39 @@ describe("GET /api/plan/stream", () => {
 
     expect(frames.some((f) => f.event === "mutation")).toBe(true);
 
+    const metaFrame = frames.find((f) => f.event === "meta");
+    expect(
+      (metaFrame!.data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.nodes.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (metaFrame!.data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.edges.length,
+    ).toBeGreaterThan(0);
+
     const done = frames[frames.length - 1];
     expect(done.event).toBe("done");
     expect((done.data as { revision: number }).revision).toBe(2);
   }, 15_000);
 
+  it("replan without a staled plan id emits an error frame", async () => {
+    const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
+    vi.mocked(balanceTransfer).mockResolvedValue({
+      ...(mockPlan.balanceTransfer as ApiBalanceTransferResponse),
+      staledPlanId: null,
+    });
+
+    const response = await GET(makeRequest("?q=test+query&replan=1"));
+
+    const frames = await collectFrames(response);
+    expect(getPlan).not.toHaveBeenCalled();
+    expect(frames.some((f) => f.event === "error")).toBe(true);
+  }, 15_000);
+
   it("no token → 401 JSON (not SSE)", async () => {
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => null });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken(null));
 
     const response = await GET(makeRequest("?q=test+query"));
 
@@ -126,7 +163,7 @@ describe("GET /api/plan/stream", () => {
   it("API error mid-stream → error frame", async () => {
     const { createPlan } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(createPlan).mockRejectedValue(
       new ApiError({ kind: "server-error", status: 500, message: "bridge failed" }),
     );
@@ -141,7 +178,7 @@ describe("GET /api/plan/stream", () => {
     const { getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
     const adaptersMod = await import("@/lib/api/adapters");
-    vi.mocked(auth).mockResolvedValue({ getToken: async () => "test-token" });
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
     vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: false });
     vi.mocked(adaptersMod.transferParamsFromPersona).mockImplementation(() => {
       throw new ApiError({ kind: "server-error", status: 422, message: "non-seeded" });

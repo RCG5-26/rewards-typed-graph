@@ -30,46 +30,64 @@ interface Light {
   land: boolean;
 }
 
+export interface HoverNode {
+  id: string;
+  label: string;
+  kind: string;
+  x: number;
+  y: number;
+}
+
+/** A hub's screen position + hit radius, used for pointer hit-testing. */
+export interface HubHit extends HoverNode {
+  r: number;
+}
+
+/**
+ * The hub nearest to `(mx, my)` within its hit radius, or `null`. The radius is
+ * padded (≥20px, or 2.6× the bead) so small beads stay comfortably clickable.
+ * Returns `null` for an empty set, so a cleared route never resolves to a stale
+ * target.
+ */
+export function nearestHub(hubs: HubHit[], mx: number, my: number): HubHit | null {
+  let best: HubHit | null = null;
+  let bestD = Infinity;
+  for (const hp of hubs) {
+    const d = Math.hypot(mx - hp.x, my - hp.y);
+    const hit = Math.max(20, hp.r * 2.6);
+    if (d < hit && d < bestD) {
+      bestD = d;
+      best = hp;
+    }
+  }
+  return best;
+}
+
 const ease = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/**
+ * A fuzzy circular constellation: stars scattered inside a unit disc, denser
+ * toward the center and thinning to a soft rim. `x`/`depth` hold normalized disc
+ * coordinates in [-1, 1] (no perspective grid — the field is a circle, not a
+ * dome). The draw loop maps them to screen against a circular mask.
+ */
 function genLights(): Light[] {
   const out: Light[] = [];
-  const cols = 24;
-  const rows = 18;
-  const blockW = 2.9 / cols;
-  const blockD = 1.55 / rows;
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      if (Math.random() < 0.16) continue;
-      const cnt = 1 + ((Math.random() * 3) | 0);
-      const cx0 = ((c / (cols - 1)) * 2 - 1) * 1.5;
-      const depth0 = Math.pow(r / (rows - 1), 1.05) * 1.5 + 0.02;
-      for (let k = 0; k < cnt; k++) {
-        out.push({
-          x: cx0 + (Math.random() - 0.5) * blockW * 0.7,
-          depth: depth0 + (Math.random() - 0.5) * blockD * 0.7,
-          warm: Math.random() < 0.26,
-          base: 0.22 + Math.random() * 0.55,
-          size: 0.5 + Math.random() * 1.25,
-          speed: 0.5 + Math.random() * 2.4,
-          phase: Math.random() * Math.PI * 2,
-          twinkle: Math.random() < 0.5,
-          land: Math.random() < 0.05,
-        });
-      }
-    }
-  }
-  for (let i = 0; i < 90; i++) {
+  const N = 540;
+  for (let i = 0; i < N; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    // bias radius toward the center so density tapers outward (fuzzy edge)
+    const r = Math.pow(Math.random(), 0.62);
     out.push({
-      x: (Math.random() * 2 - 1) * 1.55,
-      depth: Math.pow(Math.random(), 0.9) * 1.5 + 0.02,
-      warm: Math.random() < 0.24,
-      base: 0.18 + Math.random() * 0.4,
-      size: 0.45 + Math.random() * 1.0,
+      x: Math.cos(ang) * r,
+      depth: Math.sin(ang) * r,
+      warm: Math.random() < 0.25,
+      base: 0.2 + Math.random() * 0.6,
+      size: 0.45 + Math.random() * 1.35,
       speed: 0.5 + Math.random() * 2.4,
       phase: Math.random() * Math.PI * 2,
-      twinkle: Math.random() < 0.6,
+      twinkle: Math.random() < 0.55,
       land: false,
     });
   }
@@ -79,14 +97,19 @@ function genLights(): Light[] {
 export default function TypedGraph({
   graph,
   litNodeIds,
+  onHover,
+  onSelect,
 }: {
   graph: PlanGraph;
   litNodeIds: Set<string>;
+  onHover?: (node: HoverNode | null) => void;
+  onSelect?: (node: HoverNode | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const reduced = useReducedMotion();
-  const stateRef = useRef({ graph, litNodeIds, reduced });
-  stateRef.current = { graph, litNodeIds, reduced };
+  const stateRef = useRef({ graph, litNodeIds, reduced, onHover, onSelect });
+  stateRef.current = { graph, litNodeIds, reduced, onHover, onSelect };
+  const hubPosRef = useRef<HubHit[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -178,6 +201,9 @@ export default function TypedGraph({
       const acc = (a: number) => `rgba(${ACCENT.r},${ACCENT.g},${ACCENT.b},${a})`;
       const hubs = buildTraversalChain(g);
       const S = Math.max(1, hubs.length - 1);
+      // Collected each frame; assigned to the ref AFTER the route block so a
+      // cleared/short route resets hit-testing to an empty set (no stale hubs).
+      const hubPos: HubHit[] = [];
 
       // ── background sky → ground ──
       ctx.globalCompositeOperation = "source-over";
@@ -196,27 +222,44 @@ export default function TypedGraph({
       ctx.fillStyle = hg;
       ctx.fillRect(0, 0, w, h * 0.8);
 
-      // ── city lights ──
+      // ── fuzzy circular constellation ──
+      // Map each star's unit-disc coordinate to a circle on screen (no
+      // perspective dome). Density already tapers outward; the rim fade makes
+      // the edge fuzzy. Tune the center/radius here to reposition the circle.
+      const fieldCx = cx;
+      const fieldCy = horizonY + (h - horizonY) * 0.34;
+      const fieldR = Math.min(w, h) * 0.46;
       ctx.globalCompositeOperation = "lighter";
       for (const L of lights) {
-        const p = project(L.x, L.depth, 0);
-        if (p.y < horizonY - 2 || p.x < -20 || p.x > w + 20) continue;
-        let a = L.base * (0.4 + 0.6 * p.s);
-        if (L.land) a *= 1.7;
+        const ru = Math.hypot(L.x, L.depth); // 0 (center) → ~1 (rim)
+        const px = fieldCx + L.x * fieldR;
+        const py = fieldCy + L.depth * fieldR;
+        // soft circular rim: full inside, easing to 0 past ~0.7 of the radius
+        const mask = 1 - ease((ru - 0.7) / 0.3);
+        if (mask <= 0.001) continue;
+        // brighter toward the center; depth-like scale from the radius
+        const s = 0.55 + 0.45 * (1 - ru);
+        let a = L.base * (0.45 + 0.55 * s) * mask;
         if (L.twinkle && !rm) a *= 0.6 + 0.4 * Math.sin(time * L.speed + L.phase);
         if (a <= 0.012) continue;
-        const rad = L.size * p.s + 0.35;
+        const rad = L.size * s + 0.35;
         const col = L.warm ? "255,206,150" : "176,204,255";
-        const bloom = rad * (L.land ? 4.2 : 3.0);
-        const gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, bloom);
-        gg.addColorStop(0, `rgba(${col},${a})`);
-        gg.addColorStop(0.45, `rgba(${col},${a * 0.22})`);
+        // Each light is ONE soft radial gradient with a bright, fuzzy center
+        // that fades smoothly to nothing — no hard-edged core disc (a crisp
+        // arc at ~1px reads as a square pixel). Floored radius gives even the
+        // far stars room to resolve as a fuzzy circle. The fill is clipped to a
+        // circle (arc), so the bounding box is never visible.
+        const bloom = Math.max(3.5, rad * 4.5);
+        const gg = ctx.createRadialGradient(px, py, 0, px, py, bloom);
+        gg.addColorStop(0, `rgba(${col},${Math.min(1, a * 1.9)})`);
+        gg.addColorStop(0.1, `rgba(${col},${Math.min(1, a * 1.1)})`);
+        gg.addColorStop(0.28, `rgba(${col},${a * 0.4})`);
+        gg.addColorStop(0.55, `rgba(${col},${a * 0.1})`);
+        gg.addColorStop(0.8, `rgba(${col},${a * 0.03})`);
         gg.addColorStop(1, `rgba(${col},0)`);
         ctx.fillStyle = gg;
-        ctx.fillRect(p.x - bloom, p.y - bloom, bloom * 2, bloom * 2);
-        ctx.fillStyle = `rgba(${col},${Math.min(1, a * 1.7)})`;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(0.5, rad * 0.62), 0, Math.PI * 2);
+        ctx.arc(px, py, bloom, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -287,6 +330,8 @@ export default function TypedGraph({
           const p = project(hub.x, hub.depth, 0);
           const pulse = rm ? 1 : 0.5 + 0.5 * Math.sin(time * 2.4 + i);
           const baseR = lerp(6, 11, p.s);
+          const kind = i === hubs.length - 1 ? "redemption" : "program";
+          hubPos.push({ id: hub.id, label: hub.label, kind, x: p.x, y: p.y, r: baseR });
 
           ctx.globalCompositeOperation = "lighter";
           const glowR = baseR * (3 + litV * 2.2);
@@ -373,11 +418,43 @@ export default function TypedGraph({
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, w, h);
 
+      // Refresh hit-test targets every frame — empty when no route is drawn.
+      hubPosRef.current = hubPos;
+
       raf = requestAnimationFrame(loop);
     };
 
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+
+    // shared hit-test → the hub nearest the cursor (within its radius)
+    const hitTest = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect();
+      return nearestHub(hubPosRef.current, clientX - rect.left, clientY - rect.top);
+    };
+    const toNode = (hp: HubHit | null): HoverNode | null =>
+      hp ? { id: hp.id, label: hp.label, kind: hp.kind, x: hp.x, y: hp.y } : null;
+
+    // hover hit-testing → emit the node under the cursor
+    const onMove = (e: PointerEvent) => {
+      const best = hitTest(e.clientX, e.clientY);
+      canvas.style.cursor = best ? "pointer" : "default";
+      stateRef.current.onHover?.(toNode(best));
+    };
+    const onLeave = () => stateRef.current.onHover?.(null);
+    // click → select the node (or clear when clicking empty space)
+    const onClick = (e: MouseEvent) => {
+      stateRef.current.onSelect?.(toNode(hitTest(e.clientX, e.clientY)));
+    };
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerleave", onLeave);
+    canvas.addEventListener("click", onClick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerleave", onLeave);
+      canvas.removeEventListener("click", onClick);
+    };
   }, []);
 
   return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />;

@@ -1,0 +1,39 @@
+# Next.js BFF web tier — Railway runtime image (RCG-60).
+#
+# Railway always uses a Dockerfile when one is present, so the web service gets
+# its own Dockerfile (the root `Dockerfile` builds the Hono API). This image
+# installs the root web deps, builds the Next.js app, and serves it with
+# `next start`. The web tier is database-less (KTD-5): it calls the live API
+# server-side via API_BASE_URL and never connects to Postgres.
+FROM node:22-bookworm-slim AS builder
+WORKDIR /app
+
+# Install all deps (incl. dev) so `next build` has TypeScript and friends.
+# Copy the manifest + lockfile first so `npm ci` is cached until they change.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# NEXT_PUBLIC_* values are inlined into the client bundle at build time, so they
+# must be present during `next build`. Railway supplies matching service
+# variables as build args.
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+ARG NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+ARG NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/
+ARG NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_CLERK_SIGN_IN_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_UP_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=$NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL
+ENV NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=$NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# `next start` binds 0.0.0.0 and honors the platform-provided PORT. node_modules
+# is kept so the `next` binary resolves at runtime (the cause of the earlier
+# Nixpacks "next: not found" failures).
+ENV NODE_ENV=production
+USER node
+CMD ["npm", "run", "start"]

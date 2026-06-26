@@ -188,8 +188,24 @@ export function diffStale(rev1: ApiPlan, rev2: ApiPlan): Invalidation {
   const rev2EdgeIds = new Set(rev2.graph?.edges.map((edge) => edge.id) ?? []);
   const transferEdge =
     rev1.graph?.edges.find((edge) => edge.kind === "transfer" && !rev2EdgeIds.has(edge.id)) ?? null;
-  const staleEdgeId = transferEdge?.id ?? "";
 
+  if (!transferEdge) {
+    return {
+      staleEdgeId: "",
+      staleNodeIds: [],
+      reason: "",
+      mutation: {
+        seq: toMutationRows(rev1).length + 1,
+        agentType: "system",
+        op: "STALE",
+        node: `plans:${rev1.planLineageId}`,
+        detail: "no transfer diff detected",
+        version: "v2",
+      },
+    };
+  }
+
+  const staleEdgeId = transferEdge.id;
   const rev2NodeIds = new Set(rev2.graph?.nodes.map((node) => node.id) ?? []);
   const staleNodeIds =
     rev1.graph?.nodes
@@ -197,13 +213,9 @@ export function diffStale(rev1: ApiPlan, rev2: ApiPlan): Invalidation {
       .map((node) => node.id) ?? [];
 
   const rev1Nodes = new Map(rev1.graph?.nodes.map((node) => [node.id, node]) ?? []);
-  const sourceLabel = transferEdge
-    ? (rev1Nodes.get(transferEdge.from)?.label ?? transferEdge.from)
-    : "source program";
-  const destLabel = transferEdge
-    ? (rev1Nodes.get(transferEdge.to)?.label ?? transferEdge.to)
-    : "destination program";
-  const srcLabel = transferEdge ? `${sourceLabel} -> ${destLabel}` : "transfer edge";
+  const sourceLabel = rev1Nodes.get(transferEdge.from)?.label ?? transferEdge.from;
+  const destLabel = rev1Nodes.get(transferEdge.to)?.label ?? transferEdge.to;
+  const srcLabel = `${sourceLabel} -> ${destLabel}`;
   const seqBase = toMutationRows(rev1).length + 1;
 
   return {
@@ -214,10 +226,10 @@ export function diffStale(rev1: ApiPlan, rev2: ApiPlan): Invalidation {
       seq: seqBase,
       agentType: "system",
       op: "STALE",
-      node: transferEdge ? `transfers_to:${transferEdge.id}` : `transfers_to:${srcLabel}`,
+      node: `transfers_to:${transferEdge.id}`,
       detail: "edge deactivated; dependent plan revision -> stale",
       version: "v2",
-      nodeId: transferEdge?.from,
+      nodeId: transferEdge.from,
     },
   };
 }

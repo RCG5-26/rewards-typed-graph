@@ -113,12 +113,12 @@ flowchart TD
 
 New files this plan introduces (modified files omitted):
 
-```
+```text
 .coveragerc                              # or [tool.coverage] block — Python coverage config
 apps/api/vitest.config.ts                # add coverage block if not present
 .github/workflows/tests.yml              # all-suites + coverage-gate workflow
 .github/pull_request_template.md         # red-phase attestation checklist
-docs/adr/0008-tdd-enforcement.md         # durable decision record
+docs/adr/0009-tdd-enforcement.md         # durable decision record
 docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 ```
 
@@ -222,7 +222,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 - `context/ai-workflow-rules.md` — generalize the spec-scoped "tests first" rule into a repo-wide default that links to `code-standards.md`; keep the spec workflow as the concrete instance.
 - `AGENTS.md` — add a "Tests / TDD" item to the "Before you finish (quality gates)" list, linking the standard.
 - `context/decisions-log.md` — add an index row (next D0xx) "TDD enforced repo-wide (CI gates + attestation)" with canonical source = the new ADR + `code-standards.md`.
-- `docs/adr/0008-tdd-enforcement.md` (new) — durable ADR: context (thin CI, spec-only TDD), decision (two-layer model), consequences (ratchet, attestation limits).
+- `docs/adr/0009-tdd-enforcement.md` (new) — durable ADR: context (thin CI, spec-only TDD), decision (two-layer model), consequences (ratchet, attestation limits).
 
 **Approach:** One source of truth (`code-standards.md`); all others link. Mirror the existing decision-log row format (see D030) and ADR style in `docs/adr/`.
 **Test scenarios:** `Test expectation: none — documentation unit.`

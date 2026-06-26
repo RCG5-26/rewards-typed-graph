@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ApiError } from "@/lib/api/types";
 
 vi.mock("@/lib/api/client", () => ({
   demoReset: vi.fn(),
@@ -51,5 +52,30 @@ describe("POST /api/demo/reset", () => {
     expect(response.status).toBe(401);
     expect(body).toEqual({ error: "Not signed in." });
     expect(mockDemoReset).not.toHaveBeenCalled();
+  });
+
+  it("returns stable ApiError responses without leaking backend messages", async () => {
+    mockDemoReset.mockRejectedValue(
+      new ApiError({
+        kind: "unprovisioned",
+        status: 403,
+      }),
+    );
+
+    const response = await POST();
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body).toEqual({ error: "Account not provisioned." });
+  });
+
+  it("returns a generic 500 when reset throws an unexpected error", async () => {
+    mockDemoReset.mockRejectedValue(new Error("database host leaked"));
+
+    const response = await POST();
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ error: "Could not reset demo." });
   });
 });

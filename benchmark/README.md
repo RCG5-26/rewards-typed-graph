@@ -39,6 +39,44 @@ Optional knobs:
 
 The runner makes one JSON-only LLM call per benchmark case. It supplies the same seeded fixture/tool facts as context, but the output is treated as a baseline sink only: `plan_type = baseline_single_agent`, final raw output, no `plan_steps`, no `state_dependencies`, and no graph-mutation coordination. Invalidation cases therefore receive no structural invalidation credit by design, and the RCG-38 report shows 0 wins for each invalidation kind.
 
+## Run The RCG-36 Free-Text Multi-Agent Baseline
+
+```bash
+OPENAI_API_KEY=... \
+python -m benchmark.free_text_multiagent_baseline --pretty
+```
+
+Optional knobs:
+
+- `FREE_TEXT_MULTIAGENT_BASELINE_API_KEY` (dedicated override; falls back to `OPENAI_API_KEY`)
+- `FREE_TEXT_MULTIAGENT_BASELINE_MODEL` (default: `gpt-5.5`)
+- `FREE_TEXT_MULTIAGENT_BASELINE_API_URL` (default: OpenAI-compatible chat completions)
+- `FREE_TEXT_MULTIAGENT_BASELINE_TIMEOUT_SECONDS` (default: `60`)
+
+The runner makes four JSON-only LLM calls per benchmark case: wallet agent,
+earning agent, redemption agent, and coordinator. The first three roles pass
+free-text notes forward; the coordinator returns the final baseline plan. The
+report uses the same metric definitions as the typed-graph scorer and the
+single-agent baseline, but it remains a baseline sink only: no graph mutations,
+no `plan_steps`, and no `state_dependencies`.
+
+## Build The RCG-37 Architecture Comparison
+
+```bash
+python -m benchmark.architecture_comparison \
+  --typed-report typed-report.json \
+  --single-agent-report single-agent-report.json \
+  --free-text-report free-text-report.json \
+  --pretty
+```
+
+The comparison requires one report for each architecture:
+`typed_graph_fixture`, `single_agent_llm_baseline`, and
+`free_text_multiagent_baseline`. It verifies that all reports use the same
+benchmark, fixture, and ordered case list, then emits an architecture summary
+plus a case-by-case matrix for accuracy, hallucination count, and invalidation
+correctness.
+
 ## Graph-Lane Invalidation Evidence
 
 RCG-52 adds a read-only graph instrumentation helper for the cross-architecture eval harness:
