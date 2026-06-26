@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AGENT_META, opColor } from "@/lib/plan/presentation";
+import { dollars, type LiveMetrics } from "@/lib/plan/comparison";
+import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
   MutationLogEntry,
@@ -14,7 +15,8 @@ import type {
 } from "@/lib/plan/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
-import TypedGraph from "./TypedGraph";
+import NodeDetailPopover from "./NodeDetailPopover";
+import TypedGraph, { type HoverNode } from "./TypedGraph";
 
 type ConsoleView = "plan" | "baselines" | "benchmark";
 const VIEWS: { id: ConsoleView; label: string }[] = [
@@ -41,9 +43,8 @@ const STATUS_VARS: Record<StepStatus, { color: string; bg: string }> = {
 
 type Meta = Omit<PlanResult, "mutations">;
 
-function dollars(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
-}
+/** Where a keyboard-selected node's popover anchors (no pointer coordinates). */
+const KEYBOARD_POPOVER_Y = 160;
 
 /** Merge a streamed revision's graph into the live map (never deletes). */
 function mergeGraph(prev: PlanGraph, next: PlanGraph): PlanGraph {
@@ -86,11 +87,14 @@ export default function AgentConsole({
   const [revision, setRevision] = useState(1);
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
   const [replanned, setReplanned] = useState(false);
+  const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
+  const [selected, setSelected] = useState<HoverNode | null>(null);
 
   const esRef = useRef<EventSource | null>(null);
   const doneRef = useRef(false);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLDivElement | null>(null);
 
   function openStream(replan: boolean) {
     esRef.current?.close();
@@ -108,12 +112,17 @@ export default function AgentConsole({
       setGraph((g) => applyInvalidation(g, inv));
       setMutations((m) => [...m, inv.mutation]);
       if (inv.mutation.nodeId) setLit((s) => new Set(s).add(inv.mutation.nodeId as string));
+      setCaughtInvalidation(true);
     });
 
     es.addEventListener("meta", (ev) => {
       const meta = JSON.parse((ev as MessageEvent).data) as Meta;
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
+      // the authoritative plan value is in meta — seed it now so the
+      // baselines/benchmark tabs aren't $0 mid-stream (done refines it).
+      // Check presence, not truthiness, so an explicit 0 is not dropped.
+      if (typeof meta.planValueCents === "number") setValueCents(meta.planValueCents);
       setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
@@ -160,20 +169,71 @@ export default function AgentConsole({
 
   const failed = status === "failed";
 
+  const liveMetrics: LiveMetrics = {
+    planValueCents: valueCents,
+    opCount: mutations.length,
+    invalidationCaught: caughtInvalidation,
+    revision,
+  };
+
   function triggerReplan() {
     if (replanned) return;
     setReplanned(true);
     openStream(true);
   }
 
+  // Keyboard-accessible entry point to the same node detail the canvas exposes
+  // via pointer. The canvas is aria-hidden, so this is the only path for
+  // keyboard / assistive-tech users; it anchors the popover centered in the rail.
+  function selectNodeById(id: string) {
+    const node = graph.nodes.find((n) => n.id === id);
+    if (!node) return;
+    const railWidth = railRef.current?.clientWidth ?? 0;
+    setSelected({
+      id: node.id,
+      label: node.label,
+      kind: node.kind,
+      x: railWidth ? railWidth / 2 : 0,
+      y: KEYBOARD_POPOVER_Y,
+    });
+  }
+
   return (
     <div className="absolute inset-0 z-[2] flex">
       {/* ── left: typed-graph traversal rail ── */}
       <div
+        ref={railRef}
         className="relative flex w-2/5 flex-none flex-col justify-between overflow-hidden p-7"
         style={{ background: "#060912", boxShadow: "inset -1px 0 0 rgba(125,166,255,0.14)" }}
       >
-        <TypedGraph graph={graph} litNodeIds={lit} />
+        <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
+
+        {/* Keyboard / assistive-tech path to node details (canvas is aria-hidden). */}
+        {graph.nodes.length > 0 && (
+          <div className="sr-only">
+            <h2>Plan graph nodes</h2>
+            <ul>
+              {graph.nodes.map((n) => (
+                <li key={n.id}>
+                  <button type="button" onClick={() => selectNodeById(n.id)}>
+                    View details for {n.label} ({n.kind})
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {selected && (
+          <NodeDetailPopover
+            node={selected}
+            state={graph.nodes.find((n) => n.id === selected.id)?.state ?? "active"}
+            isLit={lit.has(selected.id)}
+            ops={mutations.filter((m) => m.nodeId === selected.id)}
+            containerWidth={railRef.current?.clientWidth ?? 0}
+            onClose={() => setSelected(null)}
+          />
+        )}
 
         <div className="pointer-events-none relative z-10">
           <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
@@ -259,9 +319,9 @@ export default function AgentConsole({
         </div>
 
         {view === "baselines" ? (
-          <ContrastView planValueCents={valueCents} />
+          <ContrastView metrics={liveMetrics} />
         ) : view === "benchmark" ? (
-          <BenchmarkView />
+          <BenchmarkView metrics={liveMetrics} />
         ) : failed && steps.length === 0 ? (
           <div className="flex flex-1 items-center justify-center text-sm text-error-fg">
             Could not build a plan. Try resetting.
@@ -339,8 +399,8 @@ export default function AgentConsole({
                       <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: meta.color }} />
-                          <span className="font-mono text-2xs font-semibold" style={{ color: meta.color }}>{meta.short}</span>
+                          <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: agentDarkColor(meta) }} />
+                          <span className="font-mono text-2xs font-semibold" style={{ color: agentDarkColor(meta) }}>{meta.short}</span>
                           <span className="rounded font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px" }}>{m.op}</span>
                           <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
                         </div>
