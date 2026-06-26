@@ -54,6 +54,39 @@ export interface UserGraph {
   holds: UserHold[];
 }
 
+function isCurrentUser(value: unknown): value is CurrentUser {
+  if (!value || typeof value !== "object") return false;
+  const user = value as CurrentUser;
+  return typeof user.id === "string" && typeof user.clerkId === "string";
+}
+
+function isUserBalance(value: unknown): value is UserBalance {
+  if (!value || typeof value !== "object") return false;
+  const balance = value as UserBalance;
+  return (
+    typeof balance.programName === "string" &&
+    typeof balance.balancePoints === "number"
+  );
+}
+
+/**
+ * Runtime guard for `/api/me` and client bootstrap. Validates the nested shapes
+ * the consumer dereferences — the `user` identity and each balance's
+ * `programName`/`balancePoints` — so a malformed payload can't slip through and
+ * later throw or yield `NaN` in the points/greeting calculations.
+ */
+export function isUserGraph(value: unknown): value is UserGraph {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as UserGraph;
+  return (
+    isCurrentUser(candidate.user) &&
+    Array.isArray(candidate.balances) &&
+    candidate.balances.every(isUserBalance) &&
+    Array.isArray(candidate.goals) &&
+    Array.isArray(candidate.holds)
+  );
+}
+
 /** Resolves a Clerk identity to its seeded personal graph. */
 export interface UserRepository {
   getUserGraph(clerkId: string): Promise<UserGraph>;
