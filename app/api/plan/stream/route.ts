@@ -1,18 +1,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-import { balanceTransfer, createPlan, getSession } from "@/lib/api/client";
-import {
-  diffStale,
-  toPlanResult,
-  transferParamsFromPersona,
-} from "@/lib/api/adapters";
-import {
-  planQueryError,
-  selectedCardIdsError,
-} from "@/lib/plan/limits";
+import { balanceTransfer, createPlan, getPlan, getSession } from "@/lib/api/client";
+import { diffStale, toPlanResult, transferParamsFromPersona } from "@/lib/api/adapters";
+import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
 import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
-import type { ApiPlan } from "@/lib/api/types";
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
@@ -61,9 +53,7 @@ export async function GET(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) => {
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-        );
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
       const metaOf = (plan: PlanResult) => {
         const { mutations: _omit, ...meta } = plan;
@@ -83,33 +73,12 @@ export async function GET(request: Request) {
           const params = transferParamsFromPersona(session);
           const transferResult = await balanceTransfer(params, token);
 
-          // Synthetic rev1 used only for diffStale — identifies which transfer
-          // edge went stale. The transfer_recommendation step dependsOn UUIDs
-          // are the demo-seed transfer edge and program balance IDs (KTD-5).
-          const syntheticRev1: ApiPlan = {
-            planId: transferResult.staledPlanId,
-            planLineageId: transferResult.planLineageId,
-            revisionNumber: 1,
-            status: "stale",
-            query: queryText,
-            summary: "",
-            steps: [
-              {
-                order: 1,
-                type: "transfer_recommendation",
-                summary: "",
-                reasoning: "",
-                status: "stale",
-                dependsOn: [
-                  "00000000-0000-0000-0000-00000000d001",
-                  "00000000-0000-0000-0000-00000000e001",
-                  "00000000-0000-0000-0000-00000000d002",
-                ],
-              },
-            ],
-          };
+          if (!transferResult.staledPlanId) {
+            throw new Error("balance transfer did not return the staled plan id");
+          }
 
-          const invalidation = diffStale(syntheticRev1, transferResult.currentPlan);
+          const priorPlan = await getPlan(transferResult.staledPlanId, token);
+          const invalidation = diffStale(priorPlan, transferResult.currentPlan);
           const rev2 = toPlanResult(transferResult.currentPlan);
 
           await sleep(PACE_MS);

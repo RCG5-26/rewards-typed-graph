@@ -21,13 +21,13 @@ What exists on `origin/main` today:
 
 ## Prerequisites
 
-| Tool | Version (verified) | Notes |
-| ---- | ------------------ | ----- |
-| Node.js | 23.x (used 23.11) | API uses `tsx`; ESM. |
-| npm | bundled with Node | Two package roots: repo root (web) and `apps/api`. |
-| Python | 3.x (used 3.14) | Runs the bridge + hero/integration tests. No `psycopg` needed — the bridge shells out to `psql`. |
-| Docker | 20+ (used 29.4) | Runs local Postgres via `docker-compose.yml`. |
-| `psql` | 14+ client (used 14.20) | Client only; server is Postgres 16 in Docker. Required by `scripts/dev-db-setup.sh` and the live tests. |
+| Tool    | Version (verified)      | Notes                                                                                                   |
+| ------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| Node.js | 23.x (used 23.11)       | API uses `tsx`; ESM.                                                                                    |
+| npm     | bundled with Node       | Two package roots: repo root (web) and `apps/api`.                                                      |
+| Python  | 3.x (used 3.14)         | Runs the bridge + hero/integration tests. No `psycopg` needed — the bridge shells out to `psql`.        |
+| Docker  | 20+ (used 29.4)         | Runs local Postgres via `docker-compose.yml`.                                                           |
+| `psql`  | 14+ client (used 14.20) | Client only; server is Postgres 16 in Docker. Required by `scripts/dev-db-setup.sh` and the live tests. |
 
 ---
 
@@ -35,18 +35,18 @@ What exists on `origin/main` today:
 
 Copy the template: `cp .env.example .env`. Use placeholders only — never commit real secrets (only `.env.example` is tracked).
 
-| Variable | Used by | Required? | Example | Purpose |
-| -------- | ------- | --------: | ------- | ------- |
-| `DATABASE_URL` | api, scripts, bridge | Yes | `postgresql://rewards:rewards@localhost:5432/rewards_test` | Postgres connection for the API pool + bridge + seed loader. |
-| `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | bridge, live tests | Yes (live) | `localhost` / `5432` / `rewards` / `rewards` / `rewards_test` | libpq fallbacks; the `psql`-subprocess bridge and live integration guards use these. |
-| `API_PORT` | api | No (default `8787`) | `8787` | Port the Hono API listens on. |
-| `CORS_ORIGIN` | api | No (default `http://localhost:3000`) | `http://localhost:3000` | Browser origin allowed by CORS (the Next dev server). |
-| `AUTH_DEV_USER_ID` | api | No (dev only) | `00000000-0000-0000-0000-00000000a001` | Local-only auth bypass: skip Clerk and act as this seeded user. **Ignored when `NODE_ENV=production`.** |
-| `PYTHON_BIN` | api | No (default `python3`) | `python3` | Interpreter the bridge runs under. |
-| `CLERK_SECRET_KEY` | api, web | Yes (real auth) | `sk_test_xxx` | Verifies the Clerk Bearer token server-side. Withheld from the bridge subprocess. |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | web | Yes (web) | `pk_test_xxx` | Clerk client SDK. |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` etc. | web | No | `/sign-in` | Clerk hosted UI routes. |
-| `RUN_LIVE_POSTGRES_TESTS` | tests | No | `1` | Opt-in flag to run the live Postgres hero/seed tests. |
+| Variable                                                     | Used by              |                            Required? | Example                                                       | Purpose                                                                                                 |
+| ------------------------------------------------------------ | -------------------- | -----------------------------------: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                               | api, scripts, bridge |                                  Yes | `postgresql://rewards:rewards@localhost:5432/rewards_test`    | Postgres connection for the API pool + bridge + seed loader.                                            |
+| `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | bridge, live tests   |                           Yes (live) | `localhost` / `5432` / `rewards` / `rewards` / `rewards_test` | libpq fallbacks; the `psql`-subprocess bridge and live integration guards use these.                    |
+| `API_PORT`                                                   | api                  |                  No (default `8787`) | `8787`                                                        | Port the Hono API listens on.                                                                           |
+| `CORS_ORIGIN`                                                | api                  | No (default `http://localhost:3000`) | `http://localhost:3000`                                       | Browser origin allowed by CORS (the Next dev server).                                                   |
+| `AUTH_DEV_USER_ID`                                           | api                  |                        No (dev only) | `00000000-0000-0000-0000-00000000a001`                        | Local-only auth bypass: skip Clerk and act as this seeded user. **Ignored when `NODE_ENV=production`.** |
+| `PYTHON_BIN`                                                 | api                  |               No (default `python3`) | `python3`                                                     | Interpreter the bridge runs under.                                                                      |
+| `CLERK_SECRET_KEY`                                           | api, web             |                      Yes (real auth) | `sk_test_xxx`                                                 | Verifies the Clerk Bearer token server-side. Withheld from the bridge subprocess.                       |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`                          | web                  |                            Yes (web) | `pk_test_xxx`                                                 | Clerk client SDK.                                                                                       |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` etc.                         | web                  |                                   No | `/sign-in`                                                    | Clerk hosted UI routes.                                                                                 |
+| `RUN_LIVE_POSTGRES_TESTS`                                    | tests                |                                   No | `1`                                                           | Opt-in flag to run the live Postgres hero/seed tests.                                                   |
 
 Where each lives:
 
@@ -111,17 +111,17 @@ Re-run `bash scripts/dev-db-setup.sh` only when you want a clean schema + seed.
 
 ### Routes (all require auth; base path `/`)
 
-| Method | Route | Body / query | Returns |
-| ------ | ----- | ------------ | ------- |
-| GET | `/health` | — | `{ "ok": true }` (no auth) |
-| GET | `/session` | — | `{ userId, clerkId, seeded: true }` — bootstraps persona on first login |
-| POST | `/plans` | `{ "query": "..." }` | **synchronous** full plan body, `status: "current"` |
-| GET | `/plans/:planId` | — | full plan body |
-| GET | `/plans/current` | `?lineageId=<uuid>` | the one `current` revision for a lineage |
-| POST | `/balance-transfer` | `{ sourceProgramId, destProgramId, amountPoints, idempotencyKey? }` | `{ planLineageId, staledPlanId, replanJobId, currentPlan }` (revision 2) |
-| POST | `/demo/reset` | — | same as `/session`; restores pristine persona |
-| GET | `/mutations` | `?after=<event_id>` | array of mutation events since cursor |
-| GET | `/mutations/stream` | header `Last-Event-ID` | `text/event-stream`, one frame per mutation |
+| Method | Route               | Body / query                                                        | Returns                                                                  |
+| ------ | ------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| GET    | `/health`           | —                                                                   | `{ "ok": true }` (no auth)                                               |
+| GET    | `/session`          | —                                                                   | `{ userId, clerkId, seeded: true }` — bootstraps persona on first login  |
+| POST   | `/plans`            | `{ "query": "..." }`                                                | **synchronous** full plan body, `status: "current"`                      |
+| GET    | `/plans/:planId`    | —                                                                   | full plan body                                                           |
+| GET    | `/plans/current`    | `?lineageId=<uuid>`                                                 | the one `current` revision for a lineage                                 |
+| POST   | `/balance-transfer` | `{ sourceProgramId, destProgramId, amountPoints, idempotencyKey? }` | `{ planLineageId, staledPlanId, replanJobId, currentPlan }` (revision 2) |
+| POST   | `/demo/reset`       | —                                                                   | same as `/session`; restores pristine persona                            |
+| GET    | `/mutations`        | `?after=<event_id>`                                                 | array of mutation events since cursor                                    |
+| GET    | `/mutations/stream` | header `Last-Event-ID`                                              | `text/event-stream`, one frame per mutation                              |
 
 `POST /plans` is **synchronous** (resolved Open question #2 in spec 07): the bridge builds + commits the plan in-request and returns `status: "current"` — there is no `generating` poll window. The shell still opens `/mutations/stream` to animate the per-step writes.
 
@@ -131,7 +131,12 @@ Re-run `bash scripts/dev-db-setup.sh` only when you want a clean schema + seed.
 # POST /plans → 200
 { "planId":"…","planLineageId":"d973…","revisionNumber":1,"status":"current",
   "query":"…","summary":"…","steps":[{"order":1,"type":"…","summary":"…",
-  "reasoning":"…","status":"current","dependsOn":["…"]}, …3 steps] }
+  "reasoning":"…","status":"current","dependsOn":["…"],
+  "dependencies":[{"id":"…","kind":"UserBalance","slug":"program:chase_ur",
+  "label":"Chase Ultimate Rewards"}]}, …3 steps],
+  "graph":{"nodes":[{"id":"program:chase_ur","kind":"program","label":"Chase Ultimate Rewards"}],
+  "edges":[{"id":"transfer:chase_ur:hyatt","from":"program:chase_ur",
+  "to":"program:hyatt","kind":"transfer"}]} }
 
 # POST /balance-transfer → 200
 { "planLineageId":"694a…","staledPlanId":"6609…","replanJobId":"1aa5…",
@@ -172,7 +177,7 @@ Build against these when the API is down — they match the live shapes:
 Verified 2026-06-25 against Docker Postgres 16 + demo seed (via the bridge — the exact code the HTTP routes call, and via live HTTP):
 
 1. **Session** — `GET /session` → `{ userId, clerkId: "clerk_hero_demo", seeded: true }`.
-2. **Create Plan** — `POST /plans {"query": "Best way to use points for a 3-night Tokyo hotel in October?"}` → `status: "current"`, `revisionNumber: 1`, 3 steps with `reasoning` + `dependsOn`.
+2. **Create Plan** — `POST /plans {"query": "Best way to use points for a 3-night Tokyo hotel in October?"}` → `status: "current"`, `revisionNumber: 1`, 3 steps with `reasoning` + `dependsOn`, plus typed `dependencies` and `graph` metadata for the traversal view.
 3. **Load Plan** — `GET /plans/current?lineageId=<lineage>` → revision 1, `current`.
 4. **Subscribe** — `GET /mutations/stream` → `graph_mutation` frames for the plan writes (`GET /mutations?after=0` returned 14 events for one plan).
 5. **Trigger transfer** — `POST /balance-transfer {sourceProgramId, destProgramId, amountPoints:1000}` → `currentPlan` revision 2, `current`; `staledPlanId` + `replanJobId` returned.
@@ -194,12 +199,12 @@ Revision check after the transfer:
 
 ## Testing
 
-| Command | What it covers | Result (2026-06-25) |
-| ------- | -------------- | ------------------- |
-| `npm --prefix apps/api run typecheck` | API TypeScript | clean |
-| `npm --prefix apps/api test` | API unit tests (routes, mutations, auth — in-memory fakes, no DB) | 86 passed |
-| `python3 -m unittest discover -v` | Python unit tests (mutations, queries, eval) | 88 passed |
-| `RUN_LIVE_POSTGRES_TESTS=1 python3 -m unittest tests.integration.test_hero_moment -v` | Live hero flow on Docker Postgres | 2 passed |
+| Command                                                                               | What it covers                                                    | Result (2026-06-25) |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------- |
+| `npm --prefix apps/api run typecheck`                                                 | API TypeScript                                                    | clean               |
+| `npm --prefix apps/api test`                                                          | API unit tests (routes, mutations, auth — in-memory fakes, no DB) | 86 passed           |
+| `python3 -m unittest discover -v`                                                     | Python unit tests (mutations, queries, eval)                      | 88 passed           |
+| `RUN_LIVE_POSTGRES_TESTS=1 python3 -m unittest tests.integration.test_hero_moment -v` | Live hero flow on Docker Postgres                                 | 2 passed            |
 
 ---
 
@@ -221,16 +226,16 @@ bash scripts/dev-db-setup.sh
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| ------- | ------------ | --- |
-| API exits: `missing required environment variable: DATABASE_URL` | `.env` not sourced into the API process | `source .env` (or export vars) before `npm --prefix apps/api run dev`. |
-| `psql` / setup: connection refused | Postgres container not up | `docker compose up -d postgres`; wait for healthcheck (`docker compose ps`). |
-| Setup refuses: "must be a dedicated test DB" / "host must be localhost" | `DATABASE_URL` points at a non-local or non-`*_test` DB | Use the local `rewards_test` URL; the reset guard only runs on localhost test DBs. |
-| `relation "..." does not exist` | Schema not applied | `bash scripts/dev-db-setup.sh` (applies `schema/schema.sql`). |
-| `GET /session` → 404 / empty | Seed/persona not loaded | Re-run `scripts/dev-db-setup.sh` (loads `--include-demo-persona`); confirm `user_balances` count is 3. |
-| API returns `401` | No/invalid Clerk token and no dev bypass | Provide `Authorization: Bearer <getToken()>`, or set `AUTH_DEV_USER_ID` locally (dev only). |
-| Browser request blocked by CORS | Origin ≠ `CORS_ORIGIN` | Set `CORS_ORIGIN` to the Next origin (default `http://localhost:3000`). |
-| API boot fails: port in use | `API_PORT` (8787) occupied | Free the port or set a different `API_PORT` (update the web base URL too). |
-| `POST /plans` 500 / bridge error | Python/`psql` not on PATH, or bridge can't reach Postgres | Ensure `python3` + `psql` installed and `PG*`/`DATABASE_URL` exported; check the API log line for the bridge stderr. |
-| SSE looks idle | No new mutations since cursor | Trigger a write (`POST /plans` / `/balance-transfer`); the stream only emits on new rows. |
-| No `current` plan after transfer | Re-plan didn't promote revision 2 | Check the `/balance-transfer` response `replanJobId`; re-run `POST /demo/reset` then retry the flow. |
+| Symptom                                                                 | Likely cause                                              | Fix                                                                                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| API exits: `missing required environment variable: DATABASE_URL`        | `.env` not sourced into the API process                   | `source .env` (or export vars) before `npm --prefix apps/api run dev`.                                               |
+| `psql` / setup: connection refused                                      | Postgres container not up                                 | `docker compose up -d postgres`; wait for healthcheck (`docker compose ps`).                                         |
+| Setup refuses: "must be a dedicated test DB" / "host must be localhost" | `DATABASE_URL` points at a non-local or non-`*_test` DB   | Use the local `rewards_test` URL; the reset guard only runs on localhost test DBs.                                   |
+| `relation "..." does not exist`                                         | Schema not applied                                        | `bash scripts/dev-db-setup.sh` (applies `schema/schema.sql`).                                                        |
+| `GET /session` → 404 / empty                                            | Seed/persona not loaded                                   | Re-run `scripts/dev-db-setup.sh` (loads `--include-demo-persona`); confirm `user_balances` count is 3.               |
+| API returns `401`                                                       | No/invalid Clerk token and no dev bypass                  | Provide `Authorization: Bearer <getToken()>`, or set `AUTH_DEV_USER_ID` locally (dev only).                          |
+| Browser request blocked by CORS                                         | Origin ≠ `CORS_ORIGIN`                                    | Set `CORS_ORIGIN` to the Next origin (default `http://localhost:3000`).                                              |
+| API boot fails: port in use                                             | `API_PORT` (8787) occupied                                | Free the port or set a different `API_PORT` (update the web base URL too).                                           |
+| `POST /plans` 500 / bridge error                                        | Python/`psql` not on PATH, or bridge can't reach Postgres | Ensure `python3` + `psql` installed and `PG*`/`DATABASE_URL` exported; check the API log line for the bridge stderr. |
+| SSE looks idle                                                          | No new mutations since cursor                             | Trigger a write (`POST /plans` / `/balance-transfer`); the stream only emits on new rows.                            |
+| No `current` plan after transfer                                        | Re-plan didn't promote revision 2                         | Check the `/balance-transfer` response `replanJobId`; re-run `POST /demo/reset` then retry the flow.                 |

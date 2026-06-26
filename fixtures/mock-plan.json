@@ -16,7 +16,7 @@
     "revisionNumber": 1,
     "status": "current",
     "query": "What's the best way to use my points for a 3-night Tokyo hotel stay in October?",
-    "summary": "Transfer 30k UR \u2192 Hyatt, then book the 3-night Ginza award; hold United miles for the flight.",
+    "summary": "Transfer 30k UR → Hyatt, then book the 3-night Ginza award; hold United miles for the flight.",
     "steps": [
       {
         "order": 1,
@@ -32,7 +32,7 @@
       {
         "order": 2,
         "type": "transfer_recommendation",
-        "summary": "Transfer 30,000 Chase UR \u2192 World of Hyatt (1:1)",
+        "summary": "Transfer 30,000 Chase UR → World of Hyatt (1:1)",
         "reasoning": "Hyatt balance is 30,000 but the Ginza award needs ~60,000. UR holds 180,000; a 1:1 transfer covers the gap and beats the Chase travel portal's ~1.5cpp.",
         "status": "current",
         "dependsOn": [
@@ -45,7 +45,7 @@
         "order": 3,
         "type": "redemption_recommendation",
         "summary": "Redeem 60,000 World of Hyatt for the 3-night Ginza award",
-        "reasoning": "Hyatt Ginza 3-night Tokyo award \u2248 60,000 pts for ~$1,380 value (~2.3cpp) \u2014 the best return in the portfolio for this goal.",
+        "reasoning": "Hyatt Ginza 3-night Tokyo award ≈ 60,000 pts for ~$1,380 value (~2.3cpp) — the best return in the portfolio for this goal.",
         "status": "current",
         "dependsOn": [
           "00000000-0000-0000-0000-00000000d002",
@@ -63,7 +63,66 @@
           "00000000-0000-0000-0000-00000000f002"
         ]
       }
-    ]
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "program:chase_ur",
+          "kind": "program",
+          "slug": "program:chase_ur",
+          "label": "Chase Ultimate Rewards",
+          "programId": "00000000-0000-0000-0000-00000000b001"
+        },
+        {
+          "id": "program:hyatt",
+          "kind": "program",
+          "slug": "program:hyatt",
+          "label": "World of Hyatt",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redemption",
+          "slug": "award:demo_hyatt_ginza:tokyo:3n",
+          "label": "Demo Hyatt Ginza 3-night Tokyo award",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "program:united",
+          "kind": "program",
+          "slug": "program:united",
+          "label": "United MileagePlus",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        },
+        {
+          "id": "award:united_tokyo_saver",
+          "kind": "redemption",
+          "slug": "award:united_tokyo_saver",
+          "label": "United MileagePlus Tokyo saver award",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        }
+      ],
+      "edges": [
+        {
+          "id": "transfer:chase_ur:hyatt",
+          "from": "program:chase_ur",
+          "to": "program:hyatt",
+          "kind": "transfer"
+        },
+        {
+          "id": "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+          "from": "program:hyatt",
+          "to": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redeem"
+        },
+        {
+          "id": "redeem:program:united->award:united_tokyo_saver",
+          "from": "program:united",
+          "to": "award:united_tokyo_saver",
+          "kind": "redeem"
+        }
+      ]
+    }
   },
   "stalePlan": {
     "planId": "11111111-1111-1111-1111-1111111111a1",
@@ -87,7 +146,7 @@
       {
         "order": 2,
         "type": "transfer_recommendation",
-        "summary": "Transfer 30,000 Chase UR \u2192 World of Hyatt (1:1)",
+        "summary": "Transfer 30,000 Chase UR → World of Hyatt (1:1)",
         "reasoning": "Hyatt balance is 30,000 but the Ginza award needs ~60,000. UR holds 180,000; a 1:1 transfer covers the gap and beats the Chase travel portal's ~1.5cpp.",
         "status": "stale",
         "dependsOn": [
@@ -100,7 +159,7 @@
         "order": 3,
         "type": "redemption_recommendation",
         "summary": "Redeem 60,000 World of Hyatt for the 3-night Ginza award",
-        "reasoning": "Hyatt Ginza 3-night Tokyo award \u2248 60,000 pts for ~$1,380 value (~2.3cpp) \u2014 the best return in the portfolio for this goal.",
+        "reasoning": "Hyatt Ginza 3-night Tokyo award ≈ 60,000 pts for ~$1,380 value (~2.3cpp) — the best return in the portfolio for this goal.",
         "status": "stale",
         "dependsOn": [
           "00000000-0000-0000-0000-00000000d002",
@@ -118,7 +177,66 @@
           "00000000-0000-0000-0000-00000000f002"
         ]
       }
-    ]
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "program:chase_ur",
+          "kind": "program",
+          "slug": "program:chase_ur",
+          "label": "Chase Ultimate Rewards",
+          "programId": "00000000-0000-0000-0000-00000000b001"
+        },
+        {
+          "id": "program:hyatt",
+          "kind": "program",
+          "slug": "program:hyatt",
+          "label": "World of Hyatt",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redemption",
+          "slug": "award:demo_hyatt_ginza:tokyo:3n",
+          "label": "Demo Hyatt Ginza 3-night Tokyo award",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "program:united",
+          "kind": "program",
+          "slug": "program:united",
+          "label": "United MileagePlus",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        },
+        {
+          "id": "award:united_tokyo_saver",
+          "kind": "redemption",
+          "slug": "award:united_tokyo_saver",
+          "label": "United MileagePlus Tokyo saver award",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        }
+      ],
+      "edges": [
+        {
+          "id": "transfer:chase_ur:hyatt",
+          "from": "program:chase_ur",
+          "to": "program:hyatt",
+          "kind": "transfer"
+        },
+        {
+          "id": "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+          "from": "program:hyatt",
+          "to": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redeem"
+        },
+        {
+          "id": "redeem:program:united->award:united_tokyo_saver",
+          "from": "program:united",
+          "to": "award:united_tokyo_saver",
+          "kind": "redeem"
+        }
+      ]
+    }
   },
   "createPlan": {
     "planId": "11111111-1111-1111-1111-1111111111a1",
@@ -173,54 +291,159 @@
           "00000000-0000-0000-0000-00000000f002"
         ]
       }
-    ]
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "program:chase_ur",
+          "kind": "program",
+          "slug": "program:chase_ur",
+          "label": "Chase Ultimate Rewards",
+          "programId": "00000000-0000-0000-0000-00000000b001"
+        },
+        {
+          "id": "program:hyatt",
+          "kind": "program",
+          "slug": "program:hyatt",
+          "label": "World of Hyatt",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redemption",
+          "slug": "award:demo_hyatt_ginza:tokyo:3n",
+          "label": "Demo Hyatt Ginza 3-night Tokyo award",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "program:united",
+          "kind": "program",
+          "slug": "program:united",
+          "label": "United MileagePlus",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        },
+        {
+          "id": "award:united_tokyo_saver",
+          "kind": "redemption",
+          "slug": "award:united_tokyo_saver",
+          "label": "United MileagePlus Tokyo saver award",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        }
+      ],
+      "edges": [
+        {
+          "id": "transfer:chase_ur:hyatt",
+          "from": "program:chase_ur",
+          "to": "program:hyatt",
+          "kind": "transfer"
+        },
+        {
+          "id": "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+          "from": "program:hyatt",
+          "to": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redeem"
+        },
+        {
+          "id": "redeem:program:united->award:united_tokyo_saver",
+          "from": "program:united",
+          "to": "award:united_tokyo_saver",
+          "kind": "redeem"
+        }
+      ]
+    }
   },
   "balanceTransfer": {
     "planLineageId": "11111111-1111-1111-1111-1111111110a1",
     "staledPlanId": "11111111-1111-1111-1111-1111111111a1",
     "replanJobId": "33333333-3333-3333-3333-333333333333",
     "currentPlan": {
-    "planId": "11111111-1111-1111-1111-1111111112a2",
-    "planLineageId": "11111111-1111-1111-1111-1111111110a1",
-    "revisionNumber": 2,
-    "status": "current",
-    "query": "What's the best way to use my points for a 3-night Tokyo hotel stay in October?",
-    "summary": "Hyatt now covers the award outright after the transfer; book directly, no further transfer.",
-    "steps": [
-      {
-        "order": 1,
-        "type": "spend_analysis",
-        "summary": "Put Tokyo trip spend on the Chase Sapphire Reserve",
-        "reasoning": "Unchanged: CSR earns 3x travel into Chase UR.",
-        "status": "current",
-        "dependsOn": [
-          "00000000-0000-0000-0000-00000000c001",
-          "00000000-0000-0000-0000-00000000e101"
-        ]
-      },
-      {
-        "order": 2,
-        "type": "redemption_recommendation",
-        "summary": "Redeem 60,000 World of Hyatt for the 3-night Ginza award",
-        "reasoning": "World of Hyatt balance is now 60,000 after the transfer \u2014 it covers the Ginza award outright, so no further transfer is needed.",
-        "status": "current",
-        "dependsOn": [
-          "00000000-0000-0000-0000-00000000d002",
-          "00000000-0000-0000-0000-00000000f001"
-        ]
-      },
-      {
-        "order": 3,
-        "type": "redemption_recommendation",
-        "summary": "Hold 30,000 United miles for the flight (saver award)",
-        "reasoning": "Unchanged from revision 1.",
-        "status": "current",
-        "dependsOn": [
-          "00000000-0000-0000-0000-00000000d003",
-          "00000000-0000-0000-0000-00000000f002"
+      "planId": "11111111-1111-1111-1111-1111111112a2",
+      "planLineageId": "11111111-1111-1111-1111-1111111110a1",
+      "revisionNumber": 2,
+      "status": "current",
+      "query": "What's the best way to use my points for a 3-night Tokyo hotel stay in October?",
+      "summary": "Hyatt now covers the award outright after the transfer; book directly, no further transfer.",
+      "steps": [
+        {
+          "order": 1,
+          "type": "spend_analysis",
+          "summary": "Put Tokyo trip spend on the Chase Sapphire Reserve",
+          "reasoning": "Unchanged: CSR earns 3x travel into Chase UR.",
+          "status": "current",
+          "dependsOn": [
+            "00000000-0000-0000-0000-00000000c001",
+            "00000000-0000-0000-0000-00000000e101"
+          ]
+        },
+        {
+          "order": 2,
+          "type": "redemption_recommendation",
+          "summary": "Redeem 60,000 World of Hyatt for the 3-night Ginza award",
+          "reasoning": "World of Hyatt balance is now 60,000 after the transfer — it covers the Ginza award outright, so no further transfer is needed.",
+          "status": "current",
+          "dependsOn": [
+            "00000000-0000-0000-0000-00000000d002",
+            "00000000-0000-0000-0000-00000000f001"
+          ]
+        },
+        {
+          "order": 3,
+          "type": "redemption_recommendation",
+          "summary": "Hold 30,000 United miles for the flight (saver award)",
+          "reasoning": "Unchanged from revision 1.",
+          "status": "current",
+          "dependsOn": [
+            "00000000-0000-0000-0000-00000000d003",
+            "00000000-0000-0000-0000-00000000f002"
+          ]
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "program:hyatt",
+            "kind": "program",
+            "slug": "program:hyatt",
+            "label": "World of Hyatt",
+            "programId": "00000000-0000-0000-0000-00000000b002"
+          },
+          {
+            "id": "award:demo_hyatt_ginza:tokyo:3n",
+            "kind": "redemption",
+            "slug": "award:demo_hyatt_ginza:tokyo:3n",
+            "label": "Demo Hyatt Ginza 3-night Tokyo award",
+            "programId": "00000000-0000-0000-0000-00000000b002"
+          },
+          {
+            "id": "program:united",
+            "kind": "program",
+            "slug": "program:united",
+            "label": "United MileagePlus",
+            "programId": "00000000-0000-0000-0000-00000000b003"
+          },
+          {
+            "id": "award:united_tokyo_saver",
+            "kind": "redemption",
+            "slug": "award:united_tokyo_saver",
+            "label": "United MileagePlus Tokyo saver award",
+            "programId": "00000000-0000-0000-0000-00000000b003"
+          }
+        ],
+        "edges": [
+          {
+            "id": "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+            "from": "program:hyatt",
+            "to": "award:demo_hyatt_ginza:tokyo:3n",
+            "kind": "redeem"
+          },
+          {
+            "id": "redeem:program:united->award:united_tokyo_saver",
+            "from": "program:united",
+            "to": "award:united_tokyo_saver",
+            "kind": "redeem"
+          }
         ]
       }
-    ]
     }
   },
   "replannedPlan": {
@@ -264,6 +487,52 @@
           "00000000-0000-0000-0000-00000000f002"
         ]
       }
-    ]
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "program:hyatt",
+          "kind": "program",
+          "slug": "program:hyatt",
+          "label": "World of Hyatt",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redemption",
+          "slug": "award:demo_hyatt_ginza:tokyo:3n",
+          "label": "Demo Hyatt Ginza 3-night Tokyo award",
+          "programId": "00000000-0000-0000-0000-00000000b002"
+        },
+        {
+          "id": "program:united",
+          "kind": "program",
+          "slug": "program:united",
+          "label": "United MileagePlus",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        },
+        {
+          "id": "award:united_tokyo_saver",
+          "kind": "redemption",
+          "slug": "award:united_tokyo_saver",
+          "label": "United MileagePlus Tokyo saver award",
+          "programId": "00000000-0000-0000-0000-00000000b003"
+        }
+      ],
+      "edges": [
+        {
+          "id": "redeem:program:hyatt->award:demo_hyatt_ginza:tokyo:3n",
+          "from": "program:hyatt",
+          "to": "award:demo_hyatt_ginza:tokyo:3n",
+          "kind": "redeem"
+        },
+        {
+          "id": "redeem:program:united->award:united_tokyo_saver",
+          "from": "program:united",
+          "to": "award:united_tokyo_saver",
+          "kind": "redeem"
+        }
+      ]
+    }
   }
 }

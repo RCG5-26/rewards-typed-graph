@@ -50,11 +50,32 @@ describe("apiFetch", () => {
     expect(result).toMatchObject({ planId: mockPlan.createPlan.planId });
   });
 
+  it("fetches a plan by id with the bearer token", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockPlan.stalePlan,
+    });
+    const { getPlan } = await getClient();
+    const result = await getPlan("plan-123", "tok123");
+
+    expect(result.planId).toBe(mockPlan.stalePlan.planId);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${FAKE_BASE}/plans/plan-123`,
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer tok123" }),
+      }),
+    );
+  });
+
   it("throws ApiError with kind not-signed-in on 401", async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
     const { apiFetch } = await getClient();
     const { ApiError } = await import("./types");
-    await expect(apiFetch("/plans", { method: "POST", body: {}, token: "t" })).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      apiFetch("/plans", { method: "POST", body: {}, token: "t" }),
+    ).rejects.toBeInstanceOf(ApiError);
     try {
       await apiFetch("/plans", { method: "POST", body: {}, token: "t" });
     } catch (e) {
@@ -67,14 +88,18 @@ describe("apiFetch", () => {
     const { apiFetch, ApiError: AE } = await import("./client");
     void AE;
     const { ApiError } = await import("./types");
-    await expect(apiFetch("/plans", { method: "POST", body: {}, token: "t" })).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      apiFetch("/plans", { method: "POST", body: {}, token: "t" }),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 
   it("throws misconfigured ApiError when API_BASE_URL is not set", async () => {
     delete process.env.API_BASE_URL;
     const { apiFetch } = await import("./client");
     const { ApiError } = await import("./types");
-    await expect(apiFetch("/plans", { method: "POST", body: {}, token: "t" })).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      apiFetch("/plans", { method: "POST", body: {}, token: "t" }),
+    ).rejects.toBeInstanceOf(ApiError);
     try {
       await apiFetch("/plans", { method: "POST", body: {}, token: "t" });
     } catch (e) {

@@ -61,6 +61,10 @@ export async function createPlan(query: string, token: string): Promise<ApiPlan>
   return apiFetch<ApiPlan>("/plans", { method: "POST", body: { query }, token });
 }
 
+export async function getPlan(planId: string, token: string): Promise<ApiPlan> {
+  return apiFetch<ApiPlan>(`/plans/${planId}`, { method: "GET", token });
+}
+
 export async function balanceTransfer(
   params: ApiTransferParams,
   token: string,

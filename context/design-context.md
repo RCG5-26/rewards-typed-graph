@@ -4,7 +4,7 @@
 
 Owner: Val (Person B · Frontend / Demo). The demo's job is to **make the invisible coordination visible** — the architectural claim is half-rendered as a UI element.
 
-**Last updated:** 2026-06-25
+**Last updated:** 2026-06-26
 
 > **Design system landed.** Tokens, fonts, and the Tailwind preset live in [`../design-system/`](../design-system/) (components are built in the app from these — none ship in the design system yet). Usage guide: [`design-system/README.md`](../design-system/README.md). **No hardcoded hex/px** — reference tokens only.
 
@@ -93,17 +93,17 @@ The public landing is a **single self-contained component** ported verbatim from
 
 ## Key UI surfaces
 
-| Surface                   | Route / component   | Primary actions                                                                                        | Data source                                  |
-| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
-| Pick cards / wallet       | `/onboarding` · `OnboardingFlow`/`CardTile` (**built**) | pick cards you carry from the 19-card catalog; live wallet + projected value | `GET /api/cards` (fixture → Postgres)        |
-| Ask (NL goal)             | `/onboarding` · `OnboardingFlow` (**built**) | write the goal in plain words; suggested prompts                                       | client → `POST /api/plan` / stream           |
-| Demo shell / agent console| `/onboarding` · `AgentConsole` (**built**, RCG-27) | NL query → multi-step plan + per-step reasoning; only `current` revision actionable | `GET /api/plan/stream` (SSE; fixture builder → real orchestrator) |
-| Mutation sidebar          | `AgentConsole` log (**built**, RCG-24/25) | observe streaming typed mutations (`graph_mutations`)                              | SSE stream (fixture → real `/mutations`)     |
-| Plan-node dependency view | `TypedGraph` + replan (**built**, RCG-26) | watch stale steps/revision light up; new current revision promoted ($1,050→$900)  | invalidation + replan lifecycle events       |
-| Head-to-head contrast     | `[TBD]` (RCG-45)    | run same scenario across architectures                                                                 | benchmark run output                         |
-| Benchmark numbers         | `[TBD]` (RCG-46)    | view accuracy / hallucination / invalidation / token cost                                              | benchmark results                            |
-| Sign-in                   | `/sign-in` (Clerk)  | authenticate (Google-only); signed-in → `/onboarding`                                                  | Clerk (identity-only; per-user demo persona) |
-| Chrome / account          | `TopBar` (**built**) | wordmark→home; step rail; account menu (sign out); Google name + avatar                               | Clerk `currentUser()`                        |
+| Surface                    | Route / component                                       | Primary actions                                                                     | Data source                                                       |
+| -------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Pick cards / wallet        | `/onboarding` · `OnboardingFlow`/`CardTile` (**built**) | pick cards you carry from the 19-card catalog; live wallet + projected value        | `GET /api/cards` (fixture → Postgres)                             |
+| Ask (NL goal)              | `/onboarding` · `OnboardingFlow` (**built**)            | write the goal in plain words; suggested prompts                                    | client → `POST /api/plan` / stream                                |
+| Demo shell / agent console | `/onboarding` · `AgentConsole` (**built**, RCG-27)      | NL query → multi-step plan + per-step reasoning; only `current` revision actionable | `GET /api/plan/stream` (SSE; fixture builder → real orchestrator) |
+| Mutation sidebar           | `AgentConsole` log (**built**, RCG-24/25)               | observe streaming typed mutations (`graph_mutations`)                               | SSE stream (fixture → real `/mutations`)                          |
+| Plan-node dependency view  | `TypedGraph` + replan (**built**, RCG-26)               | watch stale steps/revision light up; new current revision promoted ($1,050→$900)    | invalidation + replan lifecycle events                            |
+| Head-to-head contrast      | `[TBD]` (RCG-45)                                        | run same scenario across architectures                                              | benchmark run output                                              |
+| Benchmark numbers          | `[TBD]` (RCG-46)                                        | view accuracy / hallucination / invalidation / token cost                           | benchmark results                                                 |
+| Sign-in                    | `/sign-in` (Clerk)                                      | authenticate (Google-only); signed-in → `/onboarding`                               | Clerk (identity-only; per-user demo persona)                      |
+| Chrome / account           | `TopBar` (**built**)                                    | wordmark→home; step rail; account menu (sign out); Google name + avatar             | Clerk `currentUser()`                                             |
 
 ---
 
@@ -174,11 +174,42 @@ App routes (Next, Node runtime, Clerk-gated). All read the swappable repositorie
       "step": "string",
       "reasoning": "string",
       "status": "proposed | current | stale | superseded",
-      "dependsOn": ["node ids"]
+      "dependsOn": ["node ids"],
+      "dependencies": [
+        {
+          "id": "node id",
+          "kind": "UserBalance",
+          "table": "user_balances",
+          "slug": "program:chase_ur",
+          "label": "Chase Ultimate Rewards",
+          "programId": "program node id or null"
+        }
+      ]
     }
-  ]
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "program:chase_ur",
+        "kind": "program | redemption | plan",
+        "slug": "program:chase_ur",
+        "label": "Chase Ultimate Rewards",
+        "programId": "program node id or null"
+      }
+    ],
+    "edges": [
+      {
+        "id": "transfer:chase_ur:hyatt",
+        "from": "program:chase_ur",
+        "to": "program:hyatt",
+        "kind": "transfer | redeem"
+      }
+    ]
+  }
 }
 ```
+
+`dependsOn` remains raw dependency ids for compatibility. The typed-graph traversal view must use `dependencies` / `graph` from the API instead of resolving ids through seed-only UUID maps; signed-in users receive cloned personal node ids.
 
 ---
 

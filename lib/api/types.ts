@@ -6,10 +6,40 @@
 export interface ApiPlanStep {
   order: number;
   type: string;
-  summary: string;
+  summary: string | null;
   reasoning: string;
   status: string;
   dependsOn: string[];
+  dependencies?: ApiPlanDependency[];
+}
+
+export interface ApiPlanDependency {
+  id: string;
+  kind: string;
+  table: string;
+  slug: string;
+  label: string;
+  programId: string | null;
+}
+
+export interface ApiPlanGraphNode {
+  id: string;
+  kind: "program" | "redemption" | "plan";
+  slug: string;
+  label: string;
+  programId: string | null;
+}
+
+export interface ApiPlanGraphEdge {
+  id: string;
+  from: string;
+  to: string;
+  kind: "transfer" | "redeem";
+}
+
+export interface ApiPlanGraph {
+  nodes: ApiPlanGraphNode[];
+  edges: ApiPlanGraphEdge[];
 }
 
 export interface ApiPlan {
@@ -20,12 +50,13 @@ export interface ApiPlan {
   query: string;
   summary: string;
   steps: ApiPlanStep[];
+  graph: ApiPlanGraph;
 }
 
 export interface ApiBalanceTransferResponse {
   planLineageId: string;
-  staledPlanId: string;
-  replanJobId: string;
+  staledPlanId: string | null;
+  replanJobId: string | null;
   currentPlan: ApiPlan;
 }
 
