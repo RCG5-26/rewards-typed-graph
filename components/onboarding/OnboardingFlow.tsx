@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CardView } from "@/lib/cards/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
-import type { UserGraph } from "@/lib/user/types";
+import { isUserGraph, type UserGraph } from "@/lib/user/types";
 import AgentConsole from "./AgentConsole";
 import CardTile from "./CardTile";
 import TopBar from "./TopBar";
@@ -81,6 +81,30 @@ export default function OnboardingFlow() {
     setStep("plan");
   }
 
+  async function handleRestart() {
+    setError(null);
+    try {
+      const res = await fetch("/api/demo/reset", { method: "POST" });
+      if (!res.ok) {
+        setError("Could not reset the demo. Your plan was cleared locally.");
+      } else {
+        // Re-pull the personal graph so balances and the greeting reflect the
+        // freshly reset state instead of the pre-reset values.
+        const graph = await fetch("/api/me")
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+        setMe(graph && isUserGraph(graph) ? graph : null);
+      }
+    } catch (err) {
+      console.error("demo reset failed", err);
+      setError("Could not reset the demo. Your plan was cleared locally.");
+    } finally {
+      setSelected([]);
+      setStep("cards");
+      setQuery("");
+    }
+  }
+
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -91,16 +115,13 @@ export default function OnboardingFlow() {
       // /api/me is best-effort: the flow still works if the personal graph
       // can't be resolved, it just won't pre-fill the wallet/goal.
       fetch("/api/me")
-        .then((r) => (r.ok ? (r.json() as Promise<UserGraph>) : null))
+        .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     ])
       .then(([cardsData, graph]) => {
         if (!active) return;
         setCards(cardsData.cards);
-        // Start empty & interactive: the user picks the cards they carry from
-        // the full catalog and writes their own goal. (The persona's holds/goal
-        // are still available via `me` for the traversal, just not pre-filled.)
-        if (graph) setMe(graph);
+        if (graph && isUserGraph(graph)) setMe(graph);
       })
       .catch((err) => {
         console.error("onboarding load failed", err);
@@ -191,7 +212,7 @@ export default function OnboardingFlow() {
           <AgentConsole
             queryText={query.trim()}
             selectedCardIds={selected}
-            onRestart={() => setStep("cards")}
+            onRestart={handleRestart}
           />
         )}
       </div>
