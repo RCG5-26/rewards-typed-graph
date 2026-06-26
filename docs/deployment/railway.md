@@ -5,15 +5,27 @@ Canonical deployment guide for the hosted demo. Platform: **Railway**
 [0004 — Runtime Topology](../adr/0004-runtime-topology.md) listed Railway as an
 allowed managed-Postgres option).
 
-> **Status (2026-06-25).** Fully deployed. Project `rewards-typed-graph-demo`
-> (Railway, production environment) has two live services: managed Postgres
-> (schema applied, demo persona seeded) and the API container.
+> **Status (2026-06-26).** Fully deployed — **three** live services in project
+> `rewards-typed-graph-demo` (Railway, production): managed Postgres (schema
+> applied, demo persona seeded), the API container, and the **web** service.
 >
 > **Live API URL:** `https://api-production-d6f4c.up.railway.app`
+> **Live Web URL:** `https://dependable-eagerness-production.up.railway.app`
 >
-> Health, auth-guard, and anonymous gates verified hosted. Token-gated gates
-> (session, plan, SSE, transfer+replan, demo-reset) require a real Clerk Bearer
-> token — see [Verification](#verification).
+> Health, auth-guard, and anonymous gates verified hosted. Web `GET /` returns
+> `200` and renders with the Clerk publishable key inlined; `/api/*` BFF routes
+> are Clerk-protected (an unauthenticated `curl` gets a `protect-rewrite` 404 —
+> expected; they resolve in-browser after sign-in). Token-gated gates (session,
+> plan, SSE, transfer+replan, demo-reset) require a real Clerk Bearer token —
+> see [Verification](#verification).
+>
+> **Builder note (important).** Railway *always* builds with a `Dockerfile` when
+> one exists at the repo root, so `"builder": "NIXPACKS"` in `railway.json` is
+> ignored. The web service therefore uses its **own** [`Dockerfile.web`](../../Dockerfile.web)
+> (Next.js `npm ci` → `next build` → `next start`), and the api is pinned to the
+> root `Dockerfile` via [`railway.api.json`](../../railway.api.json). The web
+> service start command is `npm run start` (Next reads `$PORT` natively; a literal
+> `${PORT}` in a non-shell start command is rejected).
 
 ---
 
@@ -25,7 +37,7 @@ Modular monolith (ADR 0004). Only two services are deployed for the demo:
 |---|---|---|
 | **API** (`apps/api`) | Long-lived container from the root [`Dockerfile`](../../Dockerfile) | Hono + TypeScript under `tsx`; **min instances = 1, no scale-to-zero** |
 | **PostgreSQL** | Railway managed database | Persistent; not an ephemeral co-located container |
-| **Web** (`app/`, repo root) | Nixpacks service via [`railway.json`](../../railway.json) | Next.js BFF; **database-less** — no `DATABASE_URL`; calls the live API server-side |
+| **Web** (`app/`, repo root) | Dockerfile service via [`Dockerfile.web`](../../Dockerfile.web), configured by [`railway.json`](../../railway.json) | Next.js BFF; **database-less** — no `DATABASE_URL`; calls the live API server-side. (Dockerfile, not Nixpacks: Railway forces Dockerfile builds when one is present at root.) |
 
 > **`apps/web` migration deferred post-demo.** ADR 0004 planned migrating the Next.js root to `apps/web`, but the move was deferred to avoid a demo-day build risk. Web deploys from the repo root for the Jun 29 demo.
 
