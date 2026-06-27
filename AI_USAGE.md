@@ -555,6 +555,86 @@ Setting `API_PORT=8080` binds 8080 with **no code change** — verified locally.
   probe with `--retry-all-errors`. Documented in `docs/deployment/railway.md`.
 - Brief's dual `npm ci` corrected to `apps/api`-only (see Dockerfile decisions).
 
+---
+
+## Option B baseline assembly — 2026-06-27 (PROMPT A)
+
+**Tool:** Claude Sonnet 4.6 via Claude Code CLI  
+**Session:** Option B thesis-verification sprint — baseline assembly  
+**Branch:** `chore/option-b-shared-baseline`
+
+### What was done
+
+- Classified and discarded incorrect root-level `pg`/`@types/pg` additions from
+  `package.json`/`package-lock.json` (wrong layer — `pg` belongs in `apps/api`
+  only, already present at `^8.12.0`).
+- Committed `PlanProjectionPort` interface to `apps/api/src/orchestrator/contracts.ts`
+  (Contract 7 — persisted Plan → PlanView). Encodes the seam in-repo so both
+  implementation branches can import it without accessing `_bmad-output/`.
+- Assembled `chore/option-b-shared-baseline` from `origin/main @ 3ed4eeb`
+  (post-PR #47 + PR #50 merge).
+- Copied and normalised three planning artifacts to `docs/plans/option-b/`:
+  `adr-0010-orchestrator-canonical-runtime-DRAFT.md`, `orchestrator-thesis-contracts.md`,
+  `architecture-option-b.md` (as-built vs target, post-PR #47 collision map,
+  branch topology, validation matrix, no-go conditions).
+- Verified PR #50 (`fix/backend-seed-data-flow`) MERGED 2026-06-27T20:17:11Z — all
+  gates green; `scripts/ensure_schema_seed.py` and schema assertions live on main.
+- Reviewed PR #47 (`val/graph-fe`); posted CHANGES_REQUESTED with one pre-merge
+  requirement (regression test for `_cash_fallback_plan` wording); Val addressed it
+  and PR merged.
+- Recalculated post-PR #47 collision map: zero single-file collisions remain.
+  `server.ts` touched by PR #47 (formatting-only) and Prompt C (PLAN_ENGINE) — no
+  conflict.
+
+### Important decisions
+
+- `PlanProjectionPort` delegates to Python `project_plan` via `hero_bridge.py` read
+  subcommand. Reusing projection only — NOT invoking legacy plan-generation workflow.
+- Wallet + Redemption confirmed as the two thesis specialists via
+  `agents/ownership.ts`: `redemption_agent` is the sole owner of
+  `RecordStateDependency` (the structural staleness mechanism).
+- Demo fixture pinned: user `a001` (clerk_hero_demo), Chase UR 180k, Hyatt 30k,
+  transfer 30k Chase → Hyatt, Ginza threshold 45k, rev 2 drops transfer step.
+- `.coderabbit.yaml` `auto_pause_after_reviewed_commits: 100` committed separately
+  on `chore/coderabbit-disable-autopause` (PR #51) — kept out of Option B baseline.
+
+### Validation commands run
+
+| Command | Result |
+|---|---|
+| `npm --prefix apps/api run typecheck` | ✓ exit 0 |
+| `npm --prefix apps/api test` | ✓ 89 passed |
+| `npm test` (web Vitest) | ✓ 154 passed |
+| `python3 -m unittest discover -v` | ✓ 168 passed, 10 skipped |
+| `npm run typecheck` (web) | ⚠ 2 pre-existing unused @ts-expect-error (local pg env artifact; CI green) |
+| `npm run build` (web) | ⚠ fails locally (same pg artifact); CI web-build ✓ |
+| Secret scan on docs/plans/option-b/ | ✓ no real secrets |
+
+### Mistakes / findings caught
+
+- `auto_pause_after_reviewed_commits: false` rejected by CodeRabbit schema (requires
+  integer). Corrected to `100` as effective no-pause threshold.
+- `git stash` applied against wrong branch context during typecheck isolation,
+  producing merge conflicts in 12 tracked files. Resolved with targeted
+  `git checkout HEAD -- <files>` per-file (not `git checkout -- .`).
+- Root `package.json` had `pg@^8.22.0` and `@types/pg@^8.20.0` added in a prior
+  session — wrong layer (root = Next.js, no direct Postgres access). Discarded
+  before baseline assembly.
+- Web typecheck errors (`lib/cards/repository.ts:144`, `lib/user/repository.ts:153`)
+  are pre-existing on main, not introduced by baseline. CI web-build green.
+
+### Deferred / blocked
+
+- ADR 0010 ratification (copy to `docs/adr/0010-*.md` + decisions-log row) — requires
+  lead sign-off after cutover gates pass.
+- `docs/plans/2026-06-25-002-feat-frontend-live-api-wiring-plan.md` — kept out of
+  baseline; plan covers completed work (now merged in PR #47).
+- Live PostgreSQL integration test (`test_hero_moment`) not re-run in this session
+  (requires `RUN_LIVE_POSTGRES_TESTS=1`); last known result: 2 passed (hero gate session).
+- PR #51 (`chore/coderabbit-disable-autopause`) pending CI + human approval.
+
+---
+
 ### Railway config (documented, not yet executed)
 
 `docs/deployment/railway.md` records: API service from root Dockerfile, target
