@@ -14,9 +14,15 @@ if [[ -f .env ]]; then
 fi
 
 : "${DATABASE_URL:?Set DATABASE_URL (copy .env.example to .env)}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if ! command -v psql >/dev/null 2>&1; then
   echo "psql is required (install PostgreSQL client tools)." >&2
+  exit 1
+fi
+
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "$PYTHON_BIN is required (set PYTHON_BIN=python if needed)." >&2
   exit 1
 fi
 
@@ -37,15 +43,12 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 
 echo "Validating DATABASE_URL is a local test database..."
-python3 scripts/validate_local_test_database_url.py "$DATABASE_URL"
+"$PYTHON_BIN" scripts/validate_local_test_database_url.py "$DATABASE_URL"
 
 echo "Resetting public schema..."
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
 
-echo "Applying schema/schema.sql..."
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/schema.sql
-
-echo "Loading demo seed with persona (RCG-8)..."
-python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+echo "Applying schema and loading demo seed with persona (RCG-8)..."
+"$PYTHON_BIN" scripts/ensure_schema_seed.py --include-demo-persona
 
 echo "Done. Verify with: psql \"\$DATABASE_URL\" -c \"SELECT count(*) FROM user_balances;\""

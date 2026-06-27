@@ -24,6 +24,12 @@ python scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
 - Run the current demo path locally: create the Tokyo plan, transfer Chase points to Hyatt, watch the old plan become stale or superseded, and show the new current plan.
 - Use the signed-in demo shell to see the typed-graph traversal path for each user's cloned demo persona.
 - Use the Layer 4 cut runbook in `docs/demo/layer4-cut-contingency.md` when rehearsing the June 29 demo.
+- Repair an empty or unseeded database without deleting existing data:
+
+```bash
+python scripts/ensure_schema_seed.py --include-demo-persona
+```
+
 - Run the Person C planner tests with:
 
 ```bash
@@ -61,3 +67,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added explicit benchmark metric breakdowns for hallucination cases and invalidation wins by kind.
 - The plan API now includes typed graph details, so signed-in users see the traversal view even though their personal demo data uses cloned IDs.
 - Added free-text multi-agent baseline reporting and a comparison report across typed-graph, single-agent, and free-text benchmark architectures.
+- The API container now checks for the schema and demo seed before starting, so an empty database can be initialized automatically.

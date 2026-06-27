@@ -1,8 +1,8 @@
 # Orchestration Flow
 
-> How the orchestrator coordinates the specialist agents through the shared typed graph. Companion to [`schema-final.md` v3.1](schema-final.md) — every table named here is defined there.
+> Current mounted runtime and target graph-native orchestration flow. Companion to [`schema-final.md` v3.1](schema-final.md) — every table named here is defined there.
 
-**Status:** Design (target behavior under the locked v3.1 schema). The orchestrator + agent harness (RCG-15, [spec 05](../../context/feature-specs/05-orchestrator-harness.md)) is scaffolding on mocks; the real graph-write path is Alan's lane and comes online as the generated contracts/types land (PR #2).
+**Status:** Mixed. On `main`, `apps/api/src/server.ts` mounts Hono routes backed by `BridgePlanService`, which spawns `apps/api/bridge/hero_bridge.py`; plan creation and transfer+replan complete synchronously through the Python `psql` bridge. The TypeScript orchestrator + agent harness (RCG-15, [spec 05](../../context/feature-specs/05-orchestrator-harness.md)) is tested but not mounted in the live server. The async worker diagrams below are target graph-native behavior, not the current demo runtime.
 
 **The one constraint:** coordination is state, not messages. Agents never exchange free text. Every interaction is a typed, schema-validated mutation to the shared graph. The orchestrator conducts; the graph is the channel.
 
@@ -24,7 +24,32 @@ Every agent also opens its own `agent_runs` row (audit, `last_read_versions`, to
 
 ---
 
-## Happy path: query → plan
+## Current mounted path: query → plan
+
+Plain version: the Hono plan route authenticates the user, shells out to the Python bridge, and the bridge writes a complete current plan before the HTTP response returns. The TS orchestrator does not conduct this request on `main`.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant H as Hono plan route
+    participant B as BridgePlanService
+    participant P as hero_bridge.py
+    participant F as plan_flows
+    participant G as schema.mutations
+    participant DB as Postgres
+
+    U->>H: POST /plans
+    H->>B: createPlan(userId, query)
+    B->>P: spawn Python subprocess
+    P->>F: create_plan_from_query
+    F->>G: write plan, steps, dependencies
+    G->>DB: psql-backed graph writes + graph_mutations
+    P-->>B: JSON envelope with current PlanView
+    B-->>H: PlanView
+    H-->>U: 200 full plan, status=current
+```
+
+## Target graph-native path: query → plan
 
 Plain version: the orchestrator creates an empty Plan pointed at the user's goal, the agents read the same graph and write their pieces of the plan, every write streams to the sidebar, and when the pieces are in the plan is promoted to the one `current` revision the UI shows.
 
@@ -64,7 +89,33 @@ Step by step, mapped to tables:
 
 ---
 
-## Hero moment: state changes, plan self-heals
+## Current mounted path: transfer → inline replan
+
+Plain version: the Hono transfer route shells out to the Python bridge, and the bridge runs the entire stale-and-replan sequence inline before returning. `replan_jobs` is still used as a durable lifecycle table, but no background replan worker is mounted on `main`.
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant H as Hono plan route
+    participant B as BridgePlanService
+    participant P as hero_bridge.py
+    participant F as plan_flows
+    participant G as schema.mutations
+    participant DB as Postgres
+
+    U->>H: POST /balance-transfer
+    H->>B: balanceTransfer(...)
+    B->>P: spawn Python subprocess
+    P->>F: replan_after_balance_transfer
+    F->>G: transfer_points
+    G->>DB: debit/credit, stale plan + steps, insert replan_jobs
+    F->>G: claim job, write revision 2, promote success
+    G->>DB: old plan superseded; new plan current; job completed
+    P-->>B: JSON envelope with currentPlan
+    H-->>U: 200 transfer result + currentPlan
+```
+
+## Target graph-native hero moment: state changes, plan self-heals
 
 Plain version: when a balance moves, the same transaction that writes the balance also flags the affected plan and its steps stale and drops a re-plan job on a durable queue. A worker picks it up and the redemption agent builds a fresh revision that atomically replaces the old one. The orchestrator is not in this loop — invalidation is structural, driven by the recorded dependencies.
 
@@ -129,8 +180,9 @@ stateDiagram-v2
 
 ## What is real vs mocked right now
 
-- **Real on `main`:** schema v3.1 + DDL; generated types/contracts in PR #2.
-- **Mocked:** the orchestrator + harness run against mock mutations and mock SSE events (spec 05) until the graph-write contract lands. Wallet + earning agents follow (spec 06). The redemption traversal is Michael's lane (spec 04).
+- **Real and mounted on `main`:** schema v3.1 + DDL; Hono API routes; Clerk auth; mutation REST/SSE; `BridgePlanService`; `apps/api/bridge/hero_bridge.py`; `plan_flows/hero_flow.py`; Python `schema.mutations.V31GraphWriteService`; synchronous `POST /plans` and `POST /balance-transfer`.
+- **Real but not mounted as runtime orchestration:** TypeScript orchestrator contracts/harness in `apps/api/src/orchestrator` and associated tests.
+- **Target/post-demo:** a graph-native TS composition root, specialist-agent subprocess contract enforcement, and an independent async replan worker that claims `replan_jobs` outside the request path.
 
 ---
 

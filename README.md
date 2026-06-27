@@ -34,6 +34,12 @@ docker compose up -d postgres          # or: ./scripts/dev-db-setup.sh (starts +
 ./scripts/dev-db-setup.sh              # reset schema, apply DDL, load demo persona
 ```
 
+For a non-destructive repair of an empty or already-initialized database, run:
+
+```bash
+python scripts/ensure_schema_seed.py --include-demo-persona
+```
+
 Verify the demo persona loaded:
 
 ```bash
@@ -90,7 +96,7 @@ The marketing landing (`npm run dev` at repo root) ships here for the integratio
 Four layers over Postgres (Postgres only, no Neo4j):
 
 1. **Knowledge graph** — world graph (cards, programs, transfer partners; typed, timestamped edges), personal graph (balances, status, goals), plan graph (plan steps with dependency edges back to the state they rely on).
-2. **Specialist agents** — orchestrator, wallet, earning, redemption. All mutations validated against schema before commit.
+2. **Runtime orchestration** — the live demo API uses Hono routes plus a Python `psql` bridge for plan creation and transfer+replan; the TypeScript orchestrator harness is tested but not mounted on `main`.
 3. **Dependency tracking + graph-typed tools** — plan nodes carry dependency edges with the read version they relied on; when state changes, dependent plan nodes are structurally invalidated and the redemption agent re-plans. Tools return typed subgraphs, not JSON blobs.
 4. **Online graph learning under verification (stretch)** — ingestion agent extracts mutations from unstructured updates; verifier validates against schema, existing edges, and ratio transitivity. Hard-cuttable, go/no-go at Day 10.
 
