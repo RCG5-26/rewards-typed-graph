@@ -355,6 +355,7 @@ export default function AgentConsole({
                   multi-step · per-step reasoning{revision > 1 ? ` · revision ${revision}` : ""}
                 </div>
               </div>
+              {steps.length > 0 && <RouteBar steps={steps} />}
               <div className="flex-1 overflow-y-auto px-5 py-2">
                 {steps.map((s) => {
                   const meta = AGENT_META[s.agentType];
@@ -443,6 +444,49 @@ export default function AgentConsole({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function RouteBar({ steps }: { steps: PlanStep[] }) {
+  const hasTransfer = steps.some((s) => s.type === "transfer_recommendation");
+  const isDirect = !hasTransfer;
+
+  return (
+    <div
+      className="flex items-center gap-3 px-5 py-3 border-b border-subtle"
+      style={{ background: isDirect ? "var(--color-surface-subtle)" : "var(--color-surface-subtle)" }}
+    >
+      {isDirect ? (
+        <>
+          <span
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ background: "oklch(52% 0.18 155 / 0.12)", color: "oklch(52% 0.18 155)" }}
+          >
+            Hyatt Points
+          </span>
+          <span className="text-text-tertiary">→</span>
+          <span className="text-xs font-medium text-text-secondary">book hotel directly · no transfer needed</span>
+        </>
+      ) : (
+        <>
+          <span
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ background: "oklch(58% 0.2 248 / 0.12)", color: "oklch(58% 0.2 248)" }}
+          >
+            Chase UR
+          </span>
+          <span className="text-text-tertiary">→</span>
+          <span
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ background: "oklch(52% 0.18 155 / 0.12)", color: "oklch(52% 0.18 155)" }}
+          >
+            World of Hyatt
+          </span>
+          <span className="text-text-tertiary">→</span>
+          <span className="text-xs font-medium text-text-secondary">book hotel with transferred points</span>
+        </>
+      )}
     </div>
   );
 }
