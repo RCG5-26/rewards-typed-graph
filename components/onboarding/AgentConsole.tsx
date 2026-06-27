@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { dollars, type LiveMetrics } from "@/lib/plan/comparison";
+import {
+  deriveComparison,
+  dollars,
+  fmtTokens,
+  type LiveMetrics,
+} from "@/lib/plan/comparison";
 import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
@@ -90,6 +95,7 @@ export default function AgentConsole({
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
   const [selected, setSelected] = useState<HoverNode | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
 
   const esRef = useRef<EventSource | null>(null);
   const doneRef = useRef(false);
@@ -198,237 +204,439 @@ export default function AgentConsole({
     });
   }
 
+  const cmp = deriveComparison(liveMetrics);
+  // Tokens vs the free-text baseline (CrewAI) — the headline efficiency win.
+  const tokenSavingPct =
+    cmp.crewai.tokens > 0
+      ? Math.round((1 - cmp.typed.tokens / cmp.crewai.tokens) * 100)
+      : 0;
+
   return (
-    <div className="absolute inset-0 z-[2] flex">
-      {/* ── left: typed-graph traversal rail ── */}
-      <div
-        ref={railRef}
-        className="relative flex w-2/5 flex-none flex-col justify-between overflow-hidden p-7"
-        style={{ background: "#060912", boxShadow: "inset -1px 0 0 rgba(125,166,255,0.14)" }}
-      >
-        <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
-
-        {/* Keyboard / assistive-tech path to node details (canvas is aria-hidden). */}
-        {graph.nodes.length > 0 && (
-          <div className="sr-only">
-            <h2>Plan graph nodes</h2>
-            <ul>
-              {graph.nodes.map((n) => (
-                <li key={n.id}>
-                  <button type="button" onClick={() => selectNodeById(n.id)}>
-                    View details for {n.label} ({n.kind})
-                  </button>
-                </li>
-              ))}
-            </ul>
+    <div className="absolute inset-0 z-[2] flex flex-col gap-4 overflow-y-auto px-7 pb-7 pt-5">
+      {/* ── console header: title · phase · view tabs · actions ── */}
+      <div className="flex flex-none flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <div className="font-display text-xl font-semibold uppercase leading-none tracking-snug text-text-primary">
+            agent console
           </div>
-        )}
-
-        {selected && (
-          <NodeDetailPopover
-            node={selected}
-            state={graph.nodes.find((n) => n.id === selected.id)?.state ?? "active"}
-            isLit={lit.has(selected.id)}
-            ops={mutations.filter((m) => m.nodeId === selected.id)}
-            containerWidth={railRef.current?.clientWidth ?? 0}
-            onClose={() => setSelected(null)}
-          />
-        )}
-
-        <div className="pointer-events-none relative z-10">
-          <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
-            typed-graph traversal
-          </div>
-          <div className="mt-1.5 max-w-[260px] font-mono text-2xs leading-relaxed text-white/55">
-            {route || "resolving…"}
-          </div>
+          <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
         </div>
-
-        <div className="pointer-events-none relative z-10">
-          <div className="font-display text-2xs font-semibold uppercase tracking-wide text-[#a0beff]/70">
-            plan value · est.
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-display text-4xl font-semibold leading-none text-white">
-              {dollars(valueCents)}
-            </span>
-            {prevValueCents !== null && prevValueCents !== valueCents && (
-              <span className="font-mono text-xs text-[#ec625c]">
-                was {dollars(prevValueCents)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="absolute right-6 top-6 z-10 flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur"
-          style={{ background: "rgba(134,168,255,0.14)", border: "1px solid rgba(134,168,255,0.32)" }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "oklch(78% 0.14 248)", boxShadow: "0 0 10px oklch(78% 0.14 248)" }} />
-          <span className="text-2xs font-semibold text-[#dce8ff]/90">{liveNodes} nodes live</span>
+        <div className="flex rounded-full bg-surface-subtle p-1">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setView(v.id)}
+              className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-base"
+              style={{
+                background: view === v.id ? "var(--color-surface)" : "transparent",
+                color: view === v.id ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+                boxShadow: view === v.id ? "var(--shadow-xs)" : "none",
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── right: header + plan + mutation log ── */}
-      <div className="flex min-w-0 flex-1 flex-col p-7">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="font-display text-xl font-semibold uppercase leading-none tracking-snug text-text-primary">
-              agent console
-            </div>
-            <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
-          </div>
+      {/* ── metric strip: plan value · invalidation caught · tokens vs baseline ── */}
+      <div className="grid flex-none grid-cols-1 gap-3 md:grid-cols-3">
+        <MetricCard label="plan value">
           <div className="flex items-center gap-3">
-            {/* view tabs — exactly the three views; the tab group never resizes */}
-            <div className="flex rounded-full bg-surface-subtle p-1">
-              {VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  onClick={() => setView(v.id)}
-                  className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-base"
-                  style={{
-                    background: view === v.id ? "var(--color-surface)" : "transparent",
-                    color: view === v.id ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
-                    boxShadow: view === v.id ? "var(--shadow-xs)" : "none",
-                  }}
-                >
-                  {v.label}
-                </button>
-              ))}
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-4xl font-semibold leading-none text-text-primary tabular-nums">
+                {dollars(valueCents)}
+              </span>
+              <span className="font-mono text-2xs text-text-tertiary">/ yr</span>
             </div>
-            {/* actions — separated from the tabs and always rendered, so the
-                tabs don't shift when switching views. Replan only applies to
-                the plan view, so it's disabled elsewhere rather than removed. */}
-            <div className="flex items-center gap-2 border-l border-DEFAULT pl-3">
-              <button
-                type="button"
-                onClick={triggerReplan}
-                disabled={view !== "plan" || replanned || status !== "current"}
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-                style={{ background: "var(--status-stale-bg)", color: "var(--status-stale)" }}
+            {prevValueCents !== null && prevValueCents !== valueCents && (
+              <span
+                className="rounded-full px-2 py-1 font-mono text-2xs font-medium"
+                style={{ background: "var(--status-current-bg)", color: "var(--status-current)" }}
               >
-                ⚡ balance changed · replan
-              </button>
-              <button
-                type="button"
-                onClick={onRestart}
-                className="flex items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-xs font-medium text-text-secondary shadow-xs"
-              >
-                ↺ reset
-              </button>
-            </div>
+                ↑ was {dollars(prevValueCents)}
+              </span>
+            )}
           </div>
-        </div>
+        </MetricCard>
 
-        {view === "baselines" ? (
-          <ContrastView metrics={liveMetrics} />
-        ) : view === "benchmark" ? (
-          <BenchmarkView metrics={liveMetrics} />
-        ) : failed && steps.length === 0 ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-error-fg">
-            Could not build a plan. Try resetting.
+        <MetricCard label="invalidation caught">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-sm font-bold"
+              style={{
+                background: caughtInvalidation ? "var(--color-success-bg)" : "var(--color-surface-subtle)",
+                color: caughtInvalidation ? "var(--color-success-fg)" : "var(--color-text-tertiary)",
+              }}
+            >
+              {caughtInvalidation ? "✓" : "◴"}
+            </span>
+            <span className="text-lg font-semibold text-text-primary">
+              {caughtInvalidation ? `auto re-planned · r${revision}` : "watching state"}
+            </span>
           </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 gap-3">
-            {/* per-step agent plan */}
-            <div className="flex min-h-0 flex-[1.18] flex-col overflow-hidden rounded-card bg-surface shadow-raised">
-              <div className="border-b border-subtle px-5 pb-2.5 pt-4">
-                <div className="font-display text-xs font-semibold uppercase tracking-wide text-text-primary">
-                  agent plan
+        </MetricCard>
+
+        <MetricCard label="tokens vs baseline">
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className="font-display text-4xl font-semibold leading-none tabular-nums"
+              style={{ color: "var(--color-accent-text)" }}
+            >
+              −{tokenSavingPct}%
+            </span>
+            <div className="flex items-end gap-3">
+              <TokenBar label="current" value={fmtTokens(cmp.typed.tokens)} pct={Math.round((cmp.typed.tokens / cmp.crewai.tokens) * 100)} accent />
+              <TokenBar label="baseline" value={fmtTokens(cmp.crewai.tokens)} pct={100} />
+            </div>
+          </div>
+        </MetricCard>
+      </div>
+
+      {view === "baselines" ? (
+        <div className="flex min-h-[360px] flex-1 flex-col">
+          <ContrastView metrics={liveMetrics} />
+        </div>
+      ) : view === "benchmark" ? (
+        <div className="flex min-h-[360px] flex-1 flex-col">
+          <BenchmarkView metrics={liveMetrics} />
+        </div>
+      ) : failed && steps.length === 0 ? (
+        <div className="flex min-h-[320px] flex-1 items-center justify-center rounded-card bg-surface text-sm text-error-fg shadow-raised">
+          Could not build a plan. Try resetting.
+        </div>
+      ) : (
+        <>
+          {/* ── main row: typed-graph traversal (left) + agent plan (right) ── */}
+          <div className="grid min-h-[440px] flex-1 grid-cols-1 gap-4 lg:grid-cols-[1.05fr_1fr]">
+            {/* left — typed-graph traversal card (dark) */}
+            <div
+              ref={railRef}
+              className="relative flex flex-col overflow-hidden rounded-card p-6"
+              style={{ background: "#060912", boxShadow: "0 4px 22px rgba(10,14,30,0.25), inset 0 0 0 1px rgba(125,166,255,0.12)" }}
+            >
+              <div className="relative z-10 flex items-start justify-between">
+                <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
+                  typed-graph traversal
                 </div>
-                <div className="mt-0.5 text-xs text-text-tertiary">
-                  multi-step · per-step reasoning{revision > 1 ? ` · revision ${revision}` : ""}
+                <div
+                  className="flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur"
+                  style={{ background: "rgba(134,168,255,0.14)", border: "1px solid rgba(134,168,255,0.32)" }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "oklch(78% 0.14 248)", boxShadow: "0 0 10px oklch(78% 0.14 248)" }} />
+                  <span className="text-2xs font-semibold text-[#dce8ff]/90">{liveNodes} nodes live</span>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-5 py-2">
-                {steps.map((s) => {
+
+              {/* canvas fills the middle; absolute so the graph draws edge-to-edge */}
+              <div className="relative my-4 min-h-0 flex-1">
+                <TypedGraph graph={graph} litNodeIds={lit} onSelect={setSelected} />
+              </div>
+
+              {/* Keyboard / assistive-tech path to node details (canvas is aria-hidden). */}
+              {graph.nodes.length > 0 && (
+                <div className="sr-only">
+                  <h2>Plan graph nodes</h2>
+                  <ul>
+                    {graph.nodes.map((n) => (
+                      <li key={n.id}>
+                        <button type="button" onClick={() => selectNodeById(n.id)}>
+                          View details for {n.label} ({n.kind})
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selected && (
+                <NodeDetailPopover
+                  node={selected}
+                  state={graph.nodes.find((n) => n.id === selected.id)?.state ?? "active"}
+                  isLit={lit.has(selected.id)}
+                  ops={mutations.filter((m) => m.nodeId === selected.id)}
+                  containerWidth={railRef.current?.clientWidth ?? 0}
+                  onClose={() => setSelected(null)}
+                />
+              )}
+
+              <div className="pointer-events-none relative z-10 mb-3 max-w-[280px] font-mono text-2xs leading-relaxed text-white/55">
+                {route || "resolving…"}
+              </div>
+
+              {/* collapsible graph-mutation log — closed reads as a status bar */}
+              <button
+                type="button"
+                onClick={() => setLogOpen((v) => !v)}
+                className="relative z-10 flex items-center justify-between rounded-xl px-4 py-3 text-left transition"
+                style={{ background: "rgba(134,168,255,0.08)", border: "1px solid rgba(125,166,255,0.16)" }}
+                aria-expanded={logOpen}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="font-mono text-2xs text-[#a0beff]/70">›_</span>
+                  <span className="font-display text-2xs font-semibold uppercase tracking-wide text-[#dce8ff]/90">
+                    graph mutations · {mutations.length} ops
+                  </span>
+                </span>
+                <span
+                  className={`font-mono text-xs text-[#a0beff]/70 transition-transform ${logOpen ? "rotate-180" : ""}`}
+                >
+                  ⌄
+                </span>
+              </button>
+
+              {logOpen && (
+                <div
+                  ref={logRef}
+                  className="relative z-10 mt-2 max-h-[180px] overflow-y-auto rounded-xl px-2 py-1.5"
+                  style={{ background: "rgba(8,13,24,0.6)", border: "1px solid rgba(125,166,255,0.12)" }}
+                >
+                  {mutations.map((m) => {
+                    const meta = AGENT_META[m.agentType];
+                    return (
+                      <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gp-row-in 0.3s ease" }}>
+                        <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: agentDarkColor(meta) }} />
+                            <span className="font-mono text-2xs font-semibold" style={{ color: agentDarkColor(meta) }}>{meta.short}</span>
+                            <span className="rounded font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px" }}>{m.op}</span>
+                            <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
+                          </div>
+                          <div className="mt-0.5 pl-3 font-mono text-2xs leading-relaxed text-[#bed2fa]/70">{m.detail}</div>
+                        </div>
+                        <span className="flex-none pt-0.5 font-mono text-[#7da6ff]/70" style={{ fontSize: "8px" }}>{m.version}</span>
+                      </div>
+                    );
+                  })}
+                  {status === "streaming" || status === "replanning" ? (
+                    <div className="flex items-center gap-2 px-2 py-2">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#86a8ff" }} />
+                      <span className="font-mono text-2xs text-[#a0beff]/60">
+                        {status === "replanning" ? "re-planning…" : "agents committing…"}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* right — agent plan card */}
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-card bg-surface shadow-raised">
+              <div className="flex items-center justify-between border-b border-subtle px-5 pb-3 pt-4">
+                <div>
+                  <div className="font-display text-xs font-semibold uppercase tracking-wide text-text-primary">
+                    agent plan
+                  </div>
+                  <div className="mt-0.5 text-xs text-text-tertiary">
+                    multi-step · per-step reasoning{revision > 1 ? ` · revision ${revision}` : ""}
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-1">
+                {steps.map((s, i) => {
                   const meta = AGENT_META[s.agentType];
                   const sv = STATUS_VARS[s.status];
+                  const deps = s.dependencies ?? s.deps.map((d) => ({ id: d, label: d, slug: d }));
                   return (
-                    <div key={`${revision}-${s.order}`} className="flex gap-3 border-b border-subtle py-3 last:border-0">
-                      <div
-                        className="flex h-7 w-7 flex-none items-center justify-center rounded-lg font-mono text-2xs font-semibold"
-                        style={{ background: `${meta.color}14`, color: meta.color, border: `1px solid ${meta.color}33` }}
-                      >
-                        {meta.short}
+                    <div key={`${revision}-${s.order}`} className="flex gap-3.5 border-b border-subtle py-3.5 last:border-0">
+                      {/* step index + agent glyph */}
+                      <div className="flex flex-none flex-col items-center gap-1.5">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full border border-subtle font-mono text-2xs font-semibold text-text-tertiary tabular-nums">
+                          {i + 1}
+                        </span>
+                        <div
+                          className="flex h-8 w-8 items-center justify-center rounded-lg font-mono text-2xs font-semibold"
+                          style={{ background: `${meta.color}14`, color: meta.color, border: `1px solid ${meta.color}33` }}
+                        >
+                          {meta.short}
+                        </div>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-sm font-semibold text-text-primary">{s.title}</span>
                           <span className="rounded font-mono text-2xs font-medium" style={{ color: sv.color, background: sv.bg, padding: "2px 6px" }}>
                             {s.status}
                           </span>
                         </div>
-                        <div className="mt-1.5 text-2xs font-semibold uppercase tracking-wide" style={{ color: meta.color }}>
-                          {meta.name} · {s.type}
-                        </div>
                         <div className="mt-1.5 text-xs leading-relaxed text-text-secondary">{s.reasoning}</div>
-                        {(s.dependencies?.length ?? s.deps.length) > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {(s.dependencies ?? s.deps.map((d) => ({ id: d, label: d, slug: d }))).map((d) => (
-                              <span key={d.id} title={d.slug} className="inline-flex items-center gap-1 rounded font-mono text-2xs text-[#8a93a6]" style={{ background: "rgba(20,24,40,0.04)", border: "1px solid rgba(20,24,40,0.06)", padding: "2px 7px" }}>
-                                ⊿ {d.label}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* live mutation log (dark) */}
-            <div
-              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-card"
-              style={{ background: "linear-gradient(180deg,#0c1322,#080d18)", boxShadow: "0 4px 22px rgba(10,14,30,0.25), inset 0 0 0 1px rgba(125,166,255,0.10)" }}
-            >
-              <div className="flex items-center justify-between border-b px-4 pb-3 pt-4" style={{ borderColor: "rgba(125,166,255,0.12)" }}>
-                <div>
-                  <div className="font-display text-xs font-semibold uppercase tracking-wide text-[#dce8ff]/90">graph mutations</div>
-                  <div className="mt-0.5 text-2xs text-[#a0beff]/55">typed · schema-validated · streaming</div>
-                </div>
-                <span className="rounded-md px-2 py-1 font-mono text-2xs text-[#a0beff]/80" style={{ background: "rgba(134,168,255,0.12)" }}>
-                  {mutations.length} ops
-                </span>
-              </div>
-              <div ref={logRef} className="flex-1 overflow-y-auto px-3 py-2">
-                {mutations.map((m) => {
-                  const meta = AGENT_META[m.agentType];
-                  return (
-                    <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gp-row-in 0.3s ease" }}>
-                      <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: agentDarkColor(meta) }} />
-                          <span className="font-mono text-2xs font-semibold" style={{ color: agentDarkColor(meta) }}>{meta.short}</span>
-                          <span className="rounded font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px" }}>{m.op}</span>
-                          <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {deps.length > 0 && (
+                            <span className="inline-flex max-w-full items-center gap-1 truncate rounded font-mono text-2xs text-text-secondary" style={{ background: "var(--color-surface-subtle)", border: "1px solid var(--color-border)", padding: "2px 7px" }}>
+                              deps: {deps.map((d) => d.label).join(", ")}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 rounded font-mono text-2xs font-medium" style={{ background: "var(--color-accent-muted)", color: "var(--color-accent-text)", padding: "2px 7px" }}>
+                            provides: {s.type}
+                          </span>
                         </div>
-                        <div className="mt-0.5 pl-3 font-mono text-2xs leading-relaxed text-[#bed2fa]/70">{m.detail}</div>
                       </div>
-                      <span className="flex-none pt-0.5 font-mono text-[#7da6ff]/70" style={{ fontSize: "8px" }}>{m.version}</span>
                     </div>
                   );
                 })}
-                {status === "streaming" || status === "replanning" ? (
-                  <div className="flex items-center gap-2 px-2 py-2">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#86a8ff" }} />
-                    <span className="font-mono text-2xs text-[#a0beff]/60">
-                      {status === "replanning" ? "re-planning…" : "agents committing…"}
-                    </span>
+                {steps.length === 0 && (
+                  <div className="flex h-full min-h-[160px] items-center justify-center text-sm text-text-tertiary">
+                    {status === "streaming" ? "agents drafting the plan…" : "no steps yet"}
                   </div>
-                ) : null}
+                )}
               </div>
-              <div className="border-t px-4 py-2 text-center text-2xs text-[#a0beff]/50" style={{ borderColor: "rgba(125,166,255,0.12)" }}>
-                coordination is state, not messages
+              {/* footer actions — simulate a balance change · reset */}
+              <div className="flex flex-none items-center gap-2.5 border-t border-subtle px-5 py-3.5">
+                <button
+                  type="button"
+                  onClick={triggerReplan}
+                  disabled={replanned || status !== "current"}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+                >
+                  ⚡ Simulate a balance change
+                </button>
+                <button
+                  type="button"
+                  onClick={onRestart}
+                  className="flex flex-none items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition hover:text-text-primary"
+                >
+                  ↺ reset
+                </button>
               </div>
             </div>
           </div>
-        )}
+
+          {/* ── bottom: three-architecture comparison summary ── */}
+          <ComparisonStrip cmp={cmp} caught={caughtInvalidation} onOpen={() => setView("baselines")} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── metric strip card ────────────────────────────────────────────────
+function MetricCard({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-card bg-surface px-5 py-4 shadow-raised">
+      <div className="mb-2.5 font-mono text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+        {label}
       </div>
+      {children}
+    </div>
+  );
+}
+
+function TokenBar({
+  label,
+  value,
+  pct,
+  accent,
+}: {
+  label: string;
+  value: string;
+  pct: number;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="font-mono text-[10px] text-text-tertiary tabular-nums">{value}</span>
+      <div
+        className="w-7 rounded-sm"
+        style={{
+          height: `${Math.max(8, Math.min(34, (pct / 100) * 34))}px`,
+          background: accent ? "var(--color-accent)" : "var(--color-neutral-300)",
+        }}
+      />
+      <span className="font-mono text-[9px] uppercase tracking-wide text-text-tertiary">{label}</span>
+    </div>
+  );
+}
+
+// ── bottom comparison strip (condensed baselines) ────────────────────
+function ComparisonStrip({
+  cmp,
+  caught,
+  onOpen,
+}: {
+  cmp: ReturnType<typeof deriveComparison>;
+  caught: boolean;
+  onOpen: () => void;
+}) {
+  const cols = [
+    {
+      key: "typed",
+      title: "Typed graph",
+      badge: "BEST",
+      badgeStyle: { background: "var(--color-accent-muted)", color: "var(--color-accent-text)" },
+      accent: "var(--color-accent)",
+      tokens: cmp.typed.tokens,
+      marks: [
+        { ok: true as boolean, t: "Validity aware" },
+        { ok: true as boolean, t: "Up-to-date" },
+        { ok: true as boolean, t: "Higher value" },
+      ],
+    },
+    {
+      key: "crewai",
+      title: "CrewAI free-text",
+      badge: "LOWER VALUE",
+      badgeStyle: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
+      accent: "var(--color-warning)",
+      tokens: cmp.crewai.tokens,
+      marks: [
+        { ok: true as boolean, t: "Natural language" },
+        { ok: false as boolean, t: "Validation gaps" },
+        { ok: false as boolean, t: "Lower value" },
+      ],
+    },
+    {
+      key: "single",
+      title: "Single agent",
+      badge: "LOWEST VALUE",
+      badgeStyle: { background: "var(--color-surface-subtle)", color: "var(--color-text-tertiary)" },
+      accent: "var(--color-neutral-500)",
+      tokens: cmp.single.tokens,
+      marks: [
+        { ok: true as boolean, t: "Simple" },
+        { ok: false as boolean, t: "No validation" },
+        { ok: false as boolean, t: "Lowest value" },
+      ],
+    },
+  ];
+
+  return (
+    <div className="grid flex-none grid-cols-1 gap-3 md:grid-cols-3">
+      {cols.map((c) => (
+        <button
+          key={c.key}
+          type="button"
+          onClick={onOpen}
+          className="flex flex-col rounded-card bg-surface p-4 text-left shadow-raised transition duration-base hover:-translate-y-0.5 hover:shadow-float"
+          style={c.key === "typed" ? { border: "1px solid var(--color-accent-subtle)" } : undefined}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
+              <span className="font-display text-sm font-semibold text-text-primary">{c.title}</span>
+            </div>
+            <span className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide" style={{ ...c.badgeStyle, padding: "2px 7px" }}>
+              {c.badge}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+            {c.marks.map((m) => (
+              <span key={m.t} className="flex items-center gap-1.5 text-xs text-text-secondary">
+                <span
+                  className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold"
+                  style={{
+                    background: m.ok ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                    color: m.ok ? "var(--color-success-fg)" : "var(--color-warning-fg)",
+                  }}
+                >
+                  {m.ok ? "✓" : "✕"}
+                </span>
+                {m.t}
+              </span>
+            ))}
+          </div>
+        </button>
+      ))}
     </div>
   );
 }

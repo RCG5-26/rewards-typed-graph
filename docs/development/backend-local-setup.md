@@ -172,6 +172,35 @@ Build against these when the API is down — they match the live shapes:
 - `fixtures/mock-plan.json` — a plan body.
 - `fixtures/mock-mutation-events.json` — a narrative mutation stream (illustrative `mutation_type` strings).
 
+### Typed-graph traversal view (web tier)
+
+The web tier is **database-less**: the left-rail "typed-graph traversal" canvas is
+driven entirely by the plan body's `graph` + `dependencies` — no UUID resolution
+happens in the browser. Relevant FE code:
+
+- **Adapter** ([`lib/api/adapters.ts`](../../lib/api/adapters.ts)) — `buildGraph` maps the
+  API `graph` 1:1; `liveNodes = nodes.length` ("N nodes live"). Step chips render
+  `dependencies[].label` (typed), falling back to raw `dependsOn` ids only when the
+  API omits enrichment (mock path).
+- **Flight path** ([`lib/plan/graph-traversal.ts`](../../lib/plan/graph-traversal.ts)) —
+  `buildTraversalChain` walks active edges into a single linear main path. It is
+  **first-edge-wins**, so when a program hub has several outgoing redeem edges the
+  *first* (the recommended/winner award, emitted before backups) lands on the path.
+- **Branches** — `buildBranches` returns the remaining off-path nodes (e.g. backup
+  redemptions) hanging off their main-path parent; the canvas draws them as dimmer
+  secondary beads on a dashed spur. A fully disconnected component (parent not on
+  the main path) is counted in `liveNodes` but not drawn.
+- **Node lighting / the plane** ([`components/onboarding/TypedGraph.tsx`](../../components/onboarding/TypedGraph.tsx))
+  — nodes light from streamed mutation `nodeId`s (`litNodeIds`); the plane flies to
+  the lit frontier. The synthetic mutation log assigns `nodeId`s progressively
+  (main-path hubs first in path order, then branch nodes) so the plane traverses the
+  route and every "live" node ends lit by stream end.
+
+> Requires the API to return the typed `graph` + `dependencies` (added in the
+> "Expose typed graph metadata in PlanView" change). A deployed API built before
+> that returns `dependsOn` only → the canvas renders 0 nodes. Confirm via the
+> `meta` SSE frame: `graph.nodes` must be non-empty.
+
 ---
 
 ## Hero-flow smoke test

@@ -139,13 +139,20 @@ export default function TypedGraph({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
+    // Flat 2D constellation projection (screenshot look): map unit-disc
+    // coordinates straight onto an ellipse centered in the panel — no
+    // perspective horizon. `height` bows the flight path slightly so links
+    // read as gentle arcs rather than a dome. `s` is near-constant so beads
+    // are uniformly sized like a network graph.
     const project = (x: number, depth: number, height: number) => {
-      const nearY = h * 1.04;
-      const persp = 1 / (1 + depth * 2.3);
+      const fcx = cx;
+      const fcy = h * 0.5;
+      const rx = w * 0.4;
+      const ry = h * 0.4;
       return {
-        x: cx + x * (w * 0.62) * persp,
-        y: horizonY + (nearY - horizonY) * persp - height * persp * scale,
-        s: persp,
+        x: fcx + x * rx,
+        y: fcy + depth * ry - height * scale * 0.22,
+        s: 0.92,
       };
     };
 
@@ -207,30 +214,29 @@ export default function TypedGraph({
       // cleared/short route resets hit-testing to an empty set (no stale hubs).
       const hubPos: HubHit[] = [];
 
-      // ── background sky → ground ──
+      // ── flat deep-space background (constellation field) ──
       ctx.globalCompositeOperation = "source-over";
-      const bg = ctx.createLinearGradient(0, 0, 0, h);
-      bg.addColorStop(0, "#070b16");
-      bg.addColorStop((horizonY / h) * 0.85, "#0a1020");
-      bg.addColorStop(horizonY / h, "#0e1730");
-      bg.addColorStop(0.62, "#0a1020");
+      const bg = ctx.createRadialGradient(cx, h * 0.5, 0, cx, h * 0.5, Math.max(w, h) * 0.78);
+      bg.addColorStop(0, "#0a1020");
+      bg.addColorStop(0.7, "#070b16");
       bg.addColorStop(1, "#04060d");
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
-      const hg = ctx.createRadialGradient(cx, horizonY, 0, cx, horizonY, Math.max(w, h) * 0.7);
-      hg.addColorStop(0, "rgba(86,126,206,0.30)");
-      hg.addColorStop(0.4, "rgba(50,80,150,0.11)");
+      // soft iris glow behind the network core
+      const hg = ctx.createRadialGradient(cx, h * 0.44, 0, cx, h * 0.44, Math.max(w, h) * 0.55);
+      hg.addColorStop(0, "rgba(86,126,206,0.22)");
+      hg.addColorStop(0.5, "rgba(50,80,150,0.07)");
       hg.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = hg;
-      ctx.fillRect(0, 0, w, h * 0.8);
+      ctx.fillRect(0, 0, w, h);
 
       // ── fuzzy circular constellation ──
       // Map each star's unit-disc coordinate to a circle on screen (no
       // perspective dome). Density already tapers outward; the rim fade makes
       // the edge fuzzy. Tune the center/radius here to reposition the circle.
       const fieldCx = cx;
-      const fieldCy = horizonY + (h - horizonY) * 0.34;
-      const fieldR = Math.min(w, h) * 0.46;
+      const fieldCy = h * 0.5;
+      const fieldR = Math.min(w, h) * 0.5;
       ctx.globalCompositeOperation = "lighter";
       for (const L of lights) {
         const ru = Math.hypot(L.x, L.depth); // 0 (center) → ~1 (rim)
