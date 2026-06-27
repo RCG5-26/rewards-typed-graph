@@ -3,7 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { PlanServiceError, type PlanService, type PlanServiceErrorCode } from "./service";
+import {
+  PlanServiceError,
+  type PlanService,
+  type PlanServiceErrorCode,
+} from "./service";
 import {
   type BalanceTransferInput,
   type BalanceTransferResult,
@@ -14,10 +18,16 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const BRIDGE_SCRIPT = fileURLToPath(new URL("../../bridge/hero_bridge.py", import.meta.url));
+const BRIDGE_SCRIPT = fileURLToPath(
+  new URL("../../bridge/hero_bridge.py", import.meta.url),
+);
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
-const ERROR_CODES = new Set<PlanServiceErrorCode>(["validation", "not_found", "conflict"]);
+const ERROR_CODES = new Set<PlanServiceErrorCode>([
+  "validation",
+  "not_found",
+  "conflict",
+]);
 
 /**
  * Kill the bridge child if it stalls (hung `python`/`psql`) so a single request
@@ -111,11 +121,19 @@ export class BridgePlanService implements PlanService {
 
   /** Fetch a single plan projection by id, or null when missing. */
   async getPlanById(userId: string, planId: string): Promise<PlanView | null> {
-    return this.run<PlanView | null>("get-plan", ["--user-id", userId, "--plan-id", planId]);
+    return this.run<PlanView | null>("get-plan", [
+      "--user-id",
+      userId,
+      "--plan-id",
+      planId,
+    ]);
   }
 
   /** Return the current revision for a plan lineage, if one exists. */
-  async getCurrentPlan(userId: string, lineageId: string): Promise<PlanView | null> {
+  async getCurrentPlan(
+    userId: string,
+    lineageId: string,
+  ): Promise<PlanView | null> {
     return this.run<PlanView | null>("current-plan", [
       "--user-id",
       userId,
@@ -149,13 +167,17 @@ export class BridgePlanService implements PlanService {
   private async run<T>(command: string, args: string[]): Promise<T> {
     let stdout: string;
     try {
-      ({ stdout } = await execFileAsync(this.pythonBin, [this.scriptPath, command, ...args], {
-        cwd: this.cwd,
-        env: this.env,
-        maxBuffer: 16 * 1024 * 1024,
-        timeout: BRIDGE_TIMEOUT_MS,
-        killSignal: "SIGKILL",
-      }));
+      ({ stdout } = await execFileAsync(
+        this.pythonBin,
+        [this.scriptPath, command, ...args],
+        {
+          cwd: this.cwd,
+          env: this.env,
+          maxBuffer: 16 * 1024 * 1024,
+          timeout: BRIDGE_TIMEOUT_MS,
+          killSignal: "SIGKILL",
+        },
+      ));
     } catch (error: unknown) {
       // A non-zero exit still prints the JSON error envelope on stdout, so parse
       // that first — otherwise typed domain errors (404/409) degrade to a 500.
