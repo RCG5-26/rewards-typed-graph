@@ -33,7 +33,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from schema.mutations import (  # noqa: E402
     ConcurrencyConflictError,
+    CreatePlanRequest,
+    CreatePlanStepRequest,
     MutationValidationError,
+    RecordStateDependencyRequest,
+    V31GraphWriteService,
 )
 from plan_flows.hero_flow import (  # noqa: E402
     BalanceTransferSpec,
@@ -1127,6 +1131,283 @@ def _replan_job_id(source_plan_id: str) -> str | None:
 
 
 # --------------------------------------------------------------------------- #
+# Orchestrator write commands (additive — Contract 6, ADR 0010 §4)
+#
+# These subcommands bridge the TypeScript orchestrator (M3/M4) to
+# V31GraphWriteService and agent_runs DDL. Each command:
+#   - validates its inputs before touching the DB
+#   - returns {ok:true, data:{...}} or {ok:false, error:{code,message}}
+#   - is strictly additive; existing commands are untouched
+#   - never receives CLERK_SECRET_KEY (allow-listed by the TS caller)
+# --------------------------------------------------------------------------- #
+
+
+def _fetch_plan_record(
+    plan_id: str, user_id: str
+) -> tuple[str, str, int]:
+    """Return (plan_lineage_id, user_id, revision_number) or raise BridgeError."""
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT plan_lineage_id, user_id, revision_number FROM plans WHERE id = %s",
+            (plan_id,),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
+    lineage_id, plan_user_id, revision_number = rows[0]
+    if str(plan_user_id) != user_id:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
+    return str(lineage_id), str(plan_user_id), int(revision_number)
+
+
+def do_orchestrator_create_plan(
+    user_id: str,
+    plan_lineage_id: str,
+    query_text: str,
+) -> dict[str, Any]:
+    """Create a plan revision via V31GraphWriteService (orchestrator path)."""
+    if not user_id or not plan_lineage_id or not query_text:
+        raise BridgeError("validation", "user_id, plan_lineage_id, and query_text are required")
+
+    connection = _PsqlConnection()
+    service = V31GraphWriteService(connection)
+    revision_number = 1
+
+    plan_id = service.create_plan(
+        CreatePlanRequest(
+            actor=user_id,
+            user_id=user_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=revision_number,
+            query_text=query_text,
+        )
+    )
+    return {
+        "planId": plan_id,
+        "planLineageId": plan_lineage_id,
+        "revisionNumber": revision_number,
+    }
+
+
+def do_orchestrator_transition_plan(plan_id: str, status: str) -> dict[str, Any]:
+    """Transition a plan's status to 'current' or 'failed'."""
+    allowed_statuses = {"current", "failed", "generating"}
+    if status not in allowed_statuses:
+        raise BridgeError("validation", f"status must be one of {sorted(allowed_statuses)}")
+    if not plan_id:
+        raise BridgeError("validation", "plan_id is required")
+
+    _psql_exec(
+        _format_psql_query(
+            "UPDATE plans SET status = %s, updated_at = now() WHERE id = %s",
+            (status, plan_id),
+        )
+    )
+    return {"ok": True}
+
+
+def do_orchestrator_commit_step(
+    user_id: str,
+    plan_id: str,
+    agent_run_id: str,
+    step_order: int,
+    step_type: str,
+    payload: dict[str, Any],
+    idempotency_key: str,
+    read_set: dict[str, int],
+) -> dict[str, Any]:
+    """Create a plan step via V31GraphWriteService.
+
+    plan_lineage_id and revision_number are resolved from the plans table
+    so the TS caller only needs to provide plan_id (from AgentCommitBinding).
+
+    Returns {"mutationTxnId": plan_step_id} — the plan_steps.id is used as
+    mutationTxnId so the agent can reference the step in RecordStateDependency.
+    """
+    if not user_id or not plan_id or not agent_run_id or not idempotency_key:
+        raise BridgeError("validation", "user_id, plan_id, agent_run_id, and idempotency_key are required")
+
+    plan_lineage_id, _, revision_number = _fetch_plan_record(plan_id, user_id)
+
+    connection = _PsqlConnection()
+    service = V31GraphWriteService(connection)
+
+    plan_step_id = service.create_plan_step(
+        CreatePlanStepRequest(
+            actor=user_id,
+            user_id=user_id,
+            plan_id=plan_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=revision_number,
+            step_order=step_order,
+            step_type=step_type,
+            payload=payload,
+        )
+    )
+    return {"mutationTxnId": plan_step_id, "idempotencyReplayed": False}
+
+
+def do_orchestrator_record_dependency(
+    user_id: str,
+    plan_step_id: str,
+    target_node_id: str,
+    target_node_type: str,
+    target_table: str,
+    observed_version: int,
+    depended_property: str,
+    snapshot_value: dict[str, Any],
+    idempotency_key: str,
+    read_set: dict[str, int],
+) -> dict[str, Any]:
+    """Record a state dependency edge via V31GraphWriteService."""
+    if not user_id or not plan_step_id or not target_node_id or not idempotency_key:
+        raise BridgeError(
+            "validation",
+            "user_id, plan_step_id, target_node_id, and idempotency_key are required",
+        )
+
+    connection = _PsqlConnection()
+    service = V31GraphWriteService(connection)
+
+    dependency_id = service.record_state_dependency(
+        RecordStateDependencyRequest(
+            actor=user_id,
+            user_id=user_id,
+            plan_step_id=plan_step_id,
+            target_node_id=target_node_id,
+            target_node_type=target_node_type,
+            target_table=target_table,
+            observed_version=observed_version,
+            snapshot_value=snapshot_value,
+            depended_property=depended_property or None,
+        )
+    )
+    return {"mutationTxnId": dependency_id, "idempotencyReplayed": False}
+
+
+def do_orchestrator_record_mutation(
+    user_id: str,
+    plan_id: str,
+    agent_run_id: str,
+    mutation_type: str,
+    target_node_id: str,
+    target_table: str,
+    idempotency_key: str,
+    read_set: dict[str, int],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Write a graph_mutations audit entry for UpdateUserBalance.
+
+    V31GraphWriteService has no balance-update method (balance changes flow
+    through transfer_points() SQL function exclusively). This command writes
+    the mutation audit record only — it does NOT change the balance.
+    """
+    if not user_id or not plan_id or not target_node_id or not idempotency_key:
+        raise BridgeError("validation", "user_id, plan_id, target_node_id, and idempotency_key are required")
+
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT plan_lineage_id FROM plans WHERE id = %s AND user_id = %s",
+            (plan_id, user_id),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
+    plan_lineage_id = str(rows[0][0])
+
+    txn_id = str(uuid.uuid4())
+    _psql_exec(
+        _format_psql_query(
+            """
+            INSERT INTO graph_mutations (
+              mutation_txn_id, user_id, plan_lineage_id, plan_id,
+              mutation_type, target_table, target_node_id, summary,
+              before, after
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL::jsonb, %s::jsonb)
+            """,
+            (
+                txn_id,
+                user_id,
+                plan_lineage_id,
+                plan_id,
+                mutation_type,
+                target_table,
+                target_node_id,
+                f"orchestrator:{mutation_type}:{target_node_id}",
+                json.dumps(payload, sort_keys=True),
+            ),
+        )
+    )
+    return {"mutationTxnId": txn_id, "idempotencyReplayed": False}
+
+
+def do_orchestrator_create_agent_run(
+    plan_id: str,
+    user_id: str,
+    agent_type: str,
+) -> dict[str, Any]:
+    """Insert a new agent_runs row with status='running'."""
+    allowed_agent_types = {"orchestrator", "wallet_agent", "earning_agent", "redemption_agent"}
+    if agent_type not in allowed_agent_types:
+        raise BridgeError("validation", f"agent_type must be one of {sorted(allowed_agent_types)}")
+    if not plan_id or not user_id:
+        raise BridgeError("validation", "plan_id and user_id are required")
+
+    agent_run_id = str(uuid.uuid4())
+    _psql_exec(
+        _format_psql_query(
+            """
+            INSERT INTO agent_runs
+              (id, agent_type, plan_id, user_id, status, started_at, updated_at)
+            VALUES (%s, %s, %s, %s, 'running', now(), now())
+            """,
+            (agent_run_id, agent_type, plan_id, user_id),
+        )
+    )
+    return {"agentRunId": agent_run_id}
+
+
+def do_orchestrator_finalize_agent_run(
+    agent_run_id: str,
+    status: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Update an agent_run row with terminal status and completion timestamp."""
+    allowed_statuses = {"completed", "failed"}
+    if status not in allowed_statuses:
+        raise BridgeError("validation", f"status must be one of {sorted(allowed_statuses)}")
+    if not agent_run_id:
+        raise BridgeError("validation", "agent_run_id is required")
+
+    _psql_exec(
+        _format_psql_query(
+            """
+            UPDATE agent_runs
+               SET status = %s,
+                   completed_at = now(),
+                   error = %s,
+                   updated_at = now()
+             WHERE id = %s
+            """,
+            (status, error, agent_run_id),
+        )
+    )
+    return {"ok": True}
+
+
+def do_read_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
+    """Project a plan into PlanView for Contract 7 (plan-projection read path).
+
+    Named 'read-plan' to clearly distinguish projection reads from plan-generation
+    commands (create-plan, balance-transfer). G5 verification confirms this command
+    was invoked rather than any plan-generation command.
+    """
+    if not user_id or not plan_id:
+        raise BridgeError("validation", "user_id and plan_id are required")
+    return project_plan(user_id, plan_id)
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 
@@ -1165,6 +1446,59 @@ def build_parser() -> argparse.ArgumentParser:
     transfer.add_argument("--dest-program-id", required=True)
     transfer.add_argument("--amount", required=True, type=int)
     transfer.add_argument("--idempotency-key")
+
+    # ── Orchestrator write commands (additive) ────────────────────────────── #
+
+    ocp = with_user(sub.add_parser("orchestrator-create-plan"))
+    ocp.add_argument("--plan-lineage-id", required=True)
+    ocp.add_argument("--query-text", required=True)
+
+    otp = sub.add_parser("orchestrator-transition-plan")
+    otp.add_argument("--plan-id", required=True)
+    otp.add_argument("--status", required=True)
+
+    ocs = with_user(sub.add_parser("orchestrator-commit-step"))
+    ocs.add_argument("--plan-id", required=True)
+    ocs.add_argument("--agent-run-id", required=True)
+    ocs.add_argument("--step-order", required=True, type=int)
+    ocs.add_argument("--step-type", required=True)
+    ocs.add_argument("--payload", required=True)
+    ocs.add_argument("--idempotency-key", required=True)
+    ocs.add_argument("--read-set", required=True)
+
+    ord_ = with_user(sub.add_parser("orchestrator-record-dependency"))
+    ord_.add_argument("--plan-step-id", required=True)
+    ord_.add_argument("--target-node-id", required=True)
+    ord_.add_argument("--target-node-type", required=True)
+    ord_.add_argument("--target-table", required=True)
+    ord_.add_argument("--observed-version", required=True, type=int)
+    ord_.add_argument("--depended-property", default="")
+    ord_.add_argument("--snapshot-value", required=True)
+    ord_.add_argument("--idempotency-key", required=True)
+    ord_.add_argument("--read-set", required=True)
+
+    orm = with_user(sub.add_parser("orchestrator-record-mutation"))
+    orm.add_argument("--plan-id", required=True)
+    orm.add_argument("--agent-run-id", required=True)
+    orm.add_argument("--mutation-type", required=True)
+    orm.add_argument("--target-node-id", required=True)
+    orm.add_argument("--target-table", required=True)
+    orm.add_argument("--idempotency-key", required=True)
+    orm.add_argument("--read-set", required=True)
+    orm.add_argument("--payload", required=True)
+
+    ocar = with_user(sub.add_parser("orchestrator-create-agent-run"))
+    ocar.add_argument("--plan-id", required=True)
+    ocar.add_argument("--agent-type", required=True)
+
+    ofar = sub.add_parser("orchestrator-finalize-agent-run")
+    ofar.add_argument("--agent-run-id", required=True)
+    ofar.add_argument("--status", required=True)
+    ofar.add_argument("--error")
+
+    rp = with_user(sub.add_parser("read-plan"))
+    rp.add_argument("--plan-id", required=True)
+
     return parser
 
 
@@ -1195,6 +1529,66 @@ def dispatch(args: argparse.Namespace) -> Any:
             args.amount,
             idempotency_key=args.idempotency_key,
         )
+
+    # ── Orchestrator write commands ────────────────────────────────────────── #
+
+    if args.command == "orchestrator-create-plan":
+        return do_orchestrator_create_plan(
+            args.user_id, args.plan_lineage_id, args.query_text
+        )
+    if args.command == "orchestrator-transition-plan":
+        return do_orchestrator_transition_plan(args.plan_id, args.status)
+    if args.command == "orchestrator-commit-step":
+        return do_orchestrator_commit_step(
+            user_id=args.user_id,
+            plan_id=args.plan_id,
+            agent_run_id=args.agent_run_id,
+            step_order=args.step_order,
+            step_type=args.step_type,
+            payload=json.loads(args.payload),
+            idempotency_key=args.idempotency_key,
+            read_set=json.loads(args.read_set),
+        )
+    if args.command == "orchestrator-record-dependency":
+        return do_orchestrator_record_dependency(
+            user_id=args.user_id,
+            plan_step_id=args.plan_step_id,
+            target_node_id=args.target_node_id,
+            target_node_type=args.target_node_type,
+            target_table=args.target_table,
+            observed_version=args.observed_version,
+            depended_property=args.depended_property,
+            snapshot_value=json.loads(args.snapshot_value),
+            idempotency_key=args.idempotency_key,
+            read_set=json.loads(args.read_set),
+        )
+    if args.command == "orchestrator-record-mutation":
+        return do_orchestrator_record_mutation(
+            user_id=args.user_id,
+            plan_id=args.plan_id,
+            agent_run_id=args.agent_run_id,
+            mutation_type=args.mutation_type,
+            target_node_id=args.target_node_id,
+            target_table=args.target_table,
+            idempotency_key=args.idempotency_key,
+            read_set=json.loads(args.read_set),
+            payload=json.loads(args.payload),
+        )
+    if args.command == "orchestrator-create-agent-run":
+        return do_orchestrator_create_agent_run(
+            plan_id=args.plan_id,
+            user_id=args.user_id,
+            agent_type=args.agent_type,
+        )
+    if args.command == "orchestrator-finalize-agent-run":
+        return do_orchestrator_finalize_agent_run(
+            agent_run_id=args.agent_run_id,
+            status=args.status,
+            error=args.error,
+        )
+    if args.command == "read-plan":
+        return do_read_plan(args.user_id, args.plan_id)
+
     raise BridgeError("validation", f"unknown command: {args.command}")
 
 

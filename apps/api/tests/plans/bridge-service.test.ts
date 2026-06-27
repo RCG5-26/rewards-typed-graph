@@ -12,8 +12,8 @@ const FAKE_BRIDGE = fileURLToPath(new URL("../helpers/fake-bridge.mjs", import.m
  * `node` "bridge" instead of hero_bridge.py, so we can prove the TS marshalling,
  * envelope parsing, and typed-error mapping without a real Python/psql process.
  */
-function buildService(): BridgePlanService {
-  return new BridgePlanService({ pythonBin: "node", scriptPath: FAKE_BRIDGE });
+function buildService(env?: NodeJS.ProcessEnv): BridgePlanService {
+  return new BridgePlanService({ pythonBin: "node", scriptPath: FAKE_BRIDGE, env });
 }
 
 type Echo = { command: string; argv: string[] };
@@ -109,5 +109,17 @@ describe("BridgePlanService marshalling (legacy/rollback engine)", () => {
       scriptPath: FAKE_BRIDGE,
     });
     await expect(broken.createPlan("user-1", "q")).rejects.toThrow(/hero bridge failed/);
+  });
+
+  it("never forwards CLERK_SECRET_KEY to the subprocess env", () => {
+    const svc = buildService({
+      PATH: "/usr/bin",
+      DATABASE_URL: "pg://host/db",
+      CLERK_SECRET_KEY: "sk_live_supersecret",
+    });
+    const bridgeEnv = (svc as unknown as { env: NodeJS.ProcessEnv }).env;
+    expect(bridgeEnv["CLERK_SECRET_KEY"]).toBeUndefined();
+    expect(bridgeEnv["PATH"]).toBe("/usr/bin");
+    expect(bridgeEnv["DATABASE_URL"]).toBe("pg://host/db");
   });
 });
