@@ -84,7 +84,6 @@ export default function AgentConsole({
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">(
     "streaming",
   );
-  const [replanned, setReplanned] = useState(false);
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
   const [selected, setSelected] = useState<HoverNode | null>(null);
@@ -174,12 +173,6 @@ export default function AgentConsole({
     invalidationCaught: caughtInvalidation,
     revision,
   };
-
-  function triggerReplan() {
-    if (replanned) return;
-    setReplanned(true);
-    openStream(true);
-  }
 
   // Keyboard-accessible entry point to the same node detail the canvas exposes
   // via pointer. The canvas is aria-hidden, so this is the only path for
