@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { fromMutationEvent } from "@/lib/api/mutation-adapter";
+import type { RealMutationEvent } from "@/lib/api/types";
 import { dollars, type LiveMetrics } from "@/lib/plan/comparison";
 import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
@@ -92,14 +94,35 @@ export default function AgentConsole({
   const [selected, setSelected] = useState<HoverNode | null>(null);
 
   const esRef = useRef<EventSource | null>(null);
+  const mutEsRef = useRef<EventSource | null>(null);
+  const lastCursorRef = useRef<string>("0");
+  const mutSeqRef = useRef<number>(1);
   const doneRef = useRef(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
 
   function openStream(replan: boolean) {
     esRef.current?.close();
+    mutEsRef.current?.close();
     doneRef.current = false;
     const valueAtStart = valueCents;
+
+    // Open the real mutations SSE first, starting from the last known cursor.
+    // Events arrive with event name "graph_mutation" and carry full MutationEvent
+    // JSON — converted to MutationLogEntry for the panel.
+    const mutEs = new EventSource(
+      `/api/mutations/stream?after=${lastCursorRef.current}`,
+    );
+    mutEsRef.current = mutEs;
+    mutEs.addEventListener("graph_mutation", (ev) => {
+      const event = JSON.parse((ev as MessageEvent).data) as RealMutationEvent;
+      lastCursorRef.current = event.event_id;
+      const entry = fromMutationEvent(event, mutSeqRef.current++);
+      setMutations((m) => [...m, entry]);
+      if (entry.nodeId) setLit((s) => new Set(s).add(entry.nodeId as string));
+    });
+
+    // Plan lifecycle stream: meta, invalidation, done — no mutation events.
     const params = new URLSearchParams({ q: queryText });
     if (selectedCardIds.length) params.set("cards", selectedCardIds.join(","));
     if (replan) params.set("replan", "1");
@@ -110,8 +133,7 @@ export default function AgentConsole({
       const inv = JSON.parse((ev as MessageEvent).data) as Invalidation;
       setStatus("replanning");
       setGraph((g) => applyInvalidation(g, inv));
-      setMutations((m) => [...m, inv.mutation]);
-      if (inv.mutation.nodeId) setLit((s) => new Set(s).add(inv.mutation.nodeId as string));
+      // The real MarkStale row arrives via mutEs; only apply graph animation here.
       setCaughtInvalidation(true);
     });
 
@@ -119,20 +141,11 @@ export default function AgentConsole({
       const meta = JSON.parse((ev as MessageEvent).data) as Meta;
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
-      // the authoritative plan value is in meta — seed it now so the
-      // baselines/benchmark tabs aren't $0 mid-stream (done refines it).
-      // Check presence, not truthiness, so an explicit 0 is not dropped.
       if (typeof meta.planValueCents === "number") setValueCents(meta.planValueCents);
       setLiveNodes(meta.liveNodes);
       setRoute(meta.route);
       setGoalLabel(meta.goalLabel);
       setRevision(meta.revision);
-    });
-
-    es.addEventListener("mutation", (ev) => {
-      const row = JSON.parse((ev as MessageEvent).data) as MutationLogEntry;
-      setMutations((m) => [...m, row]);
-      if (row.nodeId) setLit((s) => new Set(s).add(row.nodeId as string));
     });
 
     es.addEventListener("done", (ev) => {
@@ -147,6 +160,7 @@ export default function AgentConsole({
       setStatus(d.status === "failed" ? "failed" : "current");
       doneRef.current = true;
       es.close();
+      // Keep mutEs open so replan mutations continue to arrive if triggered.
     });
 
     es.addEventListener("error", () => {
@@ -158,7 +172,10 @@ export default function AgentConsole({
   // Open the initial stream once.
   useEffect(() => {
     openStream(false);
-    return () => esRef.current?.close();
+    return () => {
+      esRef.current?.close();
+      mutEsRef.current?.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

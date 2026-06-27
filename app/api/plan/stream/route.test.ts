@@ -86,7 +86,8 @@ describe("GET /api/plan/stream", () => {
     expect(
       (frames[0].data as { graph: { nodes: unknown[]; edges: unknown[] } }).graph.edges.length,
     ).toBeGreaterThan(0);
-    expect(frames.some((f) => f.event === "mutation")).toBe(true);
+    // mutation events are now delivered by /api/mutations/stream (real SSE), not this route
+    expect(frames.some((f) => f.event === "mutation")).toBe(false);
 
     const done = frames[frames.length - 1];
     expect(done.event).toBe("done");
@@ -117,7 +118,8 @@ describe("GET /api/plan/stream", () => {
     const metaIdx = frames.findIndex((f) => f.event === "meta");
     expect(invalidationIdx).toBeLessThan(metaIdx);
 
-    expect(frames.some((f) => f.event === "mutation")).toBe(true);
+    // mutation events are now delivered by /api/mutations/stream (real SSE), not this route
+    expect(frames.some((f) => f.event === "mutation")).toBe(false);
 
     const metaFrame = frames.find((f) => f.event === "meta");
     expect(

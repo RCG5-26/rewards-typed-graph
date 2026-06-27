@@ -262,7 +262,7 @@ class V31GraphWriteService:
                 mutation_type="CreatePlan",
                 target_table="plans",
                 target_node_id=plan_id,
-                summary="Created plan",
+                summary=f"Plan r{request.revision_number}: {request.query_text}",
                 before=None,
                 after={
                     "query_text": request.query_text,
@@ -329,7 +329,7 @@ class V31GraphWriteService:
                 mutation_type="CreatePlanStep",
                 target_table="plan_steps",
                 target_node_id=plan_step_id,
-                summary="Created plan step",
+                summary=request.payload.get("action") or f"step {request.step_order}: {request.step_type}",
                 before=None,
                 after={
                     "plan_id": request.plan_id,
@@ -402,7 +402,10 @@ class V31GraphWriteService:
                 mutation_type="RecordStateDependency",
                 target_table="state_dependencies",
                 target_node_id=dependency_id,
-                summary="Recorded state dependency",
+                summary=(
+                    f"Watching {request.snapshot_value.get('program_slug', request.target_table)}"
+                    f" {request.depended_property or 'state'}"
+                ),
                 before=None,
                 after={
                     "plan_step_id": request.plan_step_id,

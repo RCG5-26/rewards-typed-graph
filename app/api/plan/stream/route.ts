@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { balanceTransfer, createPlan, getPlan, getSession } from "@/lib/api/client";
 import { diffStale, toPlanResult, transferParamsFromPersona } from "@/lib/api/adapters";
 import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
-import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
+import type { PlanResult } from "@/lib/plan/types";
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
@@ -21,9 +21,6 @@ import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const PACE_MS = 320;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(request: Request) {
   const { getToken } = await auth();
@@ -60,12 +57,6 @@ export async function GET(request: Request) {
         void _omit;
         return meta;
       };
-      const streamMutations = async (rows: MutationLogEntry[]) => {
-        for (const row of rows) {
-          await sleep(PACE_MS);
-          send("mutation", row);
-        }
-      };
 
       try {
         if (isReplan) {
@@ -81,10 +72,8 @@ export async function GET(request: Request) {
           const invalidation = diffStale(priorPlan, transferResult.currentPlan);
           const rev2 = toPlanResult(transferResult.currentPlan);
 
-          await sleep(PACE_MS);
           send("invalidation", invalidation);
           send("meta", metaOf(rev2));
-          await streamMutations(rev2.mutations);
           send("done", {
             revision: rev2.revision,
             planValueCents: rev2.planValueCents,
@@ -95,7 +84,6 @@ export async function GET(request: Request) {
           const apiPlan = await createPlan(queryText, token);
           const plan = toPlanResult(apiPlan);
           send("meta", metaOf(plan));
-          await streamMutations(plan.mutations);
           send("done", {
             revision: plan.revision,
             planValueCents: plan.planValueCents,
