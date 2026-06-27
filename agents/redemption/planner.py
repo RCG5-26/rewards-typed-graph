@@ -186,6 +186,14 @@ def plan_direct_redemption(
 
     balance = _balance_for_request(fixture, balance_points)
     dependency = _balance_dependency(balance)
+
+    # Honour unsupported queries here too — without this a Hyatt-card request for
+    # a program/option not in the seed (e.g. Marriott) would fall through to the
+    # seeded recommendation instead of the unsupported-plan response.
+    unsupported_reason = _unsupported_query_reason(query, fixture)
+    if unsupported_reason is not None:
+        return _unsupported_plan(query, balance, dependency, unsupported_reason)
+
     candidates = _candidate_awards_direct(fixture, balance["balance_points"])
 
     if not candidates:
@@ -481,7 +489,7 @@ def _cash_fallback_plan(
                 order=1,
                 step_type="redemption_recommendation",
                 action="Use cash or wait for a better seeded award.",
-                reasoning="No available seeded award is affordable with the current Chase balance.",
+                reasoning="No available seeded award is affordable with the current points balance.",
                 payload={"fallback": "cash", "rejected_options": rejected_options},
                 dependency=dependency,
             )

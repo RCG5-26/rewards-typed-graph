@@ -18,9 +18,6 @@ export async function GET() {
     return NextResponse.json({ cards });
   } catch (err) {
     console.error("GET /api/cards failed", err);
-    return NextResponse.json(
-      { error: "Could not load cards." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Could not load cards." }, { status: 500 });
   }
 }

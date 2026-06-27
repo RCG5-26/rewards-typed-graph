@@ -7,6 +7,7 @@
  */
 
 import { deriveGoalType } from "@/lib/plan/builder";
+import { buildTraversalChain } from "@/lib/plan/graph-traversal";
 import type {
   AgentType,
   GraphEdge,
@@ -103,6 +104,12 @@ export function toPlanResult(apiPlan: ApiPlan): PlanResult {
     reasoning: s.reasoning,
     status: s.status as PlanStep["status"],
     deps: s.dependsOn,
+    dependencies: s.dependencies?.map((d) => ({
+      id: d.id,
+      kind: d.kind,
+      slug: d.slug,
+      label: d.label,
+    })),
   }));
 
   return {
@@ -149,6 +156,35 @@ export function toMutationRows(apiPlan: ApiPlan): MutationLogEntry[] {
     });
   }
 
+  // Light the graph nodes progressively (one new node per streamed row) so the
+  // plane advances to the lit frontier as mutations arrive. Main-path hubs come
+  // first and in path order (that is what the plane flies); branch/off-path
+  // nodes follow so every "live" node ends up lit. When the graph has more nodes
+  // than there are existing rows to carry them, emit extra synthetic READ rows
+  // so the tail nodes still light instead of staying permanently dark.
+  const { nodes, edges } = buildGraph(apiPlan);
+  const mainIds = buildTraversalChain({ nodes, edges }).map((hub) => hub.id);
+  const mainSet = new Set(mainIds);
+  const order = [...mainIds, ...nodes.map((n) => n.id).filter((id) => !mainSet.has(id))];
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  order.forEach((nodeId, i) => {
+    if (i < rows.length) {
+      rows[i].nodeId = nodeId;
+    } else {
+      const node = nodeById.get(nodeId);
+      rows.push({
+        seq: seq++,
+        agentType: "system",
+        op: "READ",
+        node: node ? `${node.kind}:${nodeId}` : `node:${nodeId}`,
+        detail: node ? `read ${node.label}` : "read node",
+        version: "v1",
+        nodeId,
+      });
+    }
+  });
+
+  // Final status beat stays last so the log closes on "plan -> current".
   rows.push({
     seq: seq++,
     agentType: "orchestrator",

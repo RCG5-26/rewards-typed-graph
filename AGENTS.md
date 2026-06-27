@@ -60,12 +60,12 @@ Repository ruleset: **main — protected** ([Settings → Rules](https://github.
 
 **Do not bundle standup updates into feature PRs.** Code PRs stay code-only.
 
-| Artifact | Who | When | Purpose |
-|---|---|---|---|
-| **Linear** (RCG-##) | Each person | Daily | Live task board |
-| [`tracking/<lane>.md`](tracking/) | Each person | Daily | Lane status in-repo; **tiny PR, merge same day** |
-| [`STATUS.md`](STATUS.md) | Lead (Raq) | Before standup / gates | Weekly snapshot — standup grid synced from `tracking/` + Linear |
-| [`context/progress-tracker.md`](context/progress-tracker.md) | Lead (Raq) | When a spec or PR lands | Milestone narrative for agents and integration |
+| Artifact                                                     | Who         | When                    | Purpose                                                         |
+| ------------------------------------------------------------ | ----------- | ----------------------- | --------------------------------------------------------------- |
+| **Linear** (RCG-##)                                          | Each person | Daily                   | Live task board                                                 |
+| [`tracking/<lane>.md`](tracking/)                            | Each person | Daily                   | Lane status in-repo; **tiny PR, merge same day**                |
+| [`STATUS.md`](STATUS.md)                                     | Lead (Raq)  | Before standup / gates  | Weekly snapshot — standup grid synced from `tracking/` + Linear |
+| [`context/progress-tracker.md`](context/progress-tracker.md) | Lead (Raq)  | When a spec or PR lands | Milestone narrative for agents and integration                  |
 
 **Daily (each person):** update your `tracking/<lane>.md` + Linear tickets.  
 **Standup (lead):** sync `STATUS.md` from `tracking/` + Linear.  

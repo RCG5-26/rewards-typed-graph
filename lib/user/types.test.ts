@@ -32,12 +32,9 @@ describe("isUserGraph", () => {
     expect(isUserGraph({ userId: "u1", clerkId: "ck1", seeded: true })).toBe(false);
   });
 
-  it.each([null, undefined, "graph", 42, true])(
-    "rejects non-object value %p",
-    (value) => {
-      expect(isUserGraph(value)).toBe(false);
-    },
-  );
+  it.each([null, undefined, "graph", 42, true])("rejects non-object value %p", (value) => {
+    expect(isUserGraph(value)).toBe(false);
+  });
 
   it("rejects graphs missing balances", () => {
     expect(isUserGraph({ ...graph, balances: undefined })).toBe(false);
@@ -58,27 +55,19 @@ describe("isUserGraph", () => {
     // displayName must be string|null — a number would crash `.split(" ")`.
     expect(isUserGraph({ ...graph, user: { ...graph.user, displayName: 123 } })).toBe(false);
     expect(isUserGraph({ ...graph, user: { ...graph.user, imageUrl: 7 } })).toBe(false);
-    expect(
-      isUserGraph({ ...graph, user: { ...graph.user, isDemoPersona: "yes" } }),
-    ).toBe(false);
+    expect(isUserGraph({ ...graph, user: { ...graph.user, isDemoPersona: "yes" } })).toBe(false);
   });
 
   it("rejects balances with malformed elements", () => {
     expect(isUserGraph({ ...graph, balances: [null] })).toBe(false);
-    expect(
-      isUserGraph({ ...graph, balances: [{ programName: "Chase UR" }] }),
-    ).toBe(false);
-    expect(
-      isUserGraph({ ...graph, balances: [{ balancePoints: 100 }] }),
-    ).toBe(false);
+    expect(isUserGraph({ ...graph, balances: [{ programName: "Chase UR" }] })).toBe(false);
+    expect(isUserGraph({ ...graph, balances: [{ balancePoints: 100 }] })).toBe(false);
   });
 
   it("rejects balances whose points are not finite", () => {
     // NaN/Infinity pass `typeof === number` but poison the points sum.
     const base = graph.balances[0];
     expect(isUserGraph({ ...graph, balances: [{ ...base, balancePoints: NaN }] })).toBe(false);
-    expect(
-      isUserGraph({ ...graph, balances: [{ ...base, balancePoints: Infinity }] }),
-    ).toBe(false);
+    expect(isUserGraph({ ...graph, balances: [{ ...base, balancePoints: Infinity }] })).toBe(false);
   });
 });

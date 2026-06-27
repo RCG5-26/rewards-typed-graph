@@ -83,9 +83,7 @@ function deriveRate(
   const multiplier = top.earn_rate_basis_points / BASIS_POINTS_PER_X;
   const category = categoriesById.get(top.spend_category_id)?.name ?? "spend";
   // Trim a trailing ".0" so 3.0 → "3", but keep 1.5.
-  const label = Number.isInteger(multiplier)
-    ? String(multiplier)
-    : multiplier.toFixed(1);
+  const label = Number.isInteger(multiplier) ? String(multiplier) : multiplier.toFixed(1);
   return `${label}× ${category.toLowerCase()}`;
 }
 
@@ -183,8 +181,7 @@ class PostgresCardsRepository implements CardsRepository {
           currencyName: r.currency_name,
           signupBonusPoints: r.signup_bonus_points,
           rate: r.rate ?? "—",
-          firstYearValueCents:
-            bonusValueCents(r.signup_bonus_points) - r.annual_fee_cents,
+          firstYearValueCents: bonusValueCents(r.signup_bonus_points) - r.annual_fee_cents,
           face,
           accent,
         };
@@ -198,7 +195,5 @@ class PostgresCardsRepository implements CardsRepository {
 /** Pick the adapter: Postgres when `DATABASE_URL` is set, else the fixture. */
 export function getCardsRepository(): CardsRepository {
   const url = process.env.DATABASE_URL;
-  return url
-    ? new PostgresCardsRepository(url)
-    : new FixtureCardsRepository();
+  return url ? new PostgresCardsRepository(url) : new FixtureCardsRepository();
 }

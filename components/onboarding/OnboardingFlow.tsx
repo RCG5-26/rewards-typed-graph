@@ -13,7 +13,9 @@ type Step = "cards" | "ask" | "plan";
 
 const SUGGESTED_PROMPTS = [
   { tag: "◎", text: "save a 3-night Tokyo hotel stay on points" },
-  { tag: "◎", text: "redeem Chase points for the best Hyatt award" },
+  { tag: "✦", text: "redeem Chase points for the best Hyatt award" },
+  { tag: "✈", text: "fly LAX → Tokyo in business this fall using my points" },
+  { tag: "%", text: "most cashback on everyday spend" },
 ];
 
 function dollars(cents: number): string {

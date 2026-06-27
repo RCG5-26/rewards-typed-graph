@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  deriveComparison,
-  dollars,
-  fmtTokens,
-  type LiveMetrics,
-} from "@/lib/plan/comparison";
+import { deriveComparison, dollars, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
 
 /**
  * Head-to-head contrast (Hero Moment 3): the same query, wallet, and tools run
@@ -39,6 +34,8 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
       tag: "shared typed state",
       accent: "var(--color-accent)",
       border: "var(--color-accent-subtle)",
+      badge: "BEST",
+      badgeStyle: { background: "var(--color-accent-muted)", color: "var(--color-accent-text)" },
       lines: [
         { mark: "ok" as Mark, t: "Read the Chase→Hyatt ratio from the graph: 1:1 (correct)." },
         caught
@@ -50,7 +47,10 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
               mark: "ok" as Mark,
               t: "Ready to catch a balance invalidation via typed state dependencies.",
             },
-        { mark: "ok" as Mark, t: `${metrics.opCount} typed mutations — no tool result re-fetched; coordination is state, not messages.` },
+        {
+          mark: "ok" as Mark,
+          t: `${metrics.opCount} typed mutations — no tool result re-fetched; coordination is state, not messages.`,
+        },
       ],
       metricLabel: "plan value",
       metricValue: dollars(cmp.typed.valueCents),
@@ -63,8 +63,13 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
       tag: "json messages",
       accent: "var(--color-warning)",
       border: "var(--color-warning-bg)",
+      badge: "LOWER VALUE",
+      badgeStyle: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
       lines: [
-        { mark: "bad" as Mark, t: "Hallucinated a 1.25:1 transfer ratio — overstates the award value." },
+        {
+          mark: "bad" as Mark,
+          t: "Hallucinated a 1.25:1 transfer ratio — overstates the award value.",
+        },
         { mark: "bad" as Mark, t: "Missed the invalidation; committed a stale plan." },
         { mark: "warn" as Mark, t: "Passed the wallet as free-text JSON between agents." },
       ],
@@ -79,6 +84,11 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
       tag: "one context window",
       accent: "var(--color-neutral-500)",
       border: "var(--color-border)",
+      badge: "LOWEST VALUE",
+      badgeStyle: {
+        background: "var(--color-surface-subtle)",
+        color: "var(--color-text-tertiary)",
+      },
       lines: [
         { mark: "ok" as Mark, t: "Ratio correct on the first pass." },
         { mark: "bad" as Mark, t: "Re-fetched balances 3× — no shared state to read." },
@@ -94,7 +104,8 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3 text-xs text-text-secondary">
-        same query, same wallet, same tools — three architectures. only one keeps a typed shared state.
+        same query, same wallet, same tools — three architectures. only one keeps a typed shared
+        state.
       </div>
       <div className="flex min-h-0 flex-1 gap-3">
         {columns.map((c) => (
@@ -103,11 +114,23 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
             className="flex min-w-0 flex-1 flex-col rounded-card bg-surface p-5 shadow-raised"
             style={{ border: `1px solid ${c.border}` }}
           >
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
-              <span className="font-display text-base font-semibold text-text-primary">{c.title}</span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
+                <span className="font-display text-base font-semibold text-text-primary">
+                  {c.title}
+                </span>
+              </div>
+              <span
+                className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide"
+                style={{ ...c.badgeStyle, padding: "2px 7px" }}
+              >
+                {c.badge}
+              </span>
             </div>
-            <span className="mt-1.5 font-mono text-2xs text-text-tertiary">plan_type · {c.tag}</span>
+            <span className="mt-1.5 font-mono text-2xs text-text-tertiary">
+              plan_type · {c.tag}
+            </span>
             <div className="my-3.5 h-px" style={{ background: "var(--color-border)" }} />
 
             <div className="flex flex-1 flex-col gap-3">
@@ -132,7 +155,10 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
                 <div className="font-mono text-2xs font-semibold uppercase tracking-wide text-text-tertiary">
                   {c.metricLabel}
                 </div>
-                <div className="mt-1 font-display text-2xl font-semibold tabular-nums" style={{ color: c.metricColor }}>
+                <div
+                  className="mt-1 font-display text-2xl font-semibold tabular-nums"
+                  style={{ color: c.metricColor }}
+                >
                   {c.metricValue}
                 </div>
               </div>
@@ -142,7 +168,8 @@ export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
         ))}
       </div>
       <div className="mt-2 font-mono text-2xs text-text-tertiary">
-        value &amp; token counts derived live from {metrics.opCount} streamed mutations · * hallucinated baseline ratio.
+        value &amp; token counts derived live from {metrics.opCount} streamed mutations · *
+        hallucinated baseline ratio.
       </div>
     </div>
   );

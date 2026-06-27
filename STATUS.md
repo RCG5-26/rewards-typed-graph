@@ -2,12 +2,12 @@
 
 **Weekly snapshot** for standup, gates, and blockers. **Raq (lead) syncs this** from [`tracking/`](tracking/) + **Linear** before standup — lane owners do **not** edit this file in feature PRs.
 
-| Where | Who | Cadence |
-|---|---|---|
-| **Linear** (RCG-##) | Each person | Daily — live task board |
-| **`tracking/<lane>.md`** | Each person | Daily — tiny PR, merge same day |
-| **`STATUS.md` (this file)** | Lead | Before standup / gates |
-| **`context/progress-tracker.md`** | Lead | When a spec or PR lands |
+| Where                             | Who         | Cadence                         |
+| --------------------------------- | ----------- | ------------------------------- |
+| **Linear** (RCG-##)               | Each person | Daily — live task board         |
+| **`tracking/<lane>.md`**          | Each person | Daily — tiny PR, merge same day |
+| **`STATUS.md` (this file)**       | Lead        | Before standup / gates          |
+| **`context/progress-tracker.md`** | Lead        | When a spec or PR lands         |
 
 **Live demo:** Mon June 29 (10 min) · **Today:** Jun 25 · **Phase:** Integration sprint — backend hero green; frontend wiring next
 **The one constraint:** coordination is state, not messages. Typed graph mutations only. Schema v3.1 locked for implementation; additive-only after lane sign-off.
@@ -21,16 +21,16 @@
 
 > Canonical spec: [`docs/architecture/schema-final.md`](docs/architecture/schema-final.md) **v3.1**. Canonical DDL: [`schema/schema.sql`](schema/schema.sql). Supersedes [`schema-v2.md`](docs/architecture/schema-v2.md) (historical). See [decisions log](context/decisions-log.md) D027 and [`architecture-context.md`](context/architecture-context.md).
 
-|                                                                                    | State                                                                       |
-| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Schema spec v3.1 authored ([`schema-final.md`](docs/architecture/schema-final.md)) | done                                                                        |
-| Canonical DDL committed ([`schema/schema.sql`](schema/schema.sql))                 | done                                                                        |
-| DDL validated on clean PostgreSQL 16                                               | done                                                                        |
-| Shared types generated (`schema/types`)                                            | done                                                                        |
-| JSON Schema contracts + codegen (Phase A3, RCG-61)                                 | done (PR #2)                                                                |
-| Dependency-tracking implementation (RCG-13)                                        | done                                                                        |
-| Seed fixture committed, stable IDs (RCG-8)                                         | done                                                                        |
-| All four lanes signed off on v3.1                                                  | done: Alan, Val, Michael, Raq ([ADR 0001](docs/adr/0001-schema-lock.md))    |
+|                                                                                    | State                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Schema spec v3.1 authored ([`schema-final.md`](docs/architecture/schema-final.md)) | done                                                                                                                                             |
+| Canonical DDL committed ([`schema/schema.sql`](schema/schema.sql))                 | done                                                                                                                                             |
+| DDL validated on clean PostgreSQL 16                                               | done                                                                                                                                             |
+| Shared types generated (`schema/types`)                                            | done                                                                                                                                             |
+| JSON Schema contracts + codegen (Phase A3, RCG-61)                                 | done (PR #2)                                                                                                                                     |
+| Dependency-tracking implementation (RCG-13)                                        | done                                                                                                                                             |
+| Seed fixture committed, stable IDs (RCG-8)                                         | done                                                                                                                                             |
+| All four lanes signed off on v3.1                                                  | done: Alan, Val, Michael, Raq ([ADR 0001](docs/adr/0001-schema-lock.md))                                                                         |
 | **Implementation wiring on real contracts**                                        | hero path green on `main` — RCG-21 graph-writer (PR #27), mutation REST+SSE (PR #21), API service spec 07 / RCG-18 (PR #29); Clerk auth (PR #22) |
 
 **Architecture locked (v3.1):** plan revision lifecycle via `plans.status` / `plan_steps.status` (no `is_current`, no `plan_steps.is_stale`); durable `replan_jobs` with leases; `graph_mutations` as user-scoped audit/SSE replay only (not a work queue).
@@ -43,12 +43,12 @@ Lock date: **2026-06-18** (ADR 0001 Accepted; merged to `main` via PR #6)
 
 **Lead-maintained** — synced from [`tracking/`](tracking/) + Linear before standup. Format: short phrases, not paragraphs.
 
-| Person | Yesterday | Today | Blocked on |
-|---|---|---|---|
-| Alan · Graph | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish | nothing |
-| Val · Frontend | Clerk auth + landing on `main` | Wire demo shell to live API (RCG-27/25/26) | nothing — see backend-local-setup guide |
-| Michael · Redemption | RCG-31/33/34/38 benchmark metrics done | CrewAI baseline next | nothing |
-| Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged | RCG-32 browser run-through; frontend handoff | nothing |
+| Person                           | Yesterday                                   | Today                                        | Blocked on                              |
+| -------------------------------- | ------------------------------------------- | -------------------------------------------- | --------------------------------------- |
+| Alan · Graph                     | RCG-52 eval instrumentation merged (PR #30) | Spec 03 hardening / SSE polish               | nothing                                 |
+| Val · Frontend                   | Clerk auth + landing on `main`              | Wire demo shell to live API (RCG-27/25/26)   | nothing — see backend-local-setup guide |
+| Michael · Redemption             | RCG-31/33/34/38 benchmark metrics done      | CrewAI baseline next                         | nothing                                 |
+| Raq · Orchestrator (owner, lead) | PR #29 API + hero reconciliation merged     | RCG-32 browser run-through; frontend handoff | nothing                                 |
 
 ---
 
@@ -64,14 +64,14 @@ Raq clears these. Add a line when blocked, strike it when cleared.
 
 ## Gate tracker
 
-| Gate                                                      | Day | Date       | Status                       | Owner               |
-| --------------------------------------------------------- | --- | ---------- | ---------------------------- | ------------------- |
-| Schema v3.1 spec + DDL authored + locked                  | 1-2 | Jun 18     | done                         | Alan + Raq          |
-| RCG-21 redemption graph-writer bridge                     | -   | Jun 24     | done (merged PR #27)         | Michael + Raq       |
-| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7   | Jun 23     | backend green; frontend wiring + Clerk browser run remain | Raq |
-| **MVP hero test green**                                   | -   | **Jun 25** | done (live `test_hero_moment` + API hero flow) | Raq + Michael       |
-| Layer 4 GO / NO-GO                                        | 10  | Jun 26     | done - NO-GO; RCG-51 path documented | Raq (lane: Michael) |
-| **Live demo** (10 min)                                    | 13  | Jun 29     | open                         | all                 |
+| Gate                                                      | Day | Date       | Status                                                    | Owner               |
+| --------------------------------------------------------- | --- | ---------- | --------------------------------------------------------- | ------------------- |
+| Schema v3.1 spec + DDL authored + locked                  | 1-2 | Jun 18     | done                                                      | Alan + Raq          |
+| RCG-21 redemption graph-writer bridge                     | -   | Jun 24     | done (merged PR #27)                                      | Michael + Raq       |
+| End-to-end demo path working (Layers 1-3 + Hero Moment 1) | 7   | Jun 23     | backend green; frontend wiring + Clerk browser run remain | Raq                 |
+| **MVP hero test green**                                   | -   | **Jun 25** | done (live `test_hero_moment` + API hero flow)            | Raq + Michael       |
+| Layer 4 GO / NO-GO                                        | 10  | Jun 26     | done - NO-GO; RCG-51 path documented                      | Raq (lane: Michael) |
+| **Live demo** (10 min)                                    | 13  | Jun 29     | open                                                      | all                 |
 
 Rule: if the Day 7 gate slips, cut scope, do not extend. Week 2 is polish and benchmark, not new features. Hosted platform and demo script must be ready **before the June 29 live demo**; no separate rehearsal date is scheduled.
 
@@ -103,7 +103,7 @@ Append one line per real decision. Historical v2 open items resolved in schema-f
 | Jun 18 | Closeout infra: plan-lineage/`replan_jobs`, `graph_mutations`, per-user advisory lock, runtime topology, contracts/codegen | team       | ADRs 0004-0008                                                                                                                           |
 | Jun 20 | Keep the research apparatus (benchmark + both baselines + eval)                                                            | team       | [ADR 0002](docs/adr/0002-mvp-scope-trim.md)                                                                                              |
 | Jun 20 | Team = 4 (Ruijing out); Layer 4 cut-by-default; eval harness = whole-team, **Raq DRI**; single-agent baseline to Raq       | team       | [ADR 0003](docs/adr/0003-team-four-eval-ownership.md); Linear reconciled                                                                 |
-| Jun 25 | Layer 4 is NO-GO for the live demo; RCG-51 keeps the demo on Layers 1-3                                                    | Raq        | D030; [docs/demo/layer4-cut-contingency.md](docs/demo/layer4-cut-contingency.md); fixture guard in `tests/test_demo_contingency.py`       |
+| Jun 25 | Layer 4 is NO-GO for the live demo; RCG-51 keeps the demo on Layers 1-3                                                    | Raq        | D030; [docs/demo/layer4-cut-contingency.md](docs/demo/layer4-cut-contingency.md); fixture guard in `tests/test_demo_contingency.py`      |
 | Jun 21 | Design system landed (`design-system/`: tokens, fonts, Tailwind preset; components TBD in app)                             | Val        | lifecycle status tokens map 1:1 to `plans.status`/`plan_steps.status`; no hardcoded hex; see [design-context](context/design-context.md) |
 | Jun 21 | Feature-spec system + specs 02-06; implement-prompt + source-of-truth map                                                  | Raq        | `context/feature-specs/`                                                                                                                 |
 | Jun 23 | Clerk auth wired **Google-only**, identity-only (`/sign-in`, `/sign-up`, `middleware.ts`)                                  | Val        | [ADR 0006](docs/adr/0006-clerk-identity-only.md); env keys in `.env.local`                                                               |

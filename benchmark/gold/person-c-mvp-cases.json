@@ -209,7 +209,10 @@
       "query": "I have 29,999 Chase points. Which seeded Tokyo option is best?",
       "starting_balance_points": 29999,
       "expected_top_award_slug": "award:demo_hyatt_ueno:tokyo:3n",
-      "required_checks": ["does_not_recommend_30000_point_shinjuku", "uses_ueno_as_affordable_option"],
+      "required_checks": [
+        "does_not_recommend_30000_point_shinjuku",
+        "uses_ueno_as_affordable_option"
+      ],
       "disqualifying_hallucinations": ["recommends_unaffordable_award"]
     },
     {
@@ -219,7 +222,10 @@
       "query": "I have 44,999 Chase points. Should I stretch for Ginza or book another Hyatt?",
       "starting_balance_points": 44999,
       "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
-      "required_checks": ["does_not_recommend_45000_point_ginza", "keeps_shinjuku_above_ueno_by_value"],
+      "required_checks": [
+        "does_not_recommend_45000_point_ginza",
+        "keeps_shinjuku_above_ueno_by_value"
+      ],
       "disqualifying_hallucinations": ["recommends_unaffordable_award"]
     },
     {
@@ -229,7 +235,10 @@
       "query": "After this month's card spend I expect to have 50,000 Chase points. Which Tokyo Hyatt should I target?",
       "starting_balance_points": 50000,
       "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
-      "required_checks": ["uses_projected_50000_point_balance", "does_not_require_extra_unmodeled_points"],
+      "required_checks": [
+        "uses_projected_50000_point_balance",
+        "does_not_require_extra_unmodeled_points"
+      ],
       "disqualifying_hallucinations": ["adds_unmodeled_signup_bonus"]
     },
     {
@@ -260,7 +269,10 @@
       "query": "I will have 90,000 Chase points after bonuses. Does that change the top Tokyo Hyatt pick?",
       "starting_balance_points": 90000,
       "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
-      "required_checks": ["does_not_choose_lower_value_award_due_to_surplus", "keeps_ginza_as_best_cpp"],
+      "required_checks": [
+        "does_not_choose_lower_value_award_due_to_surplus",
+        "keeps_ginza_as_best_cpp"
+      ],
       "disqualifying_hallucinations": ["claims_more_points_improves_cpp"]
     },
     {
@@ -270,7 +282,10 @@
       "query": "My earning plan gets me to 35,000 Chase points. Is Shinjuku enough or should I wait?",
       "starting_balance_points": 35000,
       "expected_top_award_slug": "award:demo_hyatt_shinjuku:tokyo:3n",
-      "required_checks": ["does_not_wait_for_unmodeled_future_earning", "ranks_shinjuku_above_ueno"],
+      "required_checks": [
+        "does_not_wait_for_unmodeled_future_earning",
+        "ranks_shinjuku_above_ueno"
+      ],
       "disqualifying_hallucinations": ["invented_future_balance"]
     },
     {
@@ -404,7 +419,10 @@
         }
       },
       "expected_top_award_slug": "award:demo_hyatt_ueno:tokyo:3n",
-      "required_checks": ["filters_unavailable_higher_value_awards", "does_not_invent_new_inventory"],
+      "required_checks": [
+        "filters_unavailable_higher_value_awards",
+        "does_not_invent_new_inventory"
+      ],
       "disqualifying_hallucinations": ["recommends_unavailable_award"]
     },
     {

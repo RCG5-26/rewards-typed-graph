@@ -26,27 +26,27 @@ Update **Today / Next / Blockers** daily in this file. Open a **tiny PR** (this 
 
 ## My tickets
 
-| ID     | Task                                                           | Phase             | Done when                                                     |
-| ------ | -------------------------------------------------------------- | ----------------- | ------------------------------------------------------------- |
-| RCG-20 | Design redemption traversal (on paper)                         | Day 1-5           | written approach; NL goal to graph query mapped               |
-| RCG-21 | Redemption agent (multi-hop traversal + tradeoff surfacing)    | Day 1-5           | emits multi-step plan with reasoning per step                 |
-| RCG-22 | Award-search tool (fixtures first), typed subgraph fragments   | Day 1-5           | returns graph fragment, not JSON                              |
-| RCG-23 | Graph-typed tool contract (envelope + merge/provenance)        | Day 1-5           | fragments upsert by slug + version with provenance            |
-| RCG-30 | Connect real cash-price tool                                   | Day 5-7           | one real tool returns a typed fragment                        |
-| RCG-31 | Begin benchmark fixture construction                           | Day 5-7           | done - fixture manifest + gold corpus seeded                  |
-| RCG-33 | Build 30-query benchmark (earning/redemption/portfolio)        | Day 7-10          | done - 30 executable gold queries                             |
-| RCG-34 | Operationalize hallucination-rate metric                       | Day 7-10          | done - strict issue definitions + report breakdowns           |
-| RCG-35 | Single-agent baseline (well-tuned)                             | Day 7-10          | tuned, same tools/budget as main system                       |
-| RCG-36 | Free-text multi-agent baseline (CrewAI-style, well-tuned)      | Day 7-10          | strong; JSON tools instead of graph fragments                 |
-| RCG-37 | Run benchmark across all three architectures                   | Day 7-10          | accuracy, hallucination, invalidation, token cost reported    |
-| RCG-38 | Plan-invalidation correctness metric (wins by kind)            | Day 7-10          | done - wins by invalidation kind reported                     |
-| RCG-40 | Layer 4: eval harness                                          | Day 10+ (stretch) | gated by Day 10 go/no-go                                      |
-| RCG-41 | Layer 4: ingestion agent (text to proposed mutations)          | Day 10+ (stretch) | proposes only; verifier decides                               |
-| RCG-42 | Layer 4: verifier (schema, existing edges, ratio transitivity) | Day 10+ (stretch) | rejects bad mutations with reasons                            |
-| RCG-43 | Layer 4: adversarial verifier set (3 rejection modes)          | Day 10+ (stretch) | schema + node-ref + ratio-transitivity each covered           |
-| RCG-44 | Layer 4 demo path (press release to new edge)                  | Day 10+ (stretch) | shows >=1 rejection, not just acceptance                      |
-| RCG-49 | Release benchmark + domain-update set                          | Day 10-14         | packaged for public release                                   |
-| RCG-50 | Adversarial verifier set passes before demo                    | Day 10-14         | only if Layer 4 landed                                        |
+| ID     | Task                                                           | Phase             | Done when                                                  |
+| ------ | -------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| RCG-20 | Design redemption traversal (on paper)                         | Day 1-5           | written approach; NL goal to graph query mapped            |
+| RCG-21 | Redemption agent (multi-hop traversal + tradeoff surfacing)    | Day 1-5           | emits multi-step plan with reasoning per step              |
+| RCG-22 | Award-search tool (fixtures first), typed subgraph fragments   | Day 1-5           | returns graph fragment, not JSON                           |
+| RCG-23 | Graph-typed tool contract (envelope + merge/provenance)        | Day 1-5           | fragments upsert by slug + version with provenance         |
+| RCG-30 | Connect real cash-price tool                                   | Day 5-7           | one real tool returns a typed fragment                     |
+| RCG-31 | Begin benchmark fixture construction                           | Day 5-7           | done - fixture manifest + gold corpus seeded               |
+| RCG-33 | Build 30-query benchmark (earning/redemption/portfolio)        | Day 7-10          | done - 30 executable gold queries                          |
+| RCG-34 | Operationalize hallucination-rate metric                       | Day 7-10          | done - strict issue definitions + report breakdowns        |
+| RCG-35 | Single-agent baseline (well-tuned)                             | Day 7-10          | tuned, same tools/budget as main system                    |
+| RCG-36 | Free-text multi-agent baseline (CrewAI-style, well-tuned)      | Day 7-10          | strong; JSON tools instead of graph fragments              |
+| RCG-37 | Run benchmark across all three architectures                   | Day 7-10          | accuracy, hallucination, invalidation, token cost reported |
+| RCG-38 | Plan-invalidation correctness metric (wins by kind)            | Day 7-10          | done - wins by invalidation kind reported                  |
+| RCG-40 | Layer 4: eval harness                                          | Day 10+ (stretch) | gated by Day 10 go/no-go                                   |
+| RCG-41 | Layer 4: ingestion agent (text to proposed mutations)          | Day 10+ (stretch) | proposes only; verifier decides                            |
+| RCG-42 | Layer 4: verifier (schema, existing edges, ratio transitivity) | Day 10+ (stretch) | rejects bad mutations with reasons                         |
+| RCG-43 | Layer 4: adversarial verifier set (3 rejection modes)          | Day 10+ (stretch) | schema + node-ref + ratio-transitivity each covered        |
+| RCG-44 | Layer 4 demo path (press release to new edge)                  | Day 10+ (stretch) | shows >=1 rejection, not just acceptance                   |
+| RCG-49 | Release benchmark + domain-update set                          | Day 10-14         | packaged for public release                                |
+| RCG-50 | Adversarial verifier set passes before demo                    | Day 10-14         | only if Layer 4 landed                                     |
 
 ## Layer 4 is yours
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import mockPlan from "@/fixtures/mock-plan.json";
 import { toPlanResult, toMutationRows, diffStale, transferParamsFromPersona } from "./adapters";
+import { buildTraversalChain } from "@/lib/plan/graph-traversal";
 import type { ApiPlan, ApiSessionResponse } from "./types";
 
 const rev1: ApiPlan = mockPlan.createPlan as ApiPlan;
@@ -90,6 +91,44 @@ describe("toPlanResult", () => {
     expect(first.status).toBe("current");
   });
 
+  it("maps enriched API dependencies → typed step.dependencies", () => {
+    const withDeps = {
+      ...rev1,
+      steps: rev1.steps.map((step, i) =>
+        i === 0
+          ? {
+              ...step,
+              dependencies: [
+                {
+                  id: "ac721887-48df-4d7c-a7c2-f61bc331b7bc",
+                  kind: "reward_programs",
+                  table: "reward_programs",
+                  slug: "program:hyatt",
+                  label: "World of Hyatt",
+                  programId: "00000000-0000-0000-0000-00000000b002",
+                },
+              ],
+            }
+          : step,
+      ),
+    } satisfies ApiPlan;
+
+    const first = toPlanResult(withDeps).steps[0];
+    expect(first.dependencies).toEqual([
+      {
+        id: "ac721887-48df-4d7c-a7c2-f61bc331b7bc",
+        kind: "reward_programs",
+        slug: "program:hyatt",
+        label: "World of Hyatt",
+      },
+    ]);
+  });
+
+  it("leaves step.dependencies undefined when the API omits them", () => {
+    const first = toPlanResult(rev1).steps[0];
+    expect(first.dependencies).toBeUndefined();
+  });
+
   it("preserves step reasoning and type", () => {
     const result = toPlanResult(rev1);
     const s2 = result.steps[1];
@@ -155,6 +194,63 @@ describe("toMutationRows", () => {
     for (let i = 0; i < rows.length; i++) {
       expect(rows[i].seq).toBe(i + 1);
     }
+  });
+
+  it("lights traversal hubs progressively so the plane advances", () => {
+    const graph = toPlanResult(rev1).graph;
+    const hubIds = buildTraversalChain(graph).map((h) => h.id);
+    expect(hubIds.length).toBeGreaterThan(1);
+
+    const rows = toMutationRows(rev1);
+    // First row lights the first main-path hub so the plane starts at the origin.
+    expect(rows[0].nodeId).toBe(hubIds[0]);
+
+    // Every main-path hub gets lit across the stream (frontier reaches the end).
+    const lit = new Set(rows.map((r) => r.nodeId).filter(Boolean));
+    for (const id of hubIds) expect(lit.has(id)).toBe(true);
+
+    // Every graph node ends up lit (so "N nodes live" matches what glows).
+    for (const node of graph.nodes) expect(lit.has(node.id)).toBe(true);
+  });
+
+  it("leaves nodeId unset when the plan has no graph", () => {
+    const noGraph = { ...rev1, graph: { nodes: [], edges: [] } };
+    const rows = toMutationRows(noGraph);
+    expect(rows.every((r) => r.nodeId === undefined)).toBe(true);
+  });
+
+  it("emits extra rows so every node lights when nodes exceed the step rows", () => {
+    // A single step → only CREATE + COMMIT base rows; six graph nodes is more
+    // than steps + 2, the case where the old clamp left the tail nodes dark.
+    const manyNodes: ApiPlan = {
+      ...rev1,
+      steps: [rev1.steps[0]],
+      graph: {
+        nodes: [
+          { id: "program:a", kind: "program", slug: "program:a", label: "A", programId: "00000000-0000-0000-0000-0000000000a1" },
+          { id: "program:b", kind: "program", slug: "program:b", label: "B", programId: "00000000-0000-0000-0000-0000000000a2" },
+          { id: "award:c", kind: "redemption", slug: "award:c", label: "C", programId: "00000000-0000-0000-0000-0000000000a2" },
+          { id: "award:d", kind: "redemption", slug: "award:d", label: "D", programId: "00000000-0000-0000-0000-0000000000a2" },
+          { id: "award:e", kind: "redemption", slug: "award:e", label: "E", programId: "00000000-0000-0000-0000-0000000000a2" },
+          { id: "award:f", kind: "redemption", slug: "award:f", label: "F", programId: "00000000-0000-0000-0000-0000000000a2" },
+        ],
+        edges: [
+          { id: "t1", from: "program:a", to: "program:b", kind: "transfer" },
+          { id: "r1", from: "program:b", to: "award:c", kind: "redeem" },
+        ],
+      },
+    } satisfies ApiPlan;
+
+    // Precondition: more nodes than the base CREATE + COMMIT + UPDATE rows.
+    expect(manyNodes.graph!.nodes.length).toBeGreaterThan(manyNodes.steps.length + 2);
+
+    const rows = toMutationRows(manyNodes);
+    const lit = new Set(rows.map((r) => r.nodeId).filter(Boolean));
+    // Every node lights — none left dark once the rows run out.
+    for (const node of manyNodes.graph!.nodes) expect(lit.has(node.id)).toBe(true);
+    // Appended rows keep seq monotonic, and the log still closes on the status beat.
+    for (let i = 0; i < rows.length; i++) expect(rows[i].seq).toBe(i + 1);
+    expect(rows[rows.length - 1].detail).toBe("status -> current");
   });
 });
 

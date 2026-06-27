@@ -18,7 +18,7 @@ deepened: 2026-06-25
 Make test-driven development a real, enforced standard for the whole repo — not just a per-spec convention. Today tests exist in three runners but CI runs almost none of them, the merge gate is effectively CodeRabbit-only, and the written testing policy in `context/code-standards.md` is an unfilled template. This plan closes the gap with a **two-layer enforcement model**:
 
 1. **Mechanical layer (CI):** every PR runs all three test suites, must pass, and must satisfy a **diff-coverage ratchet** (new/changed lines must be covered; total coverage can't drop). These become required status checks on `main`.
-2. **Attestation layer (process):** a PR template red-phase checklist plus CodeRabbit/human review enforces the *test-first ordering* that CI cannot prove.
+2. **Attestation layer (process):** a PR template red-phase checklist plus CodeRabbit/human review enforces the _test-first ordering_ that CI cannot prove.
 
 Scope is **this repo, all stacks**. Out of scope: backfilling tests for existing untested code to chase a global %, and any product/feature behavior change.
 
@@ -88,23 +88,23 @@ flowchart TD
 
 **What each layer can and cannot guarantee:**
 
-| Guarantee | Enforced by | Mechanical? |
-| --- | --- | --- |
-| Tests exist for changed code | diff-cover gate (R2) | Yes |
-| Tests pass | CI suites (R1) | Yes |
-| Coverage doesn't regress | ratchet baseline (R3) | Yes |
-| Blocking on merge | `main` ruleset required checks (R4) | Yes |
-| Tests were written **first** (red→green) | PR attestation + review (R6) | No — process only |
+| Guarantee                                | Enforced by                         | Mechanical?       |
+| ---------------------------------------- | ----------------------------------- | ----------------- |
+| Tests exist for changed code             | diff-cover gate (R2)                | Yes               |
+| Tests pass                               | CI suites (R1)                      | Yes               |
+| Coverage doesn't regress                 | ratchet baseline (R3)               | Yes               |
+| Blocking on merge                        | `main` ruleset required checks (R4) | Yes               |
+| Tests were written **first** (red→green) | PR attestation + review (R6)        | No — process only |
 
 ---
 
 ## Key Technical Decisions
 
-- **KTD1 — Diff-coverage as the primary TDD signal, not a global % target.** Use `diff-cover` (Bachmann1234) via the `Affanmir/diff-cover-action@v2` wrapper, which consumes Cobertura XML **and** lcov, so all three runners feed one gate that scores only changed lines. *Why:* a global "80% repo coverage" gate would either break every build immediately (CI runs no tests today) or reward padding old code; diff-coverage directly encodes "new code must be tested," which is the TDD outcome. *Trade-off:* diff-cover can miss multi-line statements (mitigate with `--expand-coverage-report`). *Analogy:* it grades only the homework you turned in this week, not the whole semester.
-- **KTD2 — Ratchet baseline per stack via committed thresholds.** Set explicit `coverage.thresholds` in each Vitest config and a `fail_under` in `coverage.py`, initialized to the **current** measured numbers, raised over time. *Why:* guarantees "can't decrease" (R3) without a brittle external baseline store. *Trade-off:* thresholds are bumped manually after big coverage gains. *Alternative considered:* compare PR total vs base-branch total via a coverage-report action — more automation, more moving parts; deferred.
-- **KTD3 — `coverage.py` drives Python, keeping `unittest`.** Run `coverage run -m unittest discover` → `coverage xml`. *Why:* repo uses stdlib `unittest` (no pytest config); `coverage.py` wraps it without a framework migration. *Trade-off:* none material. *Alternative:* migrate to `pytest` + `pytest-cov` — larger change, deferred.
-- **KTD4 — Python CI job provides a Postgres service.** Mirror the `postgres:16` service from `schema-postgres.yml` and set `RUN_LIVE_POSTGRES_TESTS=1` so the full suite (including live tests) runs and counts toward coverage. *Why:* otherwise live-gated tests silently skip and under-report coverage. *Trade-off:* slightly slower CI.
-- **KTD5 — Two-layer model; attestation for ordering.** CI proves existence/passing/coverage; a PR-template red-phase checklist + CodeRabbit `path_instructions` enforce test-first ordering. *Why:* honest — no CI can prove a test was authored before code. *Trade-off:* the "first" guarantee is social, not mechanical (accepted per scoping).
+- **KTD1 — Diff-coverage as the primary TDD signal, not a global % target.** Use `diff-cover` (Bachmann1234) via the `Affanmir/diff-cover-action@v2` wrapper, which consumes Cobertura XML **and** lcov, so all three runners feed one gate that scores only changed lines. _Why:_ a global "80% repo coverage" gate would either break every build immediately (CI runs no tests today) or reward padding old code; diff-coverage directly encodes "new code must be tested," which is the TDD outcome. _Trade-off:_ diff-cover can miss multi-line statements (mitigate with `--expand-coverage-report`). _Analogy:_ it grades only the homework you turned in this week, not the whole semester.
+- **KTD2 — Ratchet baseline per stack via committed thresholds.** Set explicit `coverage.thresholds` in each Vitest config and a `fail_under` in `coverage.py`, initialized to the **current** measured numbers, raised over time. _Why:_ guarantees "can't decrease" (R3) without a brittle external baseline store. _Trade-off:_ thresholds are bumped manually after big coverage gains. _Alternative considered:_ compare PR total vs base-branch total via a coverage-report action — more automation, more moving parts; deferred.
+- **KTD3 — `coverage.py` drives Python, keeping `unittest`.** Run `coverage run -m unittest discover` → `coverage xml`. _Why:_ repo uses stdlib `unittest` (no pytest config); `coverage.py` wraps it without a framework migration. _Trade-off:_ none material. _Alternative:_ migrate to `pytest` + `pytest-cov` — larger change, deferred.
+- **KTD4 — Python CI job provides a Postgres service.** Mirror the `postgres:16` service from `schema-postgres.yml` and set `RUN_LIVE_POSTGRES_TESTS=1` so the full suite (including live tests) runs and counts toward coverage. _Why:_ otherwise live-gated tests silently skip and under-report coverage. _Trade-off:_ slightly slower CI.
+- **KTD5 — Two-layer model; attestation for ordering.** CI proves existence/passing/coverage; a PR-template red-phase checklist + CodeRabbit `path_instructions` enforce test-first ordering. _Why:_ honest — no CI can prove a test was authored before code. _Trade-off:_ the "first" guarantee is social, not mechanical (accepted per scoping).
 - **KTD6 — One source of truth for the policy.** The canonical TDD policy lives in `context/code-standards.md` → Testing; everything else links to it (no duplication), matching the repo's existing "link, don't duplicate" rule in `ai-workflow-rules.md`.
 
 ---
@@ -132,6 +132,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R7, R2 (enables), R3 (enables)
 **Dependencies:** none
 **Files:**
+
 - `package.json` — add `test:coverage` (`vitest run --coverage`), ensure `@vitest/coverage-v8` devDep.
 - `vitest.config.ts` — add `coverage` block: provider `v8`, reporters `['text','lcov','json-summary']`, `reportsDirectory: coverage/web`, `thresholds` seeded to current numbers.
 - `apps/api/package.json` — add `test:coverage`; add `@vitest/coverage-v8`.
@@ -152,15 +153,17 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R1
 **Dependencies:** U1
 **Files:**
+
 - `.github/workflows/tests.yml` — new workflow, `on: pull_request` + `push: [main]`. Three jobs: `web-vitest`, `api-vitest`, `python-tests`. `python-tests` declares a `postgres:16` service (copy health-check block from `schema-postgres.yml`) and sets `RUN_LIVE_POSTGRES_TESTS=1`. Each job uploads its coverage report as an artifact.
 
 **Approach:** Node 22 with `actions/setup-node` cache; `npm ci` at root and in `apps/api`. Python 3.12 via `actions/setup-python`; `pip install coverage`. Pin third-party actions by SHA to match the existing workflow's security posture (`persist-credentials: false`). Keep `schema-postgres.yml` as-is (it's already a required check); `tests.yml` is additive.
 **Patterns to follow:** `.github/workflows/schema-postgres.yml` (Postgres service, SHA-pinned checkout, PG env vars, `apply_schema_postgres.sh`).
 **Test scenarios (validation, run as a draft PR):**
+
 - A PR with a deliberately failing Vitest test → `web-vitest` (or `api-vitest`) job fails. Covers R1.
 - A PR with a failing Python assertion → `python-tests` job fails. Covers R1.
 - A green PR → all three jobs pass and upload artifacts.
-**Verification:** Open a draft PR; confirm all three jobs trigger, pass on clean code, and that each uploads a coverage artifact consumable by U3.
+  **Verification:** Open a draft PR; confirm all three jobs trigger, pass on clean code, and that each uploads a coverage artifact consumable by U3.
 
 ---
 
@@ -170,16 +173,18 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R2, R3
 **Dependencies:** U1, U2
 **Files:**
+
 - `.github/workflows/tests.yml` — add a `coverage-gate` job that `needs: [web-vitest, api-vitest, python-tests]`, downloads the three artifacts, and runs `Affanmir/diff-cover-action@v2` over `coverage/web/lcov.info`, `coverage/api/lcov.info`, and `coverage/python/coverage.xml` with `fail-under` for changed lines. Enable `--expand-coverage-report` to handle multi-line statements. Ensure full history fetch for diff base.
 - Threshold values live in the configs from U1 (baseline ratchet) + the action input (diff threshold).
 
 **Approach:** Set the diff-coverage `fail-under` to a strong-but-survivable starting value (recommend **90%** of changed lines; tune in review). The per-stack `thresholds`/`fail_under` from U1 enforce the "can't decrease" baseline. The action posts an idempotent PR comment + inline annotations so authors see exactly which new lines lack tests.
 **Patterns to follow:** `.coderabbit.yaml` idempotent-comment expectation; existing artifact-free single-workflow style.
 **Test scenarios (validation, run as a draft PR):**
+
 - PR adds a new function with **no** test → `coverage-gate` fails and annotates the uncovered lines. Covers R2.
 - PR adds a new function **with** a covering test → gate passes. Covers R2.
 - PR that deletes tests so total coverage dips below baseline → gate fails. Covers R3.
-**Verification:** The three validation PRs behave as above; the PR comment lists changed-line coverage per stack.
+  **Verification:** The three validation PRs behave as above; the PR comment lists changed-line coverage per stack.
 
 ---
 
@@ -189,6 +194,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R4
 **Dependencies:** U2, U3
 **Files:**
+
 - `AGENTS.md` — update the "Merging to `main`" section: list the required checks (`web-vitest`, `api-vitest`, `python-tests`, `coverage-gate`, existing `apply-schema`, CodeRabbit) and link the ruleset.
 - `docs/development/ci-required-checks.md` (new, short) — runbook: exact check names + how to add them to the GitHub ruleset (Settings → Rules → "main — protected").
 
@@ -204,6 +210,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R6
 **Dependencies:** none (references U1 commands)
 **Files:**
+
 - `.coderabbit.yaml` — extend `path_instructions` for `apps/**`, `lib/**`, `components/**`, `agents/**`, `schema/**`: instruct CodeRabbit to flag PRs that add/modify exported functions, routes, or behavior without corresponding additions under the matching test path, and to check that the PR description's red-phase attestation is filled.
 
 **Approach:** Keep instructions behavioral and path-scoped, matching the file's existing style. Don't duplicate the policy text — reference `context/code-standards.md`.
@@ -218,6 +225,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R5
 **Dependencies:** none (should reflect U1 commands + U2–U4 gates)
 **Files:**
+
 - `context/code-standards.md` — fill the **Testing** section (the single source of truth): TDD red-green-refactor expectation, "every new function/behavior ships with a test," the diff-coverage + ratchet gates, exact run commands per stack, and the test-first ordering expectation. Set `Last updated`.
 - `context/ai-workflow-rules.md` — generalize the spec-scoped "tests first" rule into a repo-wide default that links to `code-standards.md`; keep the spec workflow as the concrete instance.
 - `AGENTS.md` — add a "Tests / TDD" item to the "Before you finish (quality gates)" list, linking the standard.
@@ -236,6 +244,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **Requirements:** R6
 **Dependencies:** U6 (links to the standard)
 **Files:**
+
 - `.github/pull_request_template.md` (new) — checklist: tests written before implementation (red phase), all suites pass locally, changed lines covered, coverage not decreased; link to `context/code-standards.md`.
 
 **Approach:** Keep it short — 4–5 checkboxes plus a one-line "how was the red phase recorded?" prompt that echoes the Spec 05 `AI_USAGE.md` pattern. Code-only PR discipline from `AGENTS.md` still applies.
@@ -249,12 +258,14 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 **In scope:** test/coverage tooling for all three stacks; a PR-triggered CI workflow running every suite; diff-coverage + ratchet gate; required-check documentation (and UI application if admin); CodeRabbit test-presence instructions; canonical TDD docs + ADR + decision row; PR template.
 
 ### Deferred to Follow-Up Work
+
 - **Local pre-push hook** (e.g., Husky / `pre-commit`) running fast suites before push — nice DX, not required for the gate. Separate PR.
 - **Migrate Python `unittest` → `pytest` + `pytest-cov`** — larger refactor; `coverage.py` covers the need now (KTD3).
 - **Automated base-vs-PR total-coverage comparison action** — KTD2 alternative; revisit if manual threshold bumps become painful.
 - **Backfilling tests for existing untested modules** to raise baselines — separate, ongoing effort; the ratchet only forbids regression.
 
 ### Out of scope (this product's identity)
+
 - Cross-repo / GitHub-org-wide rulesets — explicitly de-scoped to this repo per scoping confirmation.
 - Any change to product/feature behavior.
 
@@ -262,7 +273,7 @@ docs/plans/2026-06-25-001-feat-tdd-enforcement-plan.md  # this plan
 
 ## Risks & Dependencies
 
-- **CI runs no tests today → first enforced PR may surface many failures.** Mitigation: U1 seeds thresholds to *measured current* values; U2/U3 land before U4 makes them blocking, so failures are visible but non-blocking first.
+- **CI runs no tests today → first enforced PR may surface many failures.** Mitigation: U1 seeds thresholds to _measured current_ values; U2/U3 land before U4 makes them blocking, so failures are visible but non-blocking first.
 - **Live-Postgres tests under-report if the service is missing (KTD4).** Mitigation: Python job declares the `postgres:16` service and sets `RUN_LIVE_POSTGRES_TESTS=1`.
 - **diff-cover path-matching depends on relative paths / fetch depth.** Mitigation: run from repo root, fetch full history, `--expand-coverage-report` for multi-line statements.
 - **Required-check names must match exactly in the ruleset (U4).** Mitigation: `docs/development/ci-required-checks.md` records the exact job names.

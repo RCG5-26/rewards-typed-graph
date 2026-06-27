@@ -31,7 +31,7 @@ Adopt a **two-layer enforcement model** for TDD across the whole repo.
 
 ## Consequences
 
-- **Honest limitation:** CI can prove tests exist, pass, and cover changed lines. It **cannot** prove a test was written *before* the code. Test-first ordering is enforced socially (attestation + review), not mechanically.
+- **Honest limitation:** CI can prove tests exist, pass, and cover changed lines. It **cannot** prove a test was written _before_ the code. Test-first ordering is enforced socially (attestation + review), not mechanically.
 - A low global coverage floor (web is ~6% aggregate because untested React UI is in scope) is **not** a loophole: the diff-coverage gate enforces coverage on every changed line regardless of file.
 - Python keeps stdlib `unittest`; `coverage.py` wraps it without a pytest migration.
 - Live-Postgres integration tests remain enforced by `schema-postgres.yml`; the `tests.yml` Python job runs the non-live unit suite for speed and reliability.

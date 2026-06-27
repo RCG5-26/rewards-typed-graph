@@ -33,10 +33,7 @@ export async function GET() {
       // Fail closed without logging the principals — the Clerk ids are user
       // identifiers and must not be written to application logs.
       console.error("session identity mismatch between Hono session and Clerk");
-      return NextResponse.json(
-        { error: "Could not load your account." },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Could not load your account." }, { status: 500 });
     }
     const resolved = await resolveSessionGraph();
     if (!resolved.ok) {

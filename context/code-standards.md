@@ -82,7 +82,7 @@ _Fill for your stack. Delete sections that don't apply._
   - Web: `npm run test:coverage`
   - API: `cd apps/api && npm run test:coverage`
   - Python: `npm run test:py` (i.e. `python3 -m coverage run -m unittest discover -s tests && python3 -m coverage xml`)
-- **What CI can and can't enforce:** CI proves tests exist, pass, and cover changed lines. It cannot prove tests were written *first* — that is enforced by the PR red-phase attestation plus CodeRabbit/human review.
+- **What CI can and can't enforce:** CI proves tests exist, pass, and cover changed lines. It cannot prove tests were written _first_ — that is enforced by the PR red-phase attestation plus CodeRabbit/human review.
 - **Test quality:** prefer behavioral assertions over string-grepping SQL; schema tests apply `schema.sql` to PostgreSQL 16 when possible. Don't weaken or delete assertions to pass a gate.
 
 ---

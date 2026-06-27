@@ -20,9 +20,7 @@ const devUserId = process.env.AUTH_DEV_USER_ID;
 // in a shared/deployed env is ignored (and warned about) so Clerk stays required.
 const allowDevBypass = process.env.NODE_ENV !== "production";
 if (devUserId && !allowDevBypass) {
-  console.warn(
-    "AUTH_DEV_USER_ID is set in production; ignoring it and requiring Clerk auth.",
-  );
+  console.warn("AUTH_DEV_USER_ID is set in production; ignoring it and requiring Clerk auth.");
 }
 
 const pool = new Pool({ connectionString: databaseUrl });
