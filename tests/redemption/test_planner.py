@@ -259,6 +259,14 @@ class HyattDirectRedemptionPlannerTests(unittest.TestCase):
 
         self.assertIsNone(plan["chosen_award_slug"])
         self.assertEqual(plan["fallback"], "cash")
+        # The fallback copy must stay program-agnostic — never "Chase balance",
+        # which is wrong for a Hyatt-direct plan.
+        fallback_reasoning = plan["steps"][0]["reasoning"]
+        self.assertEqual(
+            fallback_reasoning,
+            "No available seeded award is affordable with the current points balance.",
+        )
+        self.assertNotIn("Chase", fallback_reasoning)
 
     def test_direct_plan_unsupported_query_returns_unsupported(self) -> None:
         # A program not present in the seed (Marriott) must yield the
