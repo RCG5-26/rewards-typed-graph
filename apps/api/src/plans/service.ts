@@ -33,7 +33,7 @@ export class PlanServiceError extends Error {
 export interface PlanService {
   getSession(identity: SessionIdentity): Promise<SessionView>;
   resetDemo(userId: string): Promise<SessionView>;
-  createPlan(userId: string, query: string): Promise<PlanView>;
+  createPlan(userId: string, query: string, cardSlugs?: string[]): Promise<PlanView>;
   getPlanById(userId: string, planId: string): Promise<PlanView | null>;
   getCurrentPlan(userId: string, lineageId: string): Promise<PlanView | null>;
   transferBalance(

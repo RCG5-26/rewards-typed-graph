@@ -81,7 +81,7 @@ export async function GET(request: Request) {
             status: rev2.status,
           });
         } else {
-          const apiPlan = await createPlan(queryText, token);
+          const apiPlan = await createPlan(queryText, token, selectedCardIds);
           const plan = toPlanResult(apiPlan);
           send("meta", metaOf(plan));
           send("done", {

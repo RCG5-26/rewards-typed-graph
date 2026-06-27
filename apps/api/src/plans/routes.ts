@@ -31,8 +31,10 @@ export function createPlanRoutes(service: PlanService) {
 
   app.post("/plans", async (c) => {
     const userId = getAuthenticatedUserId(c);
-    const query = parseQuery(await readJsonBody(c.req.raw));
-    return runService(() => service.createPlan(userId, query), (plan) =>
+    const body = await readJsonBody(c.req.raw);
+    const query = parseQuery(body);
+    const cardSlugs = parseCardSlugs(body);
+    return runService(() => service.createPlan(userId, query, cardSlugs), (plan) =>
       c.json(plan),
     );
   });
@@ -166,6 +168,15 @@ function parseRequiredId(value: unknown, field: string): string {
     throw new HTTPException(400, { message: `${field} is required` });
   }
   return value.trim();
+}
+
+/** Extract optional cardSlugs string array from a JSON body (silently ignores malformed values). */
+function parseCardSlugs(body: unknown): string[] | undefined {
+  const record = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const raw = record.cardSlugs;
+  if (!Array.isArray(raw)) return undefined;
+  const slugs = raw.filter((s): s is string => typeof s === "string" && s.trim().length > 0);
+  return slugs.length > 0 ? slugs : undefined;
 }
 
 /** Narrow an unknown JSON body to a plain object or reject with HTTP 400. */
