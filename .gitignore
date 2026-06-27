@@ -40,6 +40,9 @@ scratch/
 *.tmp
 STUDY_GUIDE.md
 
+# Local benchmark outputs can include paid LLM responses and large transcripts.
+benchmark/runs/
+
 # Agent worktrees (full local repo copies — never commit)
 .claude/worktrees/
 

@@ -62,6 +62,35 @@ no `plan_steps`, and no `state_dependencies`.
 
 ## Build The RCG-37 Architecture Comparison
 
+Use the aggregate runner when producing the demo head-to-head numbers:
+
+```bash
+OPENAI_API_KEY=... \
+python -m benchmark.run_architecture_benchmark
+```
+
+It runs the typed-graph scorer, the RCG-35 single-agent LLM baseline, and the
+RCG-36 free-text multi-agent baseline, then writes a timestamped report folder
+under `benchmark/runs/` with:
+
+- `typed-report.json`
+- `single-agent-report.json`
+- `free-text-report.json`
+- `comparison.json`
+- `manifest.json`
+
+`benchmark/runs/` is intentionally ignored by Git because it can contain paid
+LLM responses and large transcripts. For quick smoke checks, add `--limit 2`;
+do not use a limited run for the final demo numbers.
+
+The runner uses the same live LLM knobs as the individual baselines. Set
+`SINGLE_AGENT_BASELINE_API_KEY` and `FREE_TEXT_MULTIAGENT_BASELINE_API_KEY`
+when the two baselines should use different provider keys; otherwise both fall
+back to `OPENAI_API_KEY`.
+
+Use the lower-level comparison builder only when you already have three report
+files:
+
 ```bash
 python -m benchmark.architecture_comparison \
   --typed-report typed-report.json \
