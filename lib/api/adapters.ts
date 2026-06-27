@@ -7,6 +7,7 @@
  */
 
 import { deriveGoalType } from "@/lib/plan/builder";
+import { buildTraversalChain } from "@/lib/plan/graph-traversal";
 import type {
   AgentType,
   GraphEdge,
@@ -103,6 +104,12 @@ export function toPlanResult(apiPlan: ApiPlan): PlanResult {
     reasoning: s.reasoning,
     status: s.status as PlanStep["status"],
     deps: s.dependsOn,
+    dependencies: s.dependencies?.map((d) => ({
+      id: d.id,
+      kind: d.kind,
+      slug: d.slug,
+      label: d.label,
+    })),
   }));
 
   return {
@@ -157,6 +164,21 @@ export function toMutationRows(apiPlan: ApiPlan): MutationLogEntry[] {
     detail: "status -> current",
     version: `v${apiPlan.revisionNumber}`,
   });
+
+  // Light the graph nodes progressively (one new node per streamed row) so the
+  // plane advances to the lit frontier as mutations arrive. Main-path hubs come
+  // first and in path order (that is what the plane flies); branch/off-path
+  // nodes follow so every "live" node ends up lit. Without this the synthetic
+  // rows carry no nodeId, nothing lights, and the plane stays parked.
+  const { nodes, edges } = buildGraph(apiPlan);
+  const mainIds = buildTraversalChain({ nodes, edges }).map((hub) => hub.id);
+  const mainSet = new Set(mainIds);
+  const order = [...mainIds, ...nodes.map((n) => n.id).filter((id) => !mainSet.has(id))];
+  if (order.length > 0) {
+    rows.forEach((row, i) => {
+      row.nodeId = order[Math.min(i, order.length - 1)];
+    });
+  }
 
   return rows;
 }

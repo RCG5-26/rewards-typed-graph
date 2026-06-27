@@ -278,8 +278,8 @@ export default function AgentConsole({
             </div>
             <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
           </div>
-          <div className="flex items-center gap-2">
-            {/* view tabs */}
+          <div className="flex items-center gap-3">
+            {/* view tabs — exactly the three views; the tab group never resizes */}
             <div className="flex rounded-full bg-surface-subtle p-1">
               {VIEWS.map((v) => (
                 <button
@@ -297,24 +297,27 @@ export default function AgentConsole({
                 </button>
               ))}
             </div>
-            {view === "plan" && (
+            {/* actions — separated from the tabs and always rendered, so the
+                tabs don't shift when switching views. Replan only applies to
+                the plan view, so it's disabled elsewhere rather than removed. */}
+            <div className="flex items-center gap-2 border-l border-DEFAULT pl-3">
               <button
                 type="button"
                 onClick={triggerReplan}
-                disabled={replanned || status !== "current"}
+                disabled={view !== "plan" || replanned || status !== "current"}
                 className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
                 style={{ background: "var(--status-stale-bg)", color: "var(--status-stale)" }}
               >
                 ⚡ balance changed · replan
               </button>
-            )}
-            <button
-              type="button"
-              onClick={onRestart}
-              className="flex items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-xs font-medium text-text-secondary shadow-xs"
-            >
-              ↺ reset
-            </button>
+              <button
+                type="button"
+                onClick={onRestart}
+                className="flex items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-3.5 py-2 text-xs font-medium text-text-secondary shadow-xs"
+              >
+                ↺ reset
+              </button>
+            </div>
           </div>
         </div>
 
@@ -361,11 +364,11 @@ export default function AgentConsole({
                           {meta.name} · {s.type}
                         </div>
                         <div className="mt-1.5 text-xs leading-relaxed text-text-secondary">{s.reasoning}</div>
-                        {s.deps.length > 0 && (
+                        {(s.dependencies?.length ?? s.deps.length) > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
-                            {s.deps.map((d) => (
-                              <span key={d} className="inline-flex items-center gap-1 rounded font-mono text-2xs text-[#8a93a6]" style={{ background: "rgba(20,24,40,0.04)", border: "1px solid rgba(20,24,40,0.06)", padding: "2px 7px" }}>
-                                ⊿ {d}
+                            {(s.dependencies ?? s.deps.map((d) => ({ id: d, label: d, slug: d }))).map((d) => (
+                              <span key={d.id} title={d.slug} className="inline-flex items-center gap-1 rounded font-mono text-2xs text-[#8a93a6]" style={{ background: "rgba(20,24,40,0.04)", border: "1px solid rgba(20,24,40,0.06)", padding: "2px 7px" }}>
+                                ⊿ {d.label}
                               </span>
                             ))}
                           </div>

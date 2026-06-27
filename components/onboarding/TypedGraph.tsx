@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 
 import type { PlanGraph } from "@/lib/plan/types";
-import { buildTraversalChain } from "@/lib/plan/graph-traversal";
+import { buildBranches, buildTraversalChain } from "@/lib/plan/graph-traversal";
+import type { TraversalHub } from "@/lib/plan/graph-traversal";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 
 /**
@@ -200,6 +201,7 @@ export default function TypedGraph({
       const time = rm ? 0 : now / 1000;
       const acc = (a: number) => `rgba(${ACCENT.r},${ACCENT.g},${ACCENT.b},${a})`;
       const hubs = buildTraversalChain(g);
+      const branches = buildBranches(g, hubs);
       const S = Math.max(1, hubs.length - 1);
       // Collected each frame; assigned to the ref AFTER the route block so a
       // cleared/short route resets hit-testing to an empty set (no stale hubs).
@@ -320,18 +322,17 @@ export default function TypedGraph({
           stroke(2.2, 0.85);
         }
 
-        // ── hubs as luminous beads ──
-        for (let i = 0; i < hubs.length; i++) {
-          const hub = hubs[i];
+        // ── hubs + branch beads as luminous beads ──
+        // One bead renderer for both the main path and the branches; `litV`
+        // (0..1) drives glow/label opacity and `pulseI` offsets the twinkle.
+        const drawBead = (hub: TraversalHub, litV: number, pulseI: number) => {
           const isStale = hub.stale;
           const HA = isStale ? STALE : ACCENT;
           const hacc = (a: number) => `rgba(${HA.r},${HA.g},${HA.b},${a})`;
-          const litV = lit.has(hub.id) || isStale ? 1 : prog >= i - 0.04 ? 0.5 : 0.12;
           const p = project(hub.x, hub.depth, 0);
-          const pulse = rm ? 1 : 0.5 + 0.5 * Math.sin(time * 2.4 + i);
+          const pulse = rm ? 1 : 0.5 + 0.5 * Math.sin(time * 2.4 + pulseI);
           const baseR = lerp(6, 11, p.s);
-          const kind = i === hubs.length - 1 ? "redemption" : "program";
-          hubPos.push({ id: hub.id, label: hub.label, kind, x: p.x, y: p.y, r: baseR });
+          hubPos.push({ id: hub.id, label: hub.label, kind: hub.kind, x: p.x, y: p.y, r: baseR });
 
           ctx.globalCompositeOperation = "lighter";
           const glowR = baseR * (3 + litV * 2.2);
@@ -370,7 +371,13 @@ export default function TypedGraph({
             const fs = 12;
             ctx.font = `600 ${fs}px var(--font-mono), ui-monospace, monospace`;
             const label = hub.label.length > 22 ? hub.label.slice(0, 21) + "…" : hub.label;
-            const sub = isStale ? "STALE" : i === hubs.length - 1 ? "REDEMPTION" : "PROGRAM";
+            const sub = isStale
+              ? "STALE"
+              : hub.kind === "redemption"
+                ? "REDEMPTION"
+                : hub.kind === "plan"
+                  ? "PLAN"
+                  : "PROGRAM";
             const tw = ctx.measureText(label).width;
             const padX = 9, bw = tw + padX * 2, bh = fs + 19;
             let bx = p.x - bw / 2;
@@ -397,6 +404,39 @@ export default function TypedGraph({
             ctx.textAlign = "start";
             ctx.textBaseline = "alphabetic";
           }
+        };
+
+        // branch connectors (under the beads): a short dashed spur from the
+        // parent hub on the main path out to each secondary node.
+        const hubById = new Map(hubs.map((hb) => [hb.id, hb]));
+        ctx.globalCompositeOperation = "source-over";
+        for (const b of branches) {
+          const parent = hubById.get(b.parentId);
+          if (!parent) continue;
+          const pp = project(parent.x, parent.depth, 0);
+          const bp = project(b.x, b.depth, 0);
+          ctx.strokeStyle = acc(0.16);
+          ctx.lineWidth = 1.1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(pp.x, pp.y);
+          ctx.lineTo(bp.x, bp.y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // main-path hubs light along the flown route
+        for (let i = 0; i < hubs.length; i++) {
+          const hub = hubs[i];
+          const litV = lit.has(hub.id) || hub.stale ? 1 : prog >= i - 0.04 ? 0.5 : 0.12;
+          drawBead(hub, litV, i);
+        }
+
+        // branch hubs read as secondary — capped dimmer even once lit
+        for (let j = 0; j < branches.length; j++) {
+          const b = branches[j];
+          const litV = lit.has(b.id) || b.stale ? 0.7 : 0.2;
+          drawBead(b, litV, hubs.length + j);
         }
 
         // ── the plane at the head ──

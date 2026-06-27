@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import mockPlan from "@/fixtures/mock-plan.json";
 import { toPlanResult, toMutationRows, diffStale, transferParamsFromPersona } from "./adapters";
+import { buildTraversalChain } from "@/lib/plan/graph-traversal";
 import type { ApiPlan, ApiSessionResponse } from "./types";
 
 const rev1: ApiPlan = mockPlan.createPlan as ApiPlan;
@@ -90,6 +91,44 @@ describe("toPlanResult", () => {
     expect(first.status).toBe("current");
   });
 
+  it("maps enriched API dependencies → typed step.dependencies", () => {
+    const withDeps = {
+      ...rev1,
+      steps: rev1.steps.map((step, i) =>
+        i === 0
+          ? {
+              ...step,
+              dependencies: [
+                {
+                  id: "ac721887-48df-4d7c-a7c2-f61bc331b7bc",
+                  kind: "reward_programs",
+                  table: "reward_programs",
+                  slug: "program:hyatt",
+                  label: "World of Hyatt",
+                  programId: "00000000-0000-0000-0000-00000000b002",
+                },
+              ],
+            }
+          : step,
+      ),
+    } satisfies ApiPlan;
+
+    const first = toPlanResult(withDeps).steps[0];
+    expect(first.dependencies).toEqual([
+      {
+        id: "ac721887-48df-4d7c-a7c2-f61bc331b7bc",
+        kind: "reward_programs",
+        slug: "program:hyatt",
+        label: "World of Hyatt",
+      },
+    ]);
+  });
+
+  it("leaves step.dependencies undefined when the API omits them", () => {
+    const first = toPlanResult(rev1).steps[0];
+    expect(first.dependencies).toBeUndefined();
+  });
+
   it("preserves step reasoning and type", () => {
     const result = toPlanResult(rev1);
     const s2 = result.steps[1];
@@ -155,6 +194,29 @@ describe("toMutationRows", () => {
     for (let i = 0; i < rows.length; i++) {
       expect(rows[i].seq).toBe(i + 1);
     }
+  });
+
+  it("lights traversal hubs progressively so the plane advances", () => {
+    const graph = toPlanResult(rev1).graph;
+    const hubIds = buildTraversalChain(graph).map((h) => h.id);
+    expect(hubIds.length).toBeGreaterThan(1);
+
+    const rows = toMutationRows(rev1);
+    // First row lights the first main-path hub so the plane starts at the origin.
+    expect(rows[0].nodeId).toBe(hubIds[0]);
+
+    // Every main-path hub gets lit across the stream (frontier reaches the end).
+    const lit = new Set(rows.map((r) => r.nodeId).filter(Boolean));
+    for (const id of hubIds) expect(lit.has(id)).toBe(true);
+
+    // Every graph node ends up lit (so "N nodes live" matches what glows).
+    for (const node of graph.nodes) expect(lit.has(node.id)).toBe(true);
+  });
+
+  it("leaves nodeId unset when the plan has no graph", () => {
+    const noGraph = { ...rev1, graph: { nodes: [], edges: [] } };
+    const rows = toMutationRows(noGraph);
+    expect(rows.every((r) => r.nodeId === undefined)).toBe(true);
   });
 });
 
