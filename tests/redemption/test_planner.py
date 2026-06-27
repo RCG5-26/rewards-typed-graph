@@ -82,6 +82,20 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
             all("unaffordable" in option["reasons"] for option in rejected_options)
         )
 
+    def test_cash_fallback_copy_is_program_agnostic(self) -> None:
+        # _cash_fallback_plan is shared by the transfer and direct planners, so
+        # its reasoning must never name a specific program (e.g. "Chase balance"),
+        # which would be wrong on the Hyatt-direct path. Lock the wording here so
+        # it can't silently revert.
+        plan = plan_redemption(self.fixture, balance_points=20000)
+
+        fallback_reasoning = plan["steps"][0]["reasoning"]
+        self.assertEqual(
+            fallback_reasoning,
+            "No available seeded award is affordable with the current points balance.",
+        )
+        self.assertNotIn("Chase", fallback_reasoning)
+
     def test_cash_fallback_rejections_stay_scoped_to_query_awards(self) -> None:
         fixture = copy.deepcopy(self.fixture)
         fixture["award_options"].append(
