@@ -296,15 +296,13 @@ export default function TypedGraph({
       };
 
       if (pathPts.length >= 2) {
-        const litCount = main.filter((h) => lit.has(h.id)).length;
-        const frontier = Math.max(0, Math.min(S, litCount - 1));
+        // The plane continuously flies the route and loops, so it's always
+        // visibly in motion. Reduced motion parks it at the end of the path.
         if (rm) {
-          prog = frontier || S;
-        } else if (litCount >= main.length) {
-          prog += 0.006;
-          if (prog >= S) prog = 0;
+          prog = S;
         } else {
-          prog = prog < frontier ? Math.min(frontier, prog + 0.01) : frontier;
+          prog += 0.012;
+          if (prog >= S) prog = 0;
         }
 
         const head = segAt(prog);

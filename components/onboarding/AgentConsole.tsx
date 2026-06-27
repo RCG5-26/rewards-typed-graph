@@ -88,7 +88,6 @@ export default function AgentConsole({
   const [prevValueCents, setPrevValueCents] = useState<number | null>(null);
   const [revision, setRevision] = useState(1);
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
-  const [replanned, setReplanned] = useState(false);
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
   const [selected, setSelected] = useState<HoverNode | null>(null);
@@ -194,11 +193,6 @@ export default function AgentConsole({
     revision,
   };
 
-  function triggerReplan() {
-    if (replanned) return;
-    setReplanned(true);
-    openStream(true);
-  }
 
   // Keyboard-accessible entry point to the same node detail the canvas exposes
   // via pointer. The canvas is aria-hidden, so this is the only path for
@@ -492,22 +486,23 @@ export default function AgentConsole({
                   </div>
                 )}
               </div>
-              {/* footer actions — simulate a balance change · reset */}
-              <div className="flex flex-none items-center gap-2.5 border-t border-subtle px-5 py-3.5">
-                <button
-                  type="button"
-                  onClick={triggerReplan}
-                  disabled={replanned || status !== "current"}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
-                >
-                  ⚡ Simulate a balance change
-                </button>
+              {/* footer — the plan stays live (auto re-plans); start a new one */}
+              <div className="flex flex-none items-center justify-between gap-3 border-t border-subtle px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-1.5 w-1.5 flex-none rounded-full"
+                    style={{ background: "var(--status-current)", boxShadow: "0 0 6px var(--status-current)" }}
+                  />
+                  <span className="truncate font-mono text-2xs text-text-tertiary">
+                    re-plans automatically when balances or transfer ratios change
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={onRestart}
-                  className="flex flex-none items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition hover:text-text-primary"
+                  className="flex flex-none items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary shadow-xs transition hover:text-text-primary"
                 >
-                  ↺ reset
+                  ↺ start over
                 </button>
               </div>
             </div>
