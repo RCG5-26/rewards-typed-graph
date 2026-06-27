@@ -40,25 +40,42 @@ const sampleGraph = {
 // here we only need clickable affordances to drive the cards -> ask -> plan ->
 // restart flow that owns `handleRestart`.
 vi.mock("./AgentConsole", () => ({
-  default: ({ onRestart }: { onRestart: () => void }) => (
-    <button type="button" data-testid="restart" onClick={onRestart}>
+  // Surface the props the flow wires in so tests can assert the selection →
+  // plan-request payload (the console owns the real SSE request).
+  default: ({
+    onRestart,
+    selectedCardIds,
+    queryText,
+  }: {
+    onRestart: () => void;
+    selectedCardIds: string[];
+    queryText: string;
+  }) => (
+    <button
+      type="button"
+      data-testid="restart"
+      data-selected={selectedCardIds.join(",")}
+      data-query={queryText}
+      onClick={onRestart}
+    >
       start over
     </button>
   ),
 }));
 
 vi.mock("./CardTile", () => ({
+  // Mirror the real CardTile contract: selection is tracked by slug, not id.
   default: ({
     card,
     onToggle,
   }: {
-    card: { id: string; name: string };
-    onToggle: (id: string) => void;
+    card: { id: string; slug: string; name: string };
+    onToggle: (slug: string) => void;
   }) => (
     <button
       type="button"
       data-testid={`card-${card.id}`}
-      onClick={() => onToggle(card.id)}
+      onClick={() => onToggle(card.slug)}
     >
       {card.name}
     </button>
@@ -209,6 +226,18 @@ async function driveToPlanStep(): Promise<HTMLElement> {
   fireEvent.click(screen.getByRole("button", { name: /plan it/i }));
   return screen.findByTestId("restart");
 }
+
+describe("OnboardingFlow selection wiring", () => {
+  it("forwards the selected card slug (not its id) into the plan step", async () => {
+    mockResetFetch(() => Promise.resolve({ ok: true, json: async () => ({}) }));
+    const restart = await driveToPlanStep();
+
+    // sampleCard.id === "card-1", sampleCard.slug === "chase-sapphire"; the
+    // plan request must carry the slug so bridge routing matches.
+    expect(restart.getAttribute("data-selected")).toBe("chase-sapphire");
+    expect(restart.getAttribute("data-query")).toBe("fly to tokyo");
+  });
+});
 
 describe("OnboardingFlow demo reset", () => {
   it("POSTs /api/demo/reset, refetches the graph, and returns to cards on success", async () => {

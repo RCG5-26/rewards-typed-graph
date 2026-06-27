@@ -111,13 +111,12 @@ export class BridgePlanService implements PlanService {
   }
 
   /** Create revision 1 of a plan from a natural-language query. */
-  async createPlan(userId: string, query: string): Promise<PlanView> {
-    return this.run<PlanView>("create-plan", [
-      "--user-id",
-      userId,
-      "--query",
-      query,
-    ]);
+  async createPlan(userId: string, query: string, cardSlugs?: string[]): Promise<PlanView> {
+    const args = ["--user-id", userId, "--query", query];
+    if (cardSlugs && cardSlugs.length > 0) {
+      args.push("--card-slugs", cardSlugs.join(","));
+    }
+    return this.run<PlanView>("create-plan", args);
   }
 
   /** Fetch a single plan projection by id, or null when missing. */

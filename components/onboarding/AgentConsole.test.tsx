@@ -36,6 +36,16 @@ const meta = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const step = (type: string, order: number) => ({
+  order,
+  agentType: "redemption_agent",
+  type,
+  title: `step ${order}`,
+  reasoning: "because",
+  status: "current",
+  deps: [],
+});
+
 const emit = (type: string, data: unknown) => act(() => MockEventSource.last?.emit(type, data));
 
 beforeEach(() => {
@@ -81,6 +91,29 @@ describe("AgentConsole", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^close$/i }));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("renders the direct RouteBar when the plan has no transfer step", () => {
+    renderConsole();
+    emit("meta", meta({ steps: [step("redemption_recommendation", 1)] }));
+
+    expect(screen.getByText("Hyatt Points")).toBeTruthy();
+    expect(screen.getByText(/book hotel directly · no transfer needed/i)).toBeTruthy();
+    expect(screen.queryByText("Chase UR")).toBeNull();
+  });
+
+  it("renders the transfer RouteBar when the plan contains a transfer step", () => {
+    renderConsole();
+    emit(
+      "meta",
+      meta({
+        steps: [step("transfer_recommendation", 1), step("redemption_recommendation", 2)],
+      }),
+    );
+
+    expect(screen.getByText("Chase UR")).toBeTruthy();
+    expect(screen.getByText("World of Hyatt")).toBeTruthy();
+    expect(screen.getByText(/book hotel with transferred points/i)).toBeTruthy();
   });
 
   it("preserves an explicit zero plan value instead of keeping a stale value", () => {

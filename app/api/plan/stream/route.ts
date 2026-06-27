@@ -4,15 +4,16 @@ import { NextResponse } from "next/server";
 import { balanceTransfer, createPlan, getPlan, getSession } from "@/lib/api/client";
 import { diffStale, toPlanResult, transferParamsFromPersona } from "@/lib/api/adapters";
 import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
-import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
+import type { PlanResult } from "@/lib/plan/types";
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
  *
- * Observability stream that paces the typed mutations so coordination is
- * visible as it happens (REST `/api/plan` stays the source of truth). Events:
+ * Observability stream for plan scaffolding (REST `/api/plan` stays the source
+ * of truth). Real `graph_mutations` rows now stream separately from
+ * `/api/mutations/stream`; this route no longer paces or emits mutation frames.
+ * Events:
  *   meta         → the plan scaffold (steps, graph, route, value) sans mutations
- *   mutation     → one `graph_mutations` row, emitted ~every 320ms
  *   invalidation → (replan mode) the edge that went stale + the STALE row
  *   done         → revision complete
  *   error        → stream-level failure
@@ -21,9 +22,6 @@ import type { MutationLogEntry, PlanResult } from "@/lib/plan/types";
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const PACE_MS = 320;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function GET(request: Request) {
   const { getToken } = await auth();
@@ -60,12 +58,6 @@ export async function GET(request: Request) {
         void _omit;
         return meta;
       };
-      const streamMutations = async (rows: MutationLogEntry[]) => {
-        for (const row of rows) {
-          await sleep(PACE_MS);
-          send("mutation", row);
-        }
-      };
 
       try {
         if (isReplan) {
@@ -81,10 +73,8 @@ export async function GET(request: Request) {
           const invalidation = diffStale(priorPlan, transferResult.currentPlan);
           const rev2 = toPlanResult(transferResult.currentPlan);
 
-          await sleep(PACE_MS);
           send("invalidation", invalidation);
           send("meta", metaOf(rev2));
-          await streamMutations(rev2.mutations);
           send("done", {
             revision: rev2.revision,
             planValueCents: rev2.planValueCents,
@@ -92,10 +82,9 @@ export async function GET(request: Request) {
             status: rev2.status,
           });
         } else {
-          const apiPlan = await createPlan(queryText, token);
+          const apiPlan = await createPlan(queryText, token, selectedCardIds);
           const plan = toPlanResult(apiPlan);
           send("meta", metaOf(plan));
-          await streamMutations(plan.mutations);
           send("done", {
             revision: plan.revision,
             planValueCents: plan.planValueCents,

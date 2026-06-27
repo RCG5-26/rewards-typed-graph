@@ -1,0 +1,116 @@
+{
+  "fixture_id": "person-c-hyatt-direct-tokyo-v1",
+  "description": "Scenario 2 seed: World of Hyatt Credit Card holder redeeming Hyatt points directly — no Chase UR transfer.",
+  "as_of": "2026-06-26T00:00:00Z",
+  "scope": {
+    "source_currency": "World of Hyatt",
+    "source_program_slug": "program:hyatt",
+    "target_program": "World of Hyatt",
+    "target_program_slug": "program:hyatt",
+    "destination_city": "Tokyo",
+    "nights": 3,
+    "data_mode": "seeded_fixture"
+  },
+  "programs": [
+    {
+      "slug": "program:hyatt",
+      "display_name": "World of Hyatt",
+      "program_kind": "hotel",
+      "node_type": "RewardProgram"
+    }
+  ],
+  "transfer_paths": [],
+  "users": [
+    {
+      "slug": "user:mvp_demo",
+      "display_name": "MVP Demo User"
+    }
+  ],
+  "balances": [
+    {
+      "slug": "balance:user_mvp_demo:hyatt",
+      "user_slug": "user:mvp_demo",
+      "program_slug": "program:hyatt",
+      "balance_points": 35000,
+      "version": 1,
+      "as_of": "2026-06-26T00:00:00Z",
+      "source": "manual_entry",
+      "node_type": "UserBalance"
+    }
+  ],
+  "trip_request": {
+    "slug": "query:tokyo_hyatt_3n_direct",
+    "user_slug": "user:mvp_demo",
+    "query_text": "Book a 3-night Tokyo Hyatt stay with my Hyatt points.",
+    "city": "Tokyo",
+    "nights": 3,
+    "optimization_goal": "highest_cents_per_point"
+  },
+  "hotels": [
+    {
+      "slug": "hotel:demo_hyatt_ginza",
+      "display_name": "Demo Hyatt Ginza",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    },
+    {
+      "slug": "hotel:demo_hyatt_shinjuku",
+      "display_name": "Demo Hyatt Shinjuku",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    },
+    {
+      "slug": "hotel:demo_hyatt_ueno",
+      "display_name": "Demo Hyatt Ueno",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    }
+  ],
+  "award_options": [
+    {
+      "slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_ginza",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 45000,
+      "cash_total_cents": 105000,
+      "value_basis_points": 23333,
+      "cash_quote_slug": "quote:cash:demo_hyatt_ginza:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-26T00:00:00Z",
+      "role": "unaffordable_at_35k_direct"
+    },
+    {
+      "slug": "award:demo_hyatt_shinjuku:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_shinjuku",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 30000,
+      "cash_total_cents": 54000,
+      "value_basis_points": 18000,
+      "cash_quote_slug": "quote:cash:demo_hyatt_shinjuku:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-26T00:00:00Z",
+      "role": "winner_at_35k_direct"
+    },
+    {
+      "slug": "award:demo_hyatt_ueno:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_ueno",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 24000,
+      "cash_total_cents": 30000,
+      "value_basis_points": 12500,
+      "cash_quote_slug": "quote:cash:demo_hyatt_ueno:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-26T00:00:00Z",
+      "role": "backup_at_35k_direct"
+    }
+  ]
+}

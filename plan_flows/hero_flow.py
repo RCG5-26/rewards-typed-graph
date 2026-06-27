@@ -1,14 +1,15 @@
-"""Hero flow API: integration seam for the Jun 25 gate.
+"""Hero flow orchestration: create/replan seam over the graph-write service.
 
-The test module owns the live Postgres harness. This file keeps the orchestration
-surface tiny: create a plan from the deterministic redemption writer, then
-perform the synchronous re-plan path used by the hero gate.
+Keeps the orchestration surface tiny: create a plan from the deterministic
+redemption writer, then perform the synchronous re-plan path used by the hero
+gate. Lives outside ``tests/`` so the runtime bridge does not import test code.
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from schema.mutations import (
@@ -16,7 +17,12 @@ from schema.mutations import (
     TransferPointsRequest,
     V31GraphWriteService,
 )
-from tests.integration.redemption_graph_writer import write_redemption_steps
+from agents.redemption.planner import load_fixture, plan_direct_redemption
+from plan_flows.redemption_graph_writer import write_redemption_steps
+
+HYATT_DIRECT_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "person-c-hyatt-direct-seed.json"
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,45 @@ def create_plan_from_query(
             query_text=query_text,
             plan_lineage_id=plan_lineage_id,
             revision_number=1,
+        )
+        _promote_generating_plan_to_current(connection, plan_id)
+    except Exception:
+        _mark_generating_plan_failed(connection, plan_id)
+        raise
+    return _plan_snapshot(connection, plan_id)
+
+
+def create_direct_plan_from_query(
+    connection: GraphConnection,
+    *,
+    user_id: str,
+    query_text: str,
+) -> HeroPlanSnapshot:
+    """Scenario 2: World of Hyatt direct redemption — no transfer step."""
+
+    service = V31GraphWriteService(connection)
+    plan_lineage_id = str(uuid.uuid4())
+    plan_id = service.create_plan(
+        CreatePlanRequest(
+            actor="orchestrator",
+            user_id=user_id,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+            query_text=query_text,
+            status="generating",
+        )
+    )
+    try:
+        write_redemption_steps(
+            connection,
+            user_id=user_id,
+            plan_id=plan_id,
+            query_text=query_text,
+            plan_lineage_id=plan_lineage_id,
+            revision_number=1,
+            source_program_slug="program:hyatt",
+            fixture=load_fixture(HYATT_DIRECT_FIXTURE_PATH),
+            planner_fn=plan_direct_redemption,
         )
         _promote_generating_plan_to_current(connection, plan_id)
     except Exception:

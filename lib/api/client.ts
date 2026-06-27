@@ -91,8 +91,14 @@ export async function getSession(token: string): Promise<ApiSessionResponse> {
   return apiFetch<ApiSessionResponse>("/session", { method: "GET", token });
 }
 
-export async function createPlan(query: string, token: string): Promise<ApiPlan> {
-  return apiFetch<ApiPlan>("/plans", { method: "POST", body: { query }, token });
+export async function createPlan(
+  query: string,
+  token: string,
+  cardSlugs?: string[],
+): Promise<ApiPlan> {
+  const body: Record<string, unknown> = { query };
+  if (cardSlugs && cardSlugs.length > 0) body.cardSlugs = cardSlugs;
+  return apiFetch<ApiPlan>("/plans", { method: "POST", body, token });
 }
 
 export async function getPlan(planId: string, token: string): Promise<ApiPlan> {

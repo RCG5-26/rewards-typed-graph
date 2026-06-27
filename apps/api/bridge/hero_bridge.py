@@ -1,7 +1,7 @@
 """HTTP-to-graph bridge for the demo API service (spec 07).
 
 The TypeScript Hono server spawns this script once per plan/session request. It
-reuses the *verified* hero seam (``tests/integration/hero_flow.py``) over the
+reuses the *verified* hero seam (``plan_flows/hero_flow.py``) over the
 proven ``psql``-subprocess connection — there is no ``psycopg`` in this
 environment, so the same adapter the hero gate uses is the reliable path.
 
@@ -35,15 +35,17 @@ from schema.mutations import (  # noqa: E402
     ConcurrencyConflictError,
     MutationValidationError,
 )
-from tests.integration.hero_flow import (  # noqa: E402
+from plan_flows.hero_flow import (  # noqa: E402
     BalanceTransferSpec,
     HeroPlanSnapshot,
     _plan_snapshot,
+    create_direct_plan_from_query,
     create_plan_from_query,
     replan_after_balance_transfer,
 )
 
 DEMO_SEED_PATH = REPO_ROOT / "fixtures" / "demo-seed.json"
+HYATT_DIRECT_FIXTURE_PATH = REPO_ROOT / "fixtures" / "person-c-hyatt-direct-seed.json"
 
 
 class BridgeError(Exception):
@@ -981,12 +983,17 @@ def _reset_seed_balances(user_id: str) -> None:
         )
 
 
-def do_create_plan(user_id: str, query: str) -> dict[str, Any]:
-    """Run the hero planner and return the projected ``PlanView`` for revision 1."""
+def do_create_plan(user_id: str, query: str, card_slugs: list[str] | None = None) -> dict[str, Any]:
+    """Run the hero planner and return the projected ``PlanView`` for revision 1.
+
+    Routes to the World of Hyatt direct-redemption path when ``card:world_of_hyatt``
+    is in ``card_slugs``; otherwise uses the Chase UR transfer path.
+    """
     connection = _PsqlConnection()
-    snapshot = create_plan_from_query(
-        connection, user_id=user_id, query_text=query
-    )
+    if card_slugs and "card:world_of_hyatt" in card_slugs:
+        snapshot = create_direct_plan_from_query(connection, user_id=user_id, query_text=query)
+    else:
+        snapshot = create_plan_from_query(connection, user_id=user_id, query_text=query)
     plan = project_plan(user_id, snapshot.plan_id)
     if plan is None:
         raise BridgeError("not_found", "plan vanished after create")
@@ -1145,6 +1152,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     create = with_user(sub.add_parser("create-plan"))
     create.add_argument("--query", required=True)
+    create.add_argument("--card-slugs", default="")
 
     get_plan = with_user(sub.add_parser("get-plan"))
     get_plan.add_argument("--plan-id", required=True)
@@ -1173,7 +1181,8 @@ def dispatch(args: argparse.Namespace) -> Any:
     if args.command == "demo-reset":
         return do_demo_reset(args.user_id)
     if args.command == "create-plan":
-        return do_create_plan(args.user_id, args.query)
+        card_slugs = [s for s in args.card_slugs.split(",") if s] if args.card_slugs else []
+        return do_create_plan(args.user_id, args.query, card_slugs)
     if args.command == "get-plan":
         return do_get_plan(args.user_id, args.plan_id)
     if args.command == "current-plan":

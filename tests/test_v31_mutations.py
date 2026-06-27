@@ -301,7 +301,7 @@ class V31GraphWriteServiceTest(unittest.TestCase):
         self.assertNotIn("event_type", graph_sql)
         self.assertNotIn("target_kind", graph_sql)
         self.assertNotIn("before_value", graph_sql)
-        self.assertEqual(graph_params[4:8], ("CreatePlan", "plans", plan_id, "Created plan"))
+        self.assertEqual(graph_params[4:8], ("CreatePlan", "plans", plan_id, "Plan r1: Tokyo in October"))
 
     def test_create_plan_step_rejects_missing_plan_before_insert(self):
         connection = FakeConnection()

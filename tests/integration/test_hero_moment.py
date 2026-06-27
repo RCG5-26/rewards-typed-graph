@@ -13,7 +13,7 @@ Gate definition (hero green):
 
 Owner map:
     - Alan: ``fixtures/demo-seed.json`` + ``scripts/load_seed.py`` (RCG-8)
-    - Raq: ``tests/integration/hero_flow.py`` orchestrator wiring (RCG-15/28/29)
+    - Raq: ``plan_flows/hero_flow.py`` orchestrator wiring (RCG-15/28/29)
     - Michael: redemption graph writer behind ``create_plan_from_query`` (RCG-21)
 """
 
@@ -37,8 +37,9 @@ from schema.mutations import (
     V31GraphWriteService,
 )
 
-from .hero_flow import (
+from plan_flows.hero_flow import (
     BalanceTransferSpec,
+    create_direct_plan_from_query,
     create_plan_from_query,
     replan_after_balance_transfer,
 )
@@ -324,6 +325,61 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
             ),
             [("completed", plan_v2.plan_id)],
         )
+
+
+class HyattDirectRedemptionIntegrationTest(LivePostgresMixin, unittest.TestCase):
+    """Scenario 2 gate — World of Hyatt direct redemption writes one step, no transfer."""
+
+    def test_direct_plan_writes_single_redemption_step(self):
+        # Demo seed gives the user 30k Hyatt points — enough to book Shinjuku
+        # (30k) directly, so the planner emits one redemption step and no transfer.
+        connection = _PsqlConnection()
+
+        plan = create_direct_plan_from_query(
+            connection,
+            user_id=DEMO_USER_ID,
+            query_text=HERO_QUERY,
+        )
+
+        self.assertEqual(plan.status, "current")
+        self.assertEqual(plan.revision_number, 1)
+        self.assertEqual(plan.step_count, 1)
+        self.assertGreaterEqual(plan.dependency_count, 1)
+
+        step_types = _psql_rows(
+            f"""
+            SELECT step_type FROM plan_steps WHERE plan_id = '{plan.plan_id}'
+            """
+        )
+        self.assertEqual(step_types, [("redemption_recommendation",)])
+        self.assertNotIn(("transfer_recommendation",), step_types)
+
+    def test_direct_plan_marks_generating_plan_failed_when_balance_missing(self):
+        # The user exists (so create_plan writes a 'generating' row) but holds no
+        # Hyatt balance, so the redemption write raises ValueError. The cleanup
+        # contract: that row must end up 'failed', never stuck in 'generating'.
+        connection = _PsqlConnection()
+        user_without_hyatt = "00000000-0000-0000-0000-0000000000ff"
+        _psql_exec(
+            f"""
+            INSERT INTO users (id, clerk_id, email)
+            VALUES ('{user_without_hyatt}', 'clerk_no_hyatt', 'no-hyatt@example.com');
+            """
+        )
+
+        with self.assertRaises(ValueError):
+            create_direct_plan_from_query(
+                connection,
+                user_id=user_without_hyatt,
+                query_text=HERO_QUERY,
+            )
+
+        statuses = _psql_rows(
+            f"""
+            SELECT status FROM plans WHERE user_id = '{user_without_hyatt}'
+            """
+        )
+        self.assertEqual(statuses, [("failed",)])
 
 
 class _PsqlConnection:

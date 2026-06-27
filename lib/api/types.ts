@@ -73,6 +73,20 @@ export interface ApiTransferParams {
   idempotencyKey?: string;
 }
 
+/**
+ * One event from the Hono /mutations/stream SSE (and /mutations REST list).
+ * Mirrors apps/api/src/mutations/events.ts MutationEvent — kept in sync manually.
+ */
+export interface RealMutationEvent {
+  event_id: string;
+  mutation_type: string;
+  target_table: string | null;
+  target_node_id: string | null;
+  plan_lineage_id: string | null;
+  plan_id: string | null;
+  summary: string;
+}
+
 export type ApiErrorKind =
   | { kind: "not-signed-in"; status: 401 }
   | { kind: "unprovisioned"; status: 403 }

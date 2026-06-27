@@ -1,6 +1,6 @@
-"""Integration bridge from seeded redemption planning to graph-write rows.
+"""Bridge from seeded redemption planning to graph-write rows.
 
-The production boundary keeps Python agents reasoning-only. This test seam is
+The production boundary keeps Python agents reasoning-only. This seam is
 DB-aware because the Jun 25 hero gate runs against the pre-API Python
 `V31GraphWriteService`.
 """
@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agents.redemption.planner import load_fixture, plan_redemption
+from agents.redemption.planner import load_fixture, plan_direct_redemption, plan_redemption
 from schema.mutations import (
     CreatePlanStepRequest,
     RecordStateDependencyRequest,
@@ -22,7 +22,7 @@ from schema.mutations import (
 # `award_options`, etc.). Postgres hero setup loads `fixtures/demo-seed.json`
 # separately via load_seed.py; balances come from the live DB snapshot.
 DEFAULT_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "person-c-mvp-seed.json"
+    Path(__file__).resolve().parents[1] / "fixtures" / "person-c-mvp-seed.json"
 )
 DEFAULT_SOURCE_PROGRAM_SLUG = "program:chase_ur"
 
@@ -62,9 +62,14 @@ def write_redemption_steps(
     step_status: str = "current",
     source_program_slug: str = DEFAULT_SOURCE_PROGRAM_SLUG,
     fixture: dict[str, Any] | None = None,
+    planner_fn: Any | None = None,
     graph_write_service: Any | None = None,
 ) -> RedemptionStepWriteResult:
-    """Plan a seeded redemption and write only steps/dependencies."""
+    """Plan a seeded redemption and write only steps/dependencies.
+
+    ``planner_fn`` defaults to ``plan_redemption``; pass ``plan_direct_redemption``
+    for the World of Hyatt direct-redemption scenario (no transfer step).
+    """
 
     if not user_id:
         raise ValueError("user_id is required")
@@ -83,7 +88,8 @@ def write_redemption_steps(
         program_slug=source_program_slug,
     )
     fixture_data = fixture if fixture is not None else load_fixture(DEFAULT_FIXTURE_PATH)
-    draft = plan_redemption(
+    actual_planner = planner_fn if planner_fn is not None else plan_redemption
+    draft = actual_planner(
         fixture_data,
         balance_points=balance.balance_points,
         query_text=query_text,

@@ -5,6 +5,12 @@ import { useRef, useState } from "react";
 import type { CardView } from "@/lib/cards/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 
+const PROGRAM_DESCRIPTOR: Record<string, string> = {
+  "Chase Ultimate Rewards": "transfers to Hyatt, United & more",
+  "World of Hyatt": "earn Hyatt points · book hotels directly",
+  "United MileagePlus": "fly United & Star Alliance partners",
+};
+
 /**
  * A selectable credit-card tile — big and interactive: a pointer-driven 3D tilt
  * with a cursor-tracking glare, spring hover-lift, and an accent glow-ring on
@@ -52,7 +58,7 @@ export default function CardTile({
       <button
         ref={ref}
         type="button"
-        onClick={() => onToggle(card.id)}
+        onClick={() => onToggle(card.slug)}
         onMouseMove={onMove}
         onMouseLeave={onLeave}
         aria-pressed={selected}
@@ -88,8 +94,11 @@ export default function CardTile({
               <div className="mt-1.5 text-lg font-semibold leading-tight text-white/95">
                 {card.name}
               </div>
-              <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-white/40">
+              <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-white/65">
                 {card.programName}
+              </div>
+              <div className="mt-0.5 text-[10px] leading-tight text-white/45">
+                {PROGRAM_DESCRIPTOR[card.programName] ?? ""}
               </div>
             </div>
             <div

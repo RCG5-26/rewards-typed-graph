@@ -12,10 +12,8 @@ import TopBar from "./TopBar";
 type Step = "cards" | "ask" | "plan";
 
 const SUGGESTED_PROMPTS = [
-  { tag: "✈", text: "fly LAX → Tokyo in business this fall using my points" },
-  { tag: "★", text: "hit the welcome bonus before the deadline" },
-  { tag: "%", text: "most cashback on everyday spend" },
   { tag: "◎", text: "save a 3-night Tokyo hotel stay on points" },
+  { tag: "◎", text: "redeem Chase points for the best Hyatt award" },
 ];
 
 function dollars(cents: number): string {
@@ -141,7 +139,7 @@ export default function OnboardingFlow() {
   }, []);
 
   const wallet = useMemo(
-    () => cards.filter((c) => selected.includes(c.id)),
+    () => cards.filter((c) => selected.includes(c.slug)),
     [cards, selected],
   );
   const projectedCents = useMemo(
@@ -298,7 +296,7 @@ function CardsStep({
                   key={card.id}
                   card={card}
                   index={i}
-                  selected={selected.includes(card.id)}
+                  selected={selected.includes(card.slug)}
                   onToggle={onToggle}
                 />
               ))}
@@ -453,7 +451,7 @@ function AskStep({
             id="goal-query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="fly LAX → Tokyo in business this fall using my points"
+            placeholder="save a 3-night Tokyo hotel stay on points"
             rows={2}
             className="min-w-0 flex-1 resize-none bg-transparent py-3.5 text-md leading-normal text-text-primary outline-none placeholder:text-text-tertiary"
           />
