@@ -669,3 +669,99 @@ user-owned external resources:
 No secrets recorded. No `.env` read for values; `.env.example` holds placeholders
 only; `DATABASE_URL`/tokens never logged. Local verification used the throwaway
 `rewards:rewards@…/rewards_test` compose credentials only.
+
+---
+
+## Entry 010 — PROMPT B: Option B Production Adapters (2026-06-27)
+
+**Task:** Implement the minimum production adapters to run the TypeScript orchestrator against real PostgreSQL state and the existing Python graph-write boundary. No HTTP routes mounted. No `PLAN_ENGINE` flag. No frontend changes.
+**Branch:** `feat/orchestrator-production-adapters` from SHA `904e579` on `chore/option-b-shared-baseline`
+**Files modified:** See production adapter table below.
+**Production code changed:** Yes — TypeScript adapters + additive Python bridge commands only. No domain SQL in TypeScript. `server.ts` untouched.
+
+### Tools used
+
+- Claude Code (claude-sonnet-4-6) across two sessions (context compacted between sessions)
+- `Read` tool — schema.sql, contracts, hero_bridge.py, demo-seed.json, V31GraphWriteService, agent_runs DDL, orchestrator contracts, existing test doubles
+- `Edit` / `Write` tools — all new TypeScript adapter files, Python handler additions
+- `Bash` tool — `npm run typecheck`, `npm run test:coverage`, `python3.10 -m unittest`, grep for direct TS writes, secret scan
+
+### Production adapters implemented
+
+| Port | File | Contract |
+|------|------|----------|
+| M1 PostgreSQL snapshot | `src/agents/snapshot/pg-snapshot-builder.ts` | C2 |
+| M2 Wallet specialist | `src/agents/wallet/wallet-agent.ts` | C3 |
+| M2 Redemption specialist | `src/agents/redemption/redemption-agent.ts` | C3 |
+| M2 EarningAgent stub | `src/agents/earning/earning-agent.ts` | C3 (excluded) |
+| M3 Commit validation | `src/agents/commit/validation.ts` | C4 shared |
+| M3 Controlled commit | `src/agents/commit/controlled-commit.ts` | C4 |
+| M3 Python write bridge | `src/agents/commit/python-write-bridge.ts` | C6 |
+| M4 AgentRun repository | `src/orchestrator/graph-write/agent-run-repository.ts` | C5 |
+| M6 Bridge additions | `apps/api/bridge/hero_bridge.py` (additive) | C6 |
+
+### Python bridge additions
+
+8 new additive subcommands in `hero_bridge.py` (existing commands untouched):
+
+| Subcommand | Description | Returns |
+|------------|-------------|---------|
+| `orchestrator-create-plan` | Create plan via V31GraphWriteService | `{planId, planLineageId, revisionNumber}` |
+| `orchestrator-transition-plan` | UPDATE plans SET status | `{ok: true}` |
+| `orchestrator-commit-step` | Create plan_step via V31GraphWriteService | `{mutationTxnId: plan_steps.id}` |
+| `orchestrator-record-dependency` | Record state_dependency via V31GraphWriteService | `{mutationTxnId: state_dependencies.id}` |
+| `orchestrator-record-mutation` | Write graph_mutations audit entry (no balance change) | `{mutationTxnId: uuid}` |
+| `orchestrator-create-agent-run` | INSERT agent_runs (status=running) | `{agentRunId: uuid}` |
+| `orchestrator-finalize-agent-run` | UPDATE agent_runs SET status, completed_at | `{ok: true}` |
+| `read-plan` | Project plan via project_plan() (Contract 7 read path) | PlanView |
+
+### Key decisions
+
+1. **`plan_lineage_id` / `revision_number` resolution**: TypeScript callers provide only `plan_id`. The `orchestrator-commit-step` bridge handler fetches `plan_lineage_id` and `revision_number` from the `plans` table server-side. This avoids widening the frozen `AgentCommitBinding` interface.
+
+2. **`CommitSuccess.mutationTxnId` as `planStepId`**: The frozen `CommitSuccess` interface has only `mutationTxnId`. For `RecordStateDependency`, the agent needs `plan_steps.id`. The bridge returns `plan_steps.id` as `mutationTxnId`, so agents can thread it forward. Documented as Contract Drift #2.
+
+3. **LATERAL JOIN for `targetRedemptionOptionId`**: `user_goals` has `target_program_id`, not `target_redemption_option_id`. Resolved via LATERAL JOIN on `redemption_options` picking highest `cpp_basis_points`.
+
+4. **`IdempotencyConflict` → `CommitSuccess(idempotencyReplayed: true)`**: Bridge may return this code; `ControlledAgentCommitFactory` catches and converts to success with sentinel `mutationTxnId = "idempotent-replay:{key}"`.
+
+5. **Deterministic specialist ordering**: Wallet emits commits sorted by `programId`; Redemption branch logic is fully deterministic without any LLM invocation.
+
+6. **`_psql_exec`/`_psql_rows` advisory lock caveat**: Each `execute()` in `_PsqlCursor` is a separate psql subprocess (separate transaction). `pg_advisory_xact_lock` is released immediately after each call. For the single-user thesis demo this is acceptable. Production use would require psycopg2 or a persistent connection.
+
+### Validation commands run
+
+```bash
+npm run typecheck       # Clean — 0 errors
+npm run test:coverage   # 179 passed, 4 skipped (live-PG gated)
+python3.10 -m unittest discover -s tests -p "test_*.py"  # 203 passed, 10 skipped
+grep -rn "CLERK_SECRET_KEY" apps/api/src/agents/ ...     # Only in comments
+grep -rn "INSERT|UPDATE|DELETE" apps/api/src/agents/ ... # 0 direct TS writes
+```
+
+### Contract drift
+
+| # | Description |
+|---|-------------|
+| 1 | `UserGoalRow.targetRedemptionOptionId` — no DB column in `user_goals`; resolved via LATERAL JOIN |
+| 2 | `CommitSuccess.mutationTxnId` used as `planStepId` for `RecordStateDependency` — bridge returns `plan_steps.id` as `mutationTxnId` |
+| 3 | `pg_advisory_xact_lock` doesn't span psql subprocess calls — acceptable for single-user demo |
+
+### Tests added
+
+- `src/agents/snapshot/pg-snapshot-builder.test.ts` — 12 unit + 4 live-PG (skipped)
+- `src/agents/wallet/wallet-agent.test.ts` — 7 unit tests
+- `src/agents/redemption/redemption-agent.test.ts` — 16 unit tests (full thesis flow coverage)
+- `src/agents/commit/controlled-commit.test.ts` — 13 contract tests
+- `src/orchestrator/graph-write/agent-run-repository.test.ts` — 7 contract tests
+- `tests/test_orchestrator_bridge_commands.py` — 35 Python unit tests (all 8 subcommands + arg parser)
+
+### Deferred / blocked
+
+- Live-PG vertical integration test (Phase 8) — gated by `RUN_LIVE_POSTGRES_TESTS=1`; framework in place, requires seeded DB
+- Phase 9 negative/safety tests — scaffolded but not exhaustive (subprocess timeout, extra stdout noise isolation tests skipped)
+- Prompt C wiring — no HTTP route mounting; adapters ready for `PlanService → orchestrator` composition
+
+### Secrets
+
+No secrets recorded. `CLERK_SECRET_KEY` is explicitly excluded from the bridge env allow-list (`BRIDGE_ENV_ALLOWLIST` in `python-write-bridge.ts`). No `.env` values read or logged.
