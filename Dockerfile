@@ -42,6 +42,7 @@ ENV PYTHON_BIN=python3
 # API_PORT is set by the platform (Railway service variable). The server falls
 # back to 8787 only for local runs; production sets API_PORT=8080.
 
-# `start` = `tsx src/server.ts`; cwd is apps/api but the bridge resolves its
-# own paths from import.meta.url, independent of the process working directory.
-CMD ["npm", "--prefix", "apps/api", "run", "start"]
+# Ensure an empty managed database has schema + demo seed before the API accepts
+# traffic. The bootstrap is non-destructive: existing complete schemas are left
+# in place and the seed load is idempotent.
+CMD ["sh", "-c", "PYTHON=\"${PYTHON_BIN:-python3}\"; \"$PYTHON\" scripts/ensure_schema_seed.py --include-demo-persona && exec npm --prefix apps/api run start"]

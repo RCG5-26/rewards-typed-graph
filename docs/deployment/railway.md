@@ -31,7 +31,7 @@ allowed managed-Postgres option).
 
 ## Architecture
 
-Modular monolith (ADR 0004). Only two services are deployed for the demo:
+Modular monolith (ADR 0004). Three services are deployed for the demo:
 
 | Service                     | Form                                                                                                                | Notes                                                                                                                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,9 +42,10 @@ Modular monolith (ADR 0004). Only two services are deployed for the demo:
 > **`apps/web` migration deferred post-demo.** ADR 0004 planned migrating the Next.js root to `apps/web`, but the move was deferred to avoid a demo-day build risk. Web deploys from the repo root for the Jun 29 demo.
 
 **Why always-on (no scale-to-zero):** the API process owns the SSE stream
-(`/mutations/stream`), the replan worker path, and the Python hero-bridge
-subprocess launcher. Scale-to-zero would drop open SSE connections and stall
-replanning (ADR 0004; ADR [0008](../adr/0008-per-user-serialization-sse.md)).
+(`/mutations/stream`), the synchronous transfer+replan route, and the Python
+hero-bridge subprocess launcher. Scale-to-zero would drop open SSE connections
+and interrupt bridge-backed replanning (ADR 0004; ADR
+[0008](../adr/0008-per-user-serialization-sse.md)).
 
 **The image** ships Node 22 + `python3` + `postgresql-client`. The hero bridge
 (`apps/api/bridge/hero_bridge.py`) runs as a subprocess and talks to Postgres via
@@ -85,23 +86,21 @@ railway init            # or: railway link   (to an existing project)
 # 2. Provision managed Postgres in the project (Dashboard → New → Database →
 #    PostgreSQL, or `railway add`). Note the service's DATABASE_URL.
 
-# 3. Apply the canonical schema (see "Schema and seed" for the SSL variant)
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/schema.sql
+# 3. Apply the canonical schema and seed the demo data.
+#    The API container also runs this non-destructive bootstrap on startup.
+python3 scripts/ensure_schema_seed.py --include-demo-persona
 
-# 4. Load the world data + demo persona
-python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
-
-# 5. Set API service variables (Dashboard → Variables, or `railway variables`)
+# 4. Set API service variables (Dashboard → Variables, or `railway variables`)
 #    DATABASE_URL, PGSSLMODE, CLERK_SECRET_KEY, CORS_ORIGIN, API_PORT=8080,
 #    NODE_ENV=production, PYTHON_BIN=python3
 
-# 6. Configure the service: Dockerfile build, target port 8080,
+# 5. Configure the service: Dockerfile build, target port 8080,
 #    health check path /health, restart on failure, min instances = 1.
 
-# 7. Deploy
+# 6. Deploy
 railway up              # or push to the GitHub-connected branch
 
-# 8. Watch startup
+# 7. Watch startup
 railway logs
 ```
 
@@ -118,17 +117,20 @@ refuses any host that is not `localhost`/`127.0.0.1`/`::1` and requires a
 `*_test` database name, and it runs `docker compose up` + resets the schema. It
 is a local-only helper.
 
-Apply the schema and seed directly with `psql` / `load_seed.py`:
+Run the non-destructive bootstrap directly:
 
 ```bash
 # Internal Railway URL (no SSL needed):
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/schema.sql
-python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+python3 scripts/ensure_schema_seed.py --include-demo-persona
 
 # External Railway URL (SSL required):
-PGSSLMODE=require psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f schema/schema.sql
-PGSSLMODE=require python3 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona
+PGSSLMODE=require python3 scripts/ensure_schema_seed.py --include-demo-persona
 ```
+
+The bootstrap applies `schema/schema.sql` only when the public schema has no
+tables. If the database already has the complete schema, it only reloads the
+idempotent seed rows. If it finds a partial schema, it exits with an error
+instead of guessing at a migration.
 
 `--include-demo-persona` loads the fixed demo user, balances, statuses, goals,
 and held cards in addition to the shared world data. (At runtime, the app clones
@@ -156,8 +158,10 @@ git push                # if GitHub deploys are wired, this triggers a build
 railway up              # build + deploy the current tree
 ```
 
-Schema/seed do **not** re-run on redeploy. Re-apply only when `schema/schema.sql`
-changes (additive-only after lock — see ADR 0001) or to reset demo data.
+The API container runs `scripts/ensure_schema_seed.py --include-demo-persona`
+on every start before the Hono server accepts traffic. This is safe to run on
+redeploy because seed inserts are idempotent and schema application only happens
+for an empty public schema.
 
 ---
 
@@ -225,18 +229,18 @@ Add the deployed web origin to **Clerk Dashboard → Allowed Origins** (and the 
 
 ## Troubleshooting
 
-| Symptom                                             | Likely cause                      | Fix                                                                                      |
-| --------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| `hero bridge failed: python3: not found`            | Python missing in image           | Image installs `python3`; confirm base + apt step                                        |
-| `psql: command not found` (bridge)                  | `postgresql-client` missing       | Image installs it; confirm apt step                                                      |
-| `ModuleNotFoundError: schema` / `tests.integration` | repo tree not fully copied        | Ensure `.dockerignore` does **not** exclude `schema/`, `tests/integration/`, `fixtures/` |
-| Health check fails but logs show "API listening"    | Railway target port ≠ bind port   | Set target port and `API_PORT` both to `8080`                                            |
-| `401` with a valid token                            | Clerk origin/key mismatch         | Verify `CLERK_SECRET_KEY` and that the token's instance matches                          |
-| `SSL connection required` / `no encryption`         | External Postgres URL without SSL | Set `PGSSLMODE=require` (or use the internal service URL)                                |
-| `SELECT count … user_balances` returns 0            | Seed not loaded                   | Run `load_seed.py … --include-demo-persona`                                              |
-| Browser blocked by CORS                             | `CORS_ORIGIN` ≠ web origin        | Set exact deployed web origin, redeploy API                                              |
-| SSE stream drops / reconnects constantly            | Service scaled to zero            | Set min instances = 1, disable scale-to-zero                                             |
-| `no current plan to re-plan` on transfer            | No plan created first             | Create a plan before transferring (hero-flow order)                                      |
+| Symptom                                             | Likely cause                      | Fix                                                                                                           |
+| --------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `hero bridge failed: python3: not found`            | Python missing in image           | Image installs `python3`; confirm base + apt step                                                             |
+| `psql: command not found` (bridge)                  | `postgresql-client` missing       | Image installs it; confirm apt step                                                                           |
+| `ModuleNotFoundError: schema` / `tests.integration` | repo tree not fully copied        | Ensure `.dockerignore` does **not** exclude `schema/`, `tests/integration/`, `fixtures/`                      |
+| Health check fails but logs show "API listening"    | Railway target port ≠ bind port   | Set target port and `API_PORT` both to `8080`                                                                 |
+| `401` with a valid token                            | Clerk origin/key mismatch         | Verify `CLERK_SECRET_KEY` and that the token's instance matches                                               |
+| `SSL connection required` / `no encryption`         | External Postgres URL without SSL | Set `PGSSLMODE=require` (or use the internal service URL)                                                     |
+| `SELECT count … user_balances` returns 0            | Seed not loaded                   | Run `python3 scripts/ensure_schema_seed.py --include-demo-persona`; the API container also runs it on startup |
+| Browser blocked by CORS                             | `CORS_ORIGIN` ≠ web origin        | Set exact deployed web origin, redeploy API                                                                   |
+| SSE stream drops / reconnects constantly            | Service scaled to zero            | Set min instances = 1, disable scale-to-zero                                                                  |
+| `no current plan to re-plan` on transfer            | No plan created first             | Create a plan before transferring (hero-flow order)                                                           |
 
 > **Smoke-test retry gotcha:** Docker Desktop's port proxy accepts TCP before the
 > app binds, so a not-yet-ready service returns _connection reset_ (curl error 56),

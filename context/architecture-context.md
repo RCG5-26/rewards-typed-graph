@@ -2,33 +2,65 @@
 
 > How the system is structured, where boundaries are, and what must never break.
 
-**Last updated:** 2026-06-20 · **Schema/spec version:** schema-final **v3.1** (`docs/architecture/schema-final.md`, `schema/schema.sql`)
+**Last updated:** 2026-06-27 · **Schema/spec version:** schema-final **v3.1** (`docs/architecture/schema-final.md`, `schema/schema.sql`)
 
 **Approval status:** **Locked (ADR 0001 Accepted 2026-06-18).** Phase A DDL validated on clean PostgreSQL 16. Phase A3 contracts next.
 
-**Implementation status:** Spec and DDL authored; application code not scaffolded. Paths marked _(proposed)_ do not exist yet. Controls below are **specified**, not implemented, unless code or tests exist in the repo.
+**Implementation status:** `main` runs the demo through Hono routes in `apps/api`, `BridgePlanService`, and the Python `psql` bridge at `apps/api/bridge/hero_bridge.py`. The TypeScript orchestrator and agent harness are committed and tested, but they are not mounted in `apps/api/src/server.ts`; the async replan worker remains target architecture/post-demo work. Treat sections marked **target** as design intent, not the current runtime.
 
 ---
 
 ## Stack
 
-| Layer               | Technology                                              | Role                                                                                                            |
-| ------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Frontend            | Next.js App Router in `apps/web` _(proposed)_           | Demo UI; Clerk client; SSE consumer; actionability from plan `status`                                           |
-| API / orchestration | Hono + TypeScript in `apps/api` _(proposed)_            | HTTP, Clerk, orchestrator, graph-query/write (with per-user advisory lock), SSE, replan worker, Python launcher |
-| Specialist agents   | Python 3.11+ modules in `agents/` _(proposed)_          | Reasoning only; scoped JSON snapshot on stdin; **no DB access**                                                 |
-| Database            | PostgreSQL                                              | Graph tiers, mutation audit log, replan job queue                                                               |
-| Auth                | Clerk (identity only)                                   | Sign-in → `users.clerk_id`                                                                                      |
-| Contracts           | JSON Schema in `schema/contracts/` _(proposed)_         | Authoritative for API, mutation, subprocess, tool, benchmark, SSE                                               |
-| Persistence DDL     | SQL in `schema/schema.sql`                              | Authoritative for relational structure (validated on clean PostgreSQL 16)                                       |
-| Generated types     | `packages/schema-ts/`, `agents/schema_py/` _(proposed)_ | Generated from JSON Schema only                                                                                 |
-| Evaluation          | Python CLI in `eval/` _(proposed)_                      | Local/CI only; ephemeral eval DB                                                                                |
+| Layer             | Technology                                              | Role                                                                                                    |
+| ----------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Frontend          | Next.js App Router at repo root; `apps/web` deferred    | Demo UI; Clerk client; BFF routes; SSE consumer; actionability from plan `status`                       |
+| API shell         | Hono + TypeScript in `apps/api`                         | HTTP, Clerk, CORS, mutation REST/SSE, plan routes, Python bridge launcher                               |
+| Demo plan runtime | Python `psql` bridge (`apps/api/bridge/hero_bridge.py`) | Current mounted plan creation and transfer+replan path; synchronous inline replan before `200` response |
+| Graph-write       | Python `schema.mutations.V31GraphWriteService`          | Current graph write adapter over PostgreSQL and SQL functions                                           |
+| TS orchestrator   | TypeScript in `apps/api/src/orchestrator`               | Tested contract/harness; **not mounted** in the live server on `main`                                   |
+| Specialist agents | Python 3.11+ modules in `agents/`                       | Reasoning modules and target specialists; no direct DB access when used as agents                       |
+| Database          | PostgreSQL                                              | Graph tiers, mutation audit log, replan job queue                                                       |
+| Auth              | Clerk (identity only)                                   | Sign-in → `users.clerk_id`                                                                              |
+| Contracts         | JSON Schema in `schema/contracts/` _(proposed)_         | Authoritative for API, mutation, subprocess, tool, benchmark, SSE                                       |
+| Persistence DDL   | SQL in `schema/schema.sql`                              | Authoritative for relational structure (validated on clean PostgreSQL 16)                               |
+| Generated types   | `packages/schema-ts/`, `agents/schema_py/` _(proposed)_ | Generated from JSON Schema only                                                                         |
+| Evaluation        | Python CLI in `eval/` _(proposed)_                      | Local/CI only; ephemeral eval DB                                                                        |
 
 No Redis, external queue, WebSocket server, or graph database in MVP.
 
 ---
 
-## High-level diagram
+## High-level diagrams
+
+### Current demo runtime on `main`
+
+```mermaid
+flowchart TB
+  User([User]) --> Web[repo-root Next.js + Clerk]
+  Web -->|BFF / API calls| APIC[apps/api Hono server]
+  Web -->|SSE via BFF| APIC
+
+  subgraph APIC_Process["api service - long-lived"]
+    Auth[Clerk JWT verify]
+    PlanRoutes[Plan routes]
+    MutationRoutes[Mutation REST + SSE]
+    BridgeSvc[BridgePlanService]
+  end
+
+  PlanRoutes --> BridgeSvc
+  BridgeSvc -->|spawn per request| PyBridge[apps/api/bridge/hero_bridge.py]
+  PyBridge -->|psql subprocess| PG[(PostgreSQL)]
+  PyBridge --> Flow[plan_flows/hero_flow.py]
+  Flow --> GWrite[schema.mutations.V31GraphWriteService]
+  GWrite --> PG
+  MutationRoutes --> PG
+
+  Note1[POST /plans and POST /balance-transfer are synchronous; transfer+replan completes before HTTP 200]
+  BridgeSvc -.-> Note1
+```
+
+### Target graph-native runtime
 
 ```mermaid
 flowchart TB
@@ -77,17 +109,18 @@ flowchart TB
 
 ## System boundaries
 
-| Boundary        | Path                                     | Owns                                                                 | Must not own                 |
-| --------------- | ---------------------------------------- | -------------------------------------------------------------------- | ---------------------------- |
-| Frontend        | `apps/web/`                              | UI, SSE client, displays plans with `status = current` as actionable | DB, agents, writes           |
-| API             | `apps/api/src/routes/`                   | HTTP, auth, SSE replay, idempotency                                  | Agent DB access              |
-| Graph-write     | `apps/api/src/graph/write/`              | Validation, OCC, advisory lock, mutations, job enqueue, idempotency  | LLM calls                    |
-| Graph-query     | `apps/api/src/graph/read/`               | User-scoped reads, snapshots for subprocess                          | Writes                       |
-| Replan worker   | `apps/api/src/replan/worker.ts`          | Lease-based job claim; atomic revision promotion                     | Redis                        |
-| Python launcher | `apps/api/src/agents/launcher.ts`        | Subprocess spawn per operational contract                            | Agent logic                  |
-| Agents          | `agents/*/`                              | LLM → `MutationBatch` from snapshot                                  | Shell, DB, HTTP, secrets     |
-| Schema          | `schema/schema.sql`, `schema/contracts/` | DDL authored; JSON Schema contracts planned (Phase A3)               | Hand-written duplicate types |
-| Eval            | `eval/`                                  | CLI + ephemeral DB                                                   | Demo deploy                  |
+| Boundary               | Path                                            | Owns                                                                | Must not own                          |
+| ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------- |
+| Frontend               | repo root `app/`; `apps/web/` post-demo         | UI, BFF routes, SSE client, displays `current` plans as actionable  | DB, agents, direct Hono calls         |
+| API shell              | `apps/api/src/`                                 | HTTP, auth, CORS, mutation REST/SSE, route-to-service composition   | Redemption business logic             |
+| Current plan bridge    | `apps/api/src/plans/bridge-service.ts`          | Spawning `hero_bridge.py`; env allowlist; JSON envelope translation | Non-DB secrets, graph semantics       |
+| Current Python bridge  | `apps/api/bridge/hero_bridge.py`, `plan_flows/` | Plan creation, seed clone, transfer+inline replan, view projection  | Clerk secrets, frontend concerns      |
+| Current graph-write    | `schema/mutations.py`                           | TransferPoints, OCC checks, dependencies, mutation log, replan jobs | HTTP/auth                             |
+| Target TS orchestrator | `apps/api/src/orchestrator/`                    | Tested orchestration contracts and harness                          | Runtime claims until mounted          |
+| Target async worker    | `apps/api/src/replan/worker.ts` _(not live)_    | Lease-based job claim; atomic revision promotion                    | Current demo transfer+replan behavior |
+| Specialist agents      | `agents/*/`                                     | Target LLM-to-mutation reasoning from scoped snapshots              | Shell, DB, HTTP, secrets              |
+| Schema                 | `schema/schema.sql`, `schema/contracts/`        | DDL and contracts                                                   | Hand-written duplicate types          |
+| Eval                   | benchmark/eval Python CLIs                      | CLI + ephemeral DB                                                  | Demo deploy                           |
 
 ---
 
@@ -148,6 +181,10 @@ CREATE UNIQUE INDEX plans_one_current_revision
 
 ### 1. Create a rewards plan
 
+**Current demo runtime:** `POST /plans` calls `BridgePlanService.createPlan`, which spawns `hero_bridge.py`. The bridge uses the `psql` subprocess path and `schema.mutations.V31GraphWriteService` to write the plan, steps, dependencies, and mutation rows, then returns a full `status = current` plan in the same HTTP request. There is no mounted TS orchestrator loop or `generating` poll window on `main`.
+
+**Target graph-native flow:**
+
 1. Clerk auth → `users.id`.
 2. Orchestrator creates plan: new `plan_lineage_id`, `revision_number = 1`, `status = generating`.
 3. Graph-query builds scoped snapshot; Python subprocess receives JSON on stdin (no DB).
@@ -155,6 +192,10 @@ CREATE UNIQUE INDEX plans_one_current_revision
 5. Plan → `status = current`; SSE emits events.
 
 ### 2. Update personal state and automatically re-plan
+
+**Current demo runtime:** `POST /balance-transfer` calls the Python bridge, which runs `transfer_points`, marks the prior revision and dependent steps stale, claims the generated `replan_jobs` row, builds revision 2, and promotes it to `current` before returning `200`. The `replan_jobs` table is still written and completed, but no independent background worker is mounted on `main`.
+
+**Target graph-native flow:**
 
 1. Client may send `Idempotency-Key` header scoped per `(user_id, operation_type)`.
 2. Graph-write **one transaction** (after `pg_advisory_xact_lock` for user):
@@ -215,7 +256,7 @@ Ephemeral eval DB per run; baselines write minimal rows only; demo DB never touc
 | **Local dev**   | Docker container  | Docker container (long-lived)               | **Docker Compose container**                                                                        |
 | **Hosted demo** | Service/container | **Long-lived container** (no scale-to-zero) | **Managed PostgreSQL** (Railway/Render/Fly/Neon/etc.) — **not** an app container with attached disk |
 
-The API service must not scale to zero — it owns SSE, replan worker, and Python subprocesses.
+The API service must not scale to zero — it owns SSE, route handling, database connections, and Python bridge subprocesses. The target async replan worker also requires an always-on API process once mounted.
 
 Eval CLI: **local/CI only**, never deployed.
 
@@ -301,9 +342,11 @@ UNIQUE (user_id, operation_type, idempotency_key)
 
 **Atomic completion:** Job `completed` + new revision `current` + prior `superseded` in **one transaction**.
 
-### Python subprocess operational contract
+### Target Python subprocess operational contract
 
-Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher.ts`:
+The target agent contract below applies to specialist agent subprocesses. The current demo bridge is intentionally different: it is the API's plan/replan database access layer, so it receives `DATABASE_URL` / `PG*` and talks to Postgres through `psql`.
+
+This contract is target/post-demo unless and until `schema/contracts/agent-invocation.json` and an API launcher are added:
 
 | Rule         | Requirement                                                                      |
 | ------------ | -------------------------------------------------------------------------------- |
@@ -317,7 +360,7 @@ Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher
 | stderr       | Logs only; sanitized before persistence                                          |
 | Credentials  | None passed to subprocess                                                        |
 
-### Agent read boundary
+### Target agent read boundary
 
 - All reads via graph-query in API process.
 - Subprocess receives scoped snapshot JSON only.
@@ -357,8 +400,8 @@ Documented in `schema/contracts/agent-invocation.json` and enforced by `launcher
 8. Stale/superseded revisions and steps are never presented as actionable.
 9. Failed re-plan never restores a stale revision to `current`.
 10. Re-plan success creates a new revision; prior becomes `superseded` atomically with job completion.
-11. Python agents have no database credentials.
-12. `graph_mutations` is audit/SSE only; `replan_jobs` is the work queue.
+11. Python specialist agents have no database credentials; the current demo bridge is the explicit API DB-access exception and must not receive Clerk or other non-DB secrets.
+12. `graph_mutations` is audit/SSE only; `replan_jobs` is the durable replan lifecycle table. On `main`, the bridge claims and completes jobs inline rather than a mounted background worker doing it.
 13. Idempotency keys scoped by `(user_id, operation_type, idempotency_key)`.
 14. Per-user advisory lock held for graph-write txs that insert `graph_mutations`.
 15. `event_id` ordering guaranteed **within a user's stream only**.
@@ -396,7 +439,7 @@ docker compose up  # web + api + postgres
 
 `DATABASE_URL` points at managed instance — not a co-located Postgres container with ephemeral disk.
 
-**Why API cannot be serverless-only:** SSE, replan worker loop, Python subprocesses, connection pooling.
+**Why API cannot be serverless-only:** SSE, Python bridge subprocesses, connection pooling, and the target replan worker once mounted.
 
 ---
 
