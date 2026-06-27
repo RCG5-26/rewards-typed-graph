@@ -354,26 +354,32 @@ class HyattDirectRedemptionIntegrationTest(LivePostgresMixin, unittest.TestCase)
         self.assertEqual(step_types, [("redemption_recommendation",)])
         self.assertNotIn(("transfer_recommendation",), step_types)
 
-    def test_direct_plan_marks_failed_when_balance_missing(self):
-        # No Hyatt balance for an unseeded user → the write raises and the
-        # generating plan must not be left dangling as 'current'.
+    def test_direct_plan_marks_generating_plan_failed_when_balance_missing(self):
+        # The user exists (so create_plan writes a 'generating' row) but holds no
+        # Hyatt balance, so the redemption write raises ValueError. The cleanup
+        # contract: that row must end up 'failed', never stuck in 'generating'.
         connection = _PsqlConnection()
-        unseeded_user = "00000000-0000-0000-0000-0000000000ff"
+        user_without_hyatt = "00000000-0000-0000-0000-0000000000ff"
+        _psql_exec(
+            f"""
+            INSERT INTO users (id, clerk_id, email)
+            VALUES ('{user_without_hyatt}', 'clerk_no_hyatt', 'no-hyatt@example.com');
+            """
+        )
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             create_direct_plan_from_query(
                 connection,
-                user_id=unseeded_user,
+                user_id=user_without_hyatt,
                 query_text=HERO_QUERY,
             )
 
-        current_plans = _psql_rows(
+        statuses = _psql_rows(
             f"""
-            SELECT count(*) FROM plans
-             WHERE user_id = '{unseeded_user}' AND status = 'current'
+            SELECT status FROM plans WHERE user_id = '{user_without_hyatt}'
             """
         )
-        self.assertEqual(current_plans, [(0,)])
+        self.assertEqual(statuses, [("failed",)])
 
 
 class _PsqlConnection:
