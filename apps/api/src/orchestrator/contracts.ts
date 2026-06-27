@@ -5,6 +5,7 @@ import type {
   GraphSnapshotBuilder,
   UserGoalType,
 } from "../agents/contracts";
+import type { PlanView } from "../plans/types";
 
 export interface PlanRequest {
   readonly userId: string;
@@ -119,4 +120,24 @@ export interface OrchestratorDeps {
   readonly snapshotBuilder: GraphSnapshotBuilder;
   readonly agentRegistry: AgentRegistry;
   readonly commitFactory: AgentCommitFactory;
+}
+
+/**
+ * Reads a committed plan from persistence and projects it into the canonical
+ * PlanView shape (Contract 7 — persisted Plan → PlanView).
+ *
+ * Thesis-milestone implementation: delegates to the existing Python
+ * project_plan function via a hero_bridge.py read subcommand. Only the
+ * projection function is reused — the Python Plan engine (D031 /
+ * hero_bridge.py plan-generation commands) is NOT invoked on this path.
+ *
+ * Constraints enforced by every implementation:
+ *  - Must filter by userId; a user can never read another user's plan.
+ *  - Returns null when no plan matches planId + userId (caller maps to 404).
+ *  - The caller (OrchestratorPlanService / M6) validates the returned shape
+ *    before returning it to the HTTP route.
+ *  - Specialists have no access to this port; it is absent from AgentContext.
+ */
+export interface PlanProjectionPort {
+  project(planId: string, userId: string): Promise<PlanView | null>;
 }
