@@ -7,7 +7,7 @@ import { Pool } from "pg";
 import { type AuthEnv } from "./http/auth";
 import { resolveIdentity } from "./http/clerk-auth";
 import { createMutationRoutes } from "./mutations/routes";
-import { BridgePlanService } from "./plans/bridge-service";
+import { bootPlanService } from "./plans/engine-selector";
 import { createPlanRoutes } from "./plans/routes";
 
 const port = Number(process.env.API_PORT ?? 8787);
@@ -24,7 +24,15 @@ if (devUserId && !allowDevBypass) {
 }
 
 const pool = new Pool({ connectionString: databaseUrl });
-const planService = new BridgePlanService();
+
+// Engine selection happens once at boot (M5 / ADR 0010 §3): PLAN_ENGINE must be
+// set explicitly to `python-legacy` or `orchestrator`, or the server fails fast.
+// Orchestrator mode additionally fails fast until the production adapters land.
+const {
+  engine: planEngine,
+  service: planService,
+  evidence: planEngineEvidence,
+} = bootPlanService(process.env);
 
 const app = new Hono<AuthEnv>();
 
@@ -62,7 +70,7 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.get("/health", (c) => c.json({ ok: true }));
+app.get("/health", (c) => c.json({ ok: true, engine: planEngine }));
 app.route("/", createMutationRoutes(pool));
 app.route("/", createPlanRoutes(planService));
 
@@ -84,5 +92,10 @@ app.onError((error, c) => {
 });
 
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`API listening on http://localhost:${info.port}`);
+  // Safe structured boot evidence — no secrets, only the selected engine and
+  // the no-fallback posture (a reviewer can confirm which engine served a run).
+  console.log(
+    `API listening on http://localhost:${info.port}`,
+    JSON.stringify({ planEngine: planEngineEvidence }),
+  );
 });
