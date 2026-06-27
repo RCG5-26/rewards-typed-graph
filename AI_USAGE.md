@@ -669,3 +669,86 @@ user-owned external resources:
 No secrets recorded. No `.env` read for values; `.env.example` holds placeholders
 only; `DATABASE_URL`/tokens never logged. Local verification used the throwaway
 `rewards:rewards@…/rewards_test` compose credentials only.
+
+---
+
+## Entry 010 — Option B Prompt C: integration lane to C1 stop gate (2026-06-27)
+
+**Task:** PROMPT C — mount the Option B TypeScript orchestrator runtime
+(integration lane). Phases 1–4 + C1 stop gate (Prompt B adapters not yet ready).
+**Branch:** `feat/orchestrator-thesis-integration` (from baseline
+`904e5796d2aba3736f3d731f3a9afcca13a57f93`)
+**Files added:** `apps/api/src/plans/engine-selector.ts` (M5),
+`apps/api/src/plans/orchestrator-service.ts` (M6),
+`apps/api/src/plans/orchestrator-composition.ts` (Phase 4 root),
+`apps/api/tests/plans/{engine-selector,orchestrator-service,orchestrator-composition,bridge-service}.test.ts`,
+`apps/api/tests/helpers/fake-bridge.mjs`,
+`docs/plans/option-b/c1-integration-audit.md`.
+**Files modified:** `apps/api/src/server.ts` (boot-time engine selection +
+`/health` engine field), `.env.example` (required `PLAN_ENGINE`).
+**Production code changed:** Yes (engine selection + orchestrator service shell;
+orchestrator mode fails fast until Prompt B adapters land — no fabrication).
+
+### Tools used
+
+- Cursor agent (Claude Opus 4.8) via the `ce-work` skill.
+- `Read`/`Grep`/`Glob` — traced the live runtime (server.ts, plans/*, orchestrator/*,
+  agents/*) and the frozen Option B contracts.
+- `git worktree` — isolated typecheck/coverage verification and isolated doc commits
+  (the shared checkout was being mutated by a concurrent Prompt B agent).
+
+### Important decisions
+
+- **Default-engine policy (prompt vs frozen contract).** Prompt C Phase 2 reads
+  "python-legacy remains the operational default," but ADR 0010 §3 + the contracts
+  no-go list mandate fail-fast on unset `PLAN_ENGINE` ("unset not failing fast" is
+  thesis-invalidating). Per AGENTS.md (locked docs win), implemented **fail-fast on
+  unset/invalid**; `python-legacy` is the recommended explicit value + rollback
+  target. `.env.example` + Railway notes updated so existing boots set it explicitly.
+- **No fabrication at C1.** Orchestrator mode wires through a composition root that
+  throws `AdaptersNotIntegratedError` (listing the exact expected Prompt B handoff)
+  rather than instantiating any in-memory double in production.
+- **M6 decoupled.** `OrchestratorPlanService` receives an injected orchestrator
+  runner + `PlanProjectionPort` + read delegate, so it is unit-testable now while the
+  real adapters are pending. `createPlan` never falls back to the bridge (ADR 0010 §8).
+- File-layout divergence between the two frozen docs is naming-only (ports identical);
+  resolved to the contracts-doc names. Recorded in the C1 audit, not a port redesign.
+
+### Validation commands (run in an isolated worktree at HEAD, clean of concurrent edits)
+
+- `npm --prefix apps/api run typecheck` → exit 0 (clean).
+- `npm --prefix apps/api run test:coverage` → 128 passed; All files funcs 98.83%,
+  branches 84.48%, lines/stmts 87.9% (all above the API floors 88/76/65). No
+  threshold weakened; no omit/exclude widened.
+
+### Manual review
+
+- Confirmed no new TS `INSERT/UPDATE/DELETE` against domain tables; no production
+  test-double import (a test asserts the composition source imports no fake/stub/
+  fixture); no hidden legacy or fixture fallback in orchestrator mode.
+
+### Mistakes / findings caught
+
+- **Concurrent-agent collision (shared checkout).** A Prompt B agent checked out
+  `feat/orchestrator-production-adapters` in the same working copy immediately after
+  my branch was created, so my 7 commits landed on Prompt B's branch ref. Recovered
+  non-destructively: `git branch -f feat/orchestrator-thesis-integration <my HEAD>`
+  to secure my commits, then `git reset --mixed <baseline>` on the Prompt B branch
+  (working tree preserved) and removed my stray files so Prompt B's lane was left at
+  baseline + its own uncommitted adapter work. No shared/pushed history rewritten.
+- `tsc --noEmit` on the shared (dirty) tree reported one error from Prompt B's
+  in-flight `in-memory-commit.ts` (`ReadSet` type import) — type-only, not mine,
+  not staged; isolated worktree typecheck is clean.
+
+### Deferred / blocked
+
+- **C1 STOP GATE.** Phases 5–10 (adapter integration, live initial-plan + replan
+  proof, browser evidence, cutover) await Prompt B's `PROMPT B READY FOR C2
+  INTEGRATION` handoff. No live PostgreSQL or browser run performed.
+- ADR 0010 ratification, Linear updates, `tracking/`/`STATUS.md` — not in this
+  code-only branch.
+
+### Secrets
+
+No secrets recorded or logged. Boot evidence logs only the engine name +
+no-fallback flag. The bridge env allowlist (CLERK_SECRET_KEY withheld) is unchanged.
