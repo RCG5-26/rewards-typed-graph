@@ -42,9 +42,10 @@ Modular monolith (ADR 0004). Three services are deployed for the demo:
 > **`apps/web` migration deferred post-demo.** ADR 0004 planned migrating the Next.js root to `apps/web`, but the move was deferred to avoid a demo-day build risk. Web deploys from the repo root for the Jun 29 demo.
 
 **Why always-on (no scale-to-zero):** the API process owns the SSE stream
-(`/mutations/stream`), the replan worker path, and the Python hero-bridge
-subprocess launcher. Scale-to-zero would drop open SSE connections and stall
-replanning (ADR 0004; ADR [0008](../adr/0008-per-user-serialization-sse.md)).
+(`/mutations/stream`), the synchronous transfer+replan route, and the Python
+hero-bridge subprocess launcher. Scale-to-zero would drop open SSE connections
+and interrupt bridge-backed replanning (ADR 0004; ADR
+[0008](../adr/0008-per-user-serialization-sse.md)).
 
 **The image** ships Node 22 + `python3` + `postgresql-client`. The hero bridge
 (`apps/api/bridge/hero_bridge.py`) runs as a subprocess and talks to Postgres via
