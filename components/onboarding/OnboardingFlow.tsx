@@ -12,10 +12,8 @@ import TopBar from "./TopBar";
 type Step = "cards" | "ask" | "plan";
 
 const SUGGESTED_PROMPTS = [
-  { tag: "✈", text: "fly LAX → Tokyo in business this fall using my points" },
-  { tag: "★", text: "hit the welcome bonus before the deadline" },
-  { tag: "%", text: "most cashback on everyday spend" },
   { tag: "◎", text: "save a 3-night Tokyo hotel stay on points" },
+  { tag: "◎", text: "redeem Chase points for the best Hyatt award" },
 ];
 
 function dollars(cents: number): string {
@@ -439,9 +437,8 @@ function AskStep({
           your points to do?
         </h1>
         <p className="mb-7 mt-3.5 max-w-[480px] text-sm leading-relaxed text-text-secondary">
-          describe the trip or goal in a sentence — the agents turn it into a
-          typed plan across your{" "}
-          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}.
+          set your redemption goal — agents coordinate typed state across your{" "}
+          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord} to build the plan.
         </p>
 
         <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
@@ -453,7 +450,7 @@ function AskStep({
             id="goal-query"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="fly LAX → Tokyo in business this fall using my points"
+            placeholder="save a 3-night Tokyo hotel stay on points"
             rows={2}
             className="min-w-0 flex-1 resize-none bg-transparent py-3.5 text-md leading-normal text-text-primary outline-none placeholder:text-text-tertiary"
           />
