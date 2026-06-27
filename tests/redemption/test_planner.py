@@ -6,6 +6,7 @@ from agents.redemption.planner import (
     apply_balance_delta,
     find_stale_steps_for_balance,
     load_fixture,
+    plan_direct_redemption,
     plan_redemption,
     value_basis_points,
 )
@@ -14,6 +15,7 @@ from agents.redemption.award_tool import search_seed_awards
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_PATH = ROOT / "fixtures" / "person-c-mvp-seed.json"
+DIRECT_FIXTURE_PATH = ROOT / "fixtures" / "person-c-hyatt-direct-seed.json"
 BENCHMARK_PATH = ROOT / "benchmark" / "gold" / "person-c-mvp-cases.json"
 DEMO_BALANCE_SLUG = "balance:user_mvp_demo:chase_ur"
 
@@ -203,6 +205,60 @@ class PersonCRedemptionPlannerTests(unittest.TestCase):
                 else:
                     self.assertEqual(plan["chosen_award_slug"], expected_award)
                 self.assertEqual(plan.get("fallback"), expected_fallback)
+
+
+class HyattDirectRedemptionPlannerTests(unittest.TestCase):
+    """Scenario 2: World of Hyatt card — direct Hyatt points, no transfer."""
+
+    def setUp(self) -> None:
+        self.fixture = load_fixture(DIRECT_FIXTURE_PATH)
+
+    def test_direct_plan_has_no_transfer_step(self) -> None:
+        plan = plan_direct_redemption(self.fixture)
+
+        step_types = [step["step_type"] for step in plan["steps"]]
+        self.assertNotIn("transfer_recommendation", step_types)
+        self.assertIn("redemption_recommendation", step_types)
+
+    def test_direct_plan_picks_shinjuku_at_35k_hyatt_points(self) -> None:
+        plan = plan_direct_redemption(self.fixture)
+
+        self.assertEqual(plan["chosen_award_slug"], "award:demo_hyatt_shinjuku:tokyo:3n")
+        self.assertEqual(plan["status"], "current")
+        self.assertIsNone(plan["fallback"])
+
+    def test_direct_plan_ginza_is_unaffordable_at_35k(self) -> None:
+        plan = plan_direct_redemption(self.fixture)
+
+        affordable_slugs = [c["award_slug"] for c in plan["ranked_awards"]]
+        self.assertNotIn("award:demo_hyatt_ginza:tokyo:3n", affordable_slugs)
+
+    def test_direct_plan_step_has_state_dependency_on_hyatt_balance(self) -> None:
+        plan = plan_direct_redemption(self.fixture)
+
+        for step in plan["steps"]:
+            deps = step["state_dependencies"]
+            self.assertGreaterEqual(len(deps), 1)
+            dep = deps[0]
+            self.assertEqual(dep["target_table"], "user_balances")
+            self.assertEqual(dep["snapshot_value"]["program_slug"], "program:hyatt")
+
+    def test_direct_plan_single_step_only(self) -> None:
+        plan = plan_direct_redemption(self.fixture)
+
+        self.assertEqual(len(plan["steps"]), 1)
+        self.assertEqual(plan["steps"][0]["step_order"], 1)
+
+    def test_direct_plan_query_text_flows_through(self) -> None:
+        plan = plan_direct_redemption(self.fixture, query_text="book a Tokyo Hyatt stay")
+
+        self.assertEqual(plan["query_text"], "book a Tokyo Hyatt stay")
+
+    def test_direct_plan_cash_fallback_when_balance_too_low(self) -> None:
+        plan = plan_direct_redemption(self.fixture, balance_points=10000)
+
+        self.assertIsNone(plan["chosen_award_slug"])
+        self.assertEqual(plan["fallback"], "cash")
 
 
 if __name__ == "__main__":

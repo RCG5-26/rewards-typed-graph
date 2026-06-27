@@ -170,6 +170,112 @@ def plan_redemption(
     }
 
 
+def plan_direct_redemption(
+    fixture: dict[str, Any],
+    *,
+    balance_points: int | None = None,
+    query_text: str | None = None,
+) -> dict[str, Any]:
+    """Build a direct-redemption plan where the user already holds the target program's points.
+
+    Used for Scenario 2 (World of Hyatt Credit Card): no transfer step is emitted
+    because the balance is already in the hotel program.
+    """
+    request = fixture["trip_request"]
+    query = query_text or request["query_text"]
+
+    balance = _balance_for_request(fixture, balance_points)
+    dependency = _balance_dependency(balance)
+    candidates = _candidate_awards_direct(fixture, balance["balance_points"])
+
+    if not candidates:
+        rejected_options = [
+            _rejection_summary_direct(award, balance["balance_points"])
+            for award in _query_scoped_awards(fixture)
+        ]
+        return _cash_fallback_plan(query, balance, dependency, rejected_options)
+
+    ranked = sorted(
+        candidates,
+        key=lambda c: (-c["value_basis_points"], c["required_source_points"], c["cash_total_cents"], c["award_slug"]),
+    )
+    winner = ranked[0]
+
+    step = _step(
+        order=1,
+        step_type="redemption_recommendation",
+        action=f"Book {winner['hotel_name']} for {winner['points_total']:,} Hyatt points.",
+        reasoning=(
+            f"{winner['hotel_name']} gives {format_cpp(winner['value_basis_points'])} "
+            f"cents per point against the ${winner['cash_total_cents'] / 100:,.0f} cash price."
+        ),
+        payload={
+            "award_slug": winner["award_slug"],
+            "hotel_slug": winner["hotel_slug"],
+            "hotel_name": winner["hotel_name"],
+            "points_total": winner["points_total"],
+            "cash_total_cents": winner["cash_total_cents"],
+            "value_basis_points": winner["value_basis_points"],
+        },
+        dependency=dependency,
+    )
+
+    return {
+        "plan_kind": "person_c_redemption_draft",
+        "status": "current",
+        "query_text": query,
+        "balance_points": balance["balance_points"],
+        "chosen_award_slug": winner["award_slug"],
+        "backup_award_slug": ranked[1]["award_slug"] if len(ranked) > 1 else None,
+        "fallback": None,
+        "ranked_awards": ranked,
+        "steps": [step],
+    }
+
+
+def _candidate_awards_direct(fixture: dict[str, Any], balance_points: int) -> list[dict[str, Any]]:
+    """Candidates affordable directly in the target program — no transfer calculation."""
+    hotel_by_slug = {hotel["slug"]: hotel for hotel in fixture["hotels"]}
+    candidates: list[dict[str, Any]] = []
+
+    for award in _query_scoped_awards(fixture):
+        if not award["available"]:
+            continue
+        if award["points_total"] > balance_points:
+            continue
+
+        hotel = hotel_by_slug[award["hotel_slug"]]
+        calculated_value = value_basis_points(award["cash_total_cents"], award["points_total"])
+        if calculated_value != award["value_basis_points"]:
+            raise RedemptionPlanningError(f"award value_basis_points mismatch: {award['slug']}")
+
+        candidates.append({
+            "award_slug": award["slug"],
+            "hotel_slug": award["hotel_slug"],
+            "hotel_name": hotel["display_name"],
+            "points_total": award["points_total"],
+            "required_source_points": award["points_total"],
+            "cash_total_cents": award["cash_total_cents"],
+            "value_basis_points": award["value_basis_points"],
+        })
+
+    return candidates
+
+
+def _rejection_summary_direct(award: dict[str, Any], balance_points: int) -> dict[str, Any]:
+    reasons: list[str] = []
+    if not award["available"]:
+        reasons.append("unavailable")
+    if award["points_total"] > balance_points:
+        reasons.append("unaffordable")
+    return {
+        "award_slug": award["slug"],
+        "required_source_points": award["points_total"],
+        "available": award["available"],
+        "reasons": reasons,
+    }
+
+
 def apply_balance_delta(fixture: dict[str, Any], balance_slug: str, delta_points: int) -> dict[str, Any]:
     """Return a copied fixture with one balance updated and version incremented."""
 
