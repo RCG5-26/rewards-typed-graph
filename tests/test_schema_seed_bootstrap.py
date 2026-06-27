@@ -22,12 +22,9 @@ class FakePsqlGateway:
         existing_functions: set[str] | None = None,
     ) -> None:
         self._existing_tables = existing_tables
-        self._existing_functions = existing_functions or {
-            "claim_replan_jobs",
-            "mark_direct_plan_dependents_stale",
-            "promote_replan_job_success",
-            "transfer_points",
-        }
+        self._existing_functions = (
+            existing_functions if existing_functions is not None else set()
+        )
         self.applied_schema_paths: list[pathlib.Path] = []
         self.executed_sql: list[str] = []
         self.seed_applied = False
@@ -73,7 +70,8 @@ class SchemaSeedBootstrapTests(unittest.TestCase):
 
     def test_existing_complete_schema_skips_schema_and_still_seeds(self) -> None:
         fake = FakePsqlGateway(
-            existing_tables=set(self.bootstrap.REQUIRED_SCHEMA_TABLES)
+            existing_tables=set(self.bootstrap.REQUIRED_SCHEMA_TABLES),
+            existing_functions=set(self.bootstrap.REQUIRED_SCHEMA_FUNCTIONS),
         )
 
         summary = self.bootstrap.ensure_schema_and_seed(
@@ -93,6 +91,26 @@ class SchemaSeedBootstrapTests(unittest.TestCase):
 
     def test_partial_schema_fails_before_seed_write(self) -> None:
         fake = FakePsqlGateway(existing_tables={"users"})
+
+        with self.assertRaisesRegex(
+            self.bootstrap.SchemaSeedError,
+            "database is not empty but is missing required schema tables",
+        ):
+            self.bootstrap.ensure_schema_and_seed(
+                schema_path=SCHEMA_SQL_PATH,
+                fixture_path=DEMO_SEED_PATH,
+                include_demo_persona=True,
+                psql=fake,
+            )
+
+        self.assertEqual(fake.applied_schema_paths, [])
+        self.assertEqual(fake.executed_sql, [])
+
+    def test_functions_without_tables_fail_before_schema_or_seed_write(self) -> None:
+        fake = FakePsqlGateway(
+            existing_tables=set(),
+            existing_functions={"transfer_points"},
+        )
 
         with self.assertRaisesRegex(
             self.bootstrap.SchemaSeedError,
@@ -132,7 +150,8 @@ class SchemaSeedBootstrapTests(unittest.TestCase):
         dockerfile = DOCKERFILE_PATH.read_text(encoding="utf-8")
 
         self.assertIn("scripts/ensure_schema_seed.py --include-demo-persona", dockerfile)
-        self.assertIn("npm --prefix apps/api run start", dockerfile)
+        self.assertIn('${PYTHON_BIN:-python3}', dockerfile)
+        self.assertIn("exec npm --prefix apps/api run start", dockerfile)
 
     def test_local_setup_uses_same_schema_seed_bootstrap(self) -> None:
         setup_script = DEV_DB_SETUP_PATH.read_text(encoding="utf-8")
@@ -195,7 +214,7 @@ class SchemaSeedBootstrapTests(unittest.TestCase):
         self.assertIn("schema/seed bootstrap failed: missing tables", stderr.getvalue())
 
     def test_subprocess_gateway_requires_psql(self) -> None:
-        gateway = self.bootstrap.SubprocessPsqlGateway(env={})
+        gateway = self.bootstrap.SubprocessPsqlGateway(env={"DATABASE_URL": "postgres://db"})
 
         with (
             mock.patch.object(
@@ -208,8 +227,22 @@ class SchemaSeedBootstrapTests(unittest.TestCase):
         ):
             gateway.existing_tables()
 
-    def test_subprocess_gateway_surfaces_psql_stderr(self) -> None:
+    def test_subprocess_gateway_requires_database_url_before_psql(self) -> None:
         gateway = self.bootstrap.SubprocessPsqlGateway(env={})
+
+        with (
+            mock.patch.object(self.bootstrap.subprocess, "run") as run,
+            self.assertRaisesRegex(
+                self.bootstrap.SchemaSeedError,
+                "DATABASE_URL is required to ensure schema and seed data",
+            ),
+        ):
+            gateway.existing_tables()
+
+        run.assert_not_called()
+
+    def test_subprocess_gateway_surfaces_psql_stderr(self) -> None:
+        gateway = self.bootstrap.SubprocessPsqlGateway(env={"DATABASE_URL": "postgres://db"})
         error = subprocess.CalledProcessError(
             1,
             ["psql"],

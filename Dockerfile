@@ -45,4 +45,4 @@ ENV PYTHON_BIN=python3
 # Ensure an empty managed database has schema + demo seed before the API accepts
 # traffic. The bootstrap is non-destructive: existing complete schemas are left
 # in place and the seed load is idempotent.
-CMD ["sh", "-c", "python3 scripts/ensure_schema_seed.py --include-demo-persona && npm --prefix apps/api run start"]
+CMD ["sh", "-c", "PYTHON=\"${PYTHON_BIN:-python3}\"; \"$PYTHON\" scripts/ensure_schema_seed.py --include-demo-persona && exec npm --prefix apps/api run start"]

@@ -31,7 +31,7 @@ allowed managed-Postgres option).
 
 ## Architecture
 
-Modular monolith (ADR 0004). Only two services are deployed for the demo:
+Modular monolith (ADR 0004). Three services are deployed for the demo:
 
 | Service                     | Form                                                                                                                | Notes                                                                                                                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

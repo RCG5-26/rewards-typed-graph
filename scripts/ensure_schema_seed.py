@@ -177,10 +177,12 @@ class SubprocessPsqlGateway:
         input_text: str | None = None,
         capture: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        command = ["psql", "--set", "ON_ERROR_STOP=1", "--quiet", *args]
         database_url = self.env.get("DATABASE_URL")
-        if database_url:
-            command.append(database_url)
+        if not database_url:
+            raise SchemaSeedError(
+                "DATABASE_URL is required to ensure schema and seed data"
+            )
+        command = ["psql", "--set", "ON_ERROR_STOP=1", "--quiet", *args, database_url]
         try:
             return subprocess.run(
                 command,
@@ -215,8 +217,9 @@ def ensure_schema_and_seed(
     gateway = psql or SubprocessPsqlGateway()
 
     existing_tables = gateway.existing_tables()
+    existing_functions = gateway.existing_functions()
     schema_status = "already_present"
-    if not existing_tables:
+    if not existing_tables and not existing_functions:
         gateway.apply_schema_file(schema)
         schema_status = "applied"
     else:
@@ -226,9 +229,7 @@ def ensure_schema_and_seed(
                 "database is not empty but is missing required schema tables: "
                 + ", ".join(missing)
             )
-        missing_functions = sorted(
-            set(REQUIRED_SCHEMA_FUNCTIONS) - gateway.existing_functions()
-        )
+        missing_functions = sorted(set(REQUIRED_SCHEMA_FUNCTIONS) - existing_functions)
         if missing_functions:
             raise SchemaSeedError(
                 "database schema is missing required functions: "
