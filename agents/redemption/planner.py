@@ -263,6 +263,7 @@ def _candidate_awards_direct(fixture: dict[str, Any], balance_points: int) -> li
 
 
 def _rejection_summary_direct(award: dict[str, Any], balance_points: int) -> dict[str, Any]:
+    """Explain why a direct-redemption award was skipped (unavailable or unaffordable)."""
     reasons: list[str] = []
     if not award["available"]:
         reasons.append("unavailable")

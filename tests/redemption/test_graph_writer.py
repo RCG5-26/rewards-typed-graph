@@ -1,6 +1,6 @@
 import unittest
 
-from tests.integration.redemption_graph_writer import write_redemption_steps
+from plan_flows.redemption_graph_writer import write_redemption_steps
 
 
 HERO_QUERY = "What is the best Hyatt redemption for a 3-night Tokyo trip?"

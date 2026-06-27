@@ -455,7 +455,7 @@ function RouteBar({ steps }: { steps: PlanStep[] }) {
   return (
     <div
       className="flex items-center gap-3 px-5 py-3 border-b border-subtle"
-      style={{ background: isDirect ? "var(--color-surface-subtle)" : "var(--color-surface-subtle)" }}
+      style={{ background: "var(--color-surface-subtle)" }}
     >
       {isDirect ? (
         <>

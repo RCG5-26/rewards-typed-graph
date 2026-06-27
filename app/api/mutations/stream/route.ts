@@ -50,8 +50,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Upstream stream unavailable." }, { status: 502 });
   }
 
-  if (!upstream.ok || !upstream.body) {
+  if (!upstream.ok) {
     return NextResponse.json({ error: "Upstream stream failed." }, { status: upstream.status });
+  }
+  if (!upstream.body) {
+    return NextResponse.json({ error: "Upstream stream unavailable." }, { status: 502 });
   }
 
   return new Response(upstream.body, {

@@ -1,6 +1,6 @@
-"""Integration bridge from seeded redemption planning to graph-write rows.
+"""Bridge from seeded redemption planning to graph-write rows.
 
-The production boundary keeps Python agents reasoning-only. This test seam is
+The production boundary keeps Python agents reasoning-only. This seam is
 DB-aware because the Jun 25 hero gate runs against the pre-API Python
 `V31GraphWriteService`.
 """
@@ -22,7 +22,7 @@ from schema.mutations import (
 # `award_options`, etc.). Postgres hero setup loads `fixtures/demo-seed.json`
 # separately via load_seed.py; balances come from the live DB snapshot.
 DEFAULT_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "person-c-mvp-seed.json"
+    Path(__file__).resolve().parents[1] / "fixtures" / "person-c-mvp-seed.json"
 )
 DEFAULT_SOURCE_PROGRAM_SLUG = "program:chase_ur"
 

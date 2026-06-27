@@ -48,17 +48,18 @@ vi.mock("./AgentConsole", () => ({
 }));
 
 vi.mock("./CardTile", () => ({
+  // Mirror the real CardTile contract: selection is tracked by slug, not id.
   default: ({
     card,
     onToggle,
   }: {
-    card: { id: string; name: string };
-    onToggle: (id: string) => void;
+    card: { id: string; slug: string; name: string };
+    onToggle: (slug: string) => void;
   }) => (
     <button
       type="button"
       data-testid={`card-${card.id}`}
-      onClick={() => onToggle(card.id)}
+      onClick={() => onToggle(card.slug)}
     >
       {card.name}
     </button>

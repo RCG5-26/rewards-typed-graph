@@ -13,7 +13,7 @@ Gate definition (hero green):
 
 Owner map:
     - Alan: ``fixtures/demo-seed.json`` + ``scripts/load_seed.py`` (RCG-8)
-    - Raq: ``tests/integration/hero_flow.py`` orchestrator wiring (RCG-15/28/29)
+    - Raq: ``plan_flows/hero_flow.py`` orchestrator wiring (RCG-15/28/29)
     - Michael: redemption graph writer behind ``create_plan_from_query`` (RCG-21)
 """
 
@@ -37,7 +37,7 @@ from schema.mutations import (
     V31GraphWriteService,
 )
 
-from .hero_flow import (
+from plan_flows.hero_flow import (
     BalanceTransferSpec,
     create_plan_from_query,
     replan_after_balance_transfer,

@@ -9,10 +9,11 @@ import type { PlanResult } from "@/lib/plan/types";
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
  *
- * Observability stream that paces the typed mutations so coordination is
- * visible as it happens (REST `/api/plan` stays the source of truth). Events:
+ * Observability stream for plan scaffolding (REST `/api/plan` stays the source
+ * of truth). Real `graph_mutations` rows now stream separately from
+ * `/api/mutations/stream`; this route no longer paces or emits mutation frames.
+ * Events:
  *   meta         → the plan scaffold (steps, graph, route, value) sans mutations
- *   mutation     → one `graph_mutations` row, emitted ~every 320ms
  *   invalidation → (replan mode) the edge that went stale + the STALE row
  *   done         → revision complete
  *   error        → stream-level failure

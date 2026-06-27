@@ -1,14 +1,15 @@
-"""Hero flow API: integration seam for the Jun 25 gate.
+"""Hero flow orchestration: create/replan seam over the graph-write service.
 
-The test module owns the live Postgres harness. This file keeps the orchestration
-surface tiny: create a plan from the deterministic redemption writer, then
-perform the synchronous re-plan path used by the hero gate.
+Keeps the orchestration surface tiny: create a plan from the deterministic
+redemption writer, then perform the synchronous re-plan path used by the hero
+gate. Lives outside ``tests/`` so the runtime bridge does not import test code.
 """
 
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from schema.mutations import (
@@ -17,12 +18,10 @@ from schema.mutations import (
     V31GraphWriteService,
 )
 from agents.redemption.planner import load_fixture, plan_direct_redemption
-from tests.integration.redemption_graph_writer import write_redemption_steps
+from plan_flows.redemption_graph_writer import write_redemption_steps
 
 HYATT_DIRECT_FIXTURE_PATH = (
-    __import__("pathlib").Path(__file__).resolve().parents[2]
-    / "fixtures"
-    / "person-c-hyatt-direct-seed.json"
+    Path(__file__).resolve().parents[1] / "fixtures" / "person-c-hyatt-direct-seed.json"
 )
 
 

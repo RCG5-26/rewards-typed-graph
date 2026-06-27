@@ -1,7 +1,7 @@
 """HTTP-to-graph bridge for the demo API service (spec 07).
 
 The TypeScript Hono server spawns this script once per plan/session request. It
-reuses the *verified* hero seam (``tests/integration/hero_flow.py``) over the
+reuses the *verified* hero seam (``plan_flows/hero_flow.py``) over the
 proven ``psql``-subprocess connection — there is no ``psycopg`` in this
 environment, so the same adapter the hero gate uses is the reliable path.
 
@@ -35,7 +35,7 @@ from schema.mutations import (  # noqa: E402
     ConcurrencyConflictError,
     MutationValidationError,
 )
-from tests.integration.hero_flow import (  # noqa: E402
+from plan_flows.hero_flow import (  # noqa: E402
     BalanceTransferSpec,
     HeroPlanSnapshot,
     _plan_snapshot,
