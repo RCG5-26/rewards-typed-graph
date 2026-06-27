@@ -123,6 +123,17 @@ describe("OrchestratorPlanService.createPlan (M6 — Contracts 1 + 7)", () => {
     const { service } = buildService({ projection: { project: vi.fn(async () => malformed) } });
     await expect(service.createPlan(USER_ID, samplePlan.query)).rejects.toThrow(/planLineageId/);
   });
+
+  it.each([
+    ["planId", { ...samplePlan, planId: "" }],
+    ["status", { ...samplePlan, status: undefined as unknown as PlanView["status"] }],
+    ["steps", { ...samplePlan, steps: undefined as unknown as PlanView["steps"] }],
+  ])("names %s when the projected PlanView omits it", async (field, malformed) => {
+    const { service } = buildService({
+      projection: { project: vi.fn(async () => malformed as PlanView) },
+    });
+    await expect(service.createPlan(USER_ID, samplePlan.query)).rejects.toThrow(new RegExp(field));
+  });
 });
 
 describe("OrchestratorPlanService reads + delegation", () => {
