@@ -23,13 +23,13 @@ Most of the Day-7 hero path already merged to `main` (backend hero flow, BFF liv
 
 A repository audit (2026-06-26) against `origin/main` shows the hero path is **demo-complete at the API layer** but **not shippable through the browser**:
 
-| Gap | Evidence | Impact |
-| --- | --- | --- |
-| Web build RED | `tsconfig.json` has no `target`; `lib/api/adapters.ts` iterates `Set`/`Map` → TS2802 | Blocks deploy and any production build |
-| CI gap | `.github/workflows/tests.yml` has no `next build` / root `tsc` / lint job | Build breaks ship silently |
-| Bootstrap crash | `app/api/me/route.ts` returns `ApiSessionResponse`; `OnboardingFlow` casts to `UserGraph` and calls `me.balances.filter` | Runtime `TypeError` on first successful `/api/me` 200 |
-| Reset local-only | `onRestart` = `setStep("cards")`; `POST /api/demo/reset` exists but has no UI caller | Hero step 14 (demo reset) unproven |
-| Web not deployed | API live; Nixpacks web config exists but service not created | **RCG-60** open |
+| Gap              | Evidence                                                                                                                 | Impact                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Web build RED    | `tsconfig.json` has no `target`; `lib/api/adapters.ts` iterates `Set`/`Map` → TS2802                                     | Blocks deploy and any production build                |
+| CI gap           | `.github/workflows/tests.yml` has no `next build` / root `tsc` / lint job                                                | Build breaks ship silently                            |
+| Bootstrap crash  | `app/api/me/route.ts` returns `ApiSessionResponse`; `OnboardingFlow` casts to `UserGraph` and calls `me.balances.filter` | Runtime `TypeError` on first successful `/api/me` 200 |
+| Reset local-only | `onRestart` = `setStep("cards")`; `POST /api/demo/reset` exists but has no UI caller                                     | Hero step 14 (demo reset) unproven                    |
+| Web not deployed | API live; Nixpacks web config exists but service not created                                                             | **RCG-60** open                                       |
 
 **Already done (do not re-implement):** backend hero flow (`create_plan` → `balance-transfer` → replan), BFF `lib/api/` wiring (see predecessor plan), Clerk auth, PR #42 UI salvage, PR #40 closed with follow-up **RCG-67**.
 
@@ -174,7 +174,7 @@ sequenceDiagram
 - **Requirements:** R3.
 - **Dependencies:** U1.
 - **Files:** `.github/workflows/tests.yml`.
-- **Approach:** Add `web-build` job: `npm ci` → `npm run typecheck` → `npm run lint` → `npm run build`. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` from a CI variable (public test key, not a secret). No `continue-on-error`. Do not weaken existing jobs (`web-vitest`, `api-vitest`, `python-tests`, `coverage-gate`, `apply-schema`). Note in PR description: flipping the job to *required* in the GitHub ruleset is a lead admin step.
+- **Approach:** Add `web-build` job: `npm ci` → `npm run typecheck` → `npm run lint` → `npm run build`. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` from a CI variable (public test key, not a secret). No `continue-on-error`. Do not weaken existing jobs (`web-vitest`, `api-vitest`, `python-tests`, `coverage-gate`, `apply-schema`). Note in PR description: flipping the job to _required_ in the GitHub ruleset is a lead admin step.
 - **Test expectation:** none — CI config only; prove by PR workflow run.
 - **Verification:** `web-build` job green on PR; fails if U1 `target` is reverted.
 
@@ -281,24 +281,24 @@ Same sequence against hosted web URL with real Clerk token; confirm CORS, SSE, r
 
 ## Team ownership (no overlap)
 
-| Person | Owns today | Frozen / do not touch |
-| --- | --- | --- |
-| **Raq (lead)** | `feat/rcg-32-hero-gate` PR (U1–U4), merge, RCG-60 deploy, Linear gate updates | — |
-| **Val** | RCG-45/46 UI shells, sign-in driver, RCG-67 backlog | 7 frozen files (KTD-6) |
-| **Michael** | RCG-36 → RCG-37 (Track B) | Frontend, hero-gate PR |
-| **Alan** | Live-Postgres hero suite + reproducible DB deploy | Frontend, hero-gate PR |
+| Person         | Owns today                                                                    | Frozen / do not touch  |
+| -------------- | ----------------------------------------------------------------------------- | ---------------------- |
+| **Raq (lead)** | `feat/rcg-32-hero-gate` PR (U1–U4), merge, RCG-60 deploy, Linear gate updates | —                      |
+| **Val**        | RCG-45/46 UI shells, sign-in driver, RCG-67 backlog                           | 7 frozen files (KTD-6) |
+| **Michael**    | RCG-36 → RCG-37 (Track B)                                                     | Frontend, hero-gate PR |
+| **Alan**       | Live-Postgres hero suite + reproducible DB deploy                             | Frontend, hero-gate PR |
 
 ---
 
 ## Risks & Dependencies
 
-| Risk | Mitigation |
-| --- | --- |
-| Root `tsc` still fails after `target` ES2022 (Clerk mocks) | Fix in U1 before U2 CI gate ships; do not exclude tests |
+| Risk                                                         | Mitigation                                                                |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Root `tsc` still fails after `target` ES2022 (Clerk mocks)   | Fix in U1 before U2 CI gate ships; do not exclude tests                   |
 | `getSession` succeeds but graph resolution fails differently | Keep `getSession` first; return 403 on unprovisioned before graph overlay |
-| Fixture persona mistaken for live success in browser pass | Require network-panel evidence of Hono `/plans` and `/balance-transfer` |
-| Railway web picks API Dockerfile | Pin web service to Nixpacks per KTD-4 in predecessor plan |
-| Two agents editing same files | One writer on hero-gate branch; Val frozen |
+| Fixture persona mistaken for live success in browser pass    | Require network-panel evidence of Hono `/plans` and `/balance-transfer`   |
+| Railway web picks API Dockerfile                             | Pin web service to Nixpacks per KTD-4 in predecessor plan                 |
+| Two agents editing same files                                | One writer on hero-gate branch; Val frozen                                |
 
 **Dependencies:** `origin/main` at `8950550`; live API at `api-production-d6f4c.up.railway.app`; Clerk dev instance; `./scripts/dev-db-setup.sh` for local stack.
 
@@ -306,10 +306,10 @@ Same sequence against hosted web URL with real Clerk token; confirm CORS, SSE, r
 
 ## Linear closure criteria
 
-| Ticket | Done when |
-| --- | --- |
+| Ticket     | Done when                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------- |
 | **RCG-32** | U1–U4 merged; `web-build` CI exists; local real-Clerk hero pass evidenced; no fixture plan fallback |
-| **RCG-60** | Web deployed; hosted Clerk + CORS; hosted hero/SSE/reset verified |
+| **RCG-60** | Web deployed; hosted Clerk + CORS; hosted hero/SSE/reset verified                                   |
 
 Update Linear **after merge** with evidence links (PR URL, screenshot location, workflow run).
 

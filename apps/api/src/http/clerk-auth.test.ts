@@ -79,9 +79,7 @@ describe("resolveIdentity", () => {
       "Bearer valid.jwt",
       { clerkSecretKey: "sk_test_x" },
       {
-        findUserIdByClerkId: vi
-          .fn()
-          .mockResolvedValue("11111111-1111-1111-1111-111111111111"),
+        findUserIdByClerkId: vi.fn().mockResolvedValue("11111111-1111-1111-1111-111111111111"),
       },
     );
 

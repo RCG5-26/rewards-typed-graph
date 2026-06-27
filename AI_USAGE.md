@@ -531,26 +531,26 @@ Setting `API_PORT=8080` binds 8080 with **no code change** — verified locally.
 
 ### Commands executed (local) and results
 
-| Command | Result |
-|---|---|
-| `docker build --no-cache -t rcg-api .` | success, image **631 MB** |
-| `docker run rcg-api node --version` | `v22.23.1` |
-| `docker run rcg-api python3 --version` | `Python 3.11.2` |
-| `docker run rcg-api psql --version` | `psql (PostgreSQL) 15.18` |
-| `python3 -c "import schema.mutations; import tests.integration.hero_flow"` (in image) | `bridge-imports-ok` |
-| container `GET /health` (vs local Postgres via `host.docker.internal`) | `200 {"ok":true}` |
-| `docker stop` (SIGTERM) | graceful, 0s (npm CMD forwards signal) |
-| `npm --prefix apps/api run typecheck` | exit 0, no errors |
-| `npm --prefix apps/api test` (vitest) | **86 passed** (9 files), exit 0 |
-| `python3 -m unittest discover -v` | **88 passed, 8 skipped** (live), exit 0 |
-| `RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_test … test_hero_moment` | **2 passed** (8.07s), exit 0 |
+| Command                                                                               | Result                                  |
+| ------------------------------------------------------------------------------------- | --------------------------------------- |
+| `docker build --no-cache -t rcg-api .`                                                | success, image **631 MB**               |
+| `docker run rcg-api node --version`                                                   | `v22.23.1`                              |
+| `docker run rcg-api python3 --version`                                                | `Python 3.11.2`                         |
+| `docker run rcg-api psql --version`                                                   | `psql (PostgreSQL) 15.18`               |
+| `python3 -c "import schema.mutations; import tests.integration.hero_flow"` (in image) | `bridge-imports-ok`                     |
+| container `GET /health` (vs local Postgres via `host.docker.internal`)                | `200 {"ok":true}`                       |
+| `docker stop` (SIGTERM)                                                               | graceful, 0s (npm CMD forwards signal)  |
+| `npm --prefix apps/api run typecheck`                                                 | exit 0, no errors                       |
+| `npm --prefix apps/api test` (vitest)                                                 | **86 passed** (9 files), exit 0         |
+| `python3 -m unittest discover -v`                                                     | **88 passed, 8 skipped** (live), exit 0 |
+| `RUN_LIVE_POSTGRES_TESTS=1 PGDATABASE=rewards_test … test_hero_moment`                | **2 passed** (8.07s), exit 0            |
 
 ### Mistakes / review findings caught during the pass
 
 - Brief's import probe assumed `tests.integration.hero_flow` — confirmed correct
   against `hero_bridge.py:38` (not a guess).
 - Initial container smoke test reported false failures: `curl --retry-connrefused`
-  does **not** retry on *connection reset* (error 56), which Docker Desktop's port
+  does **not** retry on _connection reset_ (error 56), which Docker Desktop's port
   proxy returns before the app binds. The server was always healthy; fixed the
   probe with `--retry-all-errors`. Documented in `docs/deployment/railway.md`.
 - Brief's dual `npm ci` corrected to `apps/api`-only (see Dockerfile decisions).

@@ -6,12 +6,12 @@
 
 This file is **team-wide AI working memory** — milestone narrative, not daily standup.
 
-| You want to… | Who | Update here | Also update |
-|---|---|---|---|
-| Finish a spec, PR, or gate | Lead (or spec owner if required) | **Completed** — one line: `[owner]` + `RCG-##` + date + files/gotcha | Spec header → `Done`; PR template docs checkbox |
-| Start or continue work | Lead | **In progress** table — owner, blocker, short note | Spec header → `In progress` |
-| Shift sprint focus | Lead | **Current phase** / **Current goal** / **Active focus** | Standup agreement; sync `STATUS.md` |
-| Resolve or raise ambiguity | Anyone → lead | **Open questions** | [`decisions-log.md`](decisions-log.md) if it becomes a decision |
+| You want to…               | Who                              | Update here                                                          | Also update                                                     |
+| -------------------------- | -------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Finish a spec, PR, or gate | Lead (or spec owner if required) | **Completed** — one line: `[owner]` + `RCG-##` + date + files/gotcha | Spec header → `Done`; PR template docs checkbox                 |
+| Start or continue work     | Lead                             | **In progress** table — owner, blocker, short note                   | Spec header → `In progress`                                     |
+| Shift sprint focus         | Lead                             | **Current phase** / **Current goal** / **Active focus**              | Standup agreement; sync `STATUS.md`                             |
+| Resolve or raise ambiguity | Anyone → lead                    | **Open questions**                                                   | [`decisions-log.md`](decisions-log.md) if it becomes a decision |
 
 **Daily lane status:** each person → [`tracking/<lane>.md`](../tracking/) (tiny PR) + **Linear**. **Do not** update this file or `STATUS.md` in feature PRs.
 
@@ -71,10 +71,10 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## In progress
 
-| Item                               | Owner | Blocked on                 | Notes                                                              |
-| ---------------------------------- | ----- | -------------------------- | ------------------------------------------------------------------ |
-| **RCG-32** Day-7 gate              | Raq   | frontend shell wiring + Clerk browser run | Backend path green & live-verified on `main`; blockers RCG-28/29 Done |
-| **RCG-27/25/26** demo UI           | Val   | nothing (API + SSE live)   | Integrate against live API or mocks; see backend-local-setup guide |
+| Item                     | Owner | Blocked on                                | Notes                                                                 |
+| ------------------------ | ----- | ----------------------------------------- | --------------------------------------------------------------------- |
+| **RCG-32** Day-7 gate    | Raq   | frontend shell wiring + Clerk browser run | Backend path green & live-verified on `main`; blockers RCG-28/29 Done |
+| **RCG-27/25/26** demo UI | Val   | nothing (API + SSE live)                  | Integrate against live API or mocks; see backend-local-setup guide    |
 
 ---
 
@@ -100,14 +100,14 @@ _Check off or list with date. Keep recent; archive old phases elsewhere if neede
 
 ## Gates / milestones
 
-| Gate                       | Date       | Status    | Criteria                                             |
-| -------------------------- | ---------- | --------- | ---------------------------------------------------- |
-| Schema v3.1 lock           | 2026-06-18 | done      | ADR 0001                                             |
-| Person C offline scorer    | 2026-06-25 | done      | 30/30 on fixture cases; RCG-34/38 metric breakdowns  |
-| RCG-21 graph-writer bridge | 2026-06-24 | done      | Merged PR #27; live hero test green with docker-compose |
-| MVP hero green             | 2026-06-25 | done      | `test_hero_moment` passes live; API hero flow verified end-to-end |
-| Layer 4 go/no-go           | 2026-06-25 | no-go     | RCG-51 runbook locks a clean Layers 1-3 demo path |
-| Live demo (10 min)         | 2026-06-29 | open      | Hosted URL + demo script; frontend wired to live API |
+| Gate                       | Date       | Status | Criteria                                                          |
+| -------------------------- | ---------- | ------ | ----------------------------------------------------------------- |
+| Schema v3.1 lock           | 2026-06-18 | done   | ADR 0001                                                          |
+| Person C offline scorer    | 2026-06-25 | done   | 30/30 on fixture cases; RCG-34/38 metric breakdowns               |
+| RCG-21 graph-writer bridge | 2026-06-24 | done   | Merged PR #27; live hero test green with docker-compose           |
+| MVP hero green             | 2026-06-25 | done   | `test_hero_moment` passes live; API hero flow verified end-to-end |
+| Layer 4 go/no-go           | 2026-06-25 | no-go  | RCG-51 runbook locks a clean Layers 1-3 demo path                 |
+| Live demo (10 min)         | 2026-06-29 | open   | Hosted URL + demo script; frontend wired to live API              |
 
 ---
 

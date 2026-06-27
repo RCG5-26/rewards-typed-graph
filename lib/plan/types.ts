@@ -36,12 +36,19 @@ export type StepStatus = "proposed" | "current" | "stale" | "superseded";
  * `superseded`. `failed` is terminal. Keeping the full set here means the
  * fixture→Postgres swap stays a wiring change, not a contract change.
  */
-export type PlanStatus =
-  | "generating"
-  | "current"
-  | "stale"
-  | "superseded"
-  | "failed";
+export type PlanStatus = "generating" | "current" | "stale" | "superseded" | "failed";
+
+/** A typed dependency edge for a step, resolved from `state_dependencies`. */
+export interface PlanDependency {
+  /** Target node id (a fresh uuid4 per user for persona-cloned rows). */
+  id: string;
+  /** Node kind, e.g. "user_balances", "reward_programs". */
+  kind: string;
+  /** Stable slug, e.g. "program:chase_ur". */
+  slug: string;
+  /** Human label for display. */
+  label: string;
+}
 
 export interface PlanStep {
   order: number;
@@ -53,6 +60,11 @@ export interface PlanStep {
   status: StepStatus;
   /** Node ids / step refs this step depends on (→ `state_dependencies`). */
   deps: string[];
+  /**
+   * Typed dependency metadata from the API's projection. Preferred over `deps`
+   * for display: real users' `deps` are opaque uuid4s, but these carry labels.
+   */
+  dependencies?: PlanDependency[];
 }
 
 /** One `graph_mutations` row, as the dark mutation log renders it. */

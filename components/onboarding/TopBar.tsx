@@ -41,12 +41,13 @@ export default function TopBar({
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  const initials = (displayName ?? "")
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("") || "·";
+  const initials =
+    (displayName ?? "")
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "·";
 
   const activeIdx = STEPS.findIndex((s) => s.id === step);
 
@@ -55,34 +56,54 @@ export default function TopBar({
       {/* global wordmark — click to go home */}
       <Logo href="/" />
 
-      {/* typed step rail */}
-      <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1.5 md:flex" aria-label="Onboarding progress">
+      {/* typed step rail — numbered nodes with a filled accent active/done node */}
+      <nav
+        className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2.5 md:flex"
+        aria-label="Onboarding progress"
+      >
         {STEPS.map((s, i) => {
           const active = i === activeIdx;
           const done = i < activeIdx;
+          const filled = active || done;
           return (
-            <div key={s.id} className="flex items-center gap-1.5">
-              <div
-                className="flex items-center gap-2 rounded-full px-3 py-1.5 transition-all duration-base"
-                style={{
-                  background: active ? "var(--status-current-bg)" : "transparent",
-                }}
-              >
+            <div key={s.id} className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <span
-                  className="font-mono text-2xs font-semibold tabular-nums"
-                  style={{ color: active ? "var(--status-current)" : done ? "var(--color-text-tertiary)" : "var(--color-text-disabled)" }}
+                  className="flex h-6 w-6 items-center justify-center rounded-full font-mono text-2xs font-semibold tabular-nums transition-all duration-base"
+                  style={{
+                    background: active
+                      ? "var(--color-accent)"
+                      : done
+                        ? "var(--color-accent-muted)"
+                        : "var(--color-surface-subtle)",
+                    color: active
+                      ? "var(--color-neutral-0)"
+                      : done
+                        ? "var(--color-accent-text)"
+                        : "var(--color-text-disabled)",
+                    border: active ? "none" : "1px solid var(--color-border-strong)",
+                    boxShadow: active ? "0 0 0 4px var(--status-current-bg)" : "none",
+                  }}
                 >
                   {s.n}
                 </span>
                 <span
                   className="text-xs font-medium lowercase tracking-wide transition-colors"
-                  style={{ color: active ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}
+                  style={{
+                    color: active ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
+                  }}
                 >
                   {s.label}
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <span className="h-px w-5" style={{ background: done ? "var(--color-accent)" : "var(--color-border-strong)" }} />
+                <span
+                  className="h-px w-7"
+                  style={{
+                    background:
+                      filled && done ? "var(--color-accent)" : "var(--color-border-strong)",
+                  }}
+                />
               )}
             </div>
           );
@@ -110,8 +131,22 @@ export default function TopBar({
           <span className="hidden text-xs font-medium text-text-secondary sm:inline">
             {displayName?.split(" ")[0] ?? "account"}
           </span>
-          <svg width="11" height="11" viewBox="0 0 12 12" className={`transition-transform duration-base ${open ? "rotate-180" : ""}`} aria-hidden="true">
-            <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="text-text-tertiary" />
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 12 12"
+            className={`transition-transform duration-base ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          >
+            <path
+              d="M2.5 4.5 6 8l3.5-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-text-tertiary"
+            />
           </svg>
         </button>
 
@@ -122,14 +157,30 @@ export default function TopBar({
             style={{ animation: "gp-menu-in 0.18s var(--spring-snappy, ease) both" }}
           >
             <div className="border-b border-subtle px-3.5 py-2.5">
-              <div className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">signed in</div>
-              <div className="truncate text-sm font-medium text-text-primary">{displayName ?? "Demo persona"}</div>
+              <div className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
+                signed in
+              </div>
+              <div className="truncate text-sm font-medium text-text-primary">
+                {displayName ?? "Demo persona"}
+              </div>
             </div>
             <MenuItem
               label="Sign out"
               danger
-              onClick={() => { setOpen(false); void signOut({ redirectUrl: "/" }); }}
-              icon={<path d="M6 13H3V3h3M10 10.5 13 8l-3-2.5M13 8H6" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />}
+              onClick={() => {
+                setOpen(false);
+                void signOut({ redirectUrl: "/" });
+              }}
+              icon={
+                <path
+                  d="M6 13H3V3h3M10 10.5 13 8l-3-2.5M13 8H6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              }
             />
           </div>
         )}
@@ -157,7 +208,9 @@ function MenuItem({
       className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-medium transition-colors hover:bg-surface-subtle"
       style={{ color: danger ? "var(--color-error)" : "var(--color-text-primary)" }}
     >
-      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">{icon}</svg>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        {icon}
+      </svg>
       {label}
     </button>
   );

@@ -96,29 +96,10 @@
       }
     ],
     "forbiddenSurface": {
-      "tickets": [
-        "RCG-39",
-        "RCG-41",
-        "RCG-42",
-        "RCG-43",
-        "RCG-44",
-        "RCG-50"
-      ],
-      "routes": [
-        "/ingestion",
-        "/verifier",
-        "/mutation-proposals",
-        "/layer4"
-      ],
-      "schemaTerms": [
-        "MutationProposal",
-        "visibility_scope",
-        "global graph_mutations"
-      ],
-      "eventScopes": [
-        "global mutation events",
-        "world-tier Layer 4 events"
-      ]
+      "tickets": ["RCG-39", "RCG-41", "RCG-42", "RCG-43", "RCG-44", "RCG-50"],
+      "routes": ["/ingestion", "/verifier", "/mutation-proposals", "/layer4"],
+      "schemaTerms": ["MutationProposal", "visibility_scope", "global graph_mutations"],
+      "eventScopes": ["global mutation events", "world-tier Layer 4 events"]
     },
     "successChecks": [
       "Demo starts from the fixed seeded persona and Tokyo trip scenario.",

@@ -77,6 +77,7 @@ vi.mock("./CardTile", () => ({
       data-testid={`card-${card.id}`}
       onClick={() => onToggle(card.slug)}
     >
+
       {card.name}
     </button>
   ),
@@ -86,10 +87,7 @@ vi.mock("./TopBar", () => ({
   default: () => <div data-testid="top-bar" />,
 }));
 
-function mockFetchSequence(
-  mePayload: unknown,
-  options: { cardsOk?: boolean } = {},
-) {
+function mockFetchSequence(mePayload: unknown, options: { cardsOk?: boolean } = {}) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/cards") {
@@ -247,9 +245,7 @@ describe("OnboardingFlow demo reset", () => {
     fireEvent.click(restart);
 
     await waitFor(() => {
-      expect(
-        calls.some((c) => c.url === "/api/demo/reset" && c.method === "POST"),
-      ).toBe(true);
+      expect(calls.some((c) => c.url === "/api/demo/reset" && c.method === "POST")).toBe(true);
     });
     // Returned to the cards step (AgentConsole/restart no longer mounted).
     await waitFor(() => expect(screen.queryByTestId("restart")).toBeNull());
@@ -264,9 +260,7 @@ describe("OnboardingFlow demo reset", () => {
 
     fireEvent.click(restart);
 
-    await waitFor(() =>
-      expect(screen.getByText(/could not reset/i)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/could not reset/i)).toBeTruthy());
     expect(screen.queryByTestId("restart")).toBeNull();
   });
 
@@ -277,9 +271,7 @@ describe("OnboardingFlow demo reset", () => {
 
     fireEvent.click(restart);
 
-    await waitFor(() =>
-      expect(screen.getByText(/could not reset/i)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/could not reset/i)).toBeTruthy());
     expect(screen.queryByTestId("restart")).toBeNull();
     errorSpy.mockRestore();
   });
@@ -310,9 +302,7 @@ describe("OnboardingFlow demo reset", () => {
 
     fireEvent.click(restart);
 
-    await waitFor(() =>
-      expect(screen.getByText(/balance could not be refreshed/i)).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText(/balance could not be refreshed/i)).toBeTruthy());
     expect(screen.queryByTestId("restart")).toBeNull();
     expect(meCalls).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText(/welcome back/i)).toBeNull();

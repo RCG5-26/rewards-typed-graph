@@ -4,14 +4,14 @@ How the `main` branch protection is wired, and the exact status-check names to m
 
 ## Required status checks
 
-| Check name | Source | Enforces |
-| --- | --- | --- |
-| CodeRabbit | [`.coderabbit.yaml`](../../.coderabbit.yaml) | Automated review; `fail_commit_status` blocks if skipped |
-| `apply-schema` | [`schema-postgres.yml`](../../.github/workflows/schema-postgres.yml) | Schema applies cleanly + live-Postgres tests |
-| `web-vitest` | [`tests.yml`](../../.github/workflows/tests.yml) | Web Vitest suite passes + coverage floor |
-| `api-vitest` | [`tests.yml`](../../.github/workflows/tests.yml) | `apps/api` Vitest suite passes + coverage floor |
-| `python-tests` | [`tests.yml`](../../.github/workflows/tests.yml) | Python `unittest` suite passes |
-| `coverage-gate` | [`tests.yml`](../../.github/workflows/tests.yml) | ≥90% diff coverage on changed lines (web + api + python) |
+| Check name      | Source                                                               | Enforces                                                 |
+| --------------- | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| CodeRabbit      | [`.coderabbit.yaml`](../../.coderabbit.yaml)                         | Automated review; `fail_commit_status` blocks if skipped |
+| `apply-schema`  | [`schema-postgres.yml`](../../.github/workflows/schema-postgres.yml) | Schema applies cleanly + live-Postgres tests             |
+| `web-vitest`    | [`tests.yml`](../../.github/workflows/tests.yml)                     | Web Vitest suite passes + coverage floor                 |
+| `api-vitest`    | [`tests.yml`](../../.github/workflows/tests.yml)                     | `apps/api` Vitest suite passes + coverage floor          |
+| `python-tests`  | [`tests.yml`](../../.github/workflows/tests.yml)                     | Python `unittest` suite passes                           |
+| `coverage-gate` | [`tests.yml`](../../.github/workflows/tests.yml)                     | ≥90% diff coverage on changed lines (web + api + python) |
 
 Plus **1 human approval**.
 
@@ -33,11 +33,11 @@ Plus **1 human approval**.
 
 These are the only places coverage numbers live. **Do not edit a config value without updating this table**, and never lower a floor to make a PR pass.
 
-| Knob | Value | Defined in | Meaning |
-| --- | --- | --- | --- |
-| Diff coverage (changed lines) | 90% | `.github/workflows/tests.yml` → `coverage-gate` `fail-under` | The real "new code is tested" gate (all stacks) |
-| Web ratchet floor | lines/statements 6% | `vitest.config.ts` → `coverage.thresholds` | Web total can't regress (low because untested UI is in scope) |
-| API ratchet floor | lines/statements 65%, functions 88%, branches 76% | `apps/api/vitest.config.ts` → `coverage.thresholds` | API total can't regress |
-| Python ratchet floor | 78% | `.coveragerc` → `[report] fail_under` | Python total can't regress |
+| Knob                          | Value                                             | Defined in                                                   | Meaning                                                       |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| Diff coverage (changed lines) | 90%                                               | `.github/workflows/tests.yml` → `coverage-gate` `fail-under` | The real "new code is tested" gate (all stacks)               |
+| Web ratchet floor             | lines/statements 6%                               | `vitest.config.ts` → `coverage.thresholds`                   | Web total can't regress (low because untested UI is in scope) |
+| API ratchet floor             | lines/statements 65%, functions 88%, branches 76% | `apps/api/vitest.config.ts` → `coverage.thresholds`          | API total can't regress                                       |
+| Python ratchet floor          | 78%                                               | `.coveragerc` → `[report] fail_under`                        | Python total can't regress                                    |
 
 **Rationale for the two-layer model (low floors + strict diff coverage): see [ADR 0009](../adr/0009-tdd-enforcement.md).** Raise floors as coverage improves.
