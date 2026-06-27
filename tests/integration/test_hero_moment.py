@@ -39,6 +39,7 @@ from schema.mutations import (
 
 from plan_flows.hero_flow import (
     BalanceTransferSpec,
+    create_direct_plan_from_query,
     create_plan_from_query,
     replan_after_balance_transfer,
 )
@@ -324,6 +325,55 @@ class HeroMomentIntegrationTest(LivePostgresMixin, unittest.TestCase):
             ),
             [("completed", plan_v2.plan_id)],
         )
+
+
+class HyattDirectRedemptionIntegrationTest(LivePostgresMixin, unittest.TestCase):
+    """Scenario 2 gate — World of Hyatt direct redemption writes one step, no transfer."""
+
+    def test_direct_plan_writes_single_redemption_step(self):
+        # Demo seed gives the user 30k Hyatt points — enough to book Shinjuku
+        # (30k) directly, so the planner emits one redemption step and no transfer.
+        connection = _PsqlConnection()
+
+        plan = create_direct_plan_from_query(
+            connection,
+            user_id=DEMO_USER_ID,
+            query_text=HERO_QUERY,
+        )
+
+        self.assertEqual(plan.status, "current")
+        self.assertEqual(plan.revision_number, 1)
+        self.assertEqual(plan.step_count, 1)
+        self.assertGreaterEqual(plan.dependency_count, 1)
+
+        step_types = _psql_rows(
+            f"""
+            SELECT step_type FROM plan_steps WHERE plan_id = '{plan.plan_id}'
+            """
+        )
+        self.assertEqual(step_types, [("redemption_recommendation",)])
+        self.assertNotIn(("transfer_recommendation",), step_types)
+
+    def test_direct_plan_marks_failed_when_balance_missing(self):
+        # No Hyatt balance for an unseeded user → the write raises and the
+        # generating plan must not be left dangling as 'current'.
+        connection = _PsqlConnection()
+        unseeded_user = "00000000-0000-0000-0000-0000000000ff"
+
+        with self.assertRaises(Exception):
+            create_direct_plan_from_query(
+                connection,
+                user_id=unseeded_user,
+                query_text=HERO_QUERY,
+            )
+
+        current_plans = _psql_rows(
+            f"""
+            SELECT count(*) FROM plans
+             WHERE user_id = '{unseeded_user}' AND status = 'current'
+            """
+        )
+        self.assertEqual(current_plans, [(0,)])
 
 
 class _PsqlConnection:
