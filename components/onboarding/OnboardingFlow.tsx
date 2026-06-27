@@ -437,8 +437,9 @@ function AskStep({
           your points to do?
         </h1>
         <p className="mb-7 mt-3.5 max-w-[480px] text-sm leading-relaxed text-text-secondary">
-          set your redemption goal — agents coordinate typed state across your{" "}
-          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord} to build the plan.
+          describe the trip or goal in a sentence — the agents turn it into a
+          typed plan across your{" "}
+          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}.
         </p>
 
         <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
