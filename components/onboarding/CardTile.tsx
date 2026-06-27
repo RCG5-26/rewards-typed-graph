@@ -52,7 +52,7 @@ export default function CardTile({
       <button
         ref={ref}
         type="button"
-        onClick={() => onToggle(card.id)}
+        onClick={() => onToggle(card.slug)}
         onMouseMove={onMove}
         onMouseLeave={onLeave}
         aria-pressed={selected}

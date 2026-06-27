@@ -139,7 +139,7 @@ export default function OnboardingFlow() {
   }, []);
 
   const wallet = useMemo(
-    () => cards.filter((c) => selected.includes(c.id)),
+    () => cards.filter((c) => selected.includes(c.slug)),
     [cards, selected],
   );
   const projectedCents = useMemo(
@@ -296,7 +296,7 @@ function CardsStep({
                   key={card.id}
                   card={card}
                   index={i}
-                  selected={selected.includes(card.id)}
+                  selected={selected.includes(card.slug)}
                   onToggle={onToggle}
                 />
               ))}
