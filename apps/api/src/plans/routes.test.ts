@@ -202,6 +202,21 @@ describe("plan routes", () => {
     expect(capturedSlugs).toBeUndefined();
   });
 
+  it("trims whitespace from cardSlugs so the downstream exact match holds", async () => {
+    let capturedSlugs: string[] | undefined;
+    const service = createFakeService({
+      async createPlan(_userId, _query, cardSlugs) {
+        capturedSlugs = cardSlugs;
+        return samplePlan;
+      },
+    });
+    const app = createTestApp(service);
+    await app.request(
+      postJson("/plans", { query: "Tokyo stay", cardSlugs: ["  card:world_of_hyatt  ", "   "] }),
+    );
+    expect(capturedSlugs).toEqual(["card:world_of_hyatt"]);
+  });
+
   it("returns a plan by id and 404 for unknown ids", async () => {
     const app = createTestApp(createFakeService());
     const ok = await app.request(`/plans/${samplePlan.planId}`);

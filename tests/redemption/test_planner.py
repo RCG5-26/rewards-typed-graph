@@ -260,6 +260,17 @@ class HyattDirectRedemptionPlannerTests(unittest.TestCase):
         self.assertIsNone(plan["chosen_award_slug"])
         self.assertEqual(plan["fallback"], "cash")
 
+    def test_direct_plan_unsupported_query_returns_unsupported(self) -> None:
+        # A program not present in the seed (Marriott) must yield the
+        # unsupported-plan response, not the seeded Hyatt recommendation.
+        plan = plan_direct_redemption(
+            self.fixture, query_text="book a Marriott stay in Tokyo"
+        )
+
+        self.assertEqual(plan["status"], "unsupported")
+        self.assertIsNone(plan["chosen_award_slug"])
+        self.assertEqual(plan["unsupported_reason"], "unsupported_by_seed_fixture")
+
 
 if __name__ == "__main__":
     unittest.main()

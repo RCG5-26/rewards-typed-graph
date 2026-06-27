@@ -175,7 +175,9 @@ function parseCardSlugs(body: unknown): string[] | undefined {
   const record = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
   const raw = record.cardSlugs;
   if (!Array.isArray(raw)) return undefined;
-  const slugs = raw.filter((s): s is string => typeof s === "string" && s.trim().length > 0);
+  const slugs = raw
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .map((s) => s.trim());
   return slugs.length > 0 ? slugs : undefined;
 }
 
