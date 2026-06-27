@@ -37,31 +37,7 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 
 echo "Validating DATABASE_URL is a local test database..."
-python3 - <<'PY' || exit 1
-import os
-import sys
-from urllib.parse import urlparse
-
-parsed = urlparse(os.environ["DATABASE_URL"])
-host = (parsed.hostname or "").lower()
-db = (parsed.path or "/").lstrip("/").split("?")[0]
-
-allowed_hosts = {"localhost", "127.0.0.1", "::1"}
-if host not in allowed_hosts:
-    print(
-        f"Refusing to reset schema: DATABASE_URL host must be localhost (got {host!r}).",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-if not (db == "test" or db.endswith("_test") or db.startswith("test_")):
-    print(
-        "Refusing to reset schema: database must be a dedicated test DB "
-        f"(e.g. rewards_test); got {db!r}.",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-PY
+python3 scripts/validate_local_test_database_url.py "$DATABASE_URL"
 
 echo "Resetting public schema..."
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;"
