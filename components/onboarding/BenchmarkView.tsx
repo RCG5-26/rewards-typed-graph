@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  deriveComparison,
-  fmtTokens,
-  type LiveMetrics,
-} from "@/lib/plan/comparison";
+import { deriveComparison, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
 
 /**
  * Benchmark view (RCG-46): accuracy / hallucination / invalidation / token-cost
@@ -46,9 +42,27 @@ export default function BenchmarkView({ metrics }: { metrics: LiveMetrics }) {
     label: "Token cost / query",
     hint: "lower is better · live",
     cells: [
-      { arch: "Typed graph", val: `${fmtTokens(cmp.typed.tokens)}`, barPct: Math.round((cmp.typed.tokens / maxTok) * 100), color: "var(--color-accent)", live: true },
-      { arch: "CrewAI", val: `${fmtTokens(cmp.crewai.tokens)}`, barPct: Math.round((cmp.crewai.tokens / maxTok) * 100), color: "var(--color-error)", live: true },
-      { arch: "Single agent", val: `${fmtTokens(cmp.single.tokens)}`, barPct: Math.round((cmp.single.tokens / maxTok) * 100), color: "var(--color-neutral-400)", live: true },
+      {
+        arch: "Typed graph",
+        val: `${fmtTokens(cmp.typed.tokens)}`,
+        barPct: Math.round((cmp.typed.tokens / maxTok) * 100),
+        color: "var(--color-accent)",
+        live: true,
+      },
+      {
+        arch: "CrewAI",
+        val: `${fmtTokens(cmp.crewai.tokens)}`,
+        barPct: Math.round((cmp.crewai.tokens / maxTok) * 100),
+        color: "var(--color-error)",
+        live: true,
+      },
+      {
+        arch: "Single agent",
+        val: `${fmtTokens(cmp.single.tokens)}`,
+        barPct: Math.round((cmp.single.tokens / maxTok) * 100),
+        color: "var(--color-neutral-400)",
+        live: true,
+      },
     ],
   };
 
@@ -60,7 +74,13 @@ export default function BenchmarkView({ metrics }: { metrics: LiveMetrics }) {
     label: "Invalidations caught",
     hint: typedCaught ? "higher is better · live" : "higher is better · run a replan",
     cells: [
-      { arch: "Typed graph", val: typedCaught ? "100%" : "—", barPct: typedCaught ? 100 : 0, color: "var(--color-accent)", live: typedCaught },
+      {
+        arch: "Typed graph",
+        val: typedCaught ? "100%" : "—",
+        barPct: typedCaught ? 100 : 0,
+        color: "var(--color-accent)",
+        live: typedCaught,
+      },
       { arch: "CrewAI", val: "22%", barPct: 22, color: "var(--color-warning)" },
       { arch: "Single agent", val: "9%", barPct: 9, color: "var(--color-neutral-400)" },
     ],
@@ -105,7 +125,8 @@ export default function BenchmarkView({ metrics }: { metrics: LiveMetrics }) {
         </div>
       </div>
       <div className="mb-5 mt-1 font-mono text-2xs text-text-tertiary">
-        token cost &amp; typed invalidations live from this run · accuracy/hallucination illustrative fixtures
+        token cost &amp; typed invalidations live from this run · accuracy/hallucination
+        illustrative fixtures
       </div>
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto">
@@ -127,7 +148,11 @@ export default function BenchmarkView({ metrics }: { metrics: LiveMetrics }) {
                   </div>
                   <span className="flex w-16 flex-none items-center justify-end gap-1 text-right font-mono text-xs font-semibold text-text-primary tabular-nums">
                     {cell.live ? (
-                      <span className="h-1 w-1 flex-none rounded-full" style={{ background: "var(--color-accent)" }} aria-label="live" />
+                      <span
+                        className="h-1 w-1 flex-none rounded-full"
+                        style={{ background: "var(--color-accent)" }}
+                        aria-label="live"
+                      />
                     ) : null}
                     {cell.val}
                   </span>

@@ -1,10 +1,7 @@
 import { type GraphMutationRow, toMutationEvent } from "./events";
 
 export interface QueryClient {
-  query(
-    sql: string,
-    params: unknown[],
-  ): Promise<{ rows: GraphMutationRow[] }>;
+  query(sql: string, params: unknown[]): Promise<{ rows: GraphMutationRow[] }>;
 }
 
 const LIST_MUTATION_EVENTS_SQL = `SELECT id, mutation_txn_id, user_id, plan_lineage_id, plan_id, agent_run_id,
@@ -22,11 +19,7 @@ export async function listMutationEvents(
   after: number | string = 0,
   limit = 100,
 ) {
-  const result = await client.query(LIST_MUTATION_EVENTS_SQL, [
-    userId,
-    after,
-    limit,
-  ]);
+  const result = await client.query(LIST_MUTATION_EVENTS_SQL, [userId, after, limit]);
 
   return result.rows.map(toMutationEvent);
 }

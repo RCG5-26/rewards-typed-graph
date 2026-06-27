@@ -40,7 +40,9 @@ describe("ContrastView", () => {
   });
 
   it("shows caught-invalidation message when invalidationCaught is true", () => {
-    render(<ContrastView metrics={{ ...metricsWithValue, invalidationCaught: true, revision: 2 }} />);
+    render(
+      <ContrastView metrics={{ ...metricsWithValue, invalidationCaught: true, revision: 2 }} />,
+    );
     expect(screen.getByText(/caught the balance invalidation/i)).toBeTruthy();
   });
 });

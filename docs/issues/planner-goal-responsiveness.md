@@ -5,9 +5,11 @@
 **Requires redeploy:** Yes — runs inside the Railway API; signed-in users won't see changes until the API service is redeployed.
 
 ## Symptom
+
 Every query produces the same three steps regardless of the stated goal — "maximize
 points", "hit the welcome bonus before the deadline", "cashback for groceries" all
 return:
+
 1. Transfer 45,000 Chase Ultimate Rewards points to World of Hyatt
 2. Book Demo Hyatt Ginza for 45,000 Hyatt points
 3. Keep Demo Hyatt Shinjuku as the backup
@@ -16,6 +18,7 @@ The goal label in the UI changes (FE string-matches the query), but the **plan
 content, transfer path, and graph never change.**
 
 ## Root cause
+
 `plan_redemption()` (`agents/redemption/planner.py`) is a deterministic fixture
 replay. The query text reaches the planner but is only consulted in one place:
 
@@ -24,6 +27,7 @@ replay. The query text reaches the planner but is only consulted in one place:
   is discarded.
 
 Everything else is driven by the fixture's fixed `scope`, not the goal:
+
 - **`_query_scoped_awards()`** filters candidate awards only by
   `scope.target_program_slug` (Hyatt), `scope.destination_city` (Tokyo), and
   `scope.nights` (3).
@@ -32,13 +36,19 @@ Everything else is driven by the fixture's fixed `scope`, not the goal:
 - Step action strings are templated to "Chase Ultimate Rewards → World of Hyatt".
 
 Current fixed scope (`fixtures/person-c-mvp-seed.json`):
+
 ```json
-{ "source_program_slug": "program:chase_ur", "target_program_slug": "program:hyatt",
-  "destination_city": "Tokyo", "nights": 3 }
+{
+  "source_program_slug": "program:chase_ur",
+  "target_program_slug": "program:hyatt",
+  "destination_city": "Tokyo",
+  "nights": 3
+}
 ```
 
 ### Secondary issue (same root): every step shares one dependency
-Every step is given the *same single dependency* — the source Chase balance — via
+
+Every step is given the _same single dependency_ — the source Chase balance — via
 `dependency=dependency` on each `_step(...)` call. The writer
 (`tests/integration/redemption_graph_writer.py` `_dependency_request_from_planner`)
 further forces every `state_dependency` to `target_table="user_balances"` pointed at
@@ -46,8 +56,10 @@ the source balance id. Result: every step's dependency chip renders "Chase Ultim
 Rewards", and the typed graph only ever contains the Chase→Hyatt→award path.
 
 ### Secondary issue: selected cards never reach the planner
+
 The onboarding card selection is sent to the FE stream route as `?cards=…` but goes
 nowhere:
+
 1. The stream route only **validates** them (`selectedCardIdsError`), then calls
    `createPlan(queryText, token)` — cards are never passed.
 2. The client sends `body: { query }` only — no cards.
@@ -58,14 +70,17 @@ So even after the planner is made goal-aware, cards still won't matter until the
 `POST /plans` contract is extended to accept and use them.
 
 ## Expected behavior
+
 The plan should vary with the user's goal/query. At minimum, distinct goal types
 should yield distinguishable plans + graphs, e.g.:
+
 - **maximize points** → current transfer-to-Hyatt path
 - **cashback / minimize fees** → recommend cash/statement-credit instead of a transfer
 - **specific redemption** (different city/program named in the query) → select awards
   matching the requested destination/program
 
 ## Acceptance criteria
+
 - [ ] Two queries with different goals produce different `steps` and a different
       `graph` projection.
 - [ ] Query intent (goal type, and where data allows, destination/program)
@@ -78,6 +93,7 @@ should yield distinguishable plans + graphs, e.g.:
       substring check.
 
 ## Notes / scope flag
+
 - The seed fixture currently only contains **Hyatt / Tokyo / 3-night** award data,
   so genuine destination/program variety needs the fixture (or backing DB seed)
   expanded, and/or a real query-parsing/LLM planning step. Worth a scoping decision:

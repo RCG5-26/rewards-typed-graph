@@ -36,12 +36,7 @@ export type StepStatus = "proposed" | "current" | "stale" | "superseded";
  * `superseded`. `failed` is terminal. Keeping the full set here means the
  * fixture→Postgres swap stays a wiring change, not a contract change.
  */
-export type PlanStatus =
-  | "generating"
-  | "current"
-  | "stale"
-  | "superseded"
-  | "failed";
+export type PlanStatus = "generating" | "current" | "stale" | "superseded" | "failed";
 
 /** A typed dependency edge for a step, resolved from `state_dependencies`. */
 export interface PlanDependency {

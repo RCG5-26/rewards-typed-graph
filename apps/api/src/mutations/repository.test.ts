@@ -30,14 +30,11 @@ describe("listMutationEvents", () => {
       },
     };
 
-    const events = await listMutationEvents(
-      client,
-      "00000000-0000-0000-0000-000000000002",
-      123,
-    );
+    const events = await listMutationEvents(client, "00000000-0000-0000-0000-000000000002", 123);
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.sql).toBe(`SELECT id, mutation_txn_id, user_id, plan_lineage_id, plan_id, agent_run_id,
+    expect(calls[0]?.sql)
+      .toBe(`SELECT id, mutation_txn_id, user_id, plan_lineage_id, plan_id, agent_run_id,
        mutation_type, target_table, target_node_id, summary, before, after,
        committed_at
   FROM graph_mutations
@@ -45,11 +42,7 @@ describe("listMutationEvents", () => {
    AND id > $2
  ORDER BY id ASC
  LIMIT $3`);
-    expect(calls[0]?.params).toEqual([
-      "00000000-0000-0000-0000-000000000002",
-      123,
-      100,
-    ]);
+    expect(calls[0]?.params).toEqual(["00000000-0000-0000-0000-000000000002", 123, 100]);
     expect(events).toEqual([
       expect.objectContaining({
         event_id: "124",

@@ -63,8 +63,11 @@ export default function GoogleAuthCard({
         err &&
         typeof err === "object" &&
         "errors" in err &&
-        Array.isArray((err as { errors?: { code?: string; longMessage?: string; message?: string }[] }).errors)
-          ? (err as { errors: { code?: string; longMessage?: string; message?: string }[] }).errors[0]
+        Array.isArray(
+          (err as { errors?: { code?: string; longMessage?: string; message?: string }[] }).errors,
+        )
+          ? (err as { errors: { code?: string; longMessage?: string; message?: string }[] })
+              .errors[0]
           : null;
       // An active session already exists — just proceed into the app.
       if (clerkMessage?.code === "session_exists" || isSignedIn) {

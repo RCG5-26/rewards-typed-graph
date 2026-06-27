@@ -4,10 +4,7 @@ import { NextResponse } from "next/server";
 import { createPlan } from "@/lib/api/client";
 import { toPlanResult } from "@/lib/api/adapters";
 import { ApiError } from "@/lib/api/types";
-import {
-  planQueryError,
-  selectedCardIdsError,
-} from "@/lib/plan/limits";
+import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
 
 /**
  * POST /api/plan — turn a natural-language goal into a typed plan.
@@ -61,9 +58,6 @@ export async function POST(request: Request) {
       }
     }
     console.error("POST /api/plan failed", err);
-    return NextResponse.json(
-      { error: "Could not build a plan." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Could not build a plan." }, { status: 500 });
   }
 }

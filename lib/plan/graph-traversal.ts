@@ -49,9 +49,7 @@ const LAYOUTS: Record<number, [number, number][]> = {
  */
 export function buildTraversalChain(graph: PlanGraph): TraversalHub[] {
   if (!graph.edges.length) return [];
-  const activeEdges = graph.edges.filter(
-    (e) => e.state !== "stale" && e.state !== "superseded",
-  );
+  const activeEdges = graph.edges.filter((e) => e.state !== "stale" && e.state !== "superseded");
   const next = new Map<string, string>();
   const tos = new Set<string>();
   for (const e of activeEdges) {
@@ -99,14 +97,9 @@ export function buildTraversalChain(graph: PlanGraph): TraversalHub[] {
  * to its parent hub so the canvas can draw a short connector + bead without
  * disturbing the linear flight path the plane flies.
  */
-export function buildBranches(
-  graph: PlanGraph,
-  mainPath: TraversalHub[],
-): BranchHub[] {
+export function buildBranches(graph: PlanGraph, mainPath: TraversalHub[]): BranchHub[] {
   if (!graph.edges.length || mainPath.length === 0) return [];
-  const activeEdges = graph.edges.filter(
-    (e) => e.state !== "stale" && e.state !== "superseded",
-  );
+  const activeEdges = graph.edges.filter((e) => e.state !== "stale" && e.state !== "superseded");
   const posById = new Map(mainPath.map((h) => [h.id, h]));
   const onMainPath = new Set(mainPath.map((h) => h.id));
   // The main successor of each hub is already drawn on the flight path.

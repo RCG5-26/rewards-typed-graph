@@ -148,12 +148,17 @@ function bestCandidate(
     }
 
     const valueCents = Math.round((option.min_points * option.cpp_basis_points) / BP_PER_UNIT);
-    candidates.push({ option, destProgram, heldAtDest, requiredTransfer, sourceProgram, valueCents });
+    candidates.push({
+      option,
+      destProgram,
+      heldAtDest,
+      requiredTransfer,
+      sourceProgram,
+      valueCents,
+    });
   }
 
-  candidates.sort(
-    (a, b) => b.valueCents - a.valueCents || a.requiredTransfer - b.requiredTransfer,
-  );
+  candidates.sort((a, b) => b.valueCents - a.valueCents || a.requiredTransfer - b.requiredTransfer);
   return candidates[0] ?? null;
 }
 
@@ -197,7 +202,13 @@ function computePlan(
     status: "current",
     deps: [],
   });
-  mut({ agentType: "orchestrator", op: "CREATE", node: `plans:${planLineageId}`, detail: `plan r${opts.revision} · goal ${goalType}`, version: `v${opts.revision}` });
+  mut({
+    agentType: "orchestrator",
+    op: "CREATE",
+    node: `plans:${planLineageId}`,
+    detail: `plan r${opts.revision} · goal ${goalType}`,
+    version: `v${opts.revision}`,
+  });
 
   // wallet_agent: assess balances
   steps.push({
@@ -213,7 +224,14 @@ function computePlan(
   });
   for (const b of graph.balances) {
     const slug = programsById.get(b.programId)?.slug ?? b.programId;
-    mut({ agentType: "wallet_agent", op: "READ", node: `user_balances:${b.programName}`, detail: `${b.balancePoints.toLocaleString("en-US")} ${b.currencyName}`, version: "v1", nodeId: progNodeId(slug) });
+    mut({
+      agentType: "wallet_agent",
+      op: "READ",
+      node: `user_balances:${b.programName}`,
+      detail: `${b.balancePoints.toLocaleString("en-US")} ${b.currencyName}`,
+      version: "v1",
+      nodeId: progNodeId(slug),
+    });
   }
 
   // ── build the typed-graph topology from held programs ──
@@ -225,12 +243,27 @@ function computePlan(
   const edges: GraphEdge[] = [];
 
   if (!winner) {
-    mut({ agentType: "orchestrator", op: "UPDATE", node: `plans:${planLineageId}`, detail: "no reachable redemption · failed", version: `v${opts.revision}` });
+    mut({
+      agentType: "orchestrator",
+      op: "UPDATE",
+      node: `plans:${planLineageId}`,
+      detail: "no reachable redemption · failed",
+      version: `v${opts.revision}`,
+    });
     return {
-      planId, planLineageId, status: "failed", agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
-      revision: opts.revision, goalType, goalLabel: GOAL_LABEL[goalType], queryText,
+      planId,
+      planLineageId,
+      status: "failed",
+      agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
+      revision: opts.revision,
+      goalType,
+      goalLabel: GOAL_LABEL[goalType],
+      queryText,
       route: "no affordable redemption from current balances",
-      planValueCents: 0, liveNodes: nodes.length, steps, mutations,
+      planValueCents: 0,
+      liveNodes: nodes.length,
+      steps,
+      mutations,
       graph: { nodes, edges },
     };
   }
@@ -243,14 +276,33 @@ function computePlan(
   // place dest at col 1, add redemption at col 2
   const destNode = nodeById.get(destNodeId);
   if (destNode) destNode.col = 1;
-  else nodes.push({ id: destNodeId, label: destProgram.name, kind: "program", col: 1, state: "active" });
-  nodes.push({ id: awardNodeId, label: option.description, kind: "redemption", col: 2, state: "active" });
+  else
+    nodes.push({
+      id: destNodeId,
+      label: destProgram.name,
+      kind: "program",
+      col: 1,
+      state: "active",
+    });
+  nodes.push({
+    id: awardNodeId,
+    label: option.description,
+    kind: "redemption",
+    col: 2,
+    state: "active",
+  });
 
   // redemption_agent: transfer hop
   if (requiredTransfer > 0 && sourceProgram) {
     const srcSlug = sourceProgram.slug;
     const srcBefore = balanceByProgram.get(sourceProgram.id) ?? 0;
-    edges.push({ id: `edge:transfer:${srcSlug}->${destProgram.slug}`, from: progNodeId(srcSlug), to: destNodeId, kind: "transfer", state: "active" });
+    edges.push({
+      id: `edge:transfer:${srcSlug}->${destProgram.slug}`,
+      from: progNodeId(srcSlug),
+      to: destNodeId,
+      kind: "transfer",
+      state: "active",
+    });
     steps.push({
       order: steps.length + 1,
       agentType: "redemption_agent",
@@ -260,13 +312,40 @@ function computePlan(
       status: "current",
       deps: [`user_balances:${sourceProgram.name}`],
     });
-    mut({ agentType: "redemption_agent", op: "READ", node: `transfers_to:${srcSlug}→${destProgram.slug}`, detail: "active 1:1 transfer edge", version: "v1", nodeId: progNodeId(srcSlug) });
-    mut({ agentType: "redemption_agent", op: "COMMIT", node: `user_balances:${sourceProgram.name}`, detail: `${srcBefore.toLocaleString("en-US")} → ${(srcBefore - requiredTransfer).toLocaleString("en-US")}`, version: "v2", nodeId: progNodeId(srcSlug) });
-    mut({ agentType: "redemption_agent", op: "UPDATE", node: `user_balances:${destProgram.name}`, detail: `${heldAtDest.toLocaleString("en-US")} → ${(heldAtDest + requiredTransfer).toLocaleString("en-US")}`, version: "v2", nodeId: destNodeId });
+    mut({
+      agentType: "redemption_agent",
+      op: "READ",
+      node: `transfers_to:${srcSlug}→${destProgram.slug}`,
+      detail: "active 1:1 transfer edge",
+      version: "v1",
+      nodeId: progNodeId(srcSlug),
+    });
+    mut({
+      agentType: "redemption_agent",
+      op: "COMMIT",
+      node: `user_balances:${sourceProgram.name}`,
+      detail: `${srcBefore.toLocaleString("en-US")} → ${(srcBefore - requiredTransfer).toLocaleString("en-US")}`,
+      version: "v2",
+      nodeId: progNodeId(srcSlug),
+    });
+    mut({
+      agentType: "redemption_agent",
+      op: "UPDATE",
+      node: `user_balances:${destProgram.name}`,
+      detail: `${heldAtDest.toLocaleString("en-US")} → ${(heldAtDest + requiredTransfer).toLocaleString("en-US")}`,
+      version: "v2",
+      nodeId: destNodeId,
+    });
   }
 
   // redemption_agent: book the award
-  edges.push({ id: `edge:redeem:${destProgram.slug}->${option.id}`, from: destNodeId, to: awardNodeId, kind: "redeem", state: "active" });
+  edges.push({
+    id: `edge:redeem:${destProgram.slug}->${option.id}`,
+    from: destNodeId,
+    to: awardNodeId,
+    kind: "redeem",
+    state: "active",
+  });
   steps.push({
     order: steps.length + 1,
     agentType: "redemption_agent",
@@ -276,18 +355,48 @@ function computePlan(
     status: "current",
     deps: requiredTransfer > 0 ? [`user_balances:${destProgram.name}`] : [],
   });
-  mut({ agentType: "redemption_agent", op: "READ", node: `redemption_options:${destProgram.slug}`, detail: `min ${option.min_points.toLocaleString("en-US")} @ ${cpp}¢`, version: "v1", nodeId: awardNodeId });
-  mut({ agentType: "redemption_agent", op: "COMMIT", node: `plan_steps:book_award`, detail: `${option.description} · $${Math.round(valueCents / 100).toLocaleString("en-US")}`, version: "v1", nodeId: awardNodeId });
-  mut({ agentType: "orchestrator", op: "UPDATE", node: `plans:${planLineageId}`, detail: "status → current", version: `v${opts.revision}` });
+  mut({
+    agentType: "redemption_agent",
+    op: "READ",
+    node: `redemption_options:${destProgram.slug}`,
+    detail: `min ${option.min_points.toLocaleString("en-US")} @ ${cpp}¢`,
+    version: "v1",
+    nodeId: awardNodeId,
+  });
+  mut({
+    agentType: "redemption_agent",
+    op: "COMMIT",
+    node: `plan_steps:book_award`,
+    detail: `${option.description} · $${Math.round(valueCents / 100).toLocaleString("en-US")}`,
+    version: "v1",
+    nodeId: awardNodeId,
+  });
+  mut({
+    agentType: "orchestrator",
+    op: "UPDATE",
+    node: `plans:${planLineageId}`,
+    detail: "status → current",
+    version: `v${opts.revision}`,
+  });
 
   const route = sourceProgram
     ? `${sourceProgram.name} → ${destProgram.name} → ${option.description}`
     : `${destProgram.name} → ${option.description}`;
 
   return {
-    planId, planLineageId, status: "current", agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
-    revision: opts.revision, goalType, goalLabel: GOAL_LABEL[goalType], queryText,
-    route, planValueCents: valueCents, liveNodes: nodes.length, steps, mutations,
+    planId,
+    planLineageId,
+    status: "current",
+    agentRunIds: [stableId("run", `${queryText}#${opts.revision}`)],
+    revision: opts.revision,
+    goalType,
+    goalLabel: GOAL_LABEL[goalType],
+    queryText,
+    route,
+    planValueCents: valueCents,
+    liveNodes: nodes.length,
+    steps,
+    mutations,
     graph: { nodes, edges },
   };
 }
@@ -322,7 +431,11 @@ export async function buildReplan(
 ): Promise<ReplanResult | null> {
   const seed = await loadSeed();
   const eff = filterGraphBySelection(seed, graph, selectedCardIds);
-  const rev1 = computePlan(seed, eff, queryText, { revision: 1, excludedEdges: new Set(), seqStart: 1 });
+  const rev1 = computePlan(seed, eff, queryText, {
+    revision: 1,
+    excludedEdges: new Set(),
+    seqStart: 1,
+  });
   if (rev1.status === "failed") return null;
 
   // The transfer edge that revision 1 relied on (if any).
@@ -355,11 +468,19 @@ export async function buildReplan(
     },
   };
 
-  const rev2 = computePlan(seed, eff, queryText, { revision: 2, excludedEdges: excluded, seqStart });
+  const rev2 = computePlan(seed, eff, queryText, {
+    revision: 2,
+    excludedEdges: excluded,
+    seqStart,
+  });
 
   // Tag the leading mutation of the replan so the log reads as a re-plan.
   if (rev2.mutations[0]) {
-    rev2.mutations[0] = { ...rev2.mutations[0], op: "REPLAN", detail: "re-planning on invalidation · new revision" };
+    rev2.mutations[0] = {
+      ...rev2.mutations[0],
+      op: "REPLAN",
+      detail: "re-planning on invalidation · new revision",
+    };
   }
   return { invalidation, plan: rev2 };
 }

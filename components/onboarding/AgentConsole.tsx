@@ -2,12 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import {
-  deriveComparison,
-  dollars,
-  fmtTokens,
-  type LiveMetrics,
-} from "@/lib/plan/comparison";
+import { deriveComparison, dollars, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
 import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
@@ -62,12 +57,8 @@ function mergeGraph(prev: PlanGraph, next: PlanGraph): PlanGraph {
 
 function applyInvalidation(g: PlanGraph, inv: Invalidation): PlanGraph {
   return {
-    nodes: g.nodes.map((n) =>
-      inv.staleNodeIds.includes(n.id) ? { ...n, state: "stale" } : n,
-    ),
-    edges: g.edges.map((e) =>
-      e.id === inv.staleEdgeId ? { ...e, state: "stale" } : e,
-    ),
+    nodes: g.nodes.map((n) => (inv.staleNodeIds.includes(n.id) ? { ...n, state: "stale" } : n)),
+    edges: g.edges.map((e) => (e.id === inv.staleEdgeId ? { ...e, state: "stale" } : e)),
   };
 }
 
@@ -90,7 +81,9 @@ export default function AgentConsole({
   const [valueCents, setValueCents] = useState(0);
   const [prevValueCents, setPrevValueCents] = useState<number | null>(null);
   const [revision, setRevision] = useState(1);
-  const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
+  const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">(
+    "streaming",
+  );
   const [replanned, setReplanned] = useState(false);
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [view, setView] = useState<ConsoleView>("plan");
@@ -207,9 +200,7 @@ export default function AgentConsole({
   const cmp = deriveComparison(liveMetrics);
   // Tokens vs the free-text baseline (CrewAI) — the headline efficiency win.
   const tokenSavingPct =
-    cmp.crewai.tokens > 0
-      ? Math.round((1 - cmp.typed.tokens / cmp.crewai.tokens) * 100)
-      : 0;
+    cmp.crewai.tokens > 0 ? Math.round((1 - cmp.typed.tokens / cmp.crewai.tokens) * 100) : 0;
 
   return (
     <div className="absolute inset-0 z-[2] flex flex-col gap-4 overflow-y-auto px-7 pb-7 pt-5">
@@ -266,8 +257,12 @@ export default function AgentConsole({
             <span
               className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-sm font-bold"
               style={{
-                background: caughtInvalidation ? "var(--color-success-bg)" : "var(--color-surface-subtle)",
-                color: caughtInvalidation ? "var(--color-success-fg)" : "var(--color-text-tertiary)",
+                background: caughtInvalidation
+                  ? "var(--color-success-bg)"
+                  : "var(--color-surface-subtle)",
+                color: caughtInvalidation
+                  ? "var(--color-success-fg)"
+                  : "var(--color-text-tertiary)",
               }}
             >
               {caughtInvalidation ? "✓" : "◴"}
@@ -287,7 +282,12 @@ export default function AgentConsole({
               −{tokenSavingPct}%
             </span>
             <div className="flex items-end gap-3">
-              <TokenBar label="current" value={fmtTokens(cmp.typed.tokens)} pct={Math.round((cmp.typed.tokens / cmp.crewai.tokens) * 100)} accent />
+              <TokenBar
+                label="current"
+                value={fmtTokens(cmp.typed.tokens)}
+                pct={Math.round((cmp.typed.tokens / cmp.crewai.tokens) * 100)}
+                accent
+              />
               <TokenBar label="baseline" value={fmtTokens(cmp.crewai.tokens)} pct={100} />
             </div>
           </div>
@@ -314,7 +314,10 @@ export default function AgentConsole({
             <div
               ref={railRef}
               className="relative flex flex-col overflow-hidden rounded-card p-6"
-              style={{ background: "#060912", boxShadow: "0 4px 22px rgba(10,14,30,0.25), inset 0 0 0 1px rgba(125,166,255,0.12)" }}
+              style={{
+                background: "#060912",
+                boxShadow: "0 4px 22px rgba(10,14,30,0.25), inset 0 0 0 1px rgba(125,166,255,0.12)",
+              }}
             >
               <div className="relative z-10 flex items-start justify-between">
                 <div className="font-display text-2xs font-semibold uppercase tracking-widest text-[#a0beff]/85">
@@ -322,10 +325,21 @@ export default function AgentConsole({
                 </div>
                 <div
                   className="flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur"
-                  style={{ background: "rgba(134,168,255,0.14)", border: "1px solid rgba(134,168,255,0.32)" }}
+                  style={{
+                    background: "rgba(134,168,255,0.14)",
+                    border: "1px solid rgba(134,168,255,0.32)",
+                  }}
                 >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "oklch(78% 0.14 248)", boxShadow: "0 0 10px oklch(78% 0.14 248)" }} />
-                  <span className="text-2xs font-semibold text-[#dce8ff]/90">{liveNodes} nodes live</span>
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      background: "oklch(78% 0.14 248)",
+                      boxShadow: "0 0 10px oklch(78% 0.14 248)",
+                    }}
+                  />
+                  <span className="text-2xs font-semibold text-[#dce8ff]/90">
+                    {liveNodes} nodes live
+                  </span>
                 </div>
               </div>
 
@@ -370,7 +384,10 @@ export default function AgentConsole({
                 type="button"
                 onClick={() => setLogOpen((v) => !v)}
                 className="relative z-10 flex items-center justify-between rounded-xl px-4 py-3 text-left transition"
-                style={{ background: "rgba(134,168,255,0.08)", border: "1px solid rgba(125,166,255,0.16)" }}
+                style={{
+                  background: "rgba(134,168,255,0.08)",
+                  border: "1px solid rgba(125,166,255,0.16)",
+                }}
                 aria-expanded={logOpen}
               >
                 <span className="flex items-center gap-2">
@@ -390,29 +407,70 @@ export default function AgentConsole({
                 <div
                   ref={logRef}
                   className="relative z-10 mt-2 max-h-[180px] overflow-y-auto rounded-xl px-2 py-1.5"
-                  style={{ background: "rgba(8,13,24,0.6)", border: "1px solid rgba(125,166,255,0.12)" }}
+                  style={{
+                    background: "rgba(8,13,24,0.6)",
+                    border: "1px solid rgba(125,166,255,0.12)",
+                  }}
                 >
                   {mutations.map((m) => {
                     const meta = AGENT_META[m.agentType];
                     return (
-                      <div key={m.seq} className="mb-1 flex gap-2 rounded-lg px-2 py-1.5" style={{ background: "rgba(134,168,255,0.04)", animation: "gp-row-in 0.3s ease" }}>
-                        <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">{m.seq}</span>
+                      <div
+                        key={m.seq}
+                        className="mb-1 flex gap-2 rounded-lg px-2 py-1.5"
+                        style={{
+                          background: "rgba(134,168,255,0.04)",
+                          animation: "gp-row-in 0.3s ease",
+                        }}
+                      >
+                        <span className="w-[18px] flex-none pt-0.5 text-right font-mono text-2xs text-[#a0beff]/40">
+                          {m.seq}
+                        </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="h-1.5 w-1.5 flex-none rounded-sm" style={{ background: agentDarkColor(meta) }} />
-                            <span className="font-mono text-2xs font-semibold" style={{ color: agentDarkColor(meta) }}>{meta.short}</span>
-                            <span className="rounded font-mono text-2xs font-semibold" style={{ color: opColor(m.op), background: `${opColor(m.op)}1f`, padding: "1px 5px" }}>{m.op}</span>
-                            <span className="truncate font-mono text-2xs text-[#dce8ff]/85">{m.node}</span>
+                            <span
+                              className="h-1.5 w-1.5 flex-none rounded-sm"
+                              style={{ background: agentDarkColor(meta) }}
+                            />
+                            <span
+                              className="font-mono text-2xs font-semibold"
+                              style={{ color: agentDarkColor(meta) }}
+                            >
+                              {meta.short}
+                            </span>
+                            <span
+                              className="rounded font-mono text-2xs font-semibold"
+                              style={{
+                                color: opColor(m.op),
+                                background: `${opColor(m.op)}1f`,
+                                padding: "1px 5px",
+                              }}
+                            >
+                              {m.op}
+                            </span>
+                            <span className="truncate font-mono text-2xs text-[#dce8ff]/85">
+                              {m.node}
+                            </span>
                           </div>
-                          <div className="mt-0.5 pl-3 font-mono text-2xs leading-relaxed text-[#bed2fa]/70">{m.detail}</div>
+                          <div className="mt-0.5 pl-3 font-mono text-2xs leading-relaxed text-[#bed2fa]/70">
+                            {m.detail}
+                          </div>
                         </div>
-                        <span className="flex-none pt-0.5 font-mono text-[#7da6ff]/70" style={{ fontSize: "8px" }}>{m.version}</span>
+                        <span
+                          className="flex-none pt-0.5 font-mono text-[#7da6ff]/70"
+                          style={{ fontSize: "8px" }}
+                        >
+                          {m.version}
+                        </span>
                       </div>
                     );
                   })}
                   {status === "streaming" || status === "replanning" ? (
                     <div className="flex items-center gap-2 px-2 py-2">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: "#86a8ff" }} />
+                      <span
+                        className="h-1.5 w-1.5 animate-pulse rounded-full"
+                        style={{ background: "#86a8ff" }}
+                      />
                       <span className="font-mono text-2xs text-[#a0beff]/60">
                         {status === "replanning" ? "re-planning…" : "agents committing…"}
                       </span>
@@ -440,7 +498,10 @@ export default function AgentConsole({
                   const sv = STATUS_VARS[s.status];
                   const deps = s.dependencies ?? s.deps.map((d) => ({ id: d, label: d, slug: d }));
                   return (
-                    <div key={`${revision}-${s.order}`} className="flex gap-3.5 border-b border-subtle py-3.5 last:border-0">
+                    <div
+                      key={`${revision}-${s.order}`}
+                      className="flex gap-3.5 border-b border-subtle py-3.5 last:border-0"
+                    >
                       {/* step index + agent glyph */}
                       <div className="flex flex-none flex-col items-center gap-1.5">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full border border-subtle font-mono text-2xs font-semibold text-text-tertiary tabular-nums">
@@ -448,7 +509,11 @@ export default function AgentConsole({
                         </span>
                         <div
                           className="flex h-8 w-8 items-center justify-center rounded-lg font-mono text-2xs font-semibold"
-                          style={{ background: `${meta.color}14`, color: meta.color, border: `1px solid ${meta.color}33` }}
+                          style={{
+                            background: `${meta.color}14`,
+                            color: meta.color,
+                            border: `1px solid ${meta.color}33`,
+                          }}
                         >
                           {meta.short}
                         </div>
@@ -456,18 +521,37 @@ export default function AgentConsole({
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-sm font-semibold text-text-primary">{s.title}</span>
-                          <span className="rounded font-mono text-2xs font-medium" style={{ color: sv.color, background: sv.bg, padding: "2px 6px" }}>
+                          <span
+                            className="rounded font-mono text-2xs font-medium"
+                            style={{ color: sv.color, background: sv.bg, padding: "2px 6px" }}
+                          >
                             {s.status}
                           </span>
                         </div>
-                        <div className="mt-1.5 text-xs leading-relaxed text-text-secondary">{s.reasoning}</div>
+                        <div className="mt-1.5 text-xs leading-relaxed text-text-secondary">
+                          {s.reasoning}
+                        </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           {deps.length > 0 && (
-                            <span className="inline-flex max-w-full items-center gap-1 truncate rounded font-mono text-2xs text-text-secondary" style={{ background: "var(--color-surface-subtle)", border: "1px solid var(--color-border)", padding: "2px 7px" }}>
+                            <span
+                              className="inline-flex max-w-full items-center gap-1 truncate rounded font-mono text-2xs text-text-secondary"
+                              style={{
+                                background: "var(--color-surface-subtle)",
+                                border: "1px solid var(--color-border)",
+                                padding: "2px 7px",
+                              }}
+                            >
                               deps: {deps.map((d) => d.label).join(", ")}
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1 rounded font-mono text-2xs font-medium" style={{ background: "var(--color-accent-muted)", color: "var(--color-accent-text)", padding: "2px 7px" }}>
+                          <span
+                            className="inline-flex items-center gap-1 rounded font-mono text-2xs font-medium"
+                            style={{
+                              background: "var(--color-accent-muted)",
+                              color: "var(--color-accent-text)",
+                              padding: "2px 7px",
+                            }}
+                          >
                             provides: {s.type}
                           </span>
                         </div>
@@ -481,29 +565,34 @@ export default function AgentConsole({
                   </div>
                 )}
               </div>
-              {/* footer actions — simulate a balance change · reset */}
-              <div className="flex flex-none items-center gap-2.5 border-t border-subtle px-5 py-3.5">
-                <button
-                  type="button"
-                  onClick={triggerReplan}
-                  disabled={replanned || status !== "current"}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
-                >
-                  ⚡ Simulate a balance change
-                </button>
+              {/* footer — the plan stays live (auto re-plans); start a new one */}
+              <div className="flex flex-none items-center justify-between gap-3 border-t border-subtle px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="h-1.5 w-1.5 flex-none rounded-full"
+                    style={{ background: "var(--status-current)", boxShadow: "0 0 6px var(--status-current)" }}
+                  />
+                  <span className="truncate font-mono text-2xs text-text-tertiary">
+                    re-plans automatically when balances or transfer ratios change
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={onRestart}
-                  className="flex flex-none items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition hover:text-text-primary"
+                  className="flex flex-none items-center gap-1.5 rounded-full border border-DEFAULT bg-surface px-4 py-2.5 text-sm font-medium text-text-secondary shadow-xs transition hover:text-text-primary"
                 >
-                  ↺ reset
+                  ↺ start over
                 </button>
               </div>
             </div>
           </div>
 
           {/* ── bottom: three-architecture comparison summary ── */}
-          <ComparisonStrip cmp={cmp} caught={caughtInvalidation} onOpen={() => setView("baselines")} />
+          <ComparisonStrip
+            cmp={cmp}
+            caught={caughtInvalidation}
+            onOpen={() => setView("baselines")}
+          />
         </>
       )}
     </div>
@@ -543,7 +632,9 @@ function TokenBar({
           background: accent ? "var(--color-accent)" : "var(--color-neutral-300)",
         }}
       />
-      <span className="font-mono text-[9px] uppercase tracking-wide text-text-tertiary">{label}</span>
+      <span className="font-mono text-[9px] uppercase tracking-wide text-text-tertiary">
+        {label}
+      </span>
     </div>
   );
 }
@@ -589,7 +680,10 @@ function ComparisonStrip({
       key: "single",
       title: "Single agent",
       badge: "LOWEST VALUE",
-      badgeStyle: { background: "var(--color-surface-subtle)", color: "var(--color-text-tertiary)" },
+      badgeStyle: {
+        background: "var(--color-surface-subtle)",
+        color: "var(--color-text-tertiary)",
+      },
       accent: "var(--color-neutral-500)",
       tokens: cmp.single.tokens,
       marks: [
@@ -613,9 +707,14 @@ function ComparisonStrip({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
-              <span className="font-display text-sm font-semibold text-text-primary">{c.title}</span>
+              <span className="font-display text-sm font-semibold text-text-primary">
+                {c.title}
+              </span>
             </div>
-            <span className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide" style={{ ...c.badgeStyle, padding: "2px 7px" }}>
+            <span
+              className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide"
+              style={{ ...c.badgeStyle, padding: "2px 7px" }}
+            >
               {c.badge}
             </span>
           </div>
@@ -651,15 +750,36 @@ function PhaseChip({
   revision: number;
 }) {
   const map = {
-    streaming: { color: "var(--status-generating)", bg: "var(--status-generating-bg)", text: "generating plan…" },
-    replanning: { color: "var(--status-stale)", bg: "var(--status-stale-bg)", text: "invalidated · re-planning" },
-    current: { color: "var(--status-current)", bg: "var(--status-current-bg)", text: `plan current${revision > 1 ? ` · r${revision}` : ""} · ${goalLabel}` },
-    failed: { color: "var(--status-failed)", bg: "var(--status-failed-bg)", text: "no plan · failed" },
+    streaming: {
+      color: "var(--status-generating)",
+      bg: "var(--status-generating-bg)",
+      text: "generating plan…",
+    },
+    replanning: {
+      color: "var(--status-stale)",
+      bg: "var(--status-stale-bg)",
+      text: "invalidated · re-planning",
+    },
+    current: {
+      color: "var(--status-current)",
+      bg: "var(--status-current-bg)",
+      text: `plan current${revision > 1 ? ` · r${revision}` : ""} · ${goalLabel}`,
+    },
+    failed: {
+      color: "var(--status-failed)",
+      bg: "var(--status-failed-bg)",
+      text: "no plan · failed",
+    },
   }[status];
   return (
-    <div className="flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: map.bg }}>
+    <div
+      className="flex items-center gap-2 rounded-full px-3 py-1.5"
+      style={{ background: map.bg }}
+    >
       <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ background: map.color }} />
-      <span className="text-xs font-semibold" style={{ color: map.color }}>{map.text}</span>
+      <span className="text-xs font-semibold" style={{ color: map.color }}>
+        {map.text}
+      </span>
     </div>
   );
 }

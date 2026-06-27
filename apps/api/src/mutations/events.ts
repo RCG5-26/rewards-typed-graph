@@ -47,9 +47,7 @@ export function toMutationEvent(row: GraphMutationRow): MutationEvent {
     before: row.before,
     after: row.after,
     committed_at:
-      row.committed_at instanceof Date
-        ? row.committed_at.toISOString()
-        : row.committed_at,
+      row.committed_at instanceof Date ? row.committed_at.toISOString() : row.committed_at,
   };
 }
 

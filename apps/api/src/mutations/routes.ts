@@ -23,13 +23,9 @@ export function getAuthenticatedUserId(c: Context<MutationRouteEnv>) {
   return userId;
 }
 
-export function createMutationRoutes(
-  client: QueryClient,
-  options: MutationRouteOptions = {},
-) {
+export function createMutationRoutes(client: QueryClient, options: MutationRouteOptions = {}) {
   const app = new Hono<MutationRouteEnv>();
-  const pollIntervalMs =
-    options.pollIntervalMs === undefined ? 1000 : options.pollIntervalMs;
+  const pollIntervalMs = options.pollIntervalMs === undefined ? 1000 : options.pollIntervalMs;
 
   app.get("/mutations", async (c) => {
     const userId = getAuthenticatedUserId(c);
@@ -131,7 +127,5 @@ function parseMutationCursor(rawCursor: string | undefined) {
 }
 
 function formatSseEvent(event: { event_id: string }) {
-  return `id: ${event.event_id}\nevent: graph_mutation\ndata: ${JSON.stringify(
-    event,
-  )}\n\n`;
+  return `id: ${event.event_id}\nevent: graph_mutation\ndata: ${JSON.stringify(event)}\n\n`;
 }

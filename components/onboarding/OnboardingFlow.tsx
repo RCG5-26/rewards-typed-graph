@@ -140,10 +140,7 @@ export default function OnboardingFlow() {
     };
   }, []);
 
-  const wallet = useMemo(
-    () => cards.filter((c) => selected.includes(c.id)),
-    [cards, selected],
-  );
+  const wallet = useMemo(() => cards.filter((c) => selected.includes(c.id)), [cards, selected]);
   const projectedCents = useMemo(
     () => wallet.reduce((sum, c) => sum + c.firstYearValueCents, 0),
     [wallet],
@@ -159,9 +156,7 @@ export default function OnboardingFlow() {
   const firstName = me?.user.displayName?.split(" ")[0] ?? null;
 
   function toggle(id: string) {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
   const cardWord = wallet.length === 1 ? "card" : "cards";
@@ -182,7 +177,10 @@ export default function OnboardingFlow() {
           animation: "gp-grid-drift 60s linear infinite",
         }}
       />
-      <div className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full" style={{ background: "var(--blob-glow-lg)", opacity: 0.35 }} />
+      <div
+        className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full"
+        style={{ background: "var(--blob-glow-lg)", opacity: 0.35 }}
+      />
 
       <TopBar step={step} displayName={displayName} imageUrl={imageUrl} />
 
@@ -270,8 +268,7 @@ function CardsStep({
           do you carry?
         </h1>
         <p className="mb-5 mt-2.5 max-w-[460px] text-sm leading-relaxed text-text-secondary">
-          tap the cards you carry to build your wallet — the agents plan across
-          everything you pick.
+          tap the cards you carry to build your wallet — the agents plan across everything you pick.
         </p>
 
         <div className="flex-1 overflow-y-auto px-2 pb-6 pt-3">
@@ -287,9 +284,7 @@ function CardsStep({
             </div>
           )}
           {error && (
-            <div className="rounded-lg bg-error-bg px-4 py-3 text-sm text-error-fg">
-              {error}
-            </div>
+            <div className="rounded-lg bg-error-bg px-4 py-3 text-sm text-error-fg">{error}</div>
           )}
           {!loading && !error && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -310,7 +305,10 @@ function CardsStep({
       {/* right — wallet rail (theme grey, full height) */}
       <aside className="relative flex w-[360px] flex-none flex-col overflow-hidden border-l border-strong bg-bg-elevated px-7 py-7">
         <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" style={{ boxShadow: "0 0 8px var(--color-accent)" }} />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-accent"
+            style={{ boxShadow: "0 0 8px var(--color-accent)" }}
+          />
           <span className="font-mono text-2xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
             your wallet
           </span>
@@ -323,7 +321,9 @@ function CardsStep({
         </div>
         {pointsOnHand > 0 && (
           <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs text-text-tertiary">
-            <span className="text-text-secondary tabular-nums">{pointsOnHand.toLocaleString("en-US")}</span>
+            <span className="text-text-secondary tabular-nums">
+              {pointsOnHand.toLocaleString("en-US")}
+            </span>
             pts on hand
           </div>
         )}
@@ -331,7 +331,10 @@ function CardsStep({
         {/* vertical wallet stack — every card's header stays visible */}
         <div className="relative my-5 flex-1 overflow-y-auto pr-1">
           {hasCards ? (
-            <div className="relative mx-auto w-[280px]" style={{ height: 174 + (wallet.length - 1) * 64 }}>
+            <div
+              className="relative mx-auto w-[280px]"
+              style={{ height: 174 + (wallet.length - 1) * 64 }}
+            >
               {wallet.map((w, i) => (
                 <div
                   key={w.id}
@@ -344,14 +347,22 @@ function CardsStep({
                     animation: "gp-card-in 0.45s var(--spring-snappy, ease) both",
                   }}
                 >
-                  <span className="absolute left-0 top-0 h-full w-1.5" style={{ background: w.accent }} />
+                  <span
+                    className="absolute left-0 top-0 h-full w-1.5"
+                    style={{ background: w.accent }}
+                  />
                   <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                   <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-white/50">
                     {w.bank}
                   </div>
-                  <div className="mt-1.5 truncate pr-2 text-lg font-semibold text-white/95">{w.name}</div>
+                  <div className="mt-1.5 truncate pr-2 text-lg font-semibold text-white/95">
+                    {w.name}
+                  </div>
                   <div className="absolute bottom-4 left-5 h-6 w-9 rounded-md bg-gradient-to-br from-white/40 to-white/15" />
-                  <div className="absolute bottom-4 right-5 font-mono text-sm font-semibold" style={{ color: w.accent }}>
+                  <div
+                    className="absolute bottom-4 right-5 font-mono text-sm font-semibold"
+                    style={{ color: w.accent }}
+                  >
                     {w.rate}
                   </div>
                 </div>
@@ -376,7 +387,8 @@ function CardsStep({
             <span
               className="pointer-events-none absolute inset-0"
               style={{
-                background: "linear-gradient(110deg, transparent 35%, var(--color-accent-muted) 50%, transparent 65%)",
+                background:
+                  "linear-gradient(110deg, transparent 35%, var(--color-accent-muted) 50%, transparent 65%)",
                 backgroundSize: "220% 100%",
                 animation: "gp-shimmer 3.6s linear infinite",
                 opacity: 0.7,
@@ -429,7 +441,10 @@ function AskStep({
   const ready = query.trim().length > 0;
   return (
     <div className="absolute inset-0 z-[2] flex flex-col items-center justify-center px-14 pb-10 pt-10">
-      <div className="w-full max-w-[700px]" style={{ animation: "gp-step-in 0.5s var(--spring-snappy, ease) both" }}>
+      <div
+        className="w-full max-w-[700px]"
+        style={{ animation: "gp-step-in 0.5s var(--spring-snappy, ease) both" }}
+      >
         <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
           step 02 · set the goal
         </div>
@@ -439,9 +454,9 @@ function AskStep({
           your points to do?
         </h1>
         <p className="mb-7 mt-3.5 max-w-[480px] text-sm leading-relaxed text-text-secondary">
-          describe the trip or goal in a sentence — the agents turn it into a
-          typed plan across your{" "}
-          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}.
+          describe the trip or goal in a sentence — the agents turn it into a typed plan across your{" "}
+          <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}
+          .
         </p>
 
         <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
@@ -463,7 +478,10 @@ function AskStep({
             disabled={!ready}
             className="group h-12 flex-none self-end whitespace-nowrap rounded-xl bg-neutral-900 px-5 text-base font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
           >
-            plan it <span className="inline-block transition-transform duration-base group-hover:translate-x-0.5">→</span>
+            plan it{" "}
+            <span className="inline-block transition-transform duration-base group-hover:translate-x-0.5">
+              →
+            </span>
           </button>
         </div>
 
@@ -500,4 +518,3 @@ function AskStep({
     </div>
   );
 }
-

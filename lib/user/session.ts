@@ -42,10 +42,7 @@ export async function resolveSessionGraph(): Promise<SessionResolution> {
     console.error("resolveSessionGraph failed", err);
     return {
       ok: false,
-      response: NextResponse.json(
-        { error: "Could not load your account." },
-        { status: 500 },
-      ),
+      response: NextResponse.json({ error: "Could not load your account." }, { status: 500 }),
     };
   }
 }

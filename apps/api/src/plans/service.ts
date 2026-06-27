@@ -36,8 +36,5 @@ export interface PlanService {
   createPlan(userId: string, query: string): Promise<PlanView>;
   getPlanById(userId: string, planId: string): Promise<PlanView | null>;
   getCurrentPlan(userId: string, lineageId: string): Promise<PlanView | null>;
-  transferBalance(
-    userId: string,
-    input: BalanceTransferInput,
-  ): Promise<BalanceTransferResult>;
+  transferBalance(userId: string, input: BalanceTransferInput): Promise<BalanceTransferResult>;
 }

@@ -47,7 +47,11 @@ export default function CardTile({
 
   return (
     <div
-      style={{ opacity: 0, animation: "gp-card-in 0.5s var(--spring-snappy, ease) forwards", animationDelay: `${index * 55}ms` }}
+      style={{
+        opacity: 0,
+        animation: "gp-card-in 0.5s var(--spring-snappy, ease) forwards",
+        animationDelay: `${index * 55}ms`,
+      }}
     >
       <button
         ref={ref}
@@ -60,7 +64,9 @@ export default function CardTile({
         style={{
           background: card.face,
           transform,
-          transition: tilt.active ? "transform 120ms ease-out" : "transform 0.5s var(--spring-snappy, ease), box-shadow 0.28s ease",
+          transition: tilt.active
+            ? "transform 120ms ease-out"
+            : "transform 0.5s var(--spring-snappy, ease), box-shadow 0.28s ease",
           transformStyle: "preserve-3d",
           boxShadow: selected
             ? `0 0 0 2px ${card.accent}, 0 22px 48px -12px ${card.accent}77, var(--shadow-md)`
@@ -101,7 +107,10 @@ export default function CardTile({
               }}
             >
               {selected && (
-                <span className="text-[13px] leading-none text-white" style={{ animation: "gp-check 0.4s var(--spring-snappy, ease) both" }}>
+                <span
+                  className="text-[13px] leading-none text-white"
+                  style={{ animation: "gp-check 0.4s var(--spring-snappy, ease) both" }}
+                >
                   ✓
                 </span>
               )}
@@ -122,7 +131,10 @@ export default function CardTile({
               ) : (
                 <div className="font-mono text-[10px] text-white/40">no annual fee</div>
               )}
-              <div className="font-mono text-sm font-semibold tracking-tight" style={{ color: card.accent }}>
+              <div
+                className="font-mono text-sm font-semibold tracking-tight"
+                style={{ color: card.accent }}
+              >
                 {card.rate}
               </div>
             </div>

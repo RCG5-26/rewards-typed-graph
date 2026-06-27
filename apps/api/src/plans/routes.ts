@@ -32,17 +32,16 @@ export function createPlanRoutes(service: PlanService) {
   app.post("/plans", async (c) => {
     const userId = getAuthenticatedUserId(c);
     const query = parseQuery(await readJsonBody(c.req.raw));
-    return runService(() => service.createPlan(userId, query), (plan) =>
-      c.json(plan),
+    return runService(
+      () => service.createPlan(userId, query),
+      (plan) => c.json(plan),
     );
   });
 
   app.get("/plans/current", async (c) => {
     const userId = getAuthenticatedUserId(c);
     const lineageId = parseRequiredId(c.req.query("lineageId"), "lineageId");
-    const plan = await callService(() =>
-      service.getCurrentPlan(userId, lineageId),
-    );
+    const plan = await callService(() => service.getCurrentPlan(userId, lineageId));
     if (!plan) {
       throw new HTTPException(404, { message: "no current plan for lineage" });
     }
@@ -51,9 +50,7 @@ export function createPlanRoutes(service: PlanService) {
 
   app.get("/plans/:planId", async (c) => {
     const userId = getAuthenticatedUserId(c);
-    const plan = await callService(() =>
-      service.getPlanById(userId, c.req.param("planId")),
-    );
+    const plan = await callService(() => service.getPlanById(userId, c.req.param("planId")));
     if (!plan) {
       throw new HTTPException(404, { message: "plan not found" });
     }
@@ -141,10 +138,7 @@ function parseTransferInput(body: unknown): BalanceTransferInput {
 
   let idempotencyKey: string | undefined;
   if (record.idempotencyKey !== undefined) {
-    if (
-      typeof record.idempotencyKey !== "string" ||
-      record.idempotencyKey.trim().length === 0
-    ) {
+    if (typeof record.idempotencyKey !== "string" || record.idempotencyKey.trim().length === 0) {
       throw new HTTPException(400, {
         message: "idempotencyKey must be a non-empty string when provided",
       });

@@ -13,11 +13,11 @@ Each person owns **one file** here. This is the daily source of truth for Yester
 
 ## Where things live
 
-| Artifact | Who updates | Cadence | Purpose |
-|---|---|---|---|
-| **Linear** (RCG tickets) | Each person | Daily | Live task board — Yesterday / Today / Blocked |
-| **`tracking/<lane>.md`** | Each person | Daily | Repo copy of lane status; tiny PRs merge fast |
-| **`STATUS.md`** | Raq (lead) | Before standup / gates | Weekly snapshot — standup grid, gates, blockers |
-| **`context/progress-tracker.md`** | Raq (lead) | When a spec or PR lands | Milestone narrative for agents and integration |
+| Artifact                          | Who updates | Cadence                 | Purpose                                         |
+| --------------------------------- | ----------- | ----------------------- | ----------------------------------------------- |
+| **Linear** (RCG tickets)          | Each person | Daily                   | Live task board — Yesterday / Today / Blocked   |
+| **`tracking/<lane>.md`**          | Each person | Daily                   | Repo copy of lane status; tiny PRs merge fast   |
+| **`STATUS.md`**                   | Raq (lead)  | Before standup / gates  | Weekly snapshot — standup grid, gates, blockers |
+| **`context/progress-tracker.md`** | Raq (lead)  | When a spec or PR lands | Milestone narrative for agents and integration  |
 
 See [`AGENTS.md`](../AGENTS.md) § Team status & visibility.

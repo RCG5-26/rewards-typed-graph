@@ -38,10 +38,7 @@ interface CreateTestAppOptions {
   injectUserId?: boolean;
 }
 
-function createTestApp(
-  rows: GraphMutationRow[] = [eventRow],
-  options: CreateTestAppOptions = {},
-) {
+function createTestApp(rows: GraphMutationRow[] = [eventRow], options: CreateTestAppOptions = {}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const client = {
     async query(sql: string, params: unknown[]) {
@@ -84,10 +81,7 @@ describe("mutation routes", () => {
 
     expect(Array.isArray(events)).toBe(true);
     for (const event of events) {
-      expect(
-        validateMutationEvent(event),
-        JSON.stringify(validateMutationEvent.errors),
-      ).toBe(true);
+      expect(validateMutationEvent(event), JSON.stringify(validateMutationEvent.errors)).toBe(true);
     }
     expect(events).toEqual([
       expect.objectContaining({
@@ -98,11 +92,7 @@ describe("mutation routes", () => {
     for (const event of events) {
       expect(validate(event), JSON.stringify(validate.errors)).toBe(true);
     }
-    expect(calls[0]?.params).toEqual([
-      "00000000-0000-0000-0000-000000000002",
-      123,
-      100,
-    ]);
+    expect(calls[0]?.params).toEqual(["00000000-0000-0000-0000-000000000002", 123, 100]);
   });
 
   it("rejects REST mutation replay when no user is present", async () => {
@@ -119,9 +109,7 @@ describe("mutation routes", () => {
     async (after) => {
       const { app, calls } = createTestApp();
 
-      const response = await app.request(
-        `/mutations?after=${encodeURIComponent(after)}`,
-      );
+      const response = await app.request(`/mutations?after=${encodeURIComponent(after)}`);
 
       expect(response.status).toBe(400);
       expect(calls).toHaveLength(0);
@@ -153,15 +141,8 @@ describe("mutation routes", () => {
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     const frames = parseSseFrames(await response.text());
     expect(frames.map((frame) => frame.id)).toEqual(["124", "125"]);
-    expect(frames.map((frame) => frame.event)).toEqual([
-      "graph_mutation",
-      "graph_mutation",
-    ]);
-    expect(calls[0]?.params).toEqual([
-      "00000000-0000-0000-0000-000000000002",
-      123,
-      100,
-    ]);
+    expect(frames.map((frame) => frame.event)).toEqual(["graph_mutation", "graph_mutation"]);
+    expect(calls[0]?.params).toEqual(["00000000-0000-0000-0000-000000000002", 123, 100]);
   });
 
   it("rejects SSE mutation streams when no user is present", async () => {
@@ -190,10 +171,9 @@ describe("mutation routes", () => {
 
     expect(response.status).toBe(200);
     expect(frame?.event).toBe("graph_mutation");
-    expect(
-      validateMutationEvent(frame?.data),
-      JSON.stringify(validateMutationEvent.errors),
-    ).toBe(true);
+    expect(validateMutationEvent(frame?.data), JSON.stringify(validateMutationEvent.errors)).toBe(
+      true,
+    );
   });
 
   it.each(["abc", "Infinity", "1.5", String(Number.MAX_SAFE_INTEGER + 1)])(
@@ -275,9 +255,7 @@ function parseSseFrames(text: string) {
     .map((frame) => {
       const lines = frame.split("\n");
       const id = lines.find((line) => line.startsWith("id: "))?.slice(4);
-      const event = lines
-        .find((line) => line.startsWith("event: "))
-        ?.slice(7);
+      const event = lines.find((line) => line.startsWith("event: "))?.slice(7);
       const dataLine = lines.find((line) => line.startsWith("data: "));
       if (!id || !event || !dataLine) {
         throw new Error(`invalid SSE frame: ${frame}`);

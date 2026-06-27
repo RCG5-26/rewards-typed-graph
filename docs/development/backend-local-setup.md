@@ -185,7 +185,7 @@ happens in the browser. Relevant FE code:
 - **Flight path** ([`lib/plan/graph-traversal.ts`](../../lib/plan/graph-traversal.ts)) —
   `buildTraversalChain` walks active edges into a single linear main path. It is
   **first-edge-wins**, so when a program hub has several outgoing redeem edges the
-  *first* (the recommended/winner award, emitted before backups) lands on the path.
+  _first_ (the recommended/winner award, emitted before backups) lands on the path.
 - **Branches** — `buildBranches` returns the remaining off-path nodes (e.g. backup
   redemptions) hanging off their main-path parent; the canvas draws them as dimmer
   secondary beads on a dashed spur. A fully disconnected component (parent not on
