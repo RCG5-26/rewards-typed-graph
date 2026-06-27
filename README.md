@@ -34,6 +34,12 @@ docker compose up -d postgres          # or: ./scripts/dev-db-setup.sh (starts +
 ./scripts/dev-db-setup.sh              # reset schema, apply DDL, load demo persona
 ```
 
+For a non-destructive repair of an empty or already-initialized database, run:
+
+```bash
+python scripts/ensure_schema_seed.py --include-demo-persona
+```
+
 Verify the demo persona loaded:
 
 ```bash

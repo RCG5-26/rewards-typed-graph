@@ -73,7 +73,7 @@ npm --prefix apps/api install
 cp .env.example .env
 bash scripts/dev-db-setup.sh
 #   → docker compose up -d postgres; waits for ready; resets public schema;
-#     applies schema/schema.sql; loads fixtures/demo-seed.json --include-demo-persona
+#     runs scripts/ensure_schema_seed.py --include-demo-persona
 
 # verify the persona loaded
 source .env && psql "$DATABASE_URL" -c "SELECT count(*) FROM user_balances;"   # → 3
@@ -101,6 +101,12 @@ npm run dev                                                     # web on :3000
 ```
 
 Re-run `bash scripts/dev-db-setup.sh` only when you want a clean schema + seed.
+If the schema already exists and you only need to repair missing seed rows, run
+the non-destructive bootstrap directly:
+
+```bash
+python scripts/ensure_schema_seed.py --include-demo-persona
+```
 
 ---
 
@@ -233,6 +239,7 @@ bash scripts/dev-db-setup.sh
 | API exits: `missing required environment variable: DATABASE_URL`        | `.env` not sourced into the API process                   | `source .env` (or export vars) before `npm --prefix apps/api run dev`.                                               |
 | `psql` / setup: connection refused                                      | Postgres container not up                                 | `docker compose up -d postgres`; wait for healthcheck (`docker compose ps`).                                         |
 | Setup refuses: "must be a dedicated test DB" / "host must be localhost" | `DATABASE_URL` points at a non-local or non-`*_test` DB   | Use the local `rewards_test` URL; the reset guard only runs on localhost test DBs.                                   |
+| Database exists but seed rows are missing                               | Schema is present but the seed loader was never run       | Run `python scripts/ensure_schema_seed.py --include-demo-persona`; it repairs seed rows without dropping local data. |
 | `relation "..." does not exist`                                         | Schema not applied                                        | `bash scripts/dev-db-setup.sh` (applies `schema/schema.sql`).                                                        |
 | `GET /session` → 404 / empty                                            | Seed/persona not loaded                                   | Re-run `scripts/dev-db-setup.sh` (loads `--include-demo-persona`); confirm `user_balances` count is 3.               |
 | API returns `401`                                                       | No/invalid Clerk token and no dev bypass                  | Provide `Authorization: Bearer <getToken()>`, or set `AUTH_DEV_USER_ID` locally (dev only).                          |
