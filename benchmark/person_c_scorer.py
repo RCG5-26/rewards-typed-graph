@@ -31,10 +31,12 @@ EVALUATOR_VERSION = "person-c-offline-scorer-v1"
 def run_benchmark(
     fixture_path: str | Path = DEFAULT_FIXTURE_PATH,
     cases_path: str | Path = DEFAULT_CASES_PATH,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     fixture = load_fixture(fixture_path)
     benchmark = load_fixture(cases_path)
-    case_results = [_score_case(fixture, case) for case in benchmark["cases"]]
+    cases = benchmark["cases"][:limit] if limit is not None else benchmark["cases"]
+    case_results = [_score_case(fixture, case) for case in cases]
 
     return {
         "benchmark_id": benchmark["benchmark_id"],
@@ -230,10 +232,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Score the Person C seeded benchmark.")
     parser.add_argument("--fixture", default=str(DEFAULT_FIXTURE_PATH))
     parser.add_argument("--cases", default=str(DEFAULT_CASES_PATH))
+    parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--pretty", action="store_true")
     args = parser.parse_args()
 
-    report = run_benchmark(args.fixture, args.cases)
+    report = run_benchmark(args.fixture, args.cases, limit=args.limit)
     indent = 2 if args.pretty else None
     print(json.dumps(report, indent=indent, sort_keys=True))
     return 0 if report_passed(report) else 1

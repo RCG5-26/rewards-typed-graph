@@ -37,6 +37,11 @@ python -m benchmark.person_c_scorer --pretty
 ```
 
 - Compare the fixture-backed planner with the single-agent and free-text multi-agent benchmark baselines.
+- Produce one benchmark folder with the typed-graph, single-agent, free-text multi-agent, and comparison reports when live LLM keys are configured:
+
+```bash
+OPENAI_API_KEY=... python -m benchmark.run_architecture_benchmark
+```
 
 The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision. Its benchmark now includes 30 seeded questions across earning, redemption, and portfolio scenarios, with explicit hallucination and invalidation metric breakdowns.
 
@@ -61,3 +66,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Added explicit benchmark metric breakdowns for hallucination cases and invalidation wins by kind.
 - The plan API now includes typed graph details, so signed-in users see the traversal view even though their personal demo data uses cloned IDs.
 - Added free-text multi-agent baseline reporting and a comparison report across typed-graph, single-agent, and free-text benchmark architectures.
+- Added a one-command benchmark runner that writes all three architecture reports plus the comparison report into a local run folder.

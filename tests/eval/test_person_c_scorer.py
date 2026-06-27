@@ -173,6 +173,19 @@ class PersonCScorerTests(unittest.TestCase):
     def test_invalidation_kind_optional_on_non_mutation_cases(self) -> None:
         self.assertIsNone(invalidation_kind_for_case({"case_id": "plain"}))
 
+    def test_limit_runs_a_smaller_smoke_report(self) -> None:
+        report = run_benchmark(limit=2)
+
+        self.assertEqual(report["case_count"], 2)
+        self.assertEqual(
+            [case["case_id"] for case in report["cases"]],
+            [
+                "mvp_001_initial_best_value",
+                "mvp_002_affordability_filter_35k",
+            ],
+        )
+        self.assertEqual(report["metrics"]["accuracy_total"], 2)
+
     def test_cli_emits_json_report(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-m", "benchmark.person_c_scorer"],
@@ -185,6 +198,18 @@ class PersonCScorerTests(unittest.TestCase):
 
         self.assertTrue(report_passed(report))
         self.assertEqual(report["benchmark_id"], "person-c-mvp-redemption-v1")
+
+    def test_cli_limit_emits_smaller_json_report(self) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-m", "benchmark.person_c_scorer", "--limit", "2"],
+            check=True,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
+        report = json.loads(completed.stdout)
+
+        self.assertEqual(report["case_count"], 2)
 
 
 if __name__ == "__main__":
