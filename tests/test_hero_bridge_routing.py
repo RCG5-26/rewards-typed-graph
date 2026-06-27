@@ -56,6 +56,15 @@ class DoCreatePlanRoutingTest(unittest.TestCase):
         transfer.assert_called_once()
         direct.assert_not_called()
 
+    def test_routes_to_direct_planner_when_hyatt_is_one_of_several_cards(self):
+        # Membership-based routing: the Hyatt card alongside others still wins.
+        _, transfer, direct = self._run(
+            ["card:chase_sapphire_preferred", "card:world_of_hyatt"]
+        )
+
+        direct.assert_called_once()
+        transfer.assert_not_called()
+
     def test_routes_to_transfer_planner_when_card_slugs_is_none(self):
         _, transfer, direct = self._run(None)
 

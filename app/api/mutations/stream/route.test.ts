@@ -22,15 +22,22 @@ function makeRequest(search = ""): Request {
 }
 
 const fetchMock = vi.fn();
+let prevApiBase: string | undefined;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  prevApiBase = process.env.API_BASE_URL;
   process.env.API_BASE_URL = "http://api.test";
   vi.stubGlobal("fetch", fetchMock);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  if (prevApiBase === undefined) {
+    delete process.env.API_BASE_URL;
+  } else {
+    process.env.API_BASE_URL = prevApiBase;
+  }
 });
 
 describe("GET /api/mutations/stream", () => {
@@ -44,23 +51,26 @@ describe("GET /api/mutations/stream", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("injects the Bearer token, forwards ?after as Last-Event-ID, and passes the stream through", async () => {
+  it("injects the Bearer token, forwards ?after as Last-Event-ID, and passes the stream through intact", async () => {
     const { auth } = await import("@clerk/nextjs/server");
     vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
-    fetchMock.mockResolvedValue(
-      new Response("event: graph_mutation\ndata: {}\n\n", { status: 200 }),
-    );
+    const upstreamBody = "id: 43\nevent: graph_mutation\ndata: {\"event_id\":\"43\"}\n\n";
+    fetchMock.mockResolvedValue(new Response(upstreamBody, { status: 200 }));
 
     const response = await GET(makeRequest("?after=42"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("text/event-stream; charset=utf-8");
+    expect(response.headers.get("Cache-Control")).toBe("no-cache, no-transform");
+    // the upstream SSE bytes are forwarded to the client unchanged
+    expect(await response.text()).toBe(upstreamBody);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://api.test/mutations/stream");
     const headers = init.headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer test-token");
     expect(headers["Last-Event-ID"]).toBe("42");
+    expect(headers.Accept).toBe("text/event-stream");
   });
 
   it("defaults the cursor to 0 when ?after is absent", async () => {

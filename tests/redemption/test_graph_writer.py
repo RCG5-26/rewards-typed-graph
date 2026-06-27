@@ -1,9 +1,12 @@
 import unittest
 
+from agents.redemption.planner import load_fixture, plan_direct_redemption
+from plan_flows.hero_flow import HYATT_DIRECT_FIXTURE_PATH
 from plan_flows.redemption_graph_writer import write_redemption_steps
 
 
 HERO_QUERY = "What is the best Hyatt redemption for a 3-night Tokyo trip?"
+HYATT_QUERY = "Book a 3-night Tokyo Hyatt stay with my Hyatt points."
 
 
 class FakeCursor:
@@ -125,6 +128,50 @@ class RedemptionGraphWriterTests(unittest.TestCase):
         self.assertEqual(result.plan_draft["chosen_award_slug"], "award:demo_hyatt_shinjuku:tokyo:3n")
         self.assertTrue(all(request.status == "proposed" for request in service.step_requests))
         self.assertEqual(service.dependency_requests[0].observed_version, 2)
+
+    def test_planner_fn_override_writes_direct_single_step_no_transfer(self):
+        # World of Hyatt direct path: the override planner must drive the writer,
+        # producing one redemption step (no transfer) against the Hyatt balance.
+        connection = FakeConnection(
+            (
+                "00000000-0000-0000-0000-00000000d002",
+                "program:hyatt",
+                35000,
+                1,
+            )
+        )
+        service = FakeGraphWriteService()
+
+        result = write_redemption_steps(
+            connection,
+            user_id="00000000-0000-0000-0000-00000000a001",
+            plan_id="00000000-0000-0000-0000-00000000e003",
+            query_text=HYATT_QUERY,
+            plan_lineage_id="00000000-0000-0000-0000-00000000e000",
+            revision_number=1,
+            source_program_slug="program:hyatt",
+            fixture=load_fixture(HYATT_DIRECT_FIXTURE_PATH),
+            planner_fn=plan_direct_redemption,
+            graph_write_service=service,
+        )
+
+        # Single redemption step, no transfer step — proves the override took effect.
+        self.assertEqual(result.step_count, 1)
+        self.assertEqual(service.step_requests[0].step_type, "redemption_recommendation")
+        self.assertNotIn(
+            "transfer_recommendation",
+            [request.step_type for request in service.step_requests],
+        )
+        self.assertEqual(result.plan_draft["chosen_award_slug"], "award:demo_hyatt_shinjuku:tokyo:3n")
+        self.assertEqual(
+            service.step_requests[0].payload["action"],
+            "Book Demo Hyatt Shinjuku for 30,000 Hyatt points.",
+        )
+        # Dependency still observes the real Hyatt balance row.
+        self.assertEqual(service.dependency_requests[0].observed_version, 1)
+        self.assertEqual(
+            service.dependency_requests[0].snapshot_value["program_slug"], "program:hyatt"
+        )
 
 
 if __name__ == "__main__":
