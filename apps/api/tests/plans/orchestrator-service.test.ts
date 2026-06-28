@@ -59,6 +59,7 @@ const applyOutcome: ReplanApplyOutcome = {
   planLineageId: samplePlan.planLineageId,
   staledPlanId: samplePlan.planId,
   replanJobId: "33333333-3333-3333-3333-333333333333",
+  idempotencyReplayed: false,
   priorQueryText: samplePlan.query,
   priorRevisionNumber: 1,
 };
@@ -310,6 +311,84 @@ describe("OrchestratorPlanService.transferBalance (Phase 8 — orchestrator re-e
     );
     // Promotion already happened before projection; the missing view is a 500.
     expect(promote).toHaveBeenCalledOnce();
+  });
+});
+
+describe("OrchestratorPlanService.transferBalance — idempotency replay (unit)", () => {
+  const input = { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 15000 };
+
+  const replayOutcome: ReplanApplyOutcome = {
+    planLineageId: samplePlan.planLineageId,
+    staledPlanId: samplePlan.planId,
+    replanJobId: null,
+    idempotencyReplayed: true,
+    priorQueryText: samplePlan.query,
+    priorRevisionNumber: 1,
+  };
+
+  it("returns the existing current plan on idempotency replay (no revision, no promotion)", async () => {
+    const runRevision = vi.fn();
+    const promote = vi.fn();
+    const fail = vi.fn();
+    const getCurrentPlan = vi.fn(async () => rev2Plan);
+    const { service, replan } = buildService({
+      runner: { runRevision },
+      replan: {
+        applyTransfer: vi.fn(async () => replayOutcome),
+        promote,
+        fail,
+      },
+      readDelegate: { getCurrentPlan },
+    });
+
+    const result = await service.transferBalance(USER_ID, input);
+
+    // applyTransfer was called once.
+    expect(replan.applyTransfer).toHaveBeenCalledOnce();
+    // No revision created — orchestrator not re-entered.
+    expect(runRevision).not.toHaveBeenCalled();
+    // No promotion — nothing to promote.
+    expect(promote).not.toHaveBeenCalled();
+    // No failure path — this is a clean short-circuit.
+    expect(fail).not.toHaveBeenCalled();
+    // Existing current plan fetched from the read delegate.
+    expect(getCurrentPlan).toHaveBeenCalledWith(USER_ID, replayOutcome.planLineageId);
+    // Result carries the existing plan.
+    expect(result.currentPlan).toEqual(rev2Plan);
+    // replanJobId is null (no new job was created).
+    expect(result.replanJobId).toBeNull();
+  });
+
+  it("throws OrchestratorPlanError on replay when no current plan exists in the lineage", async () => {
+    const { service } = buildService({
+      replan: { applyTransfer: vi.fn(async () => replayOutcome) },
+      readDelegate: { getCurrentPlan: vi.fn(async () => null) },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+  });
+});
+
+describe("OrchestratorPlanService — failed revision leaves no steps promoted (unit)", () => {
+  const input = { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 15000 };
+
+  it("a failed revision leaves no steps promoted (no current steps can exist)", async () => {
+    // The only path to step promotion is replan.promote → SQL promote_replan_job_success.
+    // A failed revision must never reach promote.
+    const failedRevision: RevisionResult = { ...revisionResult, status: "failed" };
+    const promote = vi.fn(async () => undefined);
+    const { service } = buildService({
+      runner: { runRevision: vi.fn(async () => failedRevision) },
+      replan: { promote },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+    // promote was never called — no steps can be current.
+    expect(promote).not.toHaveBeenCalled();
   });
 });
 
@@ -815,6 +894,146 @@ async function runReplanCycle(pool: Pool, service: PlanService): Promise<ReplanC
       );
       // eslint-disable-next-line no-console
       console.log("PHASE 8b RESET REPEATABILITY: PASS");
+    });
+  },
+  LIVE_ORCHESTRATOR_TIMEOUT_MS * 2,
+);
+
+// ──────────────────────────────────────────────
+// Phase 8c — duplicate transfer replay (live PostgreSQL)
+// Submits the same balance-transfer twice (without a reset between).
+// The second call must:
+//   - return HTTP 200 (no throw)
+//   - return the SAME rev2 that the first transfer produced (revisionNumber=2)
+//   - not create a revision 3
+//   - not create a second replan job
+//   - leave balances at 165k/45k (unchanged by the replay)
+//   - maintain exactly one current plan
+// ──────────────────────────────────────────────
+
+(LIVE ? describe : describe.skip)(
+  "Phase 8c — duplicate transfer replay (live-PG)",
+  () => {
+    let pool: Pool;
+    let service: PlanService;
+
+    beforeAll(async () => {
+      requireDatabaseUrl();
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      service = composeOrchestratorPlanService({ pool, env: process.env });
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("second identical transfer replays cleanly: same rev2, no rev3, no new job, balances unchanged", async () => {
+      // 0. Deterministic baseline.
+      await service.resetDemo(USER_ID);
+
+      // 1. Revision 1 through the TS orchestrator.
+      const rev1 = await service.createPlan(USER_ID, FROZEN_DEMO_QUERY);
+      expect(rev1.revisionNumber).toBe(1);
+      const lineageId = rev1.planLineageId;
+
+      const transferInput = {
+        sourceProgramId: CHASE_PROGRAM_ID,
+        destProgramId: HYATT_PROGRAM_ID,
+        amountPoints: REQUIRED_TRANSFER_POINTS,
+      };
+
+      // 2. First transfer: rev1 → rev2.
+      const first = await service.transferBalance(USER_ID, transferInput);
+      expect(first.currentPlan.revisionNumber).toBe(2);
+      expect(first.currentPlan.status).toBe("current");
+
+      // Count the state after first transfer.
+      const afterFirst = await readDemoBalances(pool, USER_ID);
+      expect(afterFirst.chase.balance_points).toBe(165000);
+      expect(afterFirst.hyatt.balance_points).toBe(45000);
+
+      const jobsAfterFirst = await pool.query<{ id: string }>(
+        "SELECT id FROM replan_jobs WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(jobsAfterFirst.rows.length).toBe(1);
+      const firstJobId = jobsAfterFirst.rows[0]?.id;
+
+      const agentRunCountAfterFirst = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM agent_runs WHERE plan_id = $1",
+        [first.currentPlan.planId],
+      );
+      const agentRunCountFirst = Number(agentRunCountAfterFirst.rows[0]?.count ?? 0);
+
+      // 3. SAME transfer again (no reset) — must replay idempotently.
+      const second = await service.transferBalance(USER_ID, transferInput);
+
+      // Returns success (no throw) with the same rev2.
+      expect(second.currentPlan).not.toBeNull();
+      expect(second.currentPlan.status).toBe("current");
+      expect(second.currentPlan.revisionNumber).toBe(2);
+      expect(second.currentPlan.planId).toBe(first.currentPlan.planId);
+
+      // replanJobId is null — replay created no new job.
+      expect(second.replanJobId).toBeNull();
+
+      // Balances unchanged.
+      const afterSecond = await readDemoBalances(pool, USER_ID);
+      expect(afterSecond.chase.balance_points).toBe(165000);
+      expect(afterSecond.hyatt.balance_points).toBe(45000);
+
+      // Still only 2 plan revisions in the lineage (rev1 superseded + rev2 current).
+      const planCount = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM plans WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(Number(planCount.rows[0]?.count ?? 0)).toBe(2);
+
+      // Still only 1 replan job (same job id).
+      const jobsAfterSecond = await pool.query<{ id: string }>(
+        "SELECT id FROM replan_jobs WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(jobsAfterSecond.rows.length).toBe(1);
+      expect(jobsAfterSecond.rows[0]?.id).toBe(firstJobId);
+
+      // No additional AgentRuns on rev2.
+      const agentRunCountAfterSecond = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM agent_runs WHERE plan_id = $1",
+        [first.currentPlan.planId],
+      );
+      expect(Number(agentRunCountAfterSecond.rows[0]?.count ?? 0)).toBe(agentRunCountFirst);
+
+      // Exactly one current plan remains.
+      const currentPlans = await pool.query<{ id: string }>(
+        "SELECT id FROM plans WHERE plan_lineage_id = $1 AND status = 'current'",
+        [lineageId],
+      );
+      expect(currentPlans.rows.length).toBe(1);
+      expect(currentPlans.rows[0]?.id).toBe(first.currentPlan.planId);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "PHASE 8c REPLAY EVIDENCE:",
+        JSON.stringify(
+          {
+            lineageId,
+            rev2PlanId: first.currentPlan.planId,
+            firstReplanJobId: firstJobId,
+            secondReplanJobId: second.replanJobId,
+            chaseBalance: afterSecond.chase.balance_points,
+            hyattBalance: afterSecond.hyatt.balance_points,
+            totalRevisions: Number(planCount.rows[0]?.count ?? 0),
+            totalReplanJobs: jobsAfterSecond.rows.length,
+            agentRunsOnRev2: agentRunCountFirst,
+          },
+          null,
+          2,
+        ),
+      );
+      // eslint-disable-next-line no-console
+      console.log("PHASE 8c DUPLICATE TRANSFER REPLAY: PASS");
     });
   },
   LIVE_ORCHESTRATOR_TIMEOUT_MS * 2,
