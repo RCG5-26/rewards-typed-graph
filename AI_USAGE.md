@@ -555,6 +555,86 @@ Setting `API_PORT=8080` binds 8080 with **no code change** — verified locally.
   probe with `--retry-all-errors`. Documented in `docs/deployment/railway.md`.
 - Brief's dual `npm ci` corrected to `apps/api`-only (see Dockerfile decisions).
 
+---
+
+## Option B baseline assembly — 2026-06-27 (PROMPT A)
+
+**Tool:** Claude Sonnet 4.6 via Claude Code CLI  
+**Session:** Option B thesis-verification sprint — baseline assembly  
+**Branch:** `chore/option-b-shared-baseline`
+
+### What was done
+
+- Classified and discarded incorrect root-level `pg`/`@types/pg` additions from
+  `package.json`/`package-lock.json` (wrong layer — `pg` belongs in `apps/api`
+  only, already present at `^8.12.0`).
+- Committed `PlanProjectionPort` interface to `apps/api/src/orchestrator/contracts.ts`
+  (Contract 7 — persisted Plan → PlanView). Encodes the seam in-repo so both
+  implementation branches can import it without accessing `_bmad-output/`.
+- Assembled `chore/option-b-shared-baseline` from `origin/main @ 3ed4eeb`
+  (post-PR #47 + PR #50 merge).
+- Copied and normalised three planning artifacts to `docs/plans/option-b/`:
+  `adr-0010-orchestrator-canonical-runtime-DRAFT.md`, `orchestrator-thesis-contracts.md`,
+  `architecture-option-b.md` (as-built vs target, post-PR #47 collision map,
+  branch topology, validation matrix, no-go conditions).
+- Verified PR #50 (`fix/backend-seed-data-flow`) MERGED 2026-06-27T20:17:11Z — all
+  gates green; `scripts/ensure_schema_seed.py` and schema assertions live on main.
+- Reviewed PR #47 (`val/graph-fe`); posted CHANGES_REQUESTED with one pre-merge
+  requirement (regression test for `_cash_fallback_plan` wording); Val addressed it
+  and PR merged.
+- Recalculated post-PR #47 collision map: zero single-file collisions remain.
+  `server.ts` touched by PR #47 (formatting-only) and Prompt C (PLAN_ENGINE) — no
+  conflict.
+
+### Important decisions
+
+- `PlanProjectionPort` delegates to Python `project_plan` via `hero_bridge.py` read
+  subcommand. Reusing projection only — NOT invoking legacy plan-generation workflow.
+- Wallet + Redemption confirmed as the two thesis specialists via
+  `agents/ownership.ts`: `redemption_agent` is the sole owner of
+  `RecordStateDependency` (the structural staleness mechanism).
+- Demo fixture pinned: user `a001` (clerk_hero_demo), Chase UR 180k, Hyatt 30k,
+  transfer 30k Chase → Hyatt, Ginza threshold 45k, rev 2 drops transfer step.
+- `.coderabbit.yaml` `auto_pause_after_reviewed_commits: 100` committed separately
+  on `chore/coderabbit-disable-autopause` (PR #51) — kept out of Option B baseline.
+
+### Validation commands run
+
+| Command | Result |
+|---|---|
+| `npm --prefix apps/api run typecheck` | ✓ exit 0 |
+| `npm --prefix apps/api test` | ✓ 89 passed |
+| `npm test` (web Vitest) | ✓ 154 passed |
+| `python3 -m unittest discover -v` | ✓ 168 passed, 10 skipped |
+| `npm run typecheck` (web) | ⚠ 2 pre-existing unused @ts-expect-error (local pg env artifact; CI green) |
+| `npm run build` (web) | ⚠ fails locally (same pg artifact); CI web-build ✓ |
+| Secret scan on docs/plans/option-b/ | ✓ no real secrets |
+
+### Mistakes / findings caught
+
+- `auto_pause_after_reviewed_commits: false` rejected by CodeRabbit schema (requires
+  integer). Corrected to `100` as effective no-pause threshold.
+- `git stash` applied against wrong branch context during typecheck isolation,
+  producing merge conflicts in 12 tracked files. Resolved with targeted
+  `git checkout HEAD -- <files>` per-file (not `git checkout -- .`).
+- Root `package.json` had `pg@^8.22.0` and `@types/pg@^8.20.0` added in a prior
+  session — wrong layer (root = Next.js, no direct Postgres access). Discarded
+  before baseline assembly.
+- Web typecheck errors (`lib/cards/repository.ts:144`, `lib/user/repository.ts:153`)
+  are pre-existing on main, not introduced by baseline. CI web-build green.
+
+### Deferred / blocked
+
+- ADR 0010 ratification (copy to `docs/adr/0010-*.md` + decisions-log row) — requires
+  lead sign-off after cutover gates pass.
+- `docs/plans/2026-06-25-002-feat-frontend-live-api-wiring-plan.md` — kept out of
+  baseline; plan covers completed work (now merged in PR #47).
+- Live PostgreSQL integration test (`test_hero_moment`) not re-run in this session
+  (requires `RUN_LIVE_POSTGRES_TESTS=1`); last known result: 2 passed (hero gate session).
+- PR #51 (`chore/coderabbit-disable-autopause`) pending CI + human approval.
+
+---
+
 ### Railway config (documented, not yet executed)
 
 `docs/deployment/railway.md` records: API service from root Dockerfile, target
@@ -589,3 +669,289 @@ user-owned external resources:
 No secrets recorded. No `.env` read for values; `.env.example` holds placeholders
 only; `DATABASE_URL`/tokens never logged. Local verification used the throwaway
 `rewards:rewards@…/rewards_test` compose credentials only.
+
+---
+
+## Entry 011 — Option B Prompt C: integration lane to C1 stop gate (2026-06-27)
+
+**Task:** PROMPT C — mount the Option B TypeScript orchestrator runtime
+(integration lane). Phases 1–4 + C1 stop gate (Prompt B adapters not yet ready).
+**Branch:** `feat/orchestrator-thesis-integration` (from baseline
+`904e5796d2aba3736f3d731f3a9afcca13a57f93`)
+**Files added:** `apps/api/src/plans/engine-selector.ts` (M5),
+`apps/api/src/plans/orchestrator-service.ts` (M6),
+`apps/api/src/plans/orchestrator-composition.ts` (Phase 4 root),
+`apps/api/tests/plans/{engine-selector,orchestrator-service,orchestrator-composition,bridge-service}.test.ts`,
+`apps/api/tests/helpers/fake-bridge.mjs`,
+`docs/plans/option-b/c1-integration-audit.md`.
+**Files modified:** `apps/api/src/server.ts` (boot-time engine selection +
+`/health` engine field), `.env.example` (required `PLAN_ENGINE`).
+**Production code changed:** Yes (engine selection + orchestrator service shell;
+orchestrator mode fails fast until Prompt B adapters land — no fabrication).
+
+### Tools used
+
+- Cursor agent (Claude Opus 4.8) via the `ce-work` skill.
+- `Read`/`Grep`/`Glob` — traced the live runtime (server.ts, plans/*, orchestrator/*,
+  agents/*) and the frozen Option B contracts.
+- `git worktree` — isolated typecheck/coverage verification and isolated doc commits
+  (the shared checkout was being mutated by a concurrent Prompt B agent).
+
+### Important decisions
+
+- **Default-engine policy (prompt vs frozen contract).** Prompt C Phase 2 reads
+  "python-legacy remains the operational default," but ADR 0010 §3 + the contracts
+  no-go list mandate fail-fast on unset `PLAN_ENGINE` ("unset not failing fast" is
+  thesis-invalidating). Per AGENTS.md (locked docs win), implemented **fail-fast on
+  unset/invalid**; `python-legacy` is the recommended explicit value + rollback
+  target. `.env.example` + Railway notes updated so existing boots set it explicitly.
+- **No fabrication at C1.** Orchestrator mode wires through a composition root that
+  throws `AdaptersNotIntegratedError` (listing the exact expected Prompt B handoff)
+  rather than instantiating any in-memory double in production.
+- **M6 decoupled.** `OrchestratorPlanService` receives an injected orchestrator
+  runner + `PlanProjectionPort` + read delegate, so it is unit-testable now while the
+  real adapters are pending. `createPlan` never falls back to the bridge (ADR 0010 §8).
+- File-layout divergence between the two frozen docs is naming-only (ports identical);
+  resolved to the contracts-doc names. Recorded in the C1 audit, not a port redesign.
+
+### Validation commands (run in an isolated worktree at HEAD, clean of concurrent edits)
+
+- `npm --prefix apps/api run typecheck` → exit 0 (clean).
+- `npm --prefix apps/api run test:coverage` → 128 passed; All files funcs 98.83%,
+  branches 84.48%, lines/stmts 87.9% (all above the API floors 88/76/65). No
+  threshold weakened; no omit/exclude widened.
+
+### Manual review
+
+- Confirmed no new TS `INSERT/UPDATE/DELETE` against domain tables; no production
+  test-double import (a test asserts the composition source imports no fake/stub/
+  fixture); no hidden legacy or fixture fallback in orchestrator mode.
+
+### Mistakes / findings caught
+
+- **Concurrent-agent collision (shared checkout).** A Prompt B agent checked out
+  `feat/orchestrator-production-adapters` in the same working copy immediately after
+  my branch was created, so my 7 commits landed on Prompt B's branch ref. Recovered
+  non-destructively: `git branch -f feat/orchestrator-thesis-integration <my HEAD>`
+  to secure my commits, then `git reset --mixed <baseline>` on the Prompt B branch
+  (working tree preserved) and removed my stray files so Prompt B's lane was left at
+  baseline + its own uncommitted adapter work. No shared/pushed history rewritten.
+- `tsc --noEmit` on the shared (dirty) tree reported one error from Prompt B's
+  in-flight `in-memory-commit.ts` (`ReadSet` type import) — type-only, not mine,
+  not staged; isolated worktree typecheck is clean.
+
+### Deferred / blocked
+
+- **C1 STOP GATE.** Phases 5–10 (adapter integration, live initial-plan + replan
+  proof, browser evidence, cutover) await Prompt B's `PROMPT B READY FOR C2
+  INTEGRATION` handoff. No live PostgreSQL or browser run performed.
+- ADR 0010 ratification, Linear updates, `tracking/`/`STATUS.md` — not in this
+  code-only branch.
+
+### Secrets
+
+No secrets recorded or logged. Boot evidence logs only the engine name +
+no-fallback flag. The bridge env allowlist (CLERK_SECRET_KEY withheld) is unchanged.
+
+---
+
+## Entry 010 — PROMPT B: Option B Production Adapters (2026-06-27)
+
+**Task:** Implement the minimum production adapters to run the TypeScript orchestrator against real PostgreSQL state and the existing Python graph-write boundary. No HTTP routes mounted. No `PLAN_ENGINE` flag. No frontend changes.
+**Branch:** `feat/orchestrator-production-adapters` from SHA `904e579` on `chore/option-b-shared-baseline`
+**Files modified:** See production adapter table below.
+**Production code changed:** Yes — TypeScript adapters + additive Python bridge commands only. No domain SQL in TypeScript. `server.ts` untouched.
+
+### Tools used
+
+- Claude Code (claude-sonnet-4-6) across two sessions (context compacted between sessions)
+- `Read` tool — schema.sql, contracts, hero_bridge.py, demo-seed.json, V31GraphWriteService, agent_runs DDL, orchestrator contracts, existing test doubles
+- `Edit` / `Write` tools — all new TypeScript adapter files, Python handler additions
+- `Bash` tool — `npm run typecheck`, `npm run test:coverage`, `python3.10 -m unittest`, grep for direct TS writes, secret scan
+
+### Production adapters implemented
+
+| Port | File | Contract |
+|------|------|----------|
+| M1 PostgreSQL snapshot | `src/agents/snapshot/pg-snapshot-builder.ts` | C2 |
+| M2 Wallet specialist | `src/agents/wallet/wallet-agent.ts` | C3 |
+| M2 Redemption specialist | `src/agents/redemption/redemption-agent.ts` | C3 |
+| M2 EarningAgent stub | `src/agents/earning/earning-agent.ts` | C3 (excluded) |
+| M3 Commit validation | `src/agents/commit/validation.ts` | C4 shared |
+| M3 Controlled commit | `src/agents/commit/controlled-commit.ts` | C4 |
+| M3 Python write bridge | `src/agents/commit/python-write-bridge.ts` | C6 |
+| M4 AgentRun repository | `src/orchestrator/graph-write/agent-run-repository.ts` | C5 |
+| M6 Bridge additions | `apps/api/bridge/hero_bridge.py` (additive) | C6 |
+
+### Python bridge additions
+
+8 new additive subcommands in `hero_bridge.py` (existing commands untouched):
+
+| Subcommand | Description | Returns |
+|------------|-------------|---------|
+| `orchestrator-create-plan` | Create plan via V31GraphWriteService | `{planId, planLineageId, revisionNumber}` |
+| `orchestrator-transition-plan` | UPDATE plans SET status | `{ok: true}` |
+| `orchestrator-commit-step` | Create plan_step via V31GraphWriteService | `{mutationTxnId: plan_steps.id}` |
+| `orchestrator-record-dependency` | Record state_dependency via V31GraphWriteService | `{mutationTxnId: state_dependencies.id}` |
+| `orchestrator-record-mutation` | Write graph_mutations audit entry (no balance change) | `{mutationTxnId: uuid}` |
+| `orchestrator-create-agent-run` | INSERT agent_runs (status=running) | `{agentRunId: uuid}` |
+| `orchestrator-finalize-agent-run` | UPDATE agent_runs SET status, completed_at | `{ok: true}` |
+| `read-plan` | Project plan via project_plan() (Contract 7 read path) | PlanView |
+
+### Key decisions
+
+1. **`plan_lineage_id` / `revision_number` resolution**: TypeScript callers provide only `plan_id`. The `orchestrator-commit-step` bridge handler fetches `plan_lineage_id` and `revision_number` from the `plans` table server-side. This avoids widening the frozen `AgentCommitBinding` interface.
+
+2. **`CommitSuccess.mutationTxnId` as `planStepId`**: The frozen `CommitSuccess` interface has only `mutationTxnId`. For `RecordStateDependency`, the agent needs `plan_steps.id`. The bridge returns `plan_steps.id` as `mutationTxnId`, so agents can thread it forward. Documented as Contract Drift #2.
+
+3. **LATERAL JOIN for `targetRedemptionOptionId`**: `user_goals` has `target_program_id`, not `target_redemption_option_id`. Resolved via LATERAL JOIN on `redemption_options` picking highest `cpp_basis_points`.
+
+4. **`IdempotencyConflict` → `CommitSuccess(idempotencyReplayed: true)`**: Bridge may return this code; `ControlledAgentCommitFactory` catches and converts to success with sentinel `mutationTxnId = "idempotent-replay:{key}"`.
+
+5. **Deterministic specialist ordering**: Wallet emits commits sorted by `programId`; Redemption branch logic is fully deterministic without any LLM invocation.
+
+6. **`_psql_exec`/`_psql_rows` advisory lock caveat**: Each `execute()` in `_PsqlCursor` is a separate psql subprocess (separate transaction). `pg_advisory_xact_lock` is released immediately after each call. For the single-user thesis demo this is acceptable. Production use would require psycopg2 or a persistent connection.
+
+### Validation commands run
+
+```bash
+npm run typecheck       # Clean — 0 errors
+npm run test:coverage   # 179 passed, 4 skipped (live-PG gated)
+python3.10 -m unittest discover -s tests -p "test_*.py"  # 203 passed, 10 skipped
+grep -rn "CLERK_SECRET_KEY" apps/api/src/agents/ ...     # Only in comments
+grep -rn "INSERT|UPDATE|DELETE" apps/api/src/agents/ ... # 0 direct TS writes
+```
+
+### Contract drift
+
+| # | Description |
+|---|-------------|
+| 1 | `UserGoalRow.targetRedemptionOptionId` — no DB column in `user_goals`; resolved via LATERAL JOIN |
+| 2 | `CommitSuccess.mutationTxnId` used as `planStepId` for `RecordStateDependency` — bridge returns `plan_steps.id` as `mutationTxnId` |
+| 3 | `pg_advisory_xact_lock` doesn't span psql subprocess calls — acceptable for single-user demo |
+
+### Tests added
+
+- `src/agents/snapshot/pg-snapshot-builder.test.ts` — 12 unit + 4 live-PG (skipped)
+- `src/agents/wallet/wallet-agent.test.ts` — 7 unit tests
+- `src/agents/redemption/redemption-agent.test.ts` — 16 unit tests (full thesis flow coverage)
+- `src/agents/commit/controlled-commit.test.ts` — 13 contract tests
+- `src/orchestrator/graph-write/agent-run-repository.test.ts` — 7 contract tests
+- `tests/test_orchestrator_bridge_commands.py` — 35 Python unit tests (all 8 subcommands + arg parser)
+
+### Deferred / blocked
+
+- Live-PG vertical integration test (Phase 8) — gated by `RUN_LIVE_POSTGRES_TESTS=1`; framework in place, requires seeded DB
+- Phase 9 negative/safety tests — scaffolded but not exhaustive (subprocess timeout, extra stdout noise isolation tests skipped)
+- Prompt C wiring — no HTTP route mounting; adapters ready for `PlanService → orchestrator` composition
+
+### Deferred from code review (Prompt B remediation session, 2026-06-27)
+
+The following findings were identified by two independent reviewers of the Prompt B branch and are deferred — not fixed in this session:
+
+- **F-02** (`controlled-commit.ts:49-54`): `IdempotencyConflict` catch block is dead code — the bridge never emits `idempotency_conflict` for `orchestrator-commit-step`. The synthetic `mutationTxnId = "idempotent-replay:..."` is not a valid UUID and would break `RecordStateDependency` if it ever fired. Deferred pending bridge-side idempotency support in `orchestrator-commit-step`.
+- **F-03** (`hero_bridge.py:1250-1285`): `idempotency_key` and `read_set` accepted by `orchestrator-record-dependency` are not forwarded to `V31GraphWriteService.record_state_dependency()`. No duplicate-row protection at DB layer for `state_dependencies`. Deferred: `RecordStateDependencyRequest` has no `idempotency_key` field; a schema change is required.
+- **F-05** (`orchestrator.ts:159-168`): If both `finalizeAgentRun(completed)` and `finalizeAgentRun(failed)` throw, the `agent_runs` row stays in `status='running'` indefinitely. Deferred: needs a background reaper job or TTL column in schema.
+- **F-06** (`wallet-agent.ts:28-42`): `stepOrder` is incremented but never used; suppressed with `void stepOrder`. Cosmetic only. Deferred until `wallet_agent` adds step-order semantics.
+- **SEC-003** (`hero_bridge.py:199-211`): `_psql_literal` does not escape backslashes. On `standard_conforming_strings=off` (non-default), `\\x27` in user input can break out of a SQL string literal. Deferred: requires switching to psycopg2 or dollar-quoting; pre-existing pattern across the entire bridge, not introduced by Prompt B.
+- **SEC-005** (`python-write-bridge.ts:95-142`): argparse treats any argv token starting with `--` as a flag. An `idempotency_key` or `error` string starting with `--` causes argparse to exit 2, producing `UnexpectedCommitError`. Deferred: full fix requires moving free-form data to stdin JSON.
+- **SEC-006** (`hero_bridge.py:117, 156`): `os.environ.copy()` passes the full Python env to psql subprocesses. The TS allow-list filters before Python starts, but any library that appends to `os.environ` at import time bypasses it. Deferred: low exploitability in current threat model; fix by filtering the dict at the psql call sites.
+
+### Secrets
+
+No secrets recorded. `CLERK_SECRET_KEY` is explicitly excluded from the bridge env allow-list (`BRIDGE_ENV_ALLOWLIST` in `python-write-bridge.ts`). No `.env` values read or logged.
+
+---
+
+## Entry 012 — Option B Prompt C: C2 initial-Plan integration gate (2026-06-27)
+
+**Branch:** `feat/orchestrator-thesis-integration` (base `904e579`, Prompt B merge `e3cec23`, remediation `64e734a` + `5a573c0`)
+
+**Prompt B SHA integrated:** merge commit `e3cec23` (Prompt B head `94279e9` at integration time); post-merge remediation `64e734a` (SEC-001/002 ownership guards) and `5a573c0` (F-04 earning ownership table). Equivalent cherry-picks on `feat/orchestrator-production-adapters` tip `4951b51`.
+
+**Scope:** Phases 2–7 of Prompt C C2 gate — production `PlanProjectionPort`, G1 parity, production composition, service-level initial Plan proof, `bootPlanService` pool wiring for `server.ts`, route-level live tests, go/no-go reset + second run.
+
+### What was built
+
+| Component | Path | Role |
+|-----------|------|------|
+| `BridgePlanProjection` | `apps/api/src/plans/bridge-plan-projection.ts` | Contract 7 — `read-plan` → `project_plan()` → runtime-validated `PlanView` |
+| `DemoQueryDecomposer` | `apps/api/src/orchestrator/demo-decomposer.ts` | Deterministic Wallet + Redemption invocations for frozen demo |
+| Production composition | `apps/api/src/plans/orchestrator-composition.ts` | `buildProductionOrchestratorDeps` + pool-based `composeOrchestratorPlanService` |
+| Engine boot pool pass-through | `apps/api/src/plans/engine-selector.ts`, `server.ts` | `bootPlanService(env, { pool })` so orchestrator mode gets real adapters at boot |
+| G1 parity test | `tests/plans/orchestrator-service.test.ts` | Bridge `get-plan` vs orchestrator `read-plan` on same persisted plan |
+| Phase 5 live test | same | `OrchestratorPlanService.createPlan()` end-to-end |
+| Route live tests | `tests/plans/routes-live.test.ts` | `POST /plans` + reset + second run |
+
+### Live gate results (`RUN_LIVE_POSTGRES_TESTS=1`, local `rewards_test`)
+
+| Gate | Result |
+|------|--------|
+| G1 projection parity | **PASS** |
+| Phase 5 service-level initial Plan | **PASS** (wallet_agent → redemption_agent, rev 1, 4 mutations, 1 dependency) |
+| Phase 6 route `POST /plans` | **PASS** |
+| Phase 7 reset + second run | **PASS** |
+
+### Offline validation
+
+```bash
+npm run typecheck          # clean
+npm run test:coverage      # 203 passed, coverage floors met
+```
+
+### Checkpoint
+
+**`C2 INITIAL PLAN GATE PASSED`** — initial Plan orchestration proven at service and route level with real PostgreSQL. Replanning (Phase 8+) not started.
+
+### Unresolved / next
+
+- C2 work is **uncommitted** on `feat/orchestrator-thesis-integration` (user requested commit after live gate passes).
+- Phase 8+ (synchronous replan, rev 1 stale/superseded, browser integration, Prompt D handoff) remains.
+- `pg` parallel-query deprecation warning during live tests (cosmetic; no functional failure).
+
+## Entry 013 — CodeRabbit remediation on PR #53 (2026-06-28)
+
+CodeRabbit reviewed PR #53 with 16 inline findings. Each was verified against the
+current code; 14 were fixed with tests, 2 (Critical #1 + Major #4) were confirmed
+valid and **deferred as architectural work** (no partial fix).
+
+### Fixed (with tests)
+
+- **Bridge ownership/lifecycle** (`hero_bridge.py`): plan-ownership guard before
+  `agent_runs` INSERT; terminal-run finalize guarded by `status = 'running'` +
+  `RETURNING` zero-row → `conflict`. Parser coverage for record-dependency /
+  record-mutation.
+- **Commit validation** (`validation.ts`): reject non-finite `balancePoints`
+  before the `JSON.stringify` bridge boundary.
+- **Redemption** (`redemption-agent.ts`): reject operations outside the Hyatt/Chase
+  demo set (fail fast, no silent rewrite); Hyatt-only read-set on the
+  direct/insufficient paths (Chase only on the transfer path).
+- **Snapshot** (`pg-snapshot-builder.ts`): validate raw snake_case rows before
+  coercion (null id/version, invalid goal_type); read the three tables under one
+  `READ ONLY REPEATABLE READ` transaction.
+- **Projection** (`orchestrator-service.ts`): `getPlanById` now applies
+  `assertValidPlanView`, matching `createPlan`.
+- **Boot/health** : extracted `createApp(deps)` (`app.ts`) from `server.ts` so the
+  `PLAN_ENGINE` → `/health` engine contract is testable; added the test.
+- **Test fidelity**: `FakeEarningAgent` now throws like production `EarningAgent`;
+  benign third-agent role moved to an explicit `NoOpEarningAgent`. Replaced the
+  `sk_live_*`-shaped Clerk fixture with an inert placeholder.
+- **Docs**: corrected stale paths in `architecture-option-b.md` /
+  `c1-integration-audit.md`.
+
+### Deferred (confirmed valid; architectural)
+
+Findings #1 (atomic read-set OCC + idempotency) and #4 (replay metadata) require a
+read-set protocol change, a single-transaction `orchestrator-commit-batch`, and a
+durable idempotency schema. Design + demo guardrails captured in
+[`deferred-occ-idempotency-design.md`](docs/plans/option-b/deferred-occ-idempotency-design.md).
+The demo is single-user and sequential with no write retries; **no production
+idempotency or atomic cross-command OCC is claimed**, and `python-legacy` remains
+the rollback engine.
+
+### Validation
+
+- `npm run typecheck` → 0 errors.
+- `npm run test:coverage` → 211 passed / 9 skipped; functions 91.02% (≥88%),
+  branches 85.49% (≥76%).
+- `python3.10 -m unittest discover -s tests -p "test_*.py"` → 213 passed / 10 skipped.
