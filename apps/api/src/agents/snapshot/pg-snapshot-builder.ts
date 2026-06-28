@@ -128,7 +128,7 @@ const GOAL_QUERY = `
     SELECT id
       FROM redemption_options
      WHERE program_id = ug.target_program_id
-     ORDER BY cpp_basis_points DESC
+     ORDER BY cpp_basis_points DESC, id ASC
      LIMIT 1
   ) best_ro ON true
   WHERE ug.user_id = $1
@@ -181,7 +181,23 @@ function toStatusRow(row: StatusRow): UserProgramStatusRow {
   };
 }
 
+// The four valid UserGoalType values. Goals were previously cast straight from
+// the DB, so an unexpected goal_type would cross the snapshot contract boundary
+// as an apparently-valid value; validate before mapping.
+const VALID_GOAL_TYPES: ReadonlySet<string> = new Set<UserGoalRow["goalType"]>([
+  "maximize_points",
+  "maximize_cashback",
+  "specific_redemption",
+  "minimize_fees",
+]);
+
 function toGoalRow(row: GoalRow): UserGoalRow {
+  if (!row.goal_type || !VALID_GOAL_TYPES.has(row.goal_type)) {
+    throw new CommitFailure(
+      "ValidationError",
+      `invalid goal_type on user_goal row ${String(row.id)}: ${String(row.goal_type)}`,
+    );
+  }
   return {
     id: String(row.id),
     goalType: row.goal_type as UserGoalRow["goalType"],

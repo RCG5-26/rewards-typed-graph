@@ -201,7 +201,7 @@ describe("BridgePlanService marshalling (legacy/rollback engine)", () => {
     const envWithSecret = {
       PATH: "/usr/bin",
       DATABASE_URL: "pg://host/db",
-      CLERK_SECRET_KEY: "sk_live_supersecret",
+      CLERK_SECRET_KEY: "not-a-real-clerk-secret",
     };
     const svc = makeSvc(envWithSecret);
 

@@ -283,5 +283,36 @@ describe("RedemptionAgent", () => {
 
       await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
     });
+
+    it("rejects a non-Hyatt targetRedemptionOptionId instead of planning Hyatt anyway", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(60_000, 150_000);
+      // A different target must fail fast, not be silently rewritten to F001.
+      (ctx as { operation: RedemptionTraversalOperation }).operation = {
+        kind: "traverse_redemption",
+        agentType: "redemption_agent",
+        goalType: "specific_redemption",
+        targetRedemptionOptionId: "00000000-0000-0000-0000-0000000000ff",
+        sourceProgramIds: [B001, B002],
+      };
+
+      await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+      expect(ctx.calls).toHaveLength(0);
+    });
+
+    it("rejects unsupported source programs instead of planning Hyatt/Chase anyway", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(60_000, 150_000);
+      (ctx as { operation: RedemptionTraversalOperation }).operation = {
+        kind: "traverse_redemption",
+        agentType: "redemption_agent",
+        goalType: "specific_redemption",
+        targetRedemptionOptionId: F001,
+        sourceProgramIds: ["00000000-0000-0000-0000-0000000000aa"],
+      };
+
+      await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+      expect(ctx.calls).toHaveLength(0);
+    });
   });
 });

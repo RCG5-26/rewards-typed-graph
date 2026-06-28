@@ -1362,6 +1362,18 @@ def do_orchestrator_create_agent_run(
     if not plan_id or not user_id:
         raise BridgeError("validation", "plan_id and user_id are required")
 
+    # Ownership guard: an agent run may only be attached to a plan the caller
+    # owns (mirrors every other plan-scoped write in this file). Without it a
+    # known/foreign plan_id binds a run to another user's plan or orphans a row.
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT 1 FROM plans WHERE id = %s AND user_id = %s",
+            (plan_id, user_id),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
+
     agent_run_id = str(uuid.uuid4())
     _psql_exec(
         _format_psql_query(

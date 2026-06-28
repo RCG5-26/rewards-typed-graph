@@ -47,11 +47,15 @@ rewriting the working backend or the transactional persistence layer.
    It is the approved target Plan-generation and replanning runtime.
 
 2. **Relationship to D031.** D031's blessed Python bridge (`BridgePlanService` /
-   `hero_bridge.py`) **remains the stable default and the rollback engine**
-   (`PLAN_ENGINE=python-legacy`) **until the cutover gates below pass.** This ADR
-   is a *successor* to D031, not a contradiction: D031 = "target unmounted for
-   Jun-29"; ADR 0010 = "mount the target for opt-in thesis verification; the
-   bridge becomes the explicit rollback engine."
+   `hero_bridge.py`) **remains the recommended/rollback engine**, selected by the
+   **explicit** value `PLAN_ENGINE=python-legacy`, **until the cutover gates below
+   pass.** It is *not* an implicit default: per §3, an unset or invalid
+   `PLAN_ENGINE` **fails boot** (fail-fast) — there is no silently-applied engine.
+   "Recommended/rollback" means *this is the value operators should set* (and roll
+   back to), not that it is chosen automatically. This ADR is a *successor* to
+   D031, not a contradiction: D031 = "target unmounted for Jun-29"; ADR 0010 =
+   "mount the target for opt-in thesis verification; the bridge becomes the
+   explicit rollback engine."
 
 3. **Opt-in thesis-verification mode.** The Jun-29 milestone **may** run in an
    **opt-in** orchestrator thesis-verification mode. Engine selection happens
