@@ -1760,4 +1760,3 @@ OpenAI; browser hero flow including simulate transfer and idempotent replay
 succeeded. Residual: production build `/404`+`/500` prerender (pre-existing Next
 infra); PG16-only Python artifact tests skip on PG14; demo runbook requires full
 `PG*` env set for orchestrator subprocesses.
-
