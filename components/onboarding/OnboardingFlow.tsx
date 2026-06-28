@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CardView } from "@/lib/cards/types";
+import type { PublicWalletFacts } from "@/lib/comparison/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 import { isUserGraph, type UserBalance, type UserGraph } from "@/lib/user/types";
 import AgentConsole from "./AgentConsole";
 import CardTile from "./CardTile";
 import TopBar from "./TopBar";
 import WalletDataPanel from "./WalletDataPanel";
+import WalletOptionsPanel from "./WalletOptionsPanel";
 import WalletPointsModal from "./WalletPointsModal";
 
 /** Stable program-id fallback when a card's program isn't in the personal graph. */
@@ -76,6 +78,9 @@ function useCountUp(target: number, duration = 600): number {
 export default function OnboardingFlow() {
   const [cards, setCards] = useState<CardView[]>([]);
   const [me, setMe] = useState<UserGraph | null>(null);
+  // Canonical, seed-verified facts (transfer routes + award options) from
+  // /demo/test-wallets — the "what the agents see" data shown on steps 2 & 3.
+  const [facts, setFacts] = useState<PublicWalletFacts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -136,11 +141,17 @@ export default function OnboardingFlow() {
       fetch("/api/me")
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
+      // Wallet facts (transfer routes + award options) are best-effort too: the
+      // ask/plan steps just omit the "what the agents see" panel if unavailable.
+      fetch("/api/demo/test-wallets")
+        .then((r) => (r.ok ? (r.json() as Promise<{ wallets: PublicWalletFacts[] }>) : null))
+        .catch(() => null),
     ])
-      .then(([cardsData, graph]) => {
+      .then(([cardsData, graph, walletFacts]) => {
         if (!active) return;
         setCards(cardsData.cards);
         if (graph && isUserGraph(graph)) setMe(graph);
+        if (walletFacts?.wallets?.[0]) setFacts(walletFacts.wallets[0]);
       })
       .catch((err) => {
         console.error("onboarding load failed", err);
@@ -201,6 +212,11 @@ export default function OnboardingFlow() {
   }, [enteredByProgram]);
 
   const hasEnteredPoints = enteredByProgram.size > 0;
+  // Programs the user carries — scopes the facts panel to relevant routes/awards.
+  const walletProgramNames = useMemo(
+    () => new Set(wallet.map((c) => c.programName)),
+    [wallet],
+  );
   const firstName = me?.user.displayName?.split(" ")[0] ?? null;
 
   /**
@@ -288,6 +304,8 @@ export default function OnboardingFlow() {
             query={query}
             setQuery={setQuery}
             balances={enteredBalances}
+            facts={facts}
+            walletProgramNames={walletProgramNames}
             onBack={() => setStep("cards")}
             onPlan={goToPlan}
             prompts={SUGGESTED_PROMPTS}
@@ -300,6 +318,8 @@ export default function OnboardingFlow() {
             selectedCardIds={selected}
             onRestart={handleRestart}
             balances={enteredBalances}
+            facts={facts}
+            walletProgramNames={walletProgramNames}
           />
         )}
       </div>
@@ -519,6 +539,8 @@ function AskStep({
   query,
   setQuery,
   balances,
+  facts,
+  walletProgramNames,
   onBack,
   onPlan,
   prompts,
@@ -528,6 +550,8 @@ function AskStep({
   query: string;
   setQuery: (v: string) => void;
   balances: UserBalance[];
+  facts: PublicWalletFacts | null;
+  walletProgramNames: Set<string>;
   onBack: () => void;
   onPlan: () => void;
   prompts: { tag: string; text: string }[];
@@ -595,6 +619,13 @@ function AskStep({
             balances={balances}
             title="your points · what the agents see"
             className="mt-6"
+          />
+        )}
+        {facts && (
+          <WalletOptionsPanel
+            facts={facts}
+            programNames={walletProgramNames}
+            className="mt-3"
           />
         )}
       </div>

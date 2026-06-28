@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { fromMutationEvent } from "@/lib/api/mutation-adapter";
 import type { RealMutationEvent } from "@/lib/api/types";
@@ -15,12 +15,14 @@ import type {
   PlanStep,
   StepStatus,
 } from "@/lib/plan/types";
+import type { PublicWalletFacts } from "@/lib/comparison/types";
 import { isUserGraph, type UserBalance } from "@/lib/user/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
 import NodeDetailPopover from "./NodeDetailPopover";
 import TypedGraph, { type HoverNode } from "./TypedGraph";
 import WalletDataPanel from "./WalletDataPanel";
+import WalletOptionsPanel from "./WalletOptionsPanel";
 
 type ConsoleView = "plan" | "baselines" | "benchmark";
 const VIEWS: { id: ConsoleView; label: string }[] = [
@@ -98,12 +100,18 @@ export default function AgentConsole({
   selectedCardIds,
   onRestart,
   balances = [],
+  facts = null,
+  walletProgramNames,
 }: {
   queryText: string;
   selectedCardIds: string[];
   onRestart: () => void;
   /** The user's real program balances (from `/api/me`) — powers the replan transfer control. */
   balances?: UserBalance[];
+  /** Canonical wallet facts (transfer routes + award options) for the facts panel. */
+  facts?: PublicWalletFacts | null;
+  /** Programs the user carries — scopes the facts panel to relevant routes/awards. */
+  walletProgramNames?: Set<string>;
 }) {
   const [steps, setSteps] = useState<PlanStep[]>([]);
   const [mutations, setMutations] = useState<MutationLogEntry[]>([]);
@@ -313,8 +321,36 @@ export default function AgentConsole({
 
   const failed = status === "failed";
 
+  // Real plan value: the API plan contract carries no value field (toPlanResult
+  // hardcodes 0), so we recompute it from the seed-verified facts — the cash
+  // value of the best award the plan actually booked (pointsRequired × cpp). The
+  // booked award shows up as a `redemption` node in the live graph; matching it
+  // to a facts award by label yields the genuine value, not a placeholder.
+  const derivedValueCents = useMemo(() => {
+    if (!facts) return 0;
+    const matchAward = (label: string) => {
+      const l = label.toLowerCase();
+      return facts.awardOptions.find(
+        (a) => a.displayName.toLowerCase().includes(l) || l.includes(a.displayName.toLowerCase()),
+      );
+    };
+    let best = 0;
+    for (const node of graph.nodes) {
+      if (node.kind !== "redemption") continue;
+      const award = matchAward(node.label);
+      if (!award) continue;
+      const cents = Math.round((award.pointsRequired * award.valueBasisPoints) / 10000);
+      if (cents > best) best = cents;
+    }
+    return best;
+  }, [facts, graph.nodes]);
+
+  // Prefer a live value from the stream if it ever arrives; otherwise fall back
+  // to the facts-derived value so the metric is real, not an em dash.
+  const effectiveValueCents = valueCents > 0 ? valueCents : derivedValueCents;
+
   const liveMetrics: LiveMetrics = {
-    planValueCents: valueCents,
+    planValueCents: effectiveValueCents,
     opCount: mutations.length,
     invalidationCaught: caughtInvalidation,
     revision,
@@ -377,11 +413,11 @@ export default function AgentConsole({
           <div className="flex items-center gap-3">
             <div className="flex items-baseline gap-1">
               <span className="font-display text-4xl font-semibold leading-none text-text-primary tabular-nums">
-                {dollars(valueCents)}
+                {dollars(effectiveValueCents)}
               </span>
               <span className="font-mono text-2xs text-text-tertiary">/ yr</span>
             </div>
-            {prevValueCents !== null && prevValueCents !== valueCents && (
+            {prevValueCents !== null && prevValueCents !== effectiveValueCents && (
               <span
                 className="rounded-full px-2 py-1 font-mono text-2xs font-medium"
                 style={{ background: "var(--status-current-bg)", color: "var(--status-current)" }}
@@ -580,12 +616,17 @@ export default function AgentConsole({
                   </button>
                 )}
               </div>
-              {liveBalances.length > 0 && (
-                <div className="px-5 pt-3">
-                  <WalletDataPanel
-                    balances={liveBalances}
-                    title="your points · what the agents see"
-                  />
+              {(liveBalances.length > 0 || facts) && (
+                <div className="space-y-3 px-5 pt-3">
+                  {liveBalances.length > 0 && (
+                    <WalletDataPanel
+                      balances={liveBalances}
+                      title="your points · what the agents see"
+                    />
+                  )}
+                  {facts && (
+                    <WalletOptionsPanel facts={facts} programNames={walletProgramNames} />
+                  )}
                 </div>
               )}
               {transferOpen && (
