@@ -205,7 +205,13 @@ export interface AgentCommitBinding {
 export type CommitFailureKind =
   | "ValidationError" | "OwnershipError" | "ConflictError"
   | "IdempotencyConflict" | "UnexpectedCommitError";
-export class CommitFailure extends Error { constructor(readonly kind: CommitFailureKind, message: string, readonly detail?) }
+export class CommitFailure extends Error {
+  constructor(
+    readonly kind: CommitFailureKind,
+    message: string,
+    readonly detail?: Readonly<Record<string, unknown>>,
+  ) {}
+}
 ```
 
 - **Validation owner:** M3 (the commit adapter), in this exact order, **before** any DB write: (1) `idempotencyKey` non-empty; (2) `readSet` well-formed (`validateReadSet`); (3) mutation structure (`validateMutationStructure`); (4) **ownership** via `isOwnedBy(agentType, mutation.kind)` (`agents/ownership.ts`); (5) `CreatePlanStep.planId === binding.planId`. This is the runtime half of M7.

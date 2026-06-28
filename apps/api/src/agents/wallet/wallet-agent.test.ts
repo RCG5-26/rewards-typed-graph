@@ -113,6 +113,15 @@ describe("WalletAgent", () => {
     await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
   });
 
+  it("throws ValidationError when a programId entry is an empty string", async () => {
+    // Covers the per-item guard in validateOperation (not just the empty-array
+    // case), so the item-level rejection branch cannot regress silently.
+    const agent = new WalletAgent();
+    const ctx = makeContext([""], []);
+
+    await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+  });
+
   it("produces stable ordering by programId (deterministic across calls)", async () => {
     const agent = new WalletAgent();
     const balances = [
