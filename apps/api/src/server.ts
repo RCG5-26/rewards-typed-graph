@@ -1,14 +1,8 @@
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { HTTPException } from "hono/http-exception";
 import { Pool } from "pg";
 
-import { type AuthEnv } from "./http/auth";
-import { resolveIdentity } from "./http/clerk-auth";
-import { createMutationRoutes } from "./mutations/routes";
-import { BridgePlanService } from "./plans/bridge-service";
-import { createPlanRoutes } from "./plans/routes";
+import { createApp } from "./app";
+import { bootPlanService } from "./plans/engine-selector";
 
 const port = Number(process.env.API_PORT ?? 8787);
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
@@ -24,47 +18,23 @@ if (devUserId && !allowDevBypass) {
 }
 
 const pool = new Pool({ connectionString: databaseUrl });
-const planService = new BridgePlanService();
 
-const app = new Hono<AuthEnv>();
+// Engine selection happens once at boot (M5 / ADR 0010 §3): PLAN_ENGINE must be
+// set explicitly to `python-legacy` or `orchestrator`, or the server fails fast.
+// Orchestrator mode additionally fails fast until the production adapters land.
+const {
+  engine: planEngine,
+  service: planService,
+  evidence: planEngineEvidence,
+} = bootPlanService(process.env, { pool });
 
-app.use(
-  "*",
-  cors({
-    origin: corsOrigin,
-    allowHeaders: ["Authorization", "Content-Type", "Last-Event-ID"],
-    exposeHeaders: ["Last-Event-ID"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
-  }),
-);
-
-app.use("*", async (c, next) => {
-  const identity = await resolveIdentity(
-    c.req.header("Authorization"),
-    { clerkSecretKey, devUserId, allowDevBypass },
-    {
-      findUserIdByClerkId: async (clerkId) => {
-        const result = await pool.query<{ id: string }>(
-          "SELECT id FROM users WHERE clerk_id = $1",
-          [clerkId],
-        );
-        return result.rows[0]?.id;
-      },
-    },
-  );
-  if (identity.userId) {
-    c.set("userId", identity.userId);
-  }
-  if (identity.clerkId) {
-    c.set("clerkId", identity.clerkId);
-  }
-  c.set("email", identity.email ?? null);
-  await next();
+const app = createApp({
+  planEngine,
+  planService,
+  pool,
+  corsOrigin,
+  auth: { clerkSecretKey, devUserId, allowDevBypass },
 });
-
-app.get("/health", (c) => c.json({ ok: true }));
-app.route("/", createMutationRoutes(pool));
-app.route("/", createPlanRoutes(planService));
 
 /** Require a named environment variable at process boot. */
 function requireEnv(name: string): string {
@@ -75,14 +45,11 @@ function requireEnv(name: string): string {
   return value;
 }
 
-app.onError((error, c) => {
-  if (error instanceof HTTPException) {
-    return c.json({ error: error.message }, error.status);
-  }
-  console.error("unhandled API error", error);
-  return c.json({ error: "internal server error" }, 500);
-});
-
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`API listening on http://localhost:${info.port}`);
+  // Safe structured boot evidence — no secrets, only the selected engine and
+  // the no-fallback posture (a reviewer can confirm which engine served a run).
+  console.log(
+    `API listening on http://localhost:${info.port}`,
+    JSON.stringify({ planEngine: planEngineEvidence }),
+  );
 });

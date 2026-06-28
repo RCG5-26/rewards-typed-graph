@@ -52,6 +52,7 @@ function agentRunErrorMessage(primaryError: string, failureKind: InvocationFailu
 
 async function failInvocation(params: {
   graphWrite: OrchestratorGraphWrite;
+  userId: string;
   planId: string;
   planLineageId: string;
   agentRunIds: readonly string[];
@@ -66,6 +67,7 @@ async function failInvocation(params: {
     await recordCleanupError(params.cleanupErrors, "finalizeAgentRun(failed)", () =>
       params.graphWrite.finalizeAgentRun({
         agentRunId: params.agentRunId!,
+        userId: params.userId,
         status: "failed",
         error: runError,
       }),
@@ -73,7 +75,7 @@ async function failInvocation(params: {
   }
 
   try {
-    await params.graphWrite.transitionPlanStatus({ planId: params.planId, toStatus: "failed" });
+    await params.graphWrite.transitionPlanStatus({ userId: params.userId, planId: params.planId, toStatus: "failed" });
   } catch (err) {
     const transitionError = errorMessage(err, "unknown error");
     params.cleanupErrors.push(`transitionPlanStatus(failed): ${transitionError}`);
@@ -108,7 +110,7 @@ export class Orchestrator {
     } catch (err) {
       const cleanupErrors: string[] = [];
       await recordCleanupError(cleanupErrors, "transitionPlanStatus(failed)", () =>
-        this.deps.graphWrite.transitionPlanStatus({ planId: plan.id, toStatus: "failed" }),
+        this.deps.graphWrite.transitionPlanStatus({ userId: request.userId, planId: plan.id, toStatus: "failed" }),
       );
 
       if (err instanceof OrchestrationError) {
@@ -158,6 +160,7 @@ export class Orchestrator {
         } catch (agentErr) {
           return failInvocation({
             graphWrite: this.deps.graphWrite,
+            userId: request.userId,
             planId: plan.id,
             planLineageId: plan.planLineageId,
             agentRunIds,
@@ -171,6 +174,7 @@ export class Orchestrator {
         try {
           await this.deps.graphWrite.finalizeAgentRun({
             agentRunId: agentRun.id,
+            userId: request.userId,
             status: "completed",
           });
         } catch (finalizeErr) {
@@ -179,6 +183,7 @@ export class Orchestrator {
           );
           return failInvocation({
             graphWrite: this.deps.graphWrite,
+            userId: request.userId,
             planId: plan.id,
             planLineageId: plan.planLineageId,
             agentRunIds,
@@ -191,6 +196,7 @@ export class Orchestrator {
       } catch (infraErr) {
         return failInvocation({
           graphWrite: this.deps.graphWrite,
+          userId: request.userId,
           planId: plan.id,
           planLineageId: plan.planLineageId,
           agentRunIds,
@@ -202,7 +208,7 @@ export class Orchestrator {
       }
     }
 
-    await this.deps.graphWrite.transitionPlanStatus({ planId: plan.id, toStatus: "current" });
+    await this.deps.graphWrite.transitionPlanStatus({ userId: request.userId, planId: plan.id, toStatus: "current" });
     return {
       planId: plan.id,
       planLineageId: plan.planLineageId,
