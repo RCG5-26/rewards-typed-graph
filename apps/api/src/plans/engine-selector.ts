@@ -1,3 +1,5 @@
+import type { Pool } from "pg";
+
 import { BridgePlanService } from "./bridge-service";
 import { composeOrchestratorPlanService } from "./orchestrator-composition";
 import type { PlanService } from "./service";
@@ -105,19 +107,27 @@ export interface BootedPlanService {
   readonly evidence: PlanEngineEvidence;
 }
 
+export interface BootPlanServiceConfig {
+  /** Shared Postgres pool required when `PLAN_ENGINE=orchestrator`. */
+  readonly pool?: Pool;
+}
+
 /**
  * The single boot seam consumed by `server.ts`: parse `PLAN_ENGINE` from the
  * environment, construct the matching engine, and return safe startup evidence.
  * Keeps `server.ts` thin and this logic fully unit-testable.
  *
- * Under `orchestrator`, construction delegates to the composition root, which
- * fails fast until the Prompt B adapters are integrated (C1 stop gate).
+ * Under `orchestrator`, construction delegates to the composition root with the
+ * shared pool — without a pool it fails fast (no fabrication, no legacy fallback).
  */
-export function bootPlanService(env: NodeJS.ProcessEnv): BootedPlanService {
+export function bootPlanService(
+  env: NodeJS.ProcessEnv,
+  config: BootPlanServiceConfig = {},
+): BootedPlanService {
   const engine = parsePlanEngine(env.PLAN_ENGINE);
   const service = createPlanService(engine, {
-    legacy: () => new BridgePlanService(),
-    orchestrator: () => composeOrchestratorPlanService({ env }),
+    legacy: () => new BridgePlanService({ env }),
+    orchestrator: () => composeOrchestratorPlanService({ pool: config.pool, env }),
   });
   return { engine, service, evidence: describePlanEngineSelection(engine) };
 }

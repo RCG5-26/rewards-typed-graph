@@ -860,3 +860,51 @@ The following findings were identified by two independent reviewers of the Promp
 ### Secrets
 
 No secrets recorded. `CLERK_SECRET_KEY` is explicitly excluded from the bridge env allow-list (`BRIDGE_ENV_ALLOWLIST` in `python-write-bridge.ts`). No `.env` values read or logged.
+
+---
+
+## Entry 012 — Option B Prompt C: C2 initial-Plan integration gate (2026-06-27)
+
+**Branch:** `feat/orchestrator-thesis-integration` (base `904e579`, Prompt B merge `e3cec23`, remediation `64e734a` + `5a573c0`)
+
+**Prompt B SHA integrated:** merge commit `e3cec23` (Prompt B head `94279e9` at integration time); post-merge remediation `64e734a` (SEC-001/002 ownership guards) and `5a573c0` (F-04 earning ownership table). Equivalent cherry-picks on `feat/orchestrator-production-adapters` tip `4951b51`.
+
+**Scope:** Phases 2–7 of Prompt C C2 gate — production `PlanProjectionPort`, G1 parity, production composition, service-level initial Plan proof, `bootPlanService` pool wiring for `server.ts`, route-level live tests, go/no-go reset + second run.
+
+### What was built
+
+| Component | Path | Role |
+|-----------|------|------|
+| `BridgePlanProjection` | `apps/api/src/plans/bridge-plan-projection.ts` | Contract 7 — `read-plan` → `project_plan()` → runtime-validated `PlanView` |
+| `DemoQueryDecomposer` | `apps/api/src/orchestrator/demo-decomposer.ts` | Deterministic Wallet + Redemption invocations for frozen demo |
+| Production composition | `apps/api/src/plans/orchestrator-composition.ts` | `buildProductionOrchestratorDeps` + pool-based `composeOrchestratorPlanService` |
+| Engine boot pool pass-through | `apps/api/src/plans/engine-selector.ts`, `server.ts` | `bootPlanService(env, { pool })` so orchestrator mode gets real adapters at boot |
+| G1 parity test | `tests/plans/orchestrator-service.test.ts` | Bridge `get-plan` vs orchestrator `read-plan` on same persisted plan |
+| Phase 5 live test | same | `OrchestratorPlanService.createPlan()` end-to-end |
+| Route live tests | `tests/plans/routes-live.test.ts` | `POST /plans` + reset + second run |
+
+### Live gate results (`RUN_LIVE_POSTGRES_TESTS=1`, local `rewards_test`)
+
+| Gate | Result |
+|------|--------|
+| G1 projection parity | **PASS** |
+| Phase 5 service-level initial Plan | **PASS** (wallet_agent → redemption_agent, rev 1, 4 mutations, 1 dependency) |
+| Phase 6 route `POST /plans` | **PASS** |
+| Phase 7 reset + second run | **PASS** |
+
+### Offline validation
+
+```
+npm run typecheck          # clean
+npm run test:coverage      # 203 passed, coverage floors met
+```
+
+### Checkpoint
+
+**`C2 INITIAL PLAN GATE PASSED`** — initial Plan orchestration proven at service and route level with real PostgreSQL. Replanning (Phase 8+) not started.
+
+### Unresolved / next
+
+- C2 work is **uncommitted** on `feat/orchestrator-thesis-integration` (user requested commit after live gate passes).
+- Phase 8+ (synchronous replan, rev 1 stale/superseded, browser integration, Prompt D handoff) remains.
+- `pg` parallel-query deprecation warning during live tests (cosmetic; no functional failure).

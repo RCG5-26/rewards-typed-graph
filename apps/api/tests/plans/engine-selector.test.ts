@@ -1,6 +1,8 @@
+import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 
 import { BridgePlanService } from "../../src/plans/bridge-service";
+import { OrchestratorPlanService } from "../../src/plans/orchestrator-service";
 import {
   PLAN_ENGINE_KINDS,
   PlanEngineConfigError,
@@ -114,7 +116,18 @@ describe("bootPlanService (server.ts boot seam)", () => {
     expect(() => bootPlanService({ PLAN_ENGINE: "nope" })).toThrow(PlanEngineConfigError);
   });
 
-  it("fails explicitly under orchestrator until production adapters are integrated (no fabrication)", () => {
-    expect(() => bootPlanService({ PLAN_ENGINE: "orchestrator" })).toThrow(/adapter/i);
+  it("fails explicitly under orchestrator when no Postgres pool is supplied (no fabrication)", () => {
+    expect(() => bootPlanService({ PLAN_ENGINE: "orchestrator" })).toThrow(/adapter|pool|database/i);
+  });
+
+  it("boots the production orchestrator engine when a Postgres pool is supplied", () => {
+    const fakePool = {} as Pool;
+    const { engine, service } = bootPlanService(
+      { PLAN_ENGINE: "orchestrator" },
+      { pool: fakePool },
+    );
+
+    expect(engine).toBe("orchestrator");
+    expect(service).toBeInstanceOf(OrchestratorPlanService);
   });
 });

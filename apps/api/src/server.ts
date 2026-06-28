@@ -32,7 +32,7 @@ const {
   engine: planEngine,
   service: planService,
   evidence: planEngineEvidence,
-} = bootPlanService(process.env);
+} = bootPlanService(process.env, { pool });
 
 const app = new Hono<AuthEnv>();
 

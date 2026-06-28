@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { PlanProjectionPort, PlanRequest, PlanResult } from "../../src/orchestrator/contracts";
+import { BridgePlanService } from "../../src/plans/bridge-service";
+import { composeOrchestratorPlanService } from "../../src/plans/orchestrator-composition";
 import {
   OrchestratorPlanError,
   OrchestratorPlanService,
@@ -8,6 +11,7 @@ import {
   type OrchestratorReadDelegate,
   type OrchestratorRunner,
 } from "../../src/plans/orchestrator-service";
+import type { PlanService } from "../../src/plans/service";
 import type { PlanView, SessionView } from "../../src/plans/types";
 
 const USER_ID = "00000000-0000-0000-0000-00000000a001";
@@ -176,3 +180,195 @@ describe("OrchestratorPlanService reads + delegation", () => {
     expect(await service.getSession({ userId: USER_ID })).toEqual(session);
   });
 });
+
+// ──────────────────────────────────────────────
+// G1 — Plan projection parity (live PostgreSQL)
+// Gated by RUN_LIVE_POSTGRES_TESTS=1; requires a seeded demo-seed-v1 database
+// reachable via DATABASE_URL. Uses the REAL production projection wiring
+// (composeOrchestratorPlanService → BridgePlanProjection), never a fake.
+// ──────────────────────────────────────────────
+
+const LIVE = process.env.RUN_LIVE_POSTGRES_TESTS === "1";
+const HERO_QUERY = "What is the best Hyatt redemption for a 3-night Tokyo trip?";
+
+/** Order-insensitive view of a PlanView so parity ignores incidental row order. */
+function normalizePlanView(view: PlanView): PlanView {
+  return {
+    ...view,
+    steps: [...view.steps]
+      .sort((a, b) => a.order - b.order)
+      .map((step) => ({
+        ...step,
+        dependsOn: [...step.dependsOn].sort(),
+        dependencies: [...step.dependencies].sort((x, y) => x.id.localeCompare(y.id)),
+      })),
+    graph: {
+      nodes: [...view.graph.nodes].sort((a, b) => a.id.localeCompare(b.id)),
+      edges: [...view.graph.edges].sort((a, b) => a.id.localeCompare(b.id)),
+    },
+  };
+}
+
+/** Bridge subprocess plan creation + dual projection reads can exceed vitest's 5s default. */
+const LIVE_PG_TIMEOUT_MS = 60_000;
+
+(LIVE ? describe : describe.skip)("G1 — plan projection parity (live-PG)", () => {
+  let pool: Pool;
+  let bridge: BridgePlanService;
+  let orchestratorService: PlanService;
+
+  beforeAll(async () => {
+    const { Pool } = await import("pg");
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    bridge = new BridgePlanService();
+    // Production wiring: orchestrator engine + BridgePlanProjection over read-plan.
+    orchestratorService = composeOrchestratorPlanService({ pool, env: process.env });
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
+  it("projects an identical PlanView via BridgePlanService (get-plan) and the orchestrator projection (read-plan)", async () => {
+    // 1. Persist a known demo Plan through the existing stable bridge path.
+    const created = await bridge.createPlan(USER_ID, HERO_QUERY);
+    expect(created.planId).toBeTruthy();
+
+    // 2. Read it through the stable bridge service (get-plan → project_plan).
+    const viaBridge = await bridge.getPlanById(USER_ID, created.planId);
+    // 3. Read it through the orchestrator's production projection (read-plan → project_plan).
+    const viaOrchestrator = await orchestratorService.getPlanById(USER_ID, created.planId);
+
+    expect(viaBridge).not.toBeNull();
+    expect(viaOrchestrator).not.toBeNull();
+
+    // 4. Compare the complete normalized PlanView.
+    expect(normalizePlanView(viaOrchestrator as PlanView)).toEqual(
+      normalizePlanView(viaBridge as PlanView),
+    );
+
+    // eslint-disable-next-line no-console
+    console.log("G1 PLAN PROJECTION PARITY: PASS");
+  });
+
+  it("scopes the projection to the owning user (no cross-user read)", async () => {
+    const created = await bridge.createPlan(USER_ID, HERO_QUERY);
+    const otherUser = "00000000-0000-0000-0000-deadbeef0000";
+
+    const leaked = await orchestratorService.getPlanById(otherUser, created.planId);
+
+    expect(leaked).toBeNull();
+  });
+}, LIVE_PG_TIMEOUT_MS);
+
+// ──────────────────────────────────────────────
+// Phase 5 — service-level initial Plan orchestration (live PostgreSQL)
+// Proves OrchestratorPlanService.createPlan() end-to-end: TS orchestrator →
+// real snapshot → Wallet → Redemption → Python writes → revision 1 → projection.
+// ──────────────────────────────────────────────
+
+const FROZEN_DEMO_QUERY =
+  "Book a 3-night Hyatt award stay in Tokyo in October using my points.";
+
+/** Full orchestrator run (2 specialists + multiple Python bridge writes) needs headroom. */
+const LIVE_ORCHESTRATOR_TIMEOUT_MS = 120_000;
+
+interface AgentRunRow {
+  id: string;
+  agent_type: string;
+  status: string;
+}
+
+(LIVE ? describe : describe.skip)(
+  "Phase 5 — service-level initial Plan (live-PG)",
+  () => {
+    let pool: Pool;
+    let service: PlanService;
+
+    beforeAll(async () => {
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      service = composeOrchestratorPlanService({ pool, env: process.env });
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("createPlan() drives the TS orchestrator through Wallet + Redemption to revision 1", async () => {
+      const view = await service.createPlan(USER_ID, FROZEN_DEMO_QUERY);
+
+      expect(view.planId).toBeTruthy();
+      expect(view.planLineageId).toBeTruthy();
+      expect(view.revisionNumber).toBe(1);
+      expect(view.status).toBe("current");
+      expect(view.query).toBe(FROZEN_DEMO_QUERY);
+      expect(view.steps.length).toBeGreaterThan(0);
+      expect(view.graph.nodes.length).toBeGreaterThan(0);
+
+      const planRow = await pool.query<{
+        revision_number: number;
+        status: string;
+        user_id: string;
+      }>("SELECT revision_number, status, user_id FROM plans WHERE id = $1", [view.planId]);
+      expect(planRow.rows).toHaveLength(1);
+      expect(planRow.rows[0]?.revision_number).toBe(1);
+      expect(planRow.rows[0]?.status).toBe("current");
+      expect(planRow.rows[0]?.user_id).toBe(USER_ID);
+
+      const agentRuns = await pool.query<AgentRunRow>(
+        `SELECT id, agent_type, status
+         FROM agent_runs
+         WHERE plan_id = $1
+         ORDER BY started_at ASC`,
+        [view.planId],
+      );
+      const types = agentRuns.rows.map((r) => r.agent_type);
+      expect(types).toContain("wallet_agent");
+      expect(types).toContain("redemption_agent");
+      expect(new Set(types).size).toBeGreaterThanOrEqual(2);
+      expect(types.indexOf("wallet_agent")).toBeLessThan(types.indexOf("redemption_agent"));
+      for (const row of agentRuns.rows) {
+        expect(row.status).toBe("completed");
+      }
+
+      const mutations = await pool.query<{ mutation_type: string }>(
+        "SELECT mutation_type FROM graph_mutations WHERE plan_id = $1",
+        [view.planId],
+      );
+      expect(mutations.rows.length).toBeGreaterThan(0);
+
+      const dependencies = await pool.query(
+        `SELECT sd.id
+         FROM state_dependencies sd
+         JOIN plan_steps ps ON ps.id = sd.plan_step_id
+         WHERE ps.plan_id = $1`,
+        [view.planId],
+      );
+      expect(dependencies.rows.length).toBeGreaterThan(0);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "C2 PHASE 5 EVIDENCE:",
+        JSON.stringify(
+          {
+            engine: "orchestrator",
+            planId: view.planId,
+            planLineageId: view.planLineageId,
+            revisionNumber: view.revisionNumber,
+            specialistAgentTypes: types,
+            agentRunIds: agentRuns.rows.map((r) => r.id),
+            mutationCount: mutations.rows.length,
+            dependencyCount: dependencies.rows.length,
+            stepCount: view.steps.length,
+          },
+          null,
+          2,
+        ),
+      );
+      // eslint-disable-next-line no-console
+      console.log("PHASE 5 SERVICE-LEVEL INITIAL PLAN: PASS");
+    });
+  },
+  LIVE_ORCHESTRATOR_TIMEOUT_MS,
+);

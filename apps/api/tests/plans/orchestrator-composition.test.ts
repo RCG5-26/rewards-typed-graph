@@ -1,27 +1,33 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
 
 import type { PlanProjectionPort, PlanResult } from "../../src/orchestrator/contracts";
 import {
   AdaptersNotIntegratedError,
   EXPECTED_PROMPT_B_HANDOFF,
+  buildProductionOrchestratorDeps,
   composeOrchestratorPlanService,
 } from "../../src/plans/orchestrator-composition";
 import { OrchestratorPlanService } from "../../src/plans/orchestrator-service";
 import type { PlanView } from "../../src/plans/types";
+
+// The snapshot builder stores the pool but issues no query at construction time,
+// so a bare object is a safe stand-in for assembling (not running) the engine.
+const fakePool = {} as Pool;
 
 const COMPOSITION_SOURCE = fileURLToPath(
   new URL("../../src/plans/orchestrator-composition.ts", import.meta.url),
 );
 
 describe("composeOrchestratorPlanService (Phase 4 — production composition root)", () => {
-  it("fails fast at the C1 stop gate without fabricating adapters", () => {
+  it("fails fast without fabricating adapters when no pool and no deps are given", () => {
     expect(() => composeOrchestratorPlanService()).toThrow(AdaptersNotIntegratedError);
   });
 
-  it("names the expected Prompt B handoff in the fail-fast message", () => {
+  it("names the production handoff and the python-legacy rollback in the fail-fast message", () => {
     try {
       composeOrchestratorPlanService({ env: {} });
       expect.unreachable("should have thrown");
@@ -32,6 +38,18 @@ describe("composeOrchestratorPlanService (Phase 4 — production composition roo
         expect(message).toContain(item);
       }
     }
+  });
+
+  it("assembles a production OrchestratorPlanService when a Postgres pool is provided", () => {
+    const service = composeOrchestratorPlanService({ pool: fakePool, env: {} });
+    expect(service).toBeInstanceOf(OrchestratorPlanService);
+  });
+
+  it("wires real M6 deps (orchestrator runner + projection + read delegate) from a pool", () => {
+    const deps = buildProductionOrchestratorDeps({ pool: fakePool, env: {} });
+    expect(typeof deps.orchestrator.run).toBe("function");
+    expect(typeof deps.projection.project).toBe("function");
+    expect(typeof deps.readDelegate.transferBalance).toBe("function");
   });
 
   it("builds a real OrchestratorPlanService when post-handoff deps are injected", () => {
