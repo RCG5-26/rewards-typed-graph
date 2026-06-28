@@ -7,6 +7,7 @@ import {
   FakeRedemptionAgent,
   FakeWalletAgent,
   FailingEarningAgent,
+  NoOpEarningAgent,
   SpecialistNamingPlanCommand,
 } from "../helpers/fake-agents";
 import {
@@ -30,7 +31,9 @@ function buildHarness(options?: {
   const memoryCommitFactory = new InMemoryAgentCommitFactory(graphWrite);
   const registry: AgentRegistry = options?.registry ?? {
     wallet_agent: new FakeWalletAgent(),
-    earning_agent: new FakeEarningAgent(),
+    // tokyoFixture dispatches earning as a benign third participant — use the
+    // explicit no-op, not the production-faithful (throwing) FakeEarningAgent.
+    earning_agent: new NoOpEarningAgent(),
     redemption_agent: new FakeRedemptionAgent(),
   };
   const orchestrator = new Orchestrator({
@@ -99,7 +102,7 @@ describe("orchestrator", () => {
             registeredType: "earning_agent",
             operationAgentType: ctx.operation.agentType,
           });
-          await new FakeEarningAgent().run(ctx);
+          await new NoOpEarningAgent().run(ctx);
         },
       },
       redemption_agent: {
@@ -175,7 +178,7 @@ describe("orchestrator", () => {
           });
         },
       },
-      earning_agent: new FakeEarningAgent(),
+      earning_agent: new NoOpEarningAgent(),
       redemption_agent: new FakeRedemptionAgent(),
     };
     const orchestrator = new Orchestrator({
@@ -362,6 +365,30 @@ describe("orchestrator", () => {
     );
   });
 
+  it("fails the Plan if the production-faithful FakeEarningAgent is dispatched", async () => {
+    // FakeEarningAgent mirrors production EarningAgent: dispatching earning_agent
+    // must fail the flow, not silently succeed. This guards against a fake that
+    // diverges from production and lets an accidental dispatch pass in tests.
+    const { orchestrator, graphWrite } = buildHarness({
+      registry: {
+        wallet_agent: new FakeWalletAgent(),
+        earning_agent: new FakeEarningAgent(),
+        redemption_agent: new FakeRedemptionAgent(),
+      },
+    });
+
+    const result = await orchestrator.run({ userId: "user-1", queryText: PERSONA_QUERY });
+
+    expect(result.status).toBe("failed");
+    const earningRun = [...graphWrite.agentRuns.values()].find(
+      (r) => r.agentType === "earning_agent",
+    )!;
+    expect(earningRun.status).toBe("failed");
+    expect([...graphWrite.agentRuns.values()].some((r) => r.agentType === "redemption_agent")).toBe(
+      false,
+    );
+  });
+
   it("is the only component that creates or transitions Plans", async () => {
     const graphWrite = new InMemoryOrchestratorGraphWrite();
     const commitFactory = new InMemoryAgentCommitFactory(graphWrite);
@@ -404,17 +431,16 @@ describe("orchestrator", () => {
     ]);
     expect(runs.every((r) => r.status === "completed")).toBe(true);
     expect(runs[0].state?.last_read_versions).toEqual({ "balance-chase-ur": 2 });
-    expect(runs[1].state?.last_read_versions).toEqual({
-      "balance-chase-ur": 2,
-      "card-csp": 0,
-    });
+    // earning_agent owns no mutations (MUTATION_OWNERSHIP earning_agent: []) — run[1].state is null
+    expect(runs[1].state).toBeNull();
     expect(runs[2].state?.last_read_versions).toEqual({
       "balance-chase-ur": 2,
       "route-chase-hyatt": 5,
     });
 
-    expect(commitFactory.recordedCommits).toHaveLength(3);
-    expect(new Set(commitFactory.recordedCommits.map((c) => c.idempotencyKey)).size).toBe(3);
+    // wallet (1) + redemption (1) = 2 commits; earning_agent submits no mutations
+    expect(commitFactory.recordedCommits).toHaveLength(2);
+    expect(new Set(commitFactory.recordedCommits.map((c) => c.idempotencyKey)).size).toBe(2);
 
     const walletMutation = commitFactory.recordedCommits[0].mutation;
     expect(walletMutation.kind).toBe("UpdateUserBalance");
@@ -422,16 +448,7 @@ describe("orchestrator", () => {
       expect(walletMutation.balanceNodeId).toBe("balance-chase-ur");
     }
 
-    const earningMutation = commitFactory.recordedCommits[1].mutation;
-    expect(earningMutation.kind).toBe("CreatePlanStep");
-    if (
-      earningMutation.kind === "CreatePlanStep" &&
-      earningMutation.stepType === "spend_analysis"
-    ) {
-      expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
-    }
-
-    const redemptionMutation = commitFactory.recordedCommits[2].mutation;
+    const redemptionMutation = commitFactory.recordedCommits[1].mutation;
     expect(redemptionMutation.kind).toBe("CreatePlanStep");
     if (
       redemptionMutation.kind === "CreatePlanStep" &&
@@ -446,20 +463,15 @@ describe("orchestrator", () => {
     const { orchestrator, commitFactory } = buildHarness();
     await orchestrator.run({ userId: "user-1", queryText: PERSONA_QUERY });
 
+    // earning_agent owns no mutations, so only wallet (index 0) and redemption (index 1) commit
+    expect(commitFactory.recordedCommits).toHaveLength(2);
+
     const walletMutation = commitFactory.recordedCommits[0].mutation;
     if (walletMutation.kind === "UpdateUserBalance") {
       expect(walletMutation.balanceNodeId).toBe("balance-chase-ur");
     }
 
-    const earningMutation = commitFactory.recordedCommits[1].mutation;
-    if (
-      earningMutation.kind === "CreatePlanStep" &&
-      earningMutation.stepType === "spend_analysis"
-    ) {
-      expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
-    }
-
-    const redemptionMutation = commitFactory.recordedCommits[2].mutation;
+    const redemptionMutation = commitFactory.recordedCommits[1].mutation;
     if (
       redemptionMutation.kind === "CreatePlanStep" &&
       redemptionMutation.stepType === "redemption_recommendation"
