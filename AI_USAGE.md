@@ -1104,3 +1104,63 @@ routes, no backend contracts)
 ### Secrets
 
 No secrets recorded. No `.env` read; API keys never logged or committed.
+
+---
+
+## Demo Sprint Joint Freeze — Hour 0–1 baseline (2026-06-28)
+
+Coordinator pass to let two contributors split from one baseline. Read-only on
+product code; one new doc created (`docs/demo/DEMO_SPRINT_FREEZE.md`). No agent
+or schema refactor; replan deliberately not touched.
+
+### Tools used
+- Claude Code (Opus 4.8): one parallel `Explore` agent for contract/fixture/seam
+  inventory; `Bash` for git, `psql`, `vitest`, `python3.12` benchmark modules;
+  small Python audit snippets (no files committed); `Read`/`Write` for the freeze doc.
+
+### Important decisions
+- **Canonical wallet = live `demo-seed-v1` persona** (`clerk_hero_demo`/`…a001`),
+  not the benchmark fixture, because the graph orchestrator must read canonical
+  PostgreSQL. Transfer-required invariant numerically proven (Hyatt 30k < Ginza 45k;
+  +15k Chase→Hyatt @1:1 → affordable). Shortfall = 15,000 pts.
+- **Canonical query frozen** verbatim (architecture-neutral phrasing) for a fair
+  three-way grounding comparison; adapters must override existing test/gold strings.
+- **Normalized comparison contract frozen in the doc** (no shared TS workspace exists;
+  adding one would be an out-of-scope architectural change). Person B owns the
+  code-level type post-split.
+- Single-writer rule assigned for shared route registration (Person A) and shared
+  comparison types (Person B).
+
+### Validation commands
+| Command | Result |
+|---|---|
+| `git status` / `git rev-parse HEAD` | clean, SHA `6c388cb`, in sync with `origin/main` |
+| `python3.12 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona` | ✓ persona restored (idempotent upsert; smoke seed preserved) |
+| `vitest run orchestrator-service.test.ts -t "Phase 5"` (live PG, `PLAN_ENGINE=orchestrator`) | ✓ rev1 current, wallet→redemption, 4 mutations, 1 dep |
+| `python3.12 -m benchmark.single_agent_baseline --limit 1 --pretty` (live) | ✓ exit 0, 1 call, 2,050 tok, Ginza correct |
+| `python3.12 -m benchmark.free_text_multiagent_baseline --limit 1 --pretty` (live) | ✓ exit 0, 4 roles, 8,367 tok, Ginza correct |
+
+### Manual review / findings caught
+- **Live DB had been re-seeded by a parallel process** (generic `clerk_rcg12` smoke
+  seed); demo persona was missing. Restored non-destructively. DB flagged volatile.
+- **Grounding flag is an evaluator artifact, not a hallucination:** both baselines'
+  `award_not_in_tool_result` traces to `balance:user_mvp_demo:chase_ur` — supplied in
+  the prompt but omitted from `person_c_scorer.py::_fixture_fact_slugs`. Classified
+  `EVALUATOR_BOUNDARY_MISMATCH`. Fix assigned to Person B.
+- **Input worlds differ:** graph uses `demo-seed-v1` (Chase 180k/Hyatt 30k); baselines
+  use `person-c-mvp` (Chase 75k, no Hyatt). Classified `SEPARATE_DATA_WORLDS` — no fair
+  comparison may be claimed yet.
+- `python3` is 3.14.2 (wrong); CI/baselines require `python3.12`.
+
+### Deferred / blocked
+- Orchestrator replan (steps stay `proposed`; invalidation needs `current`) — Person A lane.
+- Data-world + query alignment, evaluator balance-slug fix, code-level comparison type — Person B lane.
+- Hosted verification not performed (`API_BASE_URL` is localhost).
+
+### Secrets
+No secret values printed or stored; env vars reported as present/absent only.
+`.env`/`apps/api/.env` confirmed git-ignored. DB password/OpenAI key passed via
+command substitution, never echoed.
+
+### Verdict
+`JOINT FREEZE COMPLETE — DATA ALIGNMENT REQUIRED`
