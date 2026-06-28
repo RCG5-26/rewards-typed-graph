@@ -74,7 +74,7 @@ function baselineReport(architecture: string): BaselineReport {
 const happyReport: RunBaselineReport = async (module) => baselineReport(module);
 
 function deps(overrides: Partial<ComparisonDeps> = {}): ComparisonDeps {
-  return { graphService, runReport: happyReport, env: {}, ...overrides };
+  return { graphService, planEngine: "orchestrator", runReport: happyReport, env: {}, ...overrides };
 }
 
 async function postComparison(d: ComparisonDeps, body: unknown) {
@@ -136,6 +136,33 @@ describe("POST /demo/architecture-comparison", () => {
     expect(json.query).toBe(CANONICAL_QUERY);
   });
 
+  it("accepts the exact canonical query and echoes it to every result (Fix 5)", async () => {
+    const response = await postComparison(deps(), {
+      walletId: "transfer-required",
+      query: CANONICAL_QUERY,
+    });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as ArchitectureComparisonResponse;
+    expect(json.query).toBe(CANONICAL_QUERY);
+    // The response query must match what every architecture actually ran on.
+    for (const result of json.results) {
+      expect(result.query).toBe(CANONICAL_QUERY);
+    }
+  });
+
+  it("rejects any non-canonical query with HTTP 400 (Fix 5: no arbitrary queries)", async () => {
+    const response = await postComparison(deps(), {
+      walletId: "transfer-required",
+      query: "How do I get to the moon on points?",
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("rejects an empty-string query with HTTP 400 (Fix 5)", async () => {
+    const response = await postComparison(deps(), { walletId: "transfer-required", query: "   " });
+    expect(response.status).toBe(400);
+  });
+
   it("rejects an unapproved wallet id with HTTP 400", async () => {
     const response = await postComparison(deps(), { walletId: "not-a-wallet" });
     expect(response.status).toBe(400);
@@ -153,6 +180,38 @@ describe("POST /demo/architecture-comparison", () => {
     expect(wallet.query).toBe(CANONICAL_QUERY);
     // Public facts must not leak any "expected winner"/gold classification.
     expect(JSON.stringify(wallet)).not.toMatch(/expected_top_award|gold|correct_answer|winner/i);
+  });
+
+  it("allows the graph variant when PLAN_ENGINE=orchestrator (Fix 2)", async () => {
+    const response = await postComparison(deps({ planEngine: "orchestrator" }), {
+      walletId: "transfer-required",
+    });
+    const json = (await response.json()) as ArchitectureComparisonResponse;
+    const graph = json.results.find((r) => r.variant === "live-graph-orchestrator");
+    expect(graph?.status).toBe("succeeded");
+  });
+
+  it("never labels a python-legacy plan as the live graph orchestrator (Fix 2)", async () => {
+    // The graph service must NOT be invoked under a non-orchestrator engine.
+    const throwingGraph: GraphPlanRunner = {
+      createPlan: async () => {
+        throw new Error("graph service must not run under python-legacy");
+      },
+    };
+    const response = await postComparison(
+      deps({ planEngine: "python-legacy", graphService: throwingGraph }),
+      { walletId: "transfer-required" },
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as ArchitectureComparisonResponse;
+
+    const graph = json.results.find((r) => r.variant === "live-graph-orchestrator");
+    expect(graph?.status).toBe("failed");
+    expect(graph?.error?.category).toBe("engine_configuration_error");
+    expect(graph?.plan).toBeUndefined();
+    // The other two architectures are unaffected by the engine mismatch.
+    expect(json.results.find((r) => r.variant === "chat-crew")?.status).toBe("succeeded");
+    expect(json.results.find((r) => r.variant === "single-agent")?.status).toBe("succeeded");
   });
 
   it("rejects a malformed body with HTTP 400", async () => {

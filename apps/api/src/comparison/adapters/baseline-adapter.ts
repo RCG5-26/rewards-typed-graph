@@ -14,6 +14,7 @@ import {
 } from "./baseline-bridge";
 import { extractFinalPlan, normalizeBaselinePlan } from "./baseline-normalizer";
 import { type AdapterInput, resolveQuery } from "./types";
+import { CHAT_CREW_TIMEOUT_MS, SINGLE_AGENT_TIMEOUT_MS } from "../timeouts";
 
 interface BaselineAdapterConfig {
   variant: ArchitectureVariant;
@@ -21,6 +22,8 @@ interface BaselineAdapterConfig {
   modelCalls: number;
   agentTypes: string[];
   modelEnvKey: string;
+  /** Explicit per-variant subprocess bound (review Fix 4). */
+  timeoutMs: number;
 }
 
 export interface BaselineAdapterOptions extends AdapterInput {
@@ -48,7 +51,7 @@ async function runBaselineAdapter(
   } as const;
 
   try {
-    const report = await runReport(config.module, { env });
+    const report = await runReport(config.module, { env, timeoutMs: config.timeoutMs });
     const latencyMs = Date.now() - startedAt;
     const caseResult = firstCase(report);
     const rawOutput = caseResult.baseline_plan_record?.raw_output;
@@ -117,6 +120,7 @@ export function runSingleAgent(
       modelCalls: 1,
       agentTypes: ["single-agent"],
       modelEnvKey: "SINGLE_AGENT_BASELINE_MODEL",
+      timeoutMs: SINGLE_AGENT_TIMEOUT_MS,
     },
     options,
   );
@@ -132,6 +136,7 @@ export function runChatCrew(
       modelCalls: 4,
       agentTypes: ["wallet_agent", "earning_agent", "redemption_agent", "coordinator"],
       modelEnvKey: "FREE_TEXT_MULTIAGENT_BASELINE_MODEL",
+      timeoutMs: CHAT_CREW_TIMEOUT_MS,
     },
     options,
   );

@@ -3,10 +3,13 @@
  *   POST /demo/architecture-comparison  { walletId, query? }
  *
  * Only approved wallet ids are accepted; facts are resolved server-side so no
- * client can inject balances or award gold. The query defaults to the canonical
- * query, guaranteeing all three architectures receive it verbatim. The route is
- * unauthenticated by design — it runs a fixed demo persona, not the caller's
- * wallet.
+ * client can inject balances or award gold. The query is fixed to the canonical
+ * query: an absent query resolves to it, the exact canonical string is accepted,
+ * and anything else is a 400 (review Fix 5). This keeps the response `query`
+ * honest — it always equals what every architecture actually received (the
+ * baselines read the canonical query from the cases file; the graph receives it
+ * verbatim). The route is unauthenticated by design — it runs a fixed demo
+ * persona, not the caller's wallet.
  */
 
 import { Hono } from "hono";
@@ -68,12 +71,19 @@ function parseWalletId(body: Record<string, unknown>) {
   return walletId;
 }
 
-/** Optional; defaults to the canonical query so every variant gets it verbatim. */
+/**
+ * The demo runs one fixed scenario, so the only accepted query is the canonical
+ * one. Absent → canonical; exact canonical → accepted; anything else → 400. This
+ * guarantees the response `query` matches what all three architectures ran on —
+ * the demo does not support arbitrary queries (review Fix 5).
+ */
 function parseQuery(body: Record<string, unknown>): string {
   const query = body.query;
   if (query === undefined) return CANONICAL_QUERY;
-  if (typeof query !== "string" || query.trim().length === 0) {
-    throw new HTTPException(400, { message: "query must be a non-empty string when provided" });
+  if (typeof query === "string" && query.trim() === CANONICAL_QUERY) {
+    return CANONICAL_QUERY;
   }
-  return query.trim();
+  throw new HTTPException(400, {
+    message: "query is fixed for this demo; omit it or send the exact canonical query",
+  });
 }

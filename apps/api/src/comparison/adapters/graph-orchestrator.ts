@@ -11,6 +11,7 @@
 import { CANONICAL_GRAPH_USER_ID } from "../canonical-wallet";
 import type { ArchitectureComparisonResult } from "../types";
 import type { PlanView } from "../../plans/types";
+import { GRAPH_TIMEOUT_MS } from "../timeouts";
 import { normalizeGraphPlan } from "./graph-normalizer";
 import { type AdapterInput, resolveQuery } from "./types";
 
@@ -26,6 +27,15 @@ export interface GraphPlanRunner {
 export interface GraphAdapterOptions extends AdapterInput {
   service: GraphPlanRunner;
   userId?: string;
+  /** Bounded so a hung DB/orchestrator cannot stall the comparison (Fix 4). */
+  timeoutMs?: number;
+}
+
+class GraphTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`graph orchestrator timed out after ${timeoutMs}ms`);
+    this.name = "GraphTimeoutError";
+  }
 }
 
 export async function runGraphOrchestrator(
@@ -34,6 +44,7 @@ export async function runGraphOrchestrator(
   const { facts, service } = options;
   const query = resolveQuery(options);
   const userId = options.userId ?? CANONICAL_GRAPH_USER_ID;
+  const timeoutMs = options.timeoutMs ?? GRAPH_TIMEOUT_MS;
   const startedAt = Date.now();
 
   const base = {
@@ -44,7 +55,7 @@ export async function runGraphOrchestrator(
   } as const;
 
   try {
-    const view = await service.createPlan(userId, query);
+    const view = await withTimeout(service.createPlan(userId, query), timeoutMs);
     const latencyMs = Date.now() - startedAt;
     const plan = normalizeGraphPlan(view, facts);
 
@@ -61,11 +72,24 @@ export async function runGraphOrchestrator(
       status: "failed",
       metrics: { latencyMs: Date.now() - startedAt },
       error: {
-        category: "graph_execution_error",
+        category: error instanceof GraphTimeoutError ? "graph_timeout" : "graph_execution_error",
         message: error instanceof Error ? error.message : String(error),
       },
     };
   }
+}
+
+/**
+ * Reject with {@link GraphTimeoutError} if `work` outlives `timeoutMs`. The
+ * underlying plan call is not cancellable through {@link GraphPlanRunner}, so a
+ * late result is simply ignored — the comparison slot has already failed-fast.
+ */
+function withTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new GraphTimeoutError(timeoutMs)), timeoutMs);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
 }
 
 function buildEvidence(

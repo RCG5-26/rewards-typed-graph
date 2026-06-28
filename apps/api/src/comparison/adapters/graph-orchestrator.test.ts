@@ -101,4 +101,16 @@ describe("graph adapter", () => {
     expect(result.error?.message).toContain("db down");
     expect(result.plan).toBeUndefined();
   });
+
+  it("returns a bounded timeout failure when the service hangs (Fix 4)", async () => {
+    // A service that never resolves — the adapter must still return, bounded.
+    const service: GraphPlanRunner = {
+      createPlan: () => new Promise<PlanView>(() => {}),
+    };
+    const result = await runGraphOrchestrator({ facts: FACTS, service, timeoutMs: 50 });
+    expect(result.status).toBe("failed");
+    expect(result.error?.category).toBe("graph_timeout");
+    expect(result.error?.message).toMatch(/timed out after 50ms/);
+    expect(result.plan).toBeUndefined();
+  });
 });
