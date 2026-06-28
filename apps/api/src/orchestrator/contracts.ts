@@ -69,7 +69,7 @@ export interface OrchestratorGraphWrite {
     planLineageId: string;
     queryText: string;
   }): Promise<PlanRecord>;
-  transitionPlanStatus(input: { planId: string; toStatus: "current" | "failed" }): Promise<void>;
+  transitionPlanStatus(input: { userId: string; planId: string; toStatus: "current" | "failed" }): Promise<void>;
   createAgentRun(input: {
     planId: string;
     userId: string;
@@ -77,6 +77,7 @@ export interface OrchestratorGraphWrite {
   }): Promise<AgentRunRecord>;
   finalizeAgentRun(input: {
     agentRunId: string;
+    userId: string;
     status: "completed" | "failed";
     error?: string;
   }): Promise<void>;

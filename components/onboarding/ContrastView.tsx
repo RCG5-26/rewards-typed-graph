@@ -1,176 +1,107 @@
 "use client";
 
-import { deriveComparison, dollars, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
+import { benchmarkReport, isMeasured, pct } from "@/lib/benchmark/report";
 
 /**
- * Head-to-head contrast (Hero Moment 3): the same query, wallet, and tools run
- * across three architectures — typed graph vs. two baselines — where the
- * baselines visibly fail (hallucinate a ratio, miss the invalidation, re-fetch
- * tool results).
- *
- * Driven by the *live* plan run: the typed column's value and every token count
- * come from the real streamed plan (`lib/plan/comparison.ts`), and the typed
- * "caught the invalidation" line reflects whether a re-plan actually fired this
- * session. The baseline value/token figures are derived from those live numbers
- * via the documented model — illustrative projections, not a real CrewAI run.
+ * Head-to-head contrast — the same gold suite scored across three architectures.
+ * Driven entirely by the **captured real** benchmark report
+ * (`lib/benchmark/architecture-comparison.json`). The typed-graph column shows
+ * live-scored metrics; LLM-baseline columns show `not run` with the command to
+ * produce them. No fabricated values, no invented failure narrative.
  */
 
-type Mark = "ok" | "bad" | "warn";
-
-const MARK_STYLE: Record<Mark, { bg: string; color: string; glyph: string }> = {
-  ok: { bg: "var(--color-success-bg)", color: "var(--color-success-fg)", glyph: "✓" },
-  bad: { bg: "var(--color-error-bg)", color: "var(--color-error-fg)", glyph: "✗" },
-  warn: { bg: "var(--color-warning-bg)", color: "var(--color-warning-fg)", glyph: "!" },
+const ACCENT: Record<string, { accent: string; border: string }> = {
+  typed_graph_fixture: { accent: "var(--color-accent)", border: "var(--color-accent-subtle)" },
+  free_text_multiagent_baseline: { accent: "var(--color-warning)", border: "var(--color-warning-bg)" },
+  single_agent_llm_baseline: { accent: "var(--color-neutral-500)", border: "var(--color-border)" },
 };
 
-export default function ContrastView({ metrics }: { metrics: LiveMetrics }) {
-  const cmp = deriveComparison(metrics);
-  const caught = metrics.invalidationCaught;
-
-  const columns = [
-    {
-      key: "typed",
-      title: "Typed graph",
-      tag: "shared typed state",
-      accent: "var(--color-accent)",
-      border: "var(--color-accent-subtle)",
-      badge: "BEST",
-      badgeStyle: { background: "var(--color-accent-muted)", color: "var(--color-accent-text)" },
-      lines: [
-        { mark: "ok" as Mark, t: "Read the Chase→Hyatt ratio from the graph: 1:1 (correct)." },
-        caught
-          ? {
-              mark: "ok" as Mark,
-              t: `Caught the balance invalidation and re-planned to the next award (revision ${metrics.revision}).`,
-            }
-          : {
-              mark: "ok" as Mark,
-              t: "Ready to catch a balance invalidation via typed state dependencies.",
-            },
-        {
-          mark: "ok" as Mark,
-          t: `${metrics.opCount} typed mutations — no tool result re-fetched; coordination is state, not messages.`,
-        },
-      ],
-      metricLabel: "plan value",
-      metricValue: dollars(cmp.typed.valueCents),
-      metricColor: "var(--color-success-fg)",
-      tokens: `${fmtTokens(cmp.typed.tokens)} tok`,
-    },
-    {
-      key: "crewai",
-      title: "CrewAI (free-text)",
-      tag: "json messages",
-      accent: "var(--color-warning)",
-      border: "var(--color-warning-bg)",
-      badge: "LOWER VALUE",
-      badgeStyle: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
-      lines: [
-        {
-          mark: "bad" as Mark,
-          t: "Hallucinated a 1.25:1 transfer ratio — overstates the award value.",
-        },
-        { mark: "bad" as Mark, t: "Missed the invalidation; committed a stale plan." },
-        { mark: "warn" as Mark, t: "Passed the wallet as free-text JSON between agents." },
-      ],
-      metricLabel: "plan value",
-      metricValue: `${dollars(cmp.crewai.valueCents)}*`,
-      metricColor: "var(--color-error-fg)",
-      tokens: `${fmtTokens(cmp.crewai.tokens)} tok`,
-    },
-    {
-      key: "single",
-      title: "Single agent",
-      tag: "one context window",
-      accent: "var(--color-neutral-500)",
-      border: "var(--color-border)",
-      badge: "LOWEST VALUE",
-      badgeStyle: {
-        background: "var(--color-surface-subtle)",
-        color: "var(--color-text-tertiary)",
-      },
-      lines: [
-        { mark: "ok" as Mark, t: "Ratio correct on the first pass." },
-        { mark: "bad" as Mark, t: "Re-fetched balances 3× — no shared state to read." },
-        { mark: "bad" as Mark, t: "Lost the goal once the context window filled up." },
-      ],
-      metricLabel: "plan value",
-      metricValue: dollars(cmp.single.valueCents),
-      metricColor: "var(--color-warning-fg)",
-      tokens: `${fmtTokens(cmp.single.tokens)} tok`,
-    },
-  ];
+export default function ContrastView() {
+  const { architectures, caseCount, benchmarkId, generatedAt } = benchmarkReport;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3 text-xs text-text-secondary">
-        same query, same wallet, same tools — three architectures. only one keeps a typed shared
-        state.
+        same {caseCount}-case gold suite, scored across three architectures — only the typed graph
+        keeps a typed shared state.
       </div>
       <div className="flex min-h-0 flex-1 gap-3">
-        {columns.map((c) => (
-          <div
-            key={c.key}
-            className="flex min-w-0 flex-1 flex-col rounded-card bg-surface p-5 shadow-raised"
-            style={{ border: `1px solid ${c.border}` }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
-                <span className="font-display text-base font-semibold text-text-primary">
-                  {c.title}
+        {architectures.map((c) => {
+          const accent = ACCENT[c.key] ?? ACCENT.single_agent_llm_baseline;
+          return (
+            <div
+              key={c.key}
+              className="flex min-w-0 flex-1 flex-col rounded-card bg-surface p-5 shadow-raised"
+              style={{ border: `1px solid ${accent.border}` }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: accent.accent }} />
+                  <span className="font-display text-base font-semibold text-text-primary">
+                    {c.label}
+                  </span>
+                </div>
+                <span
+                  className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  style={
+                    isMeasured(c)
+                      ? { background: "var(--color-accent-muted)", color: "var(--color-accent-text)", padding: "2px 7px" }
+                      : { background: "var(--color-surface-subtle)", color: "var(--color-text-tertiary)", padding: "2px 7px" }
+                  }
+                >
+                  {isMeasured(c) ? "measured" : "not run"}
                 </span>
               </div>
-              <span
-                className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide"
-                style={{ ...c.badgeStyle, padding: "2px 7px" }}
-              >
-                {c.badge}
-              </span>
-            </div>
-            <span className="mt-1.5 font-mono text-2xs text-text-tertiary">
-              plan_type · {c.tag}
-            </span>
-            <div className="my-3.5 h-px" style={{ background: "var(--color-border)" }} />
+              <div className="my-3.5 h-px" style={{ background: "var(--color-border)" }} />
 
-            <div className="flex flex-1 flex-col gap-3">
-              {c.lines.map((ln, i) => {
-                const m = MARK_STYLE[ln.mark];
-                return (
-                  <div key={i} className="flex items-start gap-2.5">
-                    <span
-                      className="mt-0.5 flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full text-[10px] font-bold"
-                      style={{ background: m.bg, color: m.color }}
-                    >
-                      {m.glyph}
-                    </span>
-                    <span className="text-[13px] leading-snug text-text-secondary">{ln.t}</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 flex items-end justify-between border-t border-subtle pt-3.5">
-              <div>
-                <div className="font-mono text-2xs font-semibold uppercase tracking-wide text-text-tertiary">
-                  {c.metricLabel}
+              {isMeasured(c) ? (
+                <div className="flex flex-1 flex-col gap-3.5">
+                  <Metric label="Plan accuracy" value={`${pct(c.accuracyRate)} · ${c.accuracyPassed}/${c.accuracyTotal}`} />
+                  <Metric label="Hallucinated ratios" value={`${c.hallucinationCount} · ${pct(c.hallucinationRate)}`} />
+                  <Metric
+                    label="Invalidations caught"
+                    value={`${pct(c.invalidationRate)} · ${c.invalidationPassed}/${c.invalidationTotal}`}
+                  />
+                  <Metric
+                    label="Token cost"
+                    value={c.tokenCostTotal == null ? "not instrumented" : `${c.tokenCostTotal.toLocaleString()} tok`}
+                    muted={c.tokenCostTotal == null}
+                  />
                 </div>
-                <div
-                  className="mt-1 font-display text-2xl font-semibold tabular-nums"
-                  style={{ color: c.metricColor }}
-                >
-                  {c.metricValue}
+              ) : (
+                <div className="flex flex-1 flex-col justify-between gap-3">
+                  <p className="text-[13px] leading-snug text-text-secondary">
+                    Not yet scored — this LLM baseline needs a paid key. Run it, then regenerate the
+                    report:
+                  </p>
+                  <code className="block overflow-x-auto rounded-lg p-2.5 font-mono text-2xs text-text-secondary" style={{ background: "var(--color-surface-subtle)" }}>
+                    {c.run}
+                  </code>
                 </div>
-              </div>
-              <span className="font-mono text-2xs text-text-tertiary">{c.tokens}</span>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div className="mt-2 font-mono text-2xs text-text-tertiary">
-        value &amp; token counts derived live from {metrics.opCount} streamed mutations · *
-        hallucinated baseline ratio.
+        {benchmarkId} · captured {generatedAt} · real scorer output (no fabricated baselines)
       </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-subtle pb-3 last:border-0">
+      <span className="font-mono text-2xs font-semibold uppercase tracking-wide text-text-tertiary">
+        {label}
+      </span>
+      <span
+        className="font-display text-lg font-semibold tabular-nums"
+        style={{ color: muted ? "var(--color-text-tertiary)" : "var(--color-success-fg)" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

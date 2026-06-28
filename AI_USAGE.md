@@ -669,3 +669,152 @@ user-owned external resources:
 No secrets recorded. No `.env` read for values; `.env.example` holds placeholders
 only; `DATABASE_URL`/tokens never logged. Local verification used the throwaway
 `rewards:rewards@…/rewards_test` compose credentials only.
+
+---
+
+## Entry 010 — Demo-observability UI + user-driven replan (2026-06-27)
+
+**Task:** Teammate-2 demo-observability lane (compact agent-activity panel bound to
+real evidence) + a user-driven replan flow ("I transferred X points" → re-plan),
+plus an Option B contracts doc-fix.
+**Branch:** `chore/option-b-shared-baseline`
+**Production code changed:** Yes (frontend only; no Hono routes, no backend contracts)
+
+### Tools used
+
+- Claude Code (Opus 4.8, 1M context) — investigation, implementation, tests
+- `Read`/`Bash`/`Grep` — traced live SSE wiring, contracts, planner behavior
+- `python3` — ran `agents/redemption/planner.py` to verify the rev-1 transfer amount
+
+### Files modified
+
+- `lib/plan/activity.ts` (NEW) — frontend-only typed orchestration-evidence model
+  (runId, specialist, operation, status, snapshot/state version, start/end, validation,
+  commit result/failure class, plan-revision transition).
+- `components/onboarding/AgentActivity.tsx` (NEW) — pure-props accessible panel
+  (ordered list, color-independent lifecycle glyphs + SR text, loading/empty/failed/
+  complete states).
+- `lib/api/activity-adapter.ts` (NEW) — maps the **real** `/api/mutations/stream`
+  events to a trace; leaves backend-gated fields `undefined` (no fabrication).
+- `components/onboarding/AgentActivityLive.tsx` (NEW) — thin SSE shell feeding the
+  pure component from the live endpoint.
+- `lib/api/types.ts` — extended `RealMutationEvent` with `agent_run_id`,
+  `mutation_txn_id`, `committed_at` (fields the wire already carries).
+- `lib/api/activity-adapter.test.ts`, `components/onboarding/AgentActivity.test.tsx`
+  (NEW) — 17 tests (ordering, distinct specialists, lifecycle transitions, empty/
+  error, a11y semantics, no-fabrication).
+- `app/api/plan/stream/route.ts` — replan branch accepts user transfer params
+  (`?src=&dest=&amt=`); falls back to the seeded persona when absent. Positive-amount
+  validation. (BFF route; Hono routes untouched.)
+- `components/onboarding/AgentConsole.tsx` — "I transferred points" control
+  (program pickers from real `/api/me` balances + amount), revives `openStream(true)`,
+  and a replan summary block (rev N−1 superseded → rev N current, before→after
+  balances, removed transfer step).
+- `components/onboarding/OnboardingFlow.tsx` — passes real `me.balances` to the console.
+- `docs/plans/option-b/{orchestrator-thesis-contracts,architecture-option-b}.md` —
+  corrected the rev-1 recommended transfer (15k/30k → **45,000**, verified against the
+  planner), distinguished it from the 30k demo *trigger* transfer, filled the baseline SHA.
+
+### Key decisions / findings
+
+1. **No fixtures, no fake stream.** Per the lane rules, the panel binds to the real
+   mutations SSE and the replan calls the real `POST /balance-transfer`. Fixtures live
+   only in tests.
+2. **Honesty boundary (the "why" for what's missing).** The live `MutationEvent`
+   contract carries no snapshot version / validation / distinct-specialist identity
+   (`agent_run_id` is null on the legacy runtime). The model has typed slots for these
+   but the adapter leaves them `undefined` until the orchestrator (M4/M9) is mounted —
+   so thesis claims 2/3/4 are **backend-gated**, while 6/7/9 (revision committed →
+   invalidated → superseded) are demonstrable from real data today.
+3. **Rev-1 transfer amount corrected to 45,000** — the planner recommends the winning
+   Ginza award's full cost at the 1:1 path and does not net out the existing 30k Hyatt
+   balance (verified by running the planner at balance 180,000). Flagged as an open
+   item for the M2 redemption-adapter owner.
+4. **Lane-boundary note:** the replan trigger touches a BFF route + replan-trigger
+   logic, which under strict Teammate-2/integration separation is integration-lane
+   work. Done here at explicit user direction on the single shared branch; no Hono
+   route or backend contract was changed.
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` (web) | ✓ clean (2 pre-existing pg-env warnings filtered; CI green) |
+| `npx vitest run` (web) | ✓ 171 passed (154 prior + 17 new) |
+
+### Deferred / pending
+
+- Presentation artifacts (Phase 5: diagrams, narration, screenshots) — intentionally
+  omitted at user direction ("no demo things").
+- Claims 2/3/4 remain blocked on the orchestrator backend; the UI will populate the
+  existing typed slots with zero rework once `agent_run_id` + richer fields arrive.
+
+### Secrets
+
+No secrets recorded. No `.env` read; tokens never logged.
+
+---
+
+## Entry 011 — Real benchmark report tabs + review hardening (2026-06-27)
+
+**Task:** Replace the fabricated baselines/benchmark comparison constants with a
+captured **real** benchmark report, and resolve a code-review pass on the
+demo-observability + replan work.
+**Branch:** `chore/option-b-shared-baseline`
+**Production code changed:** Yes (frontend + one Python report generator; no Hono
+routes, no backend contracts)
+
+### Benchmark report (replaces fabricated metrics)
+
+- `scripts/build_benchmark_report.py` (NEW) — runs the fixture-backed typed scorer
+  (`benchmark.person_c_scorer`, real, no key) and merges committed LLM-baseline
+  reports if present; emits `lib/benchmark/architecture-comparison.json`. Baselines
+  with no report are `not_run` (never fabricated). Tolerant of empty/partial files.
+- `lib/benchmark/report.ts` (NEW) — typed loader for the captured report.
+- `components/onboarding/{BenchmarkView,ContrastView}.tsx` — rewired to render the
+  real report (typed measured: accuracy 30/30, 0 hallucinations, invalidation 5/5;
+  baselines show `not run` + the command to produce them). Dropped the
+  `deriveComparison` constants and invented accuracy/hallucination fixtures.
+- Token-cost row omitted: needs LLM-in-loop + `agent_runs.token_count` (deferred).
+- To fill baselines: `OPENAI_API_KEY=... python -m benchmark.single_agent_baseline
+  > benchmark/reports/single_agent_llm_baseline.json` (and the free-text baseline),
+  then re-run the generator. The plan-tab header "tokens vs baseline" chip is still
+  the old illustrative estimate — flagged for a follow-up.
+
+### Code-review fixes (verified against current code)
+
+- `lib/api/activity-adapter.ts` — `runId` now uses `event_id` (unique per row) so
+  several mutations from one `agent_run_id` can't collide React keys.
+- `components/onboarding/AgentActivityLive.tsx` — dedupe streamed events by
+  `event_id` so EventSource auto-reconnect can't replay/duplicate rows.
+- `app/api/plan/stream/route.ts` — `parseUserTransfer` is **fail-closed**: any
+  partial/invalid/same-source/non-positive user tuple → 400, never a silent persona
+  fallback; persona fallback only when no transfer params are present.
+- `components/onboarding/AgentConsole.tsx` — transfer flow reads/refreshes
+  `liveBalances` (refetched from `/api/me` after each replan) instead of the stale
+  prop, and a synchronous in-flight guard prevents double-submit launching two
+  replans.
+
+### Tests added/updated
+
+- Replan flow (AgentConsole): control visibility, same-src/dest + over-balance
+  validation, query-param forwarding, summary (removed step + before→after deltas +
+  revision badges).
+- `AgentActivityLive`: SSE setup, append, dedupe on replay, open/error phases,
+  unmount cleanup.
+- Adapter: `event_id` row identity, `committed_at`→`endedAt`.
+- Route: user-transfer precedence over persona, fail-closed 400 cases, persona-only
+  fallback.
+- Benchmark loader + both tab components (report-driven).
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` (web) | ✓ clean (2 pre-existing pg-env warnings filtered) |
+| `npx vitest run` (web) | ✓ 191 passed |
+| `python scripts/build_benchmark_report.py` | ✓ typed measured; baselines not_run |
+
+### Secrets
+
+No secrets recorded. No `.env` read; API keys never logged or committed.

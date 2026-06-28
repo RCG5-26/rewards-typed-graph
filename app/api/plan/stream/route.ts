@@ -4,7 +4,43 @@ import { NextResponse } from "next/server";
 import { balanceTransfer, createPlan, getPlan, getSession } from "@/lib/api/client";
 import { diffStale, toPlanResult, transferParamsFromPersona } from "@/lib/api/adapters";
 import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
+import type { ApiTransferParams } from "@/lib/api/types";
 import type { PlanResult } from "@/lib/plan/types";
+
+type TransferParse =
+  | { kind: "none" }
+  | { kind: "invalid"; message: string }
+  | { kind: "ok"; params: ApiTransferParams };
+
+/**
+ * Parse a user-entered transfer from the query string (`?src=&dest=&amt=`).
+ *
+ * Fail-closed: if the caller supplies *any* of the three params it must supply a
+ * complete, valid tuple — otherwise we reject (`invalid`) rather than silently
+ * falling back to the seeded persona transfer (which would fire an unintended
+ * demo transfer). Only when *none* are present do we return `none` so the caller
+ * uses the persona fallback.
+ */
+function parseUserTransfer(url: URL): TransferParse {
+  const rawSrc = url.searchParams.get("src");
+  const rawDest = url.searchParams.get("dest");
+  const rawAmt = url.searchParams.get("amt");
+  if (rawSrc === null && rawDest === null && rawAmt === null) return { kind: "none" };
+
+  const sourceProgramId = rawSrc?.trim() ?? "";
+  const destProgramId = rawDest?.trim() ?? "";
+  const amountPoints = Number(rawAmt);
+  if (!sourceProgramId || !destProgramId) {
+    return { kind: "invalid", message: "Transfer requires both a source and destination program." };
+  }
+  if (sourceProgramId === destProgramId) {
+    return { kind: "invalid", message: "Transfer source and destination must differ." };
+  }
+  if (!Number.isFinite(amountPoints) || amountPoints <= 0) {
+    return { kind: "invalid", message: "Transfer amount must be a positive number." };
+  }
+  return { kind: "ok", params: { sourceProgramId, destProgramId, amountPoints } };
+}
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
@@ -45,6 +81,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: cardsError }, { status: 400 });
   }
   const isReplan = url.searchParams.get("replan") === "1";
+  const transfer = parseUserTransfer(url);
+  if (isReplan && transfer.kind === "invalid") {
+    return NextResponse.json({ error: transfer.message }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
 
@@ -61,8 +101,12 @@ export async function GET(request: Request) {
 
       try {
         if (isReplan) {
-          const session = await getSession(token);
-          const params = transferParamsFromPersona(session);
+          // A valid user-entered transfer wins; with none supplied, fall back to
+          // the seeded persona's scripted transfer (the original demo trigger).
+          const params =
+            transfer.kind === "ok"
+              ? transfer.params
+              : transferParamsFromPersona(await getSession(token));
           const transferResult = await balanceTransfer(params, token);
 
           if (!transferResult.staledPlanId) {

@@ -56,6 +56,7 @@ export class InMemoryOrchestratorGraphWrite implements OrchestratorGraphWrite {
   }
 
   async transitionPlanStatus(input: {
+    userId: string;
     planId: string;
     toStatus: "current" | "failed";
   }): Promise<void> {
@@ -112,6 +113,7 @@ export class InMemoryOrchestratorGraphWrite implements OrchestratorGraphWrite {
 
   async finalizeAgentRun(input: {
     agentRunId: string;
+    userId: string;
     status: "completed" | "failed";
     error?: string;
   }): Promise<void> {
