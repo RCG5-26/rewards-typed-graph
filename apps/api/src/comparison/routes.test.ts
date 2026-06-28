@@ -141,6 +141,20 @@ describe("POST /demo/architecture-comparison", () => {
     expect(response.status).toBe(400);
   });
 
+  it("exposes canonical public wallet facts (no private gold) via GET", async () => {
+    const app = createComparisonRoutes(deps());
+    const response = await app.request("/demo/test-wallets");
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { wallets: Array<Record<string, unknown>> };
+    expect(json.wallets.length).toBeGreaterThan(0);
+    const wallet = json.wallets[0];
+    expect(wallet.walletId).toBe("transfer-required");
+    expect(wallet.balances).toBeDefined();
+    expect(wallet.query).toBe(CANONICAL_QUERY);
+    // Public facts must not leak any "expected winner"/gold classification.
+    expect(JSON.stringify(wallet)).not.toMatch(/expected_top_award|gold|correct_answer|winner/i);
+  });
+
   it("rejects a malformed body with HTTP 400", async () => {
     const app = createComparisonRoutes(deps());
     const response = await app.request("/demo/architecture-comparison", {

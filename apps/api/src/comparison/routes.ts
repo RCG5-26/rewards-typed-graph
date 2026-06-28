@@ -13,11 +13,26 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { type AuthEnv } from "../http/auth";
-import { APPROVED_WALLET_IDS, CANONICAL_QUERY, isApprovedWalletId } from "./canonical-wallet";
+import {
+  APPROVED_WALLET_IDS,
+  CANONICAL_QUERY,
+  getCanonicalWallet,
+  isApprovedWalletId,
+} from "./canonical-wallet";
 import { type ComparisonDeps, runArchitectureComparison } from "./run-comparison";
 
 export function createComparisonRoutes(deps: ComparisonDeps) {
   const app = new Hono<AuthEnv>();
+
+  // Public canonical facts the Test Wallets page shows before any run. These are
+  // the same facts supplied to the agents — never private gold — so the UI never
+  // hard-codes balances of its own.
+  app.get("/demo/test-wallets", (c) => {
+    const wallets = APPROVED_WALLET_IDS.map((id) => getCanonicalWallet(id)).filter(
+      (w): w is NonNullable<typeof w> => w !== undefined,
+    );
+    return c.json({ wallets });
+  });
 
   app.post("/demo/architecture-comparison", async (c) => {
     const body = await readJsonBody(c.req.raw);

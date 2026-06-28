@@ -114,3 +114,61 @@ export const VARIANT_LABELS: Record<ArchitectureVariant, string> = {
   "chat-crew": "Chat Crew",
   "single-agent": "Single Agent",
 };
+
+// ---------------------------------------------------------------------------
+// Public wallet facts (GET /demo/test-wallets). Mirror of the API's
+// CanonicalWalletFacts — the public facts shown before any run. No private gold.
+// ---------------------------------------------------------------------------
+
+export interface PublicCard {
+  cardId: string;
+  cardName: string;
+  issuer: string;
+  programId: string;
+  programName: string;
+}
+
+export interface PublicBalance {
+  programId: string;
+  programSlug: string;
+  programName: string;
+  points: number;
+  version: number;
+}
+
+export interface PublicTransferRoute {
+  sourceProgramId: string;
+  sourceProgramSlug: string;
+  destinationProgramId: string;
+  destinationProgramSlug: string;
+  ratioBasisPoints: number;
+}
+
+export interface PublicAwardOption {
+  awardId: string;
+  awardSlug: string;
+  displayName: string;
+  programId: string;
+  programSlug: string;
+  pointsRequired: number;
+  valueBasisPoints: number;
+  available: boolean;
+}
+
+export interface PublicWalletFacts {
+  walletId: string;
+  version: string;
+  displayName: string;
+  description: string;
+  programs: Array<{ programId: string; programSlug: string; name: string; issuer: string }>;
+  cards: PublicCard[];
+  balances: PublicBalance[];
+  transferRoutes: PublicTransferRoute[];
+  awardOptions: PublicAwardOption[];
+  goal: { destination: string; category: string; nights: number };
+  query: string;
+}
+
+export interface TestWalletsResponse {
+  wallets: PublicWalletFacts[];
+}
