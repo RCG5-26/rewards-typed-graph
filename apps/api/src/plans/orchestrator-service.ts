@@ -205,6 +205,7 @@ export class OrchestratorPlanService implements PlanService {
         staledPlanId: applied.staledPlanId,
         replanJobId: applied.replanJobId,
         currentPlan: existing,
+        idempotencyReplayed: true,
       };
     }
 
@@ -222,6 +223,7 @@ export class OrchestratorPlanService implements PlanService {
       staledPlanId: applied.staledPlanId,
       replanJobId: applied.replanJobId,
       currentPlan,
+      idempotencyReplayed: false,
     };
   }
 

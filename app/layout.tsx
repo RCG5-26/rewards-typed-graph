@@ -5,6 +5,12 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import "../design-system/global.css";
 
+// Every route sits under <ClerkProvider>, which needs request-time auth
+// context. Force dynamic rendering so the production build does not attempt to
+// statically prerender Clerk-dependent pages (which fails with a null React
+// dispatcher at build time).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "GPFree — Your points are worth more than you think",
   description:
