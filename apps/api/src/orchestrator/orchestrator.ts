@@ -4,9 +4,16 @@ import type {
   OrchestratorGraphWrite,
   PlanRequest,
   PlanResult,
+  RevisionResult,
+  RevisionSpec,
 } from "./contracts";
 import { OrchestrationError } from "./contracts";
 import { validateDecomposedQuery } from "./decomposition";
+
+/** Internal success/failure outcome shared by initial and revision runs. */
+type ExecuteOutcome =
+  | { ok: true; planId: string; planLineageId: string; agentRunIds: readonly string[] }
+  | { ok: false; failure: PlanResult };
 
 type InvocationFailureKind = "agent" | "infrastructure" | "lifecycle_persistence";
 
@@ -95,12 +102,64 @@ async function failInvocation(params: {
 export class Orchestrator {
   constructor(private readonly deps: OrchestratorDeps) {}
 
+  /** Initial plan: mint a fresh lineage at revision 1 and promote to current. */
   async run(request: PlanRequest): Promise<PlanResult> {
-    const planLineageId = crypto.randomUUID();
+    const outcome = await this.execute(request, null);
+    if (!outcome.ok) {
+      return outcome.failure;
+    }
+    await this.deps.graphWrite.transitionPlanStatus({
+      userId: request.userId,
+      planId: outcome.planId,
+      toStatus: "current",
+    });
+    return {
+      planId: outcome.planId,
+      planLineageId: outcome.planLineageId,
+      status: "current",
+      agentRunIds: outcome.agentRunIds,
+    };
+  }
+
+  /**
+   * Replan re-entry: build a new revision IN AN EXISTING lineage. On success the
+   * revision is left 'generating' with 'proposed' steps — the caller's
+   * replan-job promotion (`promote_replan_job_success`) is the single boundary
+   * that flips it to 'current', supersedes the prior revision, and promotes its
+   * steps. Promoting here would violate that precondition and risk two currents.
+   */
+  async runRevision(request: PlanRequest, revision: RevisionSpec): Promise<RevisionResult> {
+    const outcome = await this.execute(request, revision);
+    if (!outcome.ok) {
+      return {
+        planId: outcome.failure.planId,
+        planLineageId: outcome.failure.planLineageId,
+        revisionNumber: revision.revisionNumber,
+        status: "failed",
+        agentRunIds: outcome.failure.agentRunIds,
+      };
+    }
+    return {
+      planId: outcome.planId,
+      planLineageId: outcome.planLineageId,
+      revisionNumber: revision.revisionNumber,
+      status: "generating",
+      agentRunIds: outcome.agentRunIds,
+    };
+  }
+
+  private async execute(
+    request: PlanRequest,
+    revision: RevisionSpec | null,
+  ): Promise<ExecuteOutcome> {
+    const planLineageId = revision?.planLineageId ?? crypto.randomUUID();
     const plan = await this.deps.graphWrite.createPlan({
       userId: request.userId,
       planLineageId,
       queryText: request.queryText,
+      ...(revision
+        ? { revisionNumber: revision.revisionNumber, supersedesPlanId: revision.supersedesPlanId }
+        : {}),
     });
 
     let decomposed;
@@ -158,17 +217,20 @@ export class Orchestrator {
             commit,
           });
         } catch (agentErr) {
-          return failInvocation({
-            graphWrite: this.deps.graphWrite,
-            userId: request.userId,
-            planId: plan.id,
-            planLineageId: plan.planLineageId,
-            agentRunIds,
-            agentRunId,
-            primaryError: errorMessage(agentErr, "agent run failed"),
-            failureKind: "agent",
-            cleanupErrors,
-          });
+          return {
+            ok: false,
+            failure: await failInvocation({
+              graphWrite: this.deps.graphWrite,
+              userId: request.userId,
+              planId: plan.id,
+              planLineageId: plan.planLineageId,
+              agentRunIds,
+              agentRunId,
+              primaryError: errorMessage(agentErr, "agent run failed"),
+              failureKind: "agent",
+              cleanupErrors,
+            }),
+          };
         }
 
         try {
@@ -181,40 +243,40 @@ export class Orchestrator {
           cleanupErrors.push(
             `finalizeAgentRun(completed): ${errorMessage(finalizeErr, "unknown error")}`,
           );
-          return failInvocation({
+          return {
+            ok: false,
+            failure: await failInvocation({
+              graphWrite: this.deps.graphWrite,
+              userId: request.userId,
+              planId: plan.id,
+              planLineageId: plan.planLineageId,
+              agentRunIds,
+              agentRunId,
+              primaryError: errorMessage(finalizeErr, "finalize completed failed"),
+              failureKind: "lifecycle_persistence",
+              cleanupErrors,
+            }),
+          };
+        }
+      } catch (infraErr) {
+        return {
+          ok: false,
+          failure: await failInvocation({
             graphWrite: this.deps.graphWrite,
             userId: request.userId,
             planId: plan.id,
             planLineageId: plan.planLineageId,
             agentRunIds,
             agentRunId,
-            primaryError: errorMessage(finalizeErr, "finalize completed failed"),
-            failureKind: "lifecycle_persistence",
+            primaryError: errorMessage(infraErr, "invocation setup failed"),
+            failureKind: "infrastructure",
             cleanupErrors,
-          });
-        }
-      } catch (infraErr) {
-        return failInvocation({
-          graphWrite: this.deps.graphWrite,
-          userId: request.userId,
-          planId: plan.id,
-          planLineageId: plan.planLineageId,
-          agentRunIds,
-          agentRunId,
-          primaryError: errorMessage(infraErr, "invocation setup failed"),
-          failureKind: "infrastructure",
-          cleanupErrors,
-        });
+          }),
+        };
       }
     }
 
-    await this.deps.graphWrite.transitionPlanStatus({ userId: request.userId, planId: plan.id, toStatus: "current" });
-    return {
-      planId: plan.id,
-      planLineageId: plan.planLineageId,
-      status: "current",
-      agentRunIds,
-    };
+    return { ok: true, planId: plan.id, planLineageId: plan.planLineageId, agentRunIds };
   }
 
   private async dispatch<K extends SpecialistAgentType>(

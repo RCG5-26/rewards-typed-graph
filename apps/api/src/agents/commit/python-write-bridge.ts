@@ -63,6 +63,17 @@ export interface AgentRunCreateResult {
   readonly agentRunId: string;
 }
 
+export interface ReplanApplyResult {
+  readonly planLineageId: string;
+  readonly staledPlanId: string;
+  /** null when idempotencyReplayed=true — no new replan job was created */
+  readonly replanJobId: string | null;
+  /** Explicit signal from the persistence layer: same transfer replayed, balances unchanged */
+  readonly idempotencyReplayed: boolean;
+  readonly priorQueryText: string;
+  readonly priorRevisionNumber: number;
+}
+
 export interface PythonWriteBridgeOptions {
   pythonBin?: string;
   cwd?: string;
@@ -149,12 +160,91 @@ export class PythonWriteBridge {
     userId: string;
     planLineageId: string;
     queryText: string;
+    revisionNumber?: number;
+    supersedesPlanId?: string;
   }): Promise<PlanCreateResult> {
-    return this.run<PlanCreateResult>("orchestrator-create-plan", [
+    const args = [
       "--user-id", params.userId,
       "--plan-lineage-id", params.planLineageId,
       "--query-text", params.queryText,
+    ];
+    // Replan path: target an existing lineage at the given revision, superseding
+    // the prior plan. Omitted for an initial plan (defaults to revision 1).
+    if (params.revisionNumber !== undefined) {
+      args.push("--revision-number", String(params.revisionNumber));
+    }
+    if (params.supersedesPlanId !== undefined) {
+      args.push("--supersedes-plan-id", params.supersedesPlanId);
+    }
+    return this.run<PlanCreateResult>("orchestrator-create-plan", args);
+  }
+
+  /**
+   * Apply the canonical balance-transfer mutation ONLY (orchestrator replan
+   * path): mutate the two balances, stale the prior current plan, enqueue a
+   * replan job — no revision is generated. The TS orchestrator re-enters to
+   * build revision 2. Returns the prior plan's lineage/query/revision.
+   */
+  async applyBalanceTransfer(params: {
+    userId: string;
+    sourceProgramId: string;
+    destProgramId: string;
+    amountPoints: number;
+    idempotencyKey?: string;
+  }): Promise<ReplanApplyResult> {
+    const args = [
+      "--user-id", params.userId,
+      "--source-program-id", params.sourceProgramId,
+      "--dest-program-id", params.destProgramId,
+      "--amount", String(params.amountPoints),
+    ];
+    if (params.idempotencyKey !== undefined) {
+      args.push("--idempotency-key", params.idempotencyKey);
+    }
+    return this.run<ReplanApplyResult>("balance-transfer-apply", args);
+  }
+
+  /**
+   * Claim + promote the replan job for an orchestrator-built revision: result
+   * plan generating→current, source stale→superseded, result steps
+   * proposed→current, job completed — atomically in the SQL function.
+   */
+  async promoteReplan(params: {
+    userId: string;
+    planLineageId: string;
+    sourcePlanId: string;
+    resultPlanId: string;
+    workerId: string;
+  }): Promise<void> {
+    await this.run<{ resultPlanId: string }>("replan-promote", [
+      "--user-id", params.userId,
+      "--plan-lineage-id", params.planLineageId,
+      "--source-plan-id", params.sourcePlanId,
+      "--result-plan-id", params.resultPlanId,
+      "--worker-id", params.workerId,
     ]);
+  }
+
+  /** Mark an orchestrator replan attempt failed; the source plan stays stale. */
+  async failReplan(params: {
+    userId: string;
+    planLineageId: string;
+    sourcePlanId: string;
+    workerId: string;
+    error: string;
+    resultPlanId?: string;
+  }): Promise<void> {
+    const args = [
+      "--user-id", params.userId,
+      "--plan-lineage-id", params.planLineageId,
+      "--source-plan-id", params.sourcePlanId,
+      "--worker-id", params.workerId,
+      "--error", params.error,
+    ];
+    if (params.resultPlanId !== undefined) {
+      args.push("--result-plan-id", params.resultPlanId);
+    }
+    await this.run<{ ok: true }>("replan-fail", args);
   }
 
   async transitionPlanStatus(params: {

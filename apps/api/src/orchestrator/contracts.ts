@@ -19,6 +19,31 @@ export interface PlanResult {
   readonly agentRunIds: readonly string[];
 }
 
+/**
+ * Where a replan revision lands: an EXISTING lineage at a known revision,
+ * superseding the prior plan. Distinguishes orchestrator re-entry (revision 2)
+ * from an initial plan, which mints a fresh lineage at revision 1.
+ */
+export interface RevisionSpec {
+  readonly planLineageId: string;
+  readonly revisionNumber: number;
+  readonly supersedesPlanId: string;
+}
+
+/**
+ * Outcome of an orchestrator revision run. On success the revision is left in
+ * 'generating' with 'proposed' steps — the replan-job promotion
+ * (`promote_replan_job_success`) is the single boundary that flips it to
+ * 'current', supersedes the prior revision, and promotes its steps.
+ */
+export interface RevisionResult {
+  readonly planId: string;
+  readonly planLineageId: string;
+  readonly revisionNumber: number;
+  readonly status: "generating" | "failed";
+  readonly agentRunIds: readonly string[];
+}
+
 export interface Decomposer {
   decompose(queryText: string): Promise<unknown>;
 }
@@ -68,6 +93,10 @@ export interface OrchestratorGraphWrite {
     userId: string;
     planLineageId: string;
     queryText: string;
+    /** Replan path: target an existing lineage at this revision (default 1). */
+    revisionNumber?: number;
+    /** Replan path: the prior revision this one supersedes. */
+    supersedesPlanId?: string;
   }): Promise<PlanRecord>;
   transitionPlanStatus(input: { userId: string; planId: string; toStatus: "current" | "failed" }): Promise<void>;
   createAgentRun(input: {

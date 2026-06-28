@@ -12,7 +12,11 @@ import { DemoQueryDecomposer } from "../orchestrator/demo-decomposer";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { BridgePlanProjection } from "./bridge-plan-projection";
 import { BridgePlanService } from "./bridge-service";
-import { OrchestratorPlanService, type OrchestratorPlanServiceDeps } from "./orchestrator-service";
+import {
+  OrchestratorPlanService,
+  type OrchestratorPlanServiceDeps,
+  type ReplanPort,
+} from "./orchestrator-service";
 import type { PlanService } from "./service";
 
 /**
@@ -125,10 +129,27 @@ export function buildProductionOrchestratorDeps(
     commitFactory,
   });
 
+  // Replan lifecycle over the same controlled Python write boundary. Generation
+  // re-enters the orchestrator (above); this port only applies the canonical
+  // mutation and promotes/fails the replan job — never the legacy generator.
+  const replan: ReplanPort = {
+    applyTransfer: (userId, input) =>
+      writeBridge.applyBalanceTransfer({
+        userId,
+        sourceProgramId: input.sourceProgramId,
+        destProgramId: input.destProgramId,
+        amountPoints: input.amountPoints,
+        idempotencyKey: input.idempotencyKey,
+      }),
+    promote: (params) => writeBridge.promoteReplan(params),
+    fail: (params) => writeBridge.failReplan(params),
+  };
+
   return {
     orchestrator,
     projection: new BridgePlanProjection({ env }),
     readDelegate: new BridgePlanService({ env }),
+    replan,
   };
 }
 

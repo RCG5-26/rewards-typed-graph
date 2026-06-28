@@ -73,13 +73,18 @@ describe("composeOrchestratorPlanService (Phase 4 — production composition roo
 
     const service = composeOrchestratorPlanService({
       deps: {
-        orchestrator: { run: vi.fn(async () => result) },
+        orchestrator: { run: vi.fn(async () => result), runRevision: vi.fn() },
         projection,
         readDelegate: {
           getSession: vi.fn(),
           resetDemo: vi.fn(),
           getCurrentPlan: vi.fn(),
           transferBalance: vi.fn(),
+        },
+        replan: {
+          applyTransfer: vi.fn(),
+          promote: vi.fn(),
+          fail: vi.fn(),
         },
       },
     });

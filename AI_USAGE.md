@@ -1104,3 +1104,303 @@ routes, no backend contracts)
 ### Secrets
 
 No secrets recorded. No `.env` read; API keys never logged or committed.
+
+---
+
+## Demo Sprint Joint Freeze — Hour 0–1 baseline (2026-06-28)
+
+Coordinator pass to let two contributors split from one baseline. Read-only on
+product code; one new doc created (`docs/demo/DEMO_SPRINT_FREEZE.md`). No agent
+or schema refactor; replan deliberately not touched.
+
+### Tools used
+- Claude Code (Opus 4.8): one parallel `Explore` agent for contract/fixture/seam
+  inventory; `Bash` for git, `psql`, `vitest`, `python3.12` benchmark modules;
+  small Python audit snippets (no files committed); `Read`/`Write` for the freeze doc.
+
+### Important decisions
+- **Canonical wallet = live `demo-seed-v1` persona** (`clerk_hero_demo`/`…a001`),
+  not the benchmark fixture, because the graph orchestrator must read canonical
+  PostgreSQL. Transfer-required invariant numerically proven (Hyatt 30k < Ginza 45k;
+  +15k Chase→Hyatt @1:1 → affordable). Shortfall = 15,000 pts.
+- **Canonical query frozen** verbatim (architecture-neutral phrasing) for a fair
+  three-way grounding comparison; adapters must override existing test/gold strings.
+- **Normalized comparison contract frozen in the doc** (no shared TS workspace exists;
+  adding one would be an out-of-scope architectural change). Person B owns the
+  code-level type post-split.
+- Single-writer rule assigned for shared route registration (Person A) and shared
+  comparison types (Person B).
+
+### Validation commands
+| Command | Result |
+|---|---|
+| `git status` / `git rev-parse HEAD` | clean, SHA `6c388cb`, in sync with `origin/main` |
+| `python3.12 scripts/load_seed.py fixtures/demo-seed.json --include-demo-persona` | ✓ persona restored (idempotent upsert; smoke seed preserved) |
+| `vitest run orchestrator-service.test.ts -t "Phase 5"` (live PG, `PLAN_ENGINE=orchestrator`) | ✓ rev1 current, wallet→redemption, 4 mutations, 1 dep |
+| `python3.12 -m benchmark.single_agent_baseline --limit 1 --pretty` (live) | ✓ exit 0, 1 call, 2,050 tok, Ginza correct |
+| `python3.12 -m benchmark.free_text_multiagent_baseline --limit 1 --pretty` (live) | ✓ exit 0, 4 roles, 8,367 tok, Ginza correct |
+
+### Manual review / findings caught
+- **Live DB had been re-seeded by a parallel process** (generic `clerk_rcg12` smoke
+  seed); demo persona was missing. Restored non-destructively. DB flagged volatile.
+- **Grounding flag is an evaluator artifact, not a hallucination:** both baselines'
+  `award_not_in_tool_result` traces to `balance:user_mvp_demo:chase_ur` — supplied in
+  the prompt but omitted from `person_c_scorer.py::_fixture_fact_slugs`. Classified
+  `EVALUATOR_BOUNDARY_MISMATCH`. Fix assigned to Person B.
+- **Input worlds differ:** graph uses `demo-seed-v1` (Chase 180k/Hyatt 30k); baselines
+  use `person-c-mvp` (Chase 75k, no Hyatt). Classified `SEPARATE_DATA_WORLDS` — no fair
+  comparison may be claimed yet.
+- `python3` is 3.14.2 (wrong); CI/baselines require `python3.12`.
+
+### Deferred / blocked
+- Orchestrator replan (steps stay `proposed`; invalidation needs `current`) — Person A lane.
+- Data-world + query alignment, evaluator balance-slug fix, code-level comparison type — Person B lane.
+- Hosted verification not performed (`API_BASE_URL` is localhost).
+
+### Secrets
+No secret values printed or stored; env vars reported as present/absent only.
+`.env`/`apps/api/.env` confirmed git-ignored. DB password/OpenAI key passed via
+command substitution, never echoed.
+
+### Verdict
+`JOINT FREEZE COMPLETE — DATA ALIGNMENT REQUIRED`
+
+---
+
+## Person A — Live TypeScript Orchestrator Replan (2026-06-28)
+
+**Task:** Repair the live TS orchestrator replan vertical slice so the hero flow
+works end to end: rev1 (orchestrator) → transfer 15k Chase→Hyatt → dependency
+invalidation → one replan job → TS orchestrator re-entry → rev2 current with
+fresh Wallet + Redemption AgentRuns → rev1 superseded → exactly one current.
+**Branch:** `demo/orchestrator-replan` (worktree `Capstone/gpFree-replan`, from
+freeze `a3b65fd`). **DB:** dedicated `rewards_replan` (schema + `demo-seed-v1`).
+**Production code changed:** Yes (orchestrator service/composition, orchestrator
+core, Python write boundary for replan lifecycle + reset).
+
+### Tools used
+- Claude Code (Opus 4.8) — `ce-work` execution skill.
+- `Explore` subagents (3, parallel) — traced the replan/mutation lifecycle, the
+  orchestrator finalization seam, and the reset/idempotency/live-test harness.
+- `Read`/`Grep`/`Edit`, `Bash` (psql, vitest, tsc, python3.12 unittest).
+
+### Important implementation decisions
+1. **Step promotion at the single final boundary (S2).** `do_orchestrator_transition_plan`
+   (reached from `orchestrator.ts` after every specialist) now promotes a plan's
+   `proposed` steps → `current` atomically (via `_psql_tx`) when the plan goes
+   `→current`; never on `→failed`. This unblocks BOTH staleness paths
+   (`mark_direct_plan_dependents_stale` + the `user_balances` backstop trigger),
+   which match only `plan_steps.status='current'`.
+2. **TS-driven cross-process re-entry (S4/S5).** The orchestrator-mode transfer no
+   longer delegates revision generation to the legacy Python flow. New narrow
+   bridge primitives over the existing controlled write boundary:
+   `balance-transfer-apply` (mutation + stale rev1 + enqueue job, NO generation),
+   `replan-promote` (claim + `promote_replan_job_success`), `replan-fail`; and
+   `orchestrator-create-plan` extended with `--revision-number`/`--supersedes-plan-id`.
+   `Orchestrator.runRevision` builds rev2 in the EXISTING lineage and leaves it
+   `generating` (the promotion SQL requires `generating` and atomically flips
+   rev2→current, rev1→superseded, and promotes rev2 steps). `createRevisedPlan`
+   on `OrchestratorPlanService` orchestrates apply → runRevision → promote, with
+   projection of rev2 to `PlanView`. Public `/balance-transfer` contract unchanged.
+3. **Failure stays visible (S6).** On any re-entry failure: the partial rev2 is
+   marked `failed`, the replan job is failed, and rev1 stays `stale` — no silent
+   fallback. Cleanup failures during failure-handling are swallowed so the
+   original error surfaces.
+4. **Deterministic reset (S7).** `do_demo_reset` now also clears scoped
+   `idempotency_records` + `agent_runs` (which don't cascade on a plans delete —
+   `agent_runs.plan_id` is `ON DELETE SET NULL`), so a repeated identical transfer
+   creates a fresh mutation + job instead of replaying an idempotent result.
+   Scoped to the demo `user_id` only.
+
+### Validation commands and results
+| Gate | Command | Result |
+|---|---|---|
+| API typecheck | `tsc --noEmit` (apps/api) | ✓ 0 errors |
+| Orchestrator/API unit tests | `vitest run` (apps/api) | ✓ 224 passed, live-gated skipped |
+| Python bridge/flow/mutations | `python3.12 -m unittest …` (5 modules) | ✓ 86 passed, 1 skipped |
+| Live initial-Plan (Phase 5) | full live suite (below) | ✓ PASS |
+| Live replan (Phase 8) | full live suite | ✓ PASS — rev2 current, fresh wallet+redemption AgentRuns |
+| Reset/repeatability (Phase 8b) | full live suite | ✓ PASS — run 2 distinct rev2+job, fresh mutation |
+| Live G1 projection parity | full live suite | ✓ PASS |
+| Hidden-fallback scan | grep | ✓ legacy generator confined to `python-legacy do_balance_transfer` |
+| Direct-TS-domain-write scan | grep `apps/api/src` (excl. tests) | ✓ zero — all writes via the Python boundary |
+| Secret scan | grep changed files | ✓ none |
+
+Full live suite (pristine `rewards_replan`):
+```bash
+cd apps/api && RUN_LIVE_POSTGRES_TESTS=1 PLAN_ENGINE=orchestrator PYTHON_BIN=python3.12 \
+  DATABASE_URL=… PG*=… \
+  npx vitest run tests/plans/orchestrator-service.test.ts
+# 22 passed (0 skipped): G1×2, Phase 5, Phase 8, Phase 8b
+```
+Replan evidence: Chase 180000→165000 (v1→v2), Hyatt 30000→45000 (v1→v2); rev1
+superseded, rev2 current, one replan job `completed`, exactly one current plan,
+rev2 AgentRuns `[wallet_agent, redemption_agent]`.
+
+### Manual review / findings caught
+- Wallet + Redemption specialists are **deterministic (no LLM/network)** — live
+  replan tests need only PostgreSQL, not `OPENAI_API_KEY`.
+- `promote_replan_job_success` (schema.sql) already promotes rev2 steps and does
+  the full lifecycle atomically, requiring rev2 to be `generating` — so
+  `runRevision` deliberately does NOT self-promote (would break the precondition
+  and risk two currents; the DB's `plans_one_current_revision` partial unique
+  index is the backstop).
+- The task's `../gpFree-replan` path assumed a different cwd; the real worktree is
+  `Capstone/gpFree-replan`. `PYTHON_BIN=python3.12` is required (`python3` is 3.14).
+
+### Files changed (Person A lane only — no Person B files)
+`apps/api/bridge/hero_bridge.py`, `apps/api/src/orchestrator/{orchestrator,contracts}.ts`,
+`apps/api/src/orchestrator/graph-write/agent-run-repository.ts`,
+`apps/api/src/agents/commit/python-write-bridge.ts`,
+`apps/api/src/plans/{orchestrator-service,orchestrator-composition}.ts`,
+`apps/api/tests/plans/{orchestrator-service,orchestrator-composition}.test.ts`.
+Infra: `npm ci` in `apps/api` to restore declared deps (no dependency change).
+
+### Deferred / blocked
+- Re-entry failure path is unit-tested (service-level), not live-fault-injected.
+- No new queue/worker, no graph-wide transitive invalidation, no multi-mutation
+  types, no UI — out of scope per the sprint brief.
+
+### Integration contract
+Person B **may enable** "Simulate completed transfer" in the UI: the live replan
+is verified (rev2 current, fresh AgentRuns, exactly one current, repeatable) and
+sits behind the unchanged `POST /balance-transfer` contract.
+
+### Verdict
+`LIVE TYPESCRIPT REPLAN VERIFIED`
+
+---
+
+## Person A — Post-Implementation Code Review (2026-06-28)
+
+**Scope:** Read-only adversarial review of the uncommitted replan work on
+`demo/orchestrator-replan` (HEAD `a3b65fd`; 10 files in working tree). No code
+modified during review.
+
+### Mounted-path proof
+`POST /balance-transfer` → `routes.ts:65` `service.transferBalance` →
+(orchestrator mode, `engine-selector.ts:130` → `composeOrchestratorPlanService`)
+`OrchestratorPlanService.transferBalance` → `replan.applyTransfer`
+(`balance-transfer-apply`, mutation only) → `orchestrator.runRevision` (TS
+specialists generate rev2) → `replan.promote` (`promote_replan_job_success`).
+Legacy `BridgePlanService.transferBalance`/`replan_after_balance_transfer` is
+reachable ONLY in `python-legacy` mode. No cross-engine fallback.
+
+### Live lifecycle proof (pristine `rewards_replan`, Phase 8 single cycle)
+- rev1 `transfer_recommendation` step (Chase→Hyatt), status promoted `current`,
+  dependency `user_balances.balance_points obs_version=1`.
+- transfer 15k: Chase 180000→165000 (v1→v2), Hyatt 30000→45000 (v1→v2).
+- exactly one replan job, `completed`, `src=rev1 result=rev2`.
+- **rev2 `redemption_recommendation` step (direct Hyatt→Ginza) — recomputed from
+  the fresh snapshot; the transfer step is dropped.** dependency obs_version=2.
+- rev1 `superseded`, rev2 `current`, fresh wallet+redemption AgentRuns on both,
+  `current count = 1`. Repeatability (Phase 8b) run1≠run2 rev2/job, fresh mutation.
+
+### Commands
+| Command | Pass | Fail | Skip | Proves |
+|---|---:|---:|---:|---|
+| `tsc --noEmit` (apps/api) | — | 0 | — | typechecks |
+| `vitest run` (apps/api) | 224 | 0 | 12 | unit + service re-entry/failure units |
+| `vitest -t "Phase 8 —"` (live) | 5 | 0 | 17 | live replan revision-two |
+| full live suite | 22 | 0 | 0 | G1 + initial + replan + repeatability |
+| `unittest` (5 bridge/flow/mutation modules) | 86 | 0 | 1 | bridge/reset refactor intact |
+| hidden-fallback / direct-write / test-double / secret scans | ✓ | — | — | no fallback, no direct TS writes, no doubles/secrets |
+
+### Findings
+- **P2 — duplicate transfer without reset → spurious failed revision + 500.**
+  `orchestrator-service.ts transferBalance` + `hero_bridge.py do_balance_transfer_apply`.
+  Re-applying the identical transfer replays the mutation (balances safe,
+  `replanJobId: null`), but the service then generates a stray rev (generating),
+  finds no claimable job, fails it, and throws (500). One-current + balances
+  preserved; leaves a `failed` revision. Fix: surface an `idempotencyReplayed`
+  flag from apply and short-circuit to the existing current plan.
+- **P2 — re-entry failure path not live-verified; job ends `pending` not terminal.**
+  Failure flow proven only via mocked `ReplanPort`; no live fault injection.
+  `max_attempts=3` so `do_replan_fail` claim+fail leaves the job `pending`
+  (retryable) but there is no worker to retry. Fix: add a live fault-injection
+  test (rev2 failed / rev1 stale / job terminal) and/or force the job terminal.
+- **P3 — no focused test for "failed plan does not promote steps"** (S2 brief
+  required it); correct by the `if status=='current'` guard, untested.
+- **P3 — `ReplanApplyResult.replanJobId` typed non-nullable but is `null` on
+  replay** (type lie; no crash).
+- **P3 — projection failure after a successful promote surfaces as 500** though
+  the replan committed.
+
+### Verdict
+`PERSON A APPROVED WITH NON-BLOCKING FINDINGS` — the replan claim is VERIFIED for
+the hero path (mounted, live-proven, recomputed rev2, repeatable, no legacy
+generation). Findings are edge cases that do not break the hero path or corrupt
+data. **Integration:** Person B may enable "Simulate completed transfer" **if the
+UI resets before each transfer or disables the control after one** (otherwise the
+P2 duplicate-click path returns a 500 + stray failed revision). Verified contract:
+`POST /balance-transfer {sourceProgramId,destProgramId,amountPoints,idempotencyKey?}`
+→ `{planLineageId, staledPlanId, replanJobId, currentPlan: PlanView(rev2,current)}`.
+
+---
+
+## Entry 016 — Person A Review Fixes (2026-06-28)
+
+**Task:** Address all non-blocking findings from Entry 015 Person A Review
+**Branch:** `demo/orchestrator-replan`
+**Files modified:** `apps/api/bridge/hero_bridge.py`, `apps/api/src/agents/commit/python-write-bridge.ts`, `apps/api/src/plans/orchestrator-service.ts`, `apps/api/tests/plans/orchestrator-service.test.ts`
+**Production code changed:** Yes — `hero_bridge.py`, `python-write-bridge.ts`, `orchestrator-service.ts`
+
+### Commits
+
+| SHA | Message |
+|---|---|
+| `9208f5c` | `feat(orchestrator): re-enter specialists for balance replanning` |
+| `501df8f` | `fix(replan): return current plan for idempotent transfer replay` |
+| `6216609` | `test(orchestrator): cover replay and failed step promotion` |
+
+### What was done
+
+**Step 1 — Commit verified implementation**
+Committed the 10 pre-existing modified files (orchestrator replan implementation) that were live-verified per Entry 015 as the initial commit.
+
+**Step 2 — Fix duplicate idempotent transfer (P2 finding)**
+- `hero_bridge.py do_balance_transfer_apply`: capture `transfer_points` result; read `idempotency_replayed`; return `idempotencyReplayed` in the response dict; return `replanJobId: None` on replay (no new job was created).
+- `python-write-bridge.ts ReplanApplyResult`: typed `replanJobId: string | null` and added `idempotencyReplayed: boolean`.
+- `orchestrator-service.ts ReplanApplyOutcome`: same nullability + flag. `createRevisedPlan` param typed `replanJobId: string | null`.
+- `orchestrator-service.ts transferBalance`: added replay short-circuit after `applyTransfer` — if `idempotencyReplayed`, fetch existing current plan via `readDelegate.getCurrentPlan` and return immediately; no revision, no promotion.
+
+**Step 3 — Regression tests**
+- Unit: `transferBalance` replay short-circuit — asserts `runRevision`, `promote`, `fail` not called; `getCurrentPlan` called; `result.currentPlan` = existing plan; `result.replanJobId` is null.
+- Unit: replay with no current plan → throws `OrchestratorPlanError`.
+- Live-PG (Phase 8c): second identical transfer succeeds, returns same rev2 (not rev3), `replanJobId` null, balances 165k/45k unchanged, exactly 2 plan rows, 1 replan job, same agent run count.
+
+**Step 4 — Failed step promotion test (P3 finding)**
+Added: `"a failed revision leaves no steps promoted"` — asserts `promote` not called when `runRevision` returns `status: 'failed'`.
+
+**Step 5 — Type correctness**
+Ran `tsc --noEmit` with no errors. No non-null assertions used. Fixed the type lie (`replanJobId: string` → `string | null`) without casting.
+
+**Step 6 — Live fault-injection path**
+Deferred — the production composition has no seam for injecting a failing runner without wiring a new interface. The unit test at `"fails the replan job and surfaces the error when the orchestration fails"` (line ~272) covers the fail path with a mocked runner. The missing live test is deferred to a future fault-injection harness.
+
+### Validation results
+
+| Command | Pass | Fail | Skip | Proves |
+|---|---:|---:|---:|---|
+| `tsc --noEmit` (apps/api) | — | 0 | — | no type errors, no non-null assertions |
+| `vitest run` (apps/api, targeted) | 26 | 0 | 6 | replay unit + failed-promotion unit |
+| `vitest run` (apps/api, full) | 227 | 0 | 13 | full suite unchanged |
+| `unittest test_orchestrator_bridge_commands` | 45 | 0 | 0 | Python bridge intact |
+| hidden-fallback scan | ✓ | — | — | no `python-legacy` or `replan_after_balance_transfer` in production TS |
+| secret scan | ✓ | — | — | no hardcoded secrets |
+| Live-PG Phase 8c | skipped | — | — | rewards_replan DB not available in this session |
+
+### Before / After — duplicate transfer behavior
+
+**Before:** Second identical `POST /balance-transfer` without reset → Python `do_balance_transfer_apply` returns `replanJobId: <job_id>` even though the replay created no new job → `createRevisedPlan` attempts to promote a non-existent job → SQL function returns error → `OrchestratorPlanError` thrown → HTTP 500. Leaves a `failed` revision artifact.
+
+**After:** `idempotencyReplayed: true` flows from Python → TypeScript bridge → service. `transferBalance` short-circuits, fetches the existing current plan (rev2) via `readDelegate.getCurrentPlan`, returns `{currentPlan: rev2, replanJobId: null}` → HTTP 200. No new revision, no new job, no job promotion attempt.
+
+### Deferred
+
+- **Live fault-injection test** (Step 6): re-entry failure leaves rev1 stale + rev2 failed + no current promoted. The production composition has no seam for a failing runner. Deferred to a future fault-injection harness.
+- **P3 — projection failure after successful promote** surfaces as 500 though replan committed. Out of scope for this fix iteration.
+
+### Integration decision
+
+**Person B may safely enable "Simulate completed transfer" without requiring a reset between clicks.** The P2 duplicate-click path now returns HTTP 200 with the existing current plan (same rev2, same balances) instead of HTTP 500. The UI does not need a hard reset between transfers — a second click of the same transfer is idempotent and safe.

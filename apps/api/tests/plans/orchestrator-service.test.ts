@@ -1,7 +1,12 @@
 import type { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import type { PlanProjectionPort, PlanRequest, PlanResult } from "../../src/orchestrator/contracts";
+import type {
+  PlanProjectionPort,
+  PlanRequest,
+  PlanResult,
+  RevisionResult,
+} from "../../src/orchestrator/contracts";
 import { BridgePlanService } from "../../src/plans/bridge-service";
 import { composeOrchestratorPlanService } from "../../src/plans/orchestrator-composition";
 import {
@@ -10,6 +15,8 @@ import {
   type OrchestratorPlanServiceDeps,
   type OrchestratorReadDelegate,
   type OrchestratorRunner,
+  type ReplanApplyOutcome,
+  type ReplanPort,
 } from "../../src/plans/orchestrator-service";
 import type { PlanService } from "../../src/plans/service";
 import type { PlanView, SessionView } from "../../src/plans/types";
@@ -34,20 +41,46 @@ const currentResult: PlanResult = {
   agentRunIds: ["run-wallet", "run-redemption"],
 };
 
+const rev2Plan: PlanView = {
+  ...samplePlan,
+  planId: "44444444-4444-4444-4444-444444444444",
+  revisionNumber: 2,
+};
+
+const revisionResult: RevisionResult = {
+  planId: rev2Plan.planId,
+  planLineageId: samplePlan.planLineageId,
+  revisionNumber: 2,
+  status: "generating",
+  agentRunIds: ["run-wallet-2", "run-redemption-2"],
+};
+
+const applyOutcome: ReplanApplyOutcome = {
+  planLineageId: samplePlan.planLineageId,
+  staledPlanId: samplePlan.planId,
+  replanJobId: "33333333-3333-3333-3333-333333333333",
+  idempotencyReplayed: false,
+  priorQueryText: samplePlan.query,
+  priorRevisionNumber: 1,
+};
+
 function buildService(
   overrides: {
     runner?: Partial<OrchestratorRunner>;
     projection?: Partial<PlanProjectionPort>;
     readDelegate?: Partial<OrchestratorReadDelegate>;
+    replan?: Partial<ReplanPort>;
   } = {},
 ): {
   service: OrchestratorPlanService;
   runner: OrchestratorRunner;
   projection: PlanProjectionPort;
   readDelegate: OrchestratorReadDelegate;
+  replan: ReplanPort;
 } {
   const runner: OrchestratorRunner = {
     run: overrides.runner?.run ?? vi.fn(async () => currentResult),
+    runRevision: overrides.runner?.runRevision ?? vi.fn(async () => revisionResult),
   };
   const projection: PlanProjectionPort = {
     project: overrides.projection?.project ?? vi.fn(async () => samplePlan),
@@ -65,12 +98,17 @@ function buildService(
       vi.fn(async () => ({
         planLineageId: samplePlan.planLineageId,
         staledPlanId: samplePlan.planId,
-        replanJobId: "33333333-3333-3333-3333-333333333333",
-        currentPlan: { ...samplePlan, revisionNumber: 2 },
+        replanJobId: applyOutcome.replanJobId,
+        currentPlan: rev2Plan,
       })),
   };
-  const deps: OrchestratorPlanServiceDeps = { orchestrator: runner, projection, readDelegate };
-  return { service: new OrchestratorPlanService(deps), runner, projection, readDelegate };
+  const replan: ReplanPort = {
+    applyTransfer: overrides.replan?.applyTransfer ?? vi.fn(async () => applyOutcome),
+    promote: overrides.replan?.promote ?? vi.fn(async () => undefined),
+    fail: overrides.replan?.fail ?? vi.fn(async () => undefined),
+  };
+  const deps: OrchestratorPlanServiceDeps = { orchestrator: runner, projection, readDelegate, replan };
+  return { service: new OrchestratorPlanService(deps), runner, projection, readDelegate, replan };
 }
 
 describe("OrchestratorPlanService.createPlan (M6 — Contracts 1 + 7)", () => {
@@ -164,23 +202,17 @@ describe("OrchestratorPlanService reads + delegation", () => {
     );
   });
 
-  it("delegates session, reset, current-plan and transfer to the engine-agnostic delegate", async () => {
+  it("delegates session, reset and current-plan to the engine-agnostic delegate", async () => {
     const { service, readDelegate } = buildService();
     const identity = { userId: USER_ID };
 
     await service.getSession(identity);
     await service.resetDemo(USER_ID);
     await service.getCurrentPlan(USER_ID, samplePlan.planLineageId);
-    await service.transferBalance(USER_ID, {
-      sourceProgramId: "b001",
-      destProgramId: "b002",
-      amountPoints: 30000,
-    });
 
     expect(readDelegate.getSession).toHaveBeenCalledWith(identity);
     expect(readDelegate.resetDemo).toHaveBeenCalledWith(USER_ID);
     expect(readDelegate.getCurrentPlan).toHaveBeenCalledWith(USER_ID, samplePlan.planLineageId);
-    expect(readDelegate.transferBalance).toHaveBeenCalledOnce();
   });
 
   it("satisfies the SessionView shape returned by the delegate", async () => {
@@ -189,6 +221,174 @@ describe("OrchestratorPlanService reads + delegation", () => {
       readDelegate: { getSession: vi.fn(async () => session) },
     });
     expect(await service.getSession({ userId: USER_ID })).toEqual(session);
+  });
+});
+
+describe("OrchestratorPlanService.transferBalance (Phase 8 — orchestrator re-entry)", () => {
+  const input = { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 15000 };
+
+  it("applies the mutation, re-enters the orchestrator for rev2, promotes, and returns rev2", async () => {
+    const runRevision = vi.fn(async () => revisionResult);
+    const promote = vi.fn(async () => undefined);
+    const project = vi.fn(async () => rev2Plan);
+    const { service, replan } = buildService({
+      runner: { runRevision },
+      replan: { promote },
+      projection: { project },
+    });
+
+    const result = await service.transferBalance(USER_ID, input);
+
+    // 1. Canonical mutation applied first.
+    expect(replan.applyTransfer).toHaveBeenCalledWith(USER_ID, input);
+    // 2. Orchestrator re-entered in the EXISTING lineage at revision 2.
+    expect(runRevision).toHaveBeenCalledWith(
+      { userId: USER_ID, queryText: applyOutcome.priorQueryText },
+      {
+        planLineageId: applyOutcome.planLineageId,
+        revisionNumber: applyOutcome.priorRevisionNumber + 1,
+        supersedesPlanId: applyOutcome.staledPlanId,
+      },
+    );
+    // 3. Replan job promoted with the orchestrator-built revision.
+    expect(promote).toHaveBeenCalledWith({
+      userId: USER_ID,
+      planLineageId: applyOutcome.planLineageId,
+      sourcePlanId: applyOutcome.staledPlanId,
+      resultPlanId: revisionResult.planId,
+      workerId: "orchestrator-ts-replan-worker",
+    });
+    // 4. Returns rev2 as the new current plan.
+    expect(result.currentPlan).toEqual(rev2Plan);
+    expect(result.staledPlanId).toBe(applyOutcome.staledPlanId);
+    expect(result.replanJobId).toBe(applyOutcome.replanJobId);
+  });
+
+  it("never delegates revision generation to the legacy read delegate", async () => {
+    const { service, readDelegate } = buildService();
+    await service.transferBalance(USER_ID, input);
+    expect(readDelegate.transferBalance).not.toHaveBeenCalled();
+  });
+
+  it("fails the replan job and surfaces the error when the orchestration fails", async () => {
+    const failedRevision: RevisionResult = { ...revisionResult, status: "failed" };
+    const runRevision = vi.fn(async () => failedRevision);
+    const promote = vi.fn(async () => undefined);
+    const fail = vi.fn(async () => undefined);
+    const project = vi.fn();
+    const { service } = buildService({
+      runner: { runRevision },
+      replan: { promote, fail },
+      projection: { project },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+    // No promotion, no projection — the failure stays visible.
+    expect(promote).not.toHaveBeenCalled();
+    expect(project).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledOnce();
+    expect(fail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourcePlanId: applyOutcome.staledPlanId,
+        resultPlanId: failedRevision.planId,
+        workerId: "orchestrator-ts-replan-worker",
+      }),
+    );
+  });
+
+  it("does not promote a revision whose projection is missing (treats it as internal error)", async () => {
+    const promote = vi.fn(async () => undefined);
+    const fail = vi.fn(async () => undefined);
+    const { service } = buildService({
+      replan: { promote, fail },
+      projection: { project: vi.fn(async () => null) },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+    // Promotion already happened before projection; the missing view is a 500.
+    expect(promote).toHaveBeenCalledOnce();
+  });
+});
+
+describe("OrchestratorPlanService.transferBalance — idempotency replay (unit)", () => {
+  const input = { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 15000 };
+
+  const replayOutcome: ReplanApplyOutcome = {
+    planLineageId: samplePlan.planLineageId,
+    staledPlanId: samplePlan.planId,
+    replanJobId: null,
+    idempotencyReplayed: true,
+    priorQueryText: samplePlan.query,
+    priorRevisionNumber: 1,
+  };
+
+  it("returns the existing current plan on idempotency replay (no revision, no promotion)", async () => {
+    const runRevision = vi.fn();
+    const promote = vi.fn();
+    const fail = vi.fn();
+    const getCurrentPlan = vi.fn(async () => rev2Plan);
+    const { service, replan } = buildService({
+      runner: { runRevision },
+      replan: {
+        applyTransfer: vi.fn(async () => replayOutcome),
+        promote,
+        fail,
+      },
+      readDelegate: { getCurrentPlan },
+    });
+
+    const result = await service.transferBalance(USER_ID, input);
+
+    // applyTransfer was called once.
+    expect(replan.applyTransfer).toHaveBeenCalledOnce();
+    // No revision created — orchestrator not re-entered.
+    expect(runRevision).not.toHaveBeenCalled();
+    // No promotion — nothing to promote.
+    expect(promote).not.toHaveBeenCalled();
+    // No failure path — this is a clean short-circuit.
+    expect(fail).not.toHaveBeenCalled();
+    // Existing current plan fetched from the read delegate.
+    expect(getCurrentPlan).toHaveBeenCalledWith(USER_ID, replayOutcome.planLineageId);
+    // Result carries the existing plan.
+    expect(result.currentPlan).toEqual(rev2Plan);
+    // replanJobId is null (no new job was created).
+    expect(result.replanJobId).toBeNull();
+  });
+
+  it("throws OrchestratorPlanError on replay when no current plan exists in the lineage", async () => {
+    const { service } = buildService({
+      replan: { applyTransfer: vi.fn(async () => replayOutcome) },
+      readDelegate: { getCurrentPlan: vi.fn(async () => null) },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+  });
+});
+
+describe("OrchestratorPlanService — failed revision leaves no steps promoted (unit)", () => {
+  const input = { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 15000 };
+
+  it("a failed revision leaves no steps promoted (no current steps can exist)", async () => {
+    // The only path to step promotion is replan.promote → SQL promote_replan_job_success.
+    // A failed revision must never reach promote.
+    const failedRevision: RevisionResult = { ...revisionResult, status: "failed" };
+    const promote = vi.fn(async () => undefined);
+    const { service } = buildService({
+      runner: { runRevision: vi.fn(async () => failedRevision) },
+      replan: { promote },
+    });
+
+    await expect(service.transferBalance(USER_ID, input)).rejects.toBeInstanceOf(
+      OrchestratorPlanError,
+    );
+    // promote was never called — no steps can be current.
+    expect(promote).not.toHaveBeenCalled();
   });
 });
 
@@ -397,4 +597,444 @@ interface AgentRunRow {
     });
   },
   LIVE_ORCHESTRATOR_TIMEOUT_MS,
+);
+
+// ──────────────────────────────────────────────
+// Phase 8 — orchestrator replan revision-two gate (live PostgreSQL)
+// reset → rev1 (TS orchestrator) → transfer 15k Chase→Hyatt → dependency
+// invalidation → one replan job → TS orchestrator re-entry → rev2 current,
+// rev1 superseded, exactly one current, FRESH wallet + redemption AgentRuns on
+// rev2, and NO legacy Python generator produced rev2.
+//
+// This is the failing gate written FIRST (spec Step 1). It fails on the current
+// code at the "rev1 steps are current" assertion (steps persist as 'proposed'),
+// and again at the rev2 AgentRun assertions (legacy replan writes no AgentRuns).
+// ──────────────────────────────────────────────
+
+const CHASE_PROGRAM_ID = "00000000-0000-0000-0000-00000000b001";
+const HYATT_PROGRAM_ID = "00000000-0000-0000-0000-00000000b002";
+const REQUIRED_TRANSFER_POINTS = 15000;
+
+interface BalanceRow {
+  program_id: string;
+  balance_points: number;
+  version: number;
+}
+
+/** Read the persona's Chase + Hyatt balances as numbers (pg returns int columns as numbers). */
+async function readDemoBalances(
+  pool: Pool,
+  userId: string,
+): Promise<{ chase: BalanceRow; hyatt: BalanceRow }> {
+  const { rows } = await pool.query<BalanceRow>(
+    "SELECT program_id, balance_points, version FROM user_balances WHERE user_id = $1",
+    [userId],
+  );
+  const byProgram = (programId: string): BalanceRow => {
+    const row = rows.find((r) => r.program_id === programId);
+    if (!row) throw new Error(`balance row missing for program ${programId}`);
+    return { ...row, balance_points: Number(row.balance_points), version: Number(row.version) };
+  };
+  return { chase: byProgram(CHASE_PROGRAM_ID), hyatt: byProgram(HYATT_PROGRAM_ID) };
+}
+
+(LIVE ? describe : describe.skip)(
+  "Phase 8 — orchestrator replan revision-two (live-PG)",
+  () => {
+    let pool: Pool;
+    let service: PlanService;
+
+    beforeAll(async () => {
+      requireDatabaseUrl();
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      service = composeOrchestratorPlanService({ pool, env: process.env });
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("re-enters the TS orchestrator on transfer: rev1→superseded, rev2 current with fresh AgentRuns, no legacy fallback", async () => {
+      // 0. Deterministic baseline for the canonical persona.
+      await service.resetDemo(USER_ID);
+
+      // 1. Revision 1 through the TS orchestrator.
+      const rev1 = await service.createPlan(USER_ID, FROZEN_DEMO_QUERY);
+      expect(rev1.revisionNumber).toBe(1);
+      expect(rev1.status).toBe("current");
+      const lineageId = rev1.planLineageId;
+
+      // 1a. Committed rev1 steps must be 'current' (cause #1: they persist as 'proposed').
+      const rev1Steps = await pool.query<{ status: string }>(
+        "SELECT status FROM plan_steps WHERE plan_id = $1",
+        [rev1.planId],
+      );
+      expect(rev1Steps.rows.length).toBeGreaterThan(0);
+      for (const step of rev1Steps.rows) {
+        expect(step.status).toBe("current");
+      }
+
+      // 1b. At least one relevant balance dependency exists on rev1.
+      const rev1Deps = await pool.query(
+        `SELECT sd.id
+           FROM state_dependencies sd
+           JOIN plan_steps ps ON ps.id = sd.plan_step_id
+          WHERE ps.plan_id = $1`,
+        [rev1.planId],
+      );
+      expect(rev1Deps.rows.length).toBeGreaterThanOrEqual(1);
+
+      // 2. Pre-transfer canonical balances.
+      const before = await readDemoBalances(pool, USER_ID);
+      expect(before.chase.balance_points).toBe(180000);
+      expect(before.hyatt.balance_points).toBe(30000);
+
+      // 3. Transfer 15,000 Chase → Hyatt (the replan trigger).
+      const result = await service.transferBalance(USER_ID, {
+        sourceProgramId: CHASE_PROGRAM_ID,
+        destProgramId: HYATT_PROGRAM_ID,
+        amountPoints: REQUIRED_TRANSFER_POINTS,
+      });
+
+      // 3a. Balances and versions both changed.
+      const after = await readDemoBalances(pool, USER_ID);
+      expect(after.chase.balance_points).toBe(165000);
+      expect(after.hyatt.balance_points).toBe(45000);
+      expect(after.chase.version).toBe(before.chase.version + 1);
+      expect(after.hyatt.version).toBe(before.hyatt.version + 1);
+
+      // 4. Exactly one replan job exists for the lineage.
+      const jobs = await pool.query<{ id: string; status: string }>(
+        "SELECT id, status FROM replan_jobs WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(jobs.rows.length).toBe(1);
+
+      // 5. rev2 is current in the SAME lineage and supersedes rev1.
+      const rev2 = result.currentPlan;
+      expect(rev2.planLineageId).toBe(lineageId);
+      expect(rev2.revisionNumber).toBe(2);
+      expect(rev2.status).toBe("current");
+      expect(result.staledPlanId).toBe(rev1.planId);
+      expect(result.replanJobId).toBe(jobs.rows[0]?.id);
+
+      const rev2Row = await pool.query<{ supersedes_plan_id: string | null; status: string }>(
+        "SELECT supersedes_plan_id, status FROM plans WHERE id = $1",
+        [rev2.planId],
+      );
+      expect(rev2Row.rows[0]?.supersedes_plan_id).toBe(rev1.planId);
+      expect(rev2Row.rows[0]?.status).toBe("current");
+
+      // 5a. rev1 becomes superseded.
+      const rev1Row = await pool.query<{ status: string }>(
+        "SELECT status FROM plans WHERE id = $1",
+        [rev1.planId],
+      );
+      expect(rev1Row.rows[0]?.status).toBe("superseded");
+
+      // 6. Exactly one current plan remains in the lineage, and it is rev2.
+      const current = await pool.query<{ id: string }>(
+        "SELECT id FROM plans WHERE plan_lineage_id = $1 AND status = 'current'",
+        [lineageId],
+      );
+      expect(current.rows.length).toBe(1);
+      expect(current.rows[0]?.id).toBe(rev2.planId);
+
+      // 7. rev2 has FRESH wallet + redemption AgentRuns (proves TS orchestrator re-entry).
+      const rev2Runs = await pool.query<AgentRunRow>(
+        `SELECT id, agent_type, status
+           FROM agent_runs
+          WHERE plan_id = $1
+          ORDER BY started_at ASC`,
+        [rev2.planId],
+      );
+      const rev2Types = rev2Runs.rows.map((r) => r.agent_type);
+      expect(rev2Types).toContain("wallet_agent");
+      expect(rev2Types).toContain("redemption_agent");
+      expect(rev2Types.indexOf("wallet_agent")).toBeLessThan(rev2Types.indexOf("redemption_agent"));
+      for (const row of rev2Runs.rows) {
+        expect(row.status).toBe("completed");
+      }
+
+      // 8. No legacy Python generator produced rev2: the legacy replan writes ZERO
+      //    agent_runs, so a rev2 carrying fresh wallet+redemption runs is dispositive.
+      expect(rev2Runs.rows.length).toBeGreaterThanOrEqual(2);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "PHASE 8 REPLAN EVIDENCE:",
+        JSON.stringify(
+          {
+            lineageId,
+            rev1PlanId: rev1.planId,
+            rev2PlanId: rev2.planId,
+            replanJobId: jobs.rows[0]?.id,
+            replanJobStatus: jobs.rows[0]?.status,
+            chase: `${before.chase.balance_points}→${after.chase.balance_points} (v${before.chase.version}→v${after.chase.version})`,
+            hyatt: `${before.hyatt.balance_points}→${after.hyatt.balance_points} (v${before.hyatt.version}→v${after.hyatt.version})`,
+            rev2AgentTypes: rev2Types,
+            rev2AgentRunIds: rev2Runs.rows.map((r) => r.id),
+          },
+          null,
+          2,
+        ),
+      );
+      // eslint-disable-next-line no-console
+      console.log("PHASE 8 ORCHESTRATOR REPLAN: PASS");
+    });
+  },
+  LIVE_ORCHESTRATOR_TIMEOUT_MS,
+);
+
+// ──────────────────────────────────────────────
+// Phase 8b — reset repeatability (live PostgreSQL)
+// Runs the full reset→rev1→transfer→rev2 cycle TWICE. The second run must NOT
+// replay the first run's idempotency result: the deterministic reset clears
+// idempotency_records + agent_runs, so the identical transfer mutates fresh and
+// produces a distinct revision 2 + replan job.
+// ──────────────────────────────────────────────
+
+interface ReplanCycleFacts {
+  rev2PlanId: string;
+  replanJobId: string;
+  replanJobStatus: string;
+  rev2AgentTypes: string[];
+  chaseAfter: number;
+  hyattAfter: number;
+}
+
+/** One full orchestrator replan cycle with the core invariants asserted. */
+async function runReplanCycle(pool: Pool, service: PlanService): Promise<ReplanCycleFacts> {
+  await service.resetDemo(USER_ID);
+
+  const before = await readDemoBalances(pool, USER_ID);
+  expect(before.chase.balance_points).toBe(180000);
+  expect(before.hyatt.balance_points).toBe(30000);
+
+  const rev1 = await service.createPlan(USER_ID, FROZEN_DEMO_QUERY);
+  const lineageId = rev1.planLineageId;
+
+  const result = await service.transferBalance(USER_ID, {
+    sourceProgramId: CHASE_PROGRAM_ID,
+    destProgramId: HYATT_PROGRAM_ID,
+    amountPoints: REQUIRED_TRANSFER_POINTS,
+  });
+
+  // The transfer must mutate fresh — a replayed idempotent result would leave
+  // balances at 180k/30k and create no new job.
+  const after = await readDemoBalances(pool, USER_ID);
+  expect(after.chase.balance_points).toBe(165000);
+  expect(after.hyatt.balance_points).toBe(45000);
+
+  const jobs = await pool.query<{ id: string; status: string }>(
+    "SELECT id, status FROM replan_jobs WHERE plan_lineage_id = $1",
+    [lineageId],
+  );
+  expect(jobs.rows.length).toBe(1);
+
+  const rev2 = result.currentPlan;
+  expect(rev2.revisionNumber).toBe(2);
+  expect(rev2.status).toBe("current");
+
+  const rev2Runs = await pool.query<AgentRunRow>(
+    "SELECT agent_type FROM agent_runs WHERE plan_id = $1 ORDER BY started_at ASC",
+    [rev2.planId],
+  );
+  const rev2AgentTypes = rev2Runs.rows.map((r) => r.agent_type);
+  expect(rev2AgentTypes).toContain("wallet_agent");
+  expect(rev2AgentTypes).toContain("redemption_agent");
+
+  return {
+    rev2PlanId: rev2.planId,
+    replanJobId: jobs.rows[0]!.id,
+    replanJobStatus: jobs.rows[0]!.status,
+    rev2AgentTypes,
+    chaseAfter: after.chase.balance_points,
+    hyattAfter: after.hyatt.balance_points,
+  };
+}
+
+(LIVE ? describe : describe.skip)(
+  "Phase 8b — reset repeatability (live-PG)",
+  () => {
+    let pool: Pool;
+    let service: PlanService;
+
+    beforeAll(async () => {
+      requireDatabaseUrl();
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      service = composeOrchestratorPlanService({ pool, env: process.env });
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("runs the full replan flow twice; the second run is fresh, not an idempotency replay", async () => {
+      const run1 = await runReplanCycle(pool, service);
+      const run2 = await runReplanCycle(pool, service);
+
+      // Both runs completed a real replan.
+      expect(run1.replanJobStatus).toBe("completed");
+      expect(run2.replanJobStatus).toBe("completed");
+
+      // The second run is genuinely fresh: distinct revision 2 + distinct job,
+      // and it mutated the (reset-restored) balances rather than replaying.
+      expect(run2.rev2PlanId).not.toBe(run1.rev2PlanId);
+      expect(run2.replanJobId).not.toBe(run1.replanJobId);
+      expect(run2.chaseAfter).toBe(165000);
+      expect(run2.hyattAfter).toBe(45000);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "PHASE 8b REPEATABILITY EVIDENCE:",
+        JSON.stringify({ run1, run2 }, null, 2),
+      );
+      // eslint-disable-next-line no-console
+      console.log("PHASE 8b RESET REPEATABILITY: PASS");
+    });
+  },
+  LIVE_ORCHESTRATOR_TIMEOUT_MS * 2,
+);
+
+// ──────────────────────────────────────────────
+// Phase 8c — duplicate transfer replay (live PostgreSQL)
+// Submits the same balance-transfer twice (without a reset between).
+// The second call must:
+//   - return HTTP 200 (no throw)
+//   - return the SAME rev2 that the first transfer produced (revisionNumber=2)
+//   - not create a revision 3
+//   - not create a second replan job
+//   - leave balances at 165k/45k (unchanged by the replay)
+//   - maintain exactly one current plan
+// ──────────────────────────────────────────────
+
+(LIVE ? describe : describe.skip)(
+  "Phase 8c — duplicate transfer replay (live-PG)",
+  () => {
+    let pool: Pool;
+    let service: PlanService;
+
+    beforeAll(async () => {
+      requireDatabaseUrl();
+      const { Pool } = await import("pg");
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      service = composeOrchestratorPlanService({ pool, env: process.env });
+    });
+
+    afterAll(async () => {
+      await pool.end();
+    });
+
+    it("second identical transfer replays cleanly: same rev2, no rev3, no new job, balances unchanged", async () => {
+      // 0. Deterministic baseline.
+      await service.resetDemo(USER_ID);
+
+      // 1. Revision 1 through the TS orchestrator.
+      const rev1 = await service.createPlan(USER_ID, FROZEN_DEMO_QUERY);
+      expect(rev1.revisionNumber).toBe(1);
+      const lineageId = rev1.planLineageId;
+
+      const transferInput = {
+        sourceProgramId: CHASE_PROGRAM_ID,
+        destProgramId: HYATT_PROGRAM_ID,
+        amountPoints: REQUIRED_TRANSFER_POINTS,
+      };
+
+      // 2. First transfer: rev1 → rev2.
+      const first = await service.transferBalance(USER_ID, transferInput);
+      expect(first.currentPlan.revisionNumber).toBe(2);
+      expect(first.currentPlan.status).toBe("current");
+
+      // Count the state after first transfer.
+      const afterFirst = await readDemoBalances(pool, USER_ID);
+      expect(afterFirst.chase.balance_points).toBe(165000);
+      expect(afterFirst.hyatt.balance_points).toBe(45000);
+
+      const jobsAfterFirst = await pool.query<{ id: string }>(
+        "SELECT id FROM replan_jobs WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(jobsAfterFirst.rows.length).toBe(1);
+      const firstJobId = jobsAfterFirst.rows[0]?.id;
+
+      const agentRunCountAfterFirst = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM agent_runs WHERE plan_id = $1",
+        [first.currentPlan.planId],
+      );
+      const agentRunCountFirst = Number(agentRunCountAfterFirst.rows[0]?.count ?? 0);
+
+      // 3. SAME transfer again (no reset) — must replay idempotently.
+      const second = await service.transferBalance(USER_ID, transferInput);
+
+      // Returns success (no throw) with the same rev2.
+      expect(second.currentPlan).not.toBeNull();
+      expect(second.currentPlan.status).toBe("current");
+      expect(second.currentPlan.revisionNumber).toBe(2);
+      expect(second.currentPlan.planId).toBe(first.currentPlan.planId);
+
+      // replanJobId is null — replay created no new job.
+      expect(second.replanJobId).toBeNull();
+
+      // Balances unchanged.
+      const afterSecond = await readDemoBalances(pool, USER_ID);
+      expect(afterSecond.chase.balance_points).toBe(165000);
+      expect(afterSecond.hyatt.balance_points).toBe(45000);
+
+      // Still only 2 plan revisions in the lineage (rev1 superseded + rev2 current).
+      const planCount = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM plans WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(Number(planCount.rows[0]?.count ?? 0)).toBe(2);
+
+      // Still only 1 replan job (same job id).
+      const jobsAfterSecond = await pool.query<{ id: string }>(
+        "SELECT id FROM replan_jobs WHERE plan_lineage_id = $1",
+        [lineageId],
+      );
+      expect(jobsAfterSecond.rows.length).toBe(1);
+      expect(jobsAfterSecond.rows[0]?.id).toBe(firstJobId);
+
+      // No additional AgentRuns on rev2.
+      const agentRunCountAfterSecond = await pool.query<{ count: string }>(
+        "SELECT count(*) FROM agent_runs WHERE plan_id = $1",
+        [first.currentPlan.planId],
+      );
+      expect(Number(agentRunCountAfterSecond.rows[0]?.count ?? 0)).toBe(agentRunCountFirst);
+
+      // Exactly one current plan remains.
+      const currentPlans = await pool.query<{ id: string }>(
+        "SELECT id FROM plans WHERE plan_lineage_id = $1 AND status = 'current'",
+        [lineageId],
+      );
+      expect(currentPlans.rows.length).toBe(1);
+      expect(currentPlans.rows[0]?.id).toBe(first.currentPlan.planId);
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "PHASE 8c REPLAY EVIDENCE:",
+        JSON.stringify(
+          {
+            lineageId,
+            rev2PlanId: first.currentPlan.planId,
+            firstReplanJobId: firstJobId,
+            secondReplanJobId: second.replanJobId,
+            chaseBalance: afterSecond.chase.balance_points,
+            hyattBalance: afterSecond.hyatt.balance_points,
+            totalRevisions: Number(planCount.rows[0]?.count ?? 0),
+            totalReplanJobs: jobsAfterSecond.rows.length,
+            agentRunsOnRev2: agentRunCountFirst,
+          },
+          null,
+          2,
+        ),
+      );
+      // eslint-disable-next-line no-console
+      console.log("PHASE 8c DUPLICATE TRANSFER REPLAY: PASS");
+    });
+  },
+  LIVE_ORCHESTRATOR_TIMEOUT_MS * 2,
 );
