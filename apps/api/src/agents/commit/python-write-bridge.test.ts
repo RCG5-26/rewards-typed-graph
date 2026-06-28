@@ -44,21 +44,35 @@ function commit(bridge: PythonWriteBridge, idempotencyKey: string, mutation = ba
   });
 }
 
-describe("PythonWriteBridge env allowlist", () => {
-  it("never forwards DATABASE_URL or CLERK_SECRET_KEY to the subprocess", () => {
-    const bridge = buildBridge({
-      PATH: "/usr/bin",
-      DATABASE_URL: "pg://host/db",
-      CLERK_SECRET_KEY: "not-a-real-clerk-secret",
-      PGHOST: "localhost",
-    });
-    const env = (bridge as unknown as { env: NodeJS.ProcessEnv }).env;
+interface ObservedEnvResult {
+  readonly observedEnv: Record<string, string>;
+}
 
-    expect(env["DATABASE_URL"]).toBeUndefined();
-    expect(env["CLERK_SECRET_KEY"]).toBeUndefined();
-    expect(env["PGHOST"]).toBe("localhost");
-    expect(env["PATH"]).toBe("/usr/bin");
-  });
+describe("PythonWriteBridge env allowlist", () => {
+  it("never forwards DATABASE_URL or CLERK_SECRET_KEY to the spawned subprocess", async () => {
+    // Assert at the spawn boundary: the fake bridge echoes the env it actually
+    // received, so this proves what the child process sees (not an internal field).
+    // Locate the interpreter via an absolute path so the deliberately-narrow PATH
+    // below is only data the child echoes, not how we resolve `node`.
+    const bridge = new PythonWriteBridge({
+      pythonBin: process.execPath,
+      scriptPath: FAKE_BRIDGE,
+      env: {
+        PATH: "/usr/bin",
+        DATABASE_URL: "pg://host/db",
+        CLERK_SECRET_KEY: "not-a-real-clerk-secret",
+        PGHOST: "localhost",
+      },
+    });
+
+    const result = (await commit(bridge, "k1")) as unknown as ObservedEnvResult;
+    const observed = result.observedEnv;
+
+    expect(observed["DATABASE_URL"]).toBeUndefined();
+    expect(observed["CLERK_SECRET_KEY"]).toBeUndefined();
+    expect(observed["PGHOST"]).toBe("localhost");
+    expect(observed["PATH"]).toBe("/usr/bin");
+  }, SUBPROCESS_TIMEOUT_MS);
 });
 
 describe("PythonWriteBridge.commitMutation", () => {

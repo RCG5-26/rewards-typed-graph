@@ -210,7 +210,10 @@ export class CommitFailure extends Error {
     readonly kind: CommitFailureKind,
     message: string,
     readonly detail?: Readonly<Record<string, unknown>>,
-  ) {}
+  ) {
+    super(message);
+    this.name = "CommitFailure";
+  }
 }
 ```
 
