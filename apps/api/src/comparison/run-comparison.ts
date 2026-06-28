@@ -11,15 +11,34 @@ import { type GraphPlanRunner, runGraphOrchestrator } from "./adapters/graph-orc
 import { runChatCrew, runSingleAgent } from "./adapters/baseline-adapter";
 import type { RunBaselineReport } from "./adapters/baseline-bridge";
 import { evaluatePlan } from "./evaluator";
+import type { PlanEngineKind } from "../plans/engine-selector";
 import type {
   ArchitectureComparisonResponse,
   ArchitectureComparisonResult,
   ArchitectureVariant,
 } from "./types";
 
+/**
+ * The graph variant is the LIVE TypeScript orchestrator. It is only honest to
+ * run and label it as such when the server actually booted that engine
+ * (review Fix 2 / ADR 0010). Under `python-legacy` the injected `graphService`
+ * is the Python bridge — running it would mislabel a legacy plan as the live
+ * graph orchestrator, so the slot fails fast with a sanitized config error.
+ */
+const GRAPH_ENGINE: PlanEngineKind = "orchestrator";
+
 export interface ComparisonDeps {
   /** Live graph plan runner (the real `PlanService` satisfies this). */
   graphService: GraphPlanRunner;
+  /**
+   * The engine the server booted under (`/health` reports the same value).
+   * The graph slot only runs when this is `orchestrator`; ANY other value —
+   * including `undefined` — fails the slot closed with a config error so a
+   * legacy plan is never mislabeled as the live graph orchestrator (Fix 2).
+   * Optional so the shared `app.ts` mount needs only a one-line integration
+   * patch to supply it (Fix 6); until then the graph fails closed, not silent.
+   */
+  planEngine?: PlanEngineKind;
   /** Graph persona; defaults to the canonical demo user inside the adapter. */
   graphUserId?: string;
   /** Injected for tests; defaults to the real Python subprocess. */
@@ -50,12 +69,17 @@ export async function runArchitectureComparison(
     ...(deps.env ? { env: deps.env } : {}),
   };
 
+  const graphRun =
+    deps.planEngine === GRAPH_ENGINE
+      ? runGraphOrchestrator({
+          ...input,
+          service: deps.graphService,
+          ...(deps.graphUserId ? { userId: deps.graphUserId } : {}),
+        })
+      : Promise.resolve(graphEngineConfigFailure(deps.planEngine, facts.walletId, facts.version, query));
+
   const settled = await Promise.allSettled([
-    runGraphOrchestrator({
-      ...input,
-      service: deps.graphService,
-      ...(deps.graphUserId ? { userId: deps.graphUserId } : {}),
-    }),
+    graphRun,
     runChatCrew({ ...input, ...baselineExtras }),
     runSingleAgent({ ...input, ...baselineExtras }),
   ]);
@@ -65,6 +89,31 @@ export async function runArchitectureComparison(
   );
 
   return { walletId: facts.walletId, walletVersion: facts.version, query, results };
+}
+
+/**
+ * Sanitized graph-slot failure when the booted engine is not `orchestrator`
+ * (review Fix 2). Keeps the slot present and honestly `failed` — never a
+ * succeeded `live-graph-orchestrator` plan produced by the legacy engine.
+ */
+function graphEngineConfigFailure(
+  engine: PlanEngineKind | undefined,
+  walletId: string,
+  walletVersion: string,
+  query: string,
+): ArchitectureComparisonResult {
+  return {
+    variant: "live-graph-orchestrator",
+    status: "failed",
+    walletId,
+    walletVersion,
+    query,
+    metrics: { latencyMs: 0 },
+    error: {
+      category: "engine_configuration_error",
+      message: `live graph orchestrator requires PLAN_ENGINE=${GRAPH_ENGINE} (server booted "${engine ?? "unset"}")`,
+    },
+  };
 }
 
 /** Attach a deterministic evaluation to any succeeded result that has a plan. */
