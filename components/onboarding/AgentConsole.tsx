@@ -20,6 +20,7 @@ import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
 import NodeDetailPopover from "./NodeDetailPopover";
 import TypedGraph, { type HoverNode } from "./TypedGraph";
+import WalletDataPanel from "./WalletDataPanel";
 
 type ConsoleView = "plan" | "baselines" | "benchmark";
 const VIEWS: { id: ConsoleView; label: string }[] = [
@@ -579,6 +580,14 @@ export default function AgentConsole({
                   </button>
                 )}
               </div>
+              {liveBalances.length > 0 && (
+                <div className="px-5 pt-3">
+                  <WalletDataPanel
+                    balances={liveBalances}
+                    title="your points · what the agents see"
+                  />
+                </div>
+              )}
               {transferOpen && (
                 <TransferForm
                   balances={liveBalances}

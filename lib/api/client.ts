@@ -1,9 +1,11 @@
 import "server-only";
 
 import type {
+  ApiBalanceInput,
   ApiBalanceTransferResponse,
   ApiPlan,
   ApiSessionResponse,
+  ApiSubmitBalancesResponse,
   ApiTransferParams,
 } from "./types";
 import { ApiError } from "./types";
@@ -112,6 +114,21 @@ export async function balanceTransfer(
   return apiFetch<ApiBalanceTransferResponse>("/balance-transfer", {
     method: "POST",
     body: params,
+    token,
+  });
+}
+
+/**
+ * Submit the per-program point balances the user entered in the onboarding
+ * wallet picker. The API validates and echoes the normalized balances back.
+ */
+export async function submitBalances(
+  balances: ApiBalanceInput[],
+  token: string,
+): Promise<ApiSubmitBalancesResponse> {
+  return apiFetch<ApiSubmitBalancesResponse>("/balances", {
+    method: "POST",
+    body: { balances },
     token,
   });
 }

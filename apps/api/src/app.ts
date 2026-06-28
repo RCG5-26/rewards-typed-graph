@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { Pool } from "pg";
 
+import { createBalancesRoutes } from "./balances/routes";
 import { createComparisonRoutes } from "./comparison/routes";
 import { type AuthEnv } from "./http/auth";
 import { resolveIdentity } from "./http/clerk-auth";
@@ -72,6 +73,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
 
   app.get("/health", (c) => c.json({ ok: true, engine: deps.planEngine }));
   app.route("/", createMutationRoutes(deps.pool));
+  app.route("/", createBalancesRoutes());
   app.route("/", createPlanRoutes(deps.planService));
   // The demo comparison drives the live graph through the same PlanService and
   // the two read-only Python baselines via subprocess (env + cwd from boot).

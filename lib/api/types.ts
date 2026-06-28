@@ -73,6 +73,21 @@ export interface ApiTransferParams {
   idempotencyKey?: string;
 }
 
+/** One program balance the onboarding wallet picker submits to the API. */
+export interface ApiBalanceInput {
+  programId: string;
+  points: number;
+}
+
+/**
+ * Response from `POST /balances` — the server echoes the normalized per-program
+ * balances it received so the client can confirm what was captured.
+ */
+export interface ApiSubmitBalancesResponse {
+  userId: string;
+  balances: ApiBalanceInput[];
+}
+
 /**
  * One event from the Hono /mutations/stream SSE (and /mutations REST list).
  * Mirrors apps/api/src/mutations/events.ts MutationEvent — kept in sync manually.
