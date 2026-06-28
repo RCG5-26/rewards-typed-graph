@@ -92,28 +92,52 @@ class TestDoOrchestratorCreatePlan(unittest.TestCase):
 
 class TestDoOrchestratorTransitionPlan(unittest.TestCase):
     def test_accepts_current_status(self):
-        with patch.object(BRIDGE, "_psql_exec") as mock_exec:
-            result = BRIDGE.do_orchestrator_transition_plan(PLAN_ID, "current")
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
+            result = BRIDGE.do_orchestrator_transition_plan(USER_ID, PLAN_ID, "current")
 
         self.assertTrue(result["ok"])
         mock_exec.assert_called_once()
 
     def test_accepts_failed_status(self):
-        with patch.object(BRIDGE, "_psql_exec") as mock_exec:
-            result = BRIDGE.do_orchestrator_transition_plan(PLAN_ID, "failed")
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
+            result = BRIDGE.do_orchestrator_transition_plan(USER_ID, PLAN_ID, "failed")
 
         self.assertTrue(result["ok"])
         mock_exec.assert_called_once()
 
     def test_rejects_unknown_status(self):
         with self.assertRaises(BRIDGE.BridgeError) as ctx:
-            BRIDGE.do_orchestrator_transition_plan(PLAN_ID, "published")
+            BRIDGE.do_orchestrator_transition_plan(USER_ID, PLAN_ID, "published")
+        self.assertEqual(ctx.exception.code, "validation")
+
+    def test_rejects_generating_status(self):
+        with self.assertRaises(BRIDGE.BridgeError) as ctx:
+            BRIDGE.do_orchestrator_transition_plan(USER_ID, PLAN_ID, "generating")
         self.assertEqual(ctx.exception.code, "validation")
 
     def test_rejects_empty_plan_id(self):
         with self.assertRaises(BRIDGE.BridgeError) as ctx:
-            BRIDGE.do_orchestrator_transition_plan("", "current")
+            BRIDGE.do_orchestrator_transition_plan(USER_ID, "", "current")
         self.assertEqual(ctx.exception.code, "validation")
+
+    def test_rejects_empty_user_id(self):
+        with self.assertRaises(BRIDGE.BridgeError) as ctx:
+            BRIDGE.do_orchestrator_transition_plan("", PLAN_ID, "current")
+        self.assertEqual(ctx.exception.code, "validation")
+
+    def test_returns_not_found_when_user_id_mismatches(self):
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[]),
+        ):
+            with self.assertRaises(BRIDGE.BridgeError) as ctx:
+                BRIDGE.do_orchestrator_transition_plan("wrong-user-id", PLAN_ID, "current")
+        self.assertEqual(ctx.exception.code, "not_found")
 
 
 class TestDoOrchestratorCommitStep(unittest.TestCase):
@@ -389,20 +413,28 @@ class TestDoOrchestratorCreateAgentRun(unittest.TestCase):
 
 class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
     def test_accepts_completed_status(self):
-        with patch.object(BRIDGE, "_psql_exec") as mock_exec:
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
             result = BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id=AGENT_RUN_ID,
                 status="completed",
+                user_id=USER_ID,
             )
 
         self.assertTrue(result["ok"])
         mock_exec.assert_called_once()
 
     def test_accepts_failed_status_with_error(self):
-        with patch.object(BRIDGE, "_psql_exec") as mock_exec:
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
             result = BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id=AGENT_RUN_ID,
                 status="failed",
+                user_id=USER_ID,
                 error="commit validation failed",
             )
 
@@ -416,6 +448,7 @@ class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
             BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id=AGENT_RUN_ID,
                 status="running",
+                user_id=USER_ID,
             )
         self.assertEqual(ctx.exception.code, "validation")
 
@@ -424,8 +457,30 @@ class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
             BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id="",
                 status="completed",
+                user_id=USER_ID,
             )
         self.assertEqual(ctx.exception.code, "validation")
+
+    def test_rejects_empty_user_id(self):
+        with self.assertRaises(BRIDGE.BridgeError) as ctx:
+            BRIDGE.do_orchestrator_finalize_agent_run(
+                agent_run_id=AGENT_RUN_ID,
+                status="completed",
+                user_id="",
+            )
+        self.assertEqual(ctx.exception.code, "validation")
+
+    def test_returns_not_found_when_user_id_mismatches(self):
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[]),
+        ):
+            with self.assertRaises(BRIDGE.BridgeError) as ctx:
+                BRIDGE.do_orchestrator_finalize_agent_run(
+                    agent_run_id=AGENT_RUN_ID,
+                    status="completed",
+                    user_id="wrong-user-id",
+                )
+        self.assertEqual(ctx.exception.code, "not_found")
 
 
 class TestDoReadPlan(unittest.TestCase):
@@ -471,8 +526,14 @@ class TestOrchestratorBridgeArgParser(unittest.TestCase):
         self.assertEqual(ns.query_text, "maximize Hyatt")
 
     def test_orchestrator_transition_plan_subcommand_registered(self):
-        ns = self._parse(["orchestrator-transition-plan", "--plan-id", PLAN_ID, "--status", "current"])
+        ns = self._parse([
+            "orchestrator-transition-plan",
+            "--user-id", USER_ID,
+            "--plan-id", PLAN_ID,
+            "--status", "current",
+        ])
         self.assertEqual(ns.command, "orchestrator-transition-plan")
+        self.assertEqual(ns.user_id, USER_ID)
         self.assertEqual(ns.plan_id, PLAN_ID)
         self.assertEqual(ns.status, "current")
 
@@ -505,10 +566,12 @@ class TestOrchestratorBridgeArgParser(unittest.TestCase):
     def test_orchestrator_finalize_agent_run_subcommand_registered(self):
         ns = self._parse([
             "orchestrator-finalize-agent-run",
+            "--user-id", USER_ID,
             "--agent-run-id", AGENT_RUN_ID,
             "--status", "completed",
         ])
         self.assertEqual(ns.command, "orchestrator-finalize-agent-run")
+        self.assertEqual(ns.user_id, USER_ID)
         self.assertIsNone(ns.error)
 
     def test_read_plan_subcommand_registered(self):

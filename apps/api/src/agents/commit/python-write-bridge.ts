@@ -154,10 +154,12 @@ export class PythonWriteBridge {
   }
 
   async transitionPlanStatus(params: {
+    userId: string;
     planId: string;
     toStatus: "current" | "failed";
   }): Promise<void> {
     await this.run<{ ok: true }>("orchestrator-transition-plan", [
+      "--user-id", params.userId,
       "--plan-id", params.planId,
       "--status", params.toStatus,
     ]);
@@ -177,11 +179,13 @@ export class PythonWriteBridge {
 
   async finalizeAgentRun(params: {
     agentRunId: string;
+    userId: string;
     status: "completed" | "failed";
     error?: string;
   }): Promise<void> {
     const args = [
       "--agent-run-id", params.agentRunId,
+      "--user-id", params.userId,
       "--status", params.status,
     ];
     if (params.error) {
@@ -263,10 +267,12 @@ function parseEnvelope<T>(stdout: string): BridgeEnvelope<T> {
 }
 
 function mapBridgeError(error: unknown): CommitFailure {
-  if (error && typeof error === "object" && "code" in error) {
-    const code = (error as { code?: string }).code;
-    if (code === "ETIMEDOUT") {
-      return new CommitFailure("UnexpectedCommitError", "bridge subprocess timed out");
+  if (error && typeof error === "object") {
+    if ("killed" in error && (error as { killed?: boolean }).killed === true) {
+      return new CommitFailure("UnexpectedCommitError", "bridge subprocess timed out after 30s");
+    }
+    if ("code" in error && (error as { code?: string }).code === "ETIMEDOUT") {
+      return new CommitFailure("UnexpectedCommitError", "bridge subprocess timed out after 30s");
     }
   }
   const message = error instanceof Error ? error.message : String(error);
