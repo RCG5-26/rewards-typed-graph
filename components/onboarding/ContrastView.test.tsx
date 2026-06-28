@@ -1,48 +1,36 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import ContrastView from "./ContrastView";
-import type { LiveMetrics } from "@/lib/plan/comparison";
 
-const metricsWithValue: LiveMetrics = {
-  planValueCents: 12000,
-  opCount: 4,
-  invalidationCaught: false,
-  revision: 1,
-};
-
-const metricsZero: LiveMetrics = {
-  planValueCents: 0,
-  opCount: 4,
-  invalidationCaught: false,
-  revision: 1,
-};
+afterEach(cleanup);
+import { benchmarkReport, isMeasured } from "@/lib/benchmark/report";
 
 describe("ContrastView", () => {
-  it("renders three architecture columns", () => {
-    render(<ContrastView metrics={metricsWithValue} />);
-    expect(screen.getByText(/typed graph/i)).toBeTruthy();
-    expect(screen.getByText(/crewai/i)).toBeTruthy();
-    expect(screen.getByText(/single agent/i)).toBeTruthy();
+  it("renders one column per architecture in the report", () => {
+    render(<ContrastView />);
+    for (const a of benchmarkReport.architectures) {
+      expect(screen.getByText(a.label)).toBeTruthy();
+    }
   });
 
-  it("displays dollar value when planValueCents > 0", () => {
-    render(<ContrastView metrics={metricsWithValue} />);
-    // $120 (12000 / 100) — appears in typed and derived columns
-    expect(screen.getAllByText(/\$120/).length).toBeGreaterThan(0);
+  it("shows real measured metrics for the typed-graph column", () => {
+    render(<ContrastView />);
+    const typed = benchmarkReport.architectures.find((a) => a.key === "typed_graph_fixture");
+    expect(typed && isMeasured(typed)).toBe(true);
+    if (typed && isMeasured(typed)) {
+      expect(
+        screen.getByText(new RegExp(`${typed.accuracyPassed}/${typed.accuracyTotal}`)),
+      ).toBeTruthy();
+    }
+    expect(screen.getByText("measured")).toBeTruthy();
   });
 
-  it('shows "—" for all value cells when planValueCents is 0', () => {
-    render(<ContrastView metrics={metricsZero} />);
-    const dashes = screen.getAllByText("—");
-    // typed + crewai* + single = 3 dash cells (crewai has * suffix handled separately)
-    expect(dashes.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("shows caught-invalidation message when invalidationCaught is true", () => {
-    render(
-      <ContrastView metrics={{ ...metricsWithValue, invalidationCaught: true, revision: 2 }} />,
-    );
-    expect(screen.getByText(/caught the balance invalidation/i)).toBeTruthy();
+  it("marks not-run baselines instead of fabricating numbers", () => {
+    render(<ContrastView />);
+    const notRun = benchmarkReport.architectures.filter((a) => a.status === "not_run");
+    expect(notRun.length).toBeGreaterThan(0);
+    expect(screen.getAllByText("not run").length).toBe(notRun.length);
+    expect(screen.getAllByText(/needs a paid key/i).length).toBe(notRun.length);
   });
 });

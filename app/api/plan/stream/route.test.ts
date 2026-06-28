@@ -176,6 +176,63 @@ describe("GET /api/plan/stream", () => {
     expect(frames.some((f) => f.event === "error")).toBe(true);
   });
 
+  it("replan with a full user transfer uses those params, not the persona", async () => {
+    const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(balanceTransfer).mockResolvedValue(
+      mockPlan.balanceTransfer as ApiBalanceTransferResponse,
+    );
+    vi.mocked(getPlan).mockResolvedValue(mockPlan.stalePlan as ApiPlan);
+
+    await GET(makeRequest("?q=test+query&replan=1&src=prog-A&dest=prog-B&amt=5000"));
+
+    expect(balanceTransfer).toHaveBeenCalledWith(
+      { sourceProgramId: "prog-A", destProgramId: "prog-B", amountPoints: 5000 },
+      "test-token",
+    );
+    // user transfer present → persona fallback (getSession) must not run
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("replan falls back to the persona only when no transfer params are present", async () => {
+    const { balanceTransfer, getPlan, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+    vi.mocked(getSession).mockResolvedValue({ userId: "u1", clerkId: "clerk_u1", seeded: true });
+    vi.mocked(balanceTransfer).mockResolvedValue(
+      mockPlan.balanceTransfer as ApiBalanceTransferResponse,
+    );
+    vi.mocked(getPlan).mockResolvedValue(mockPlan.stalePlan as ApiPlan);
+
+    await GET(makeRequest("?q=test+query&replan=1"));
+
+    expect(getSession).toHaveBeenCalled();
+    expect(balanceTransfer).toHaveBeenCalledWith(
+      { sourceProgramId: "b001", destProgramId: "b002", amountPoints: 30000 },
+      "test-token",
+    );
+  });
+
+  it.each([
+    ["partial tuple (missing dest)", "&src=prog-A&amt=5000"],
+    ["same source and destination", "&src=prog-A&dest=prog-A&amt=5000"],
+    ["non-positive amount", "&src=prog-A&dest=prog-B&amt=0"],
+    ["non-numeric amount", "&src=prog-A&dest=prog-B&amt=abc"],
+  ])("replan with %s → 400 (no persona fallback, fail-closed)", async (_label, qs) => {
+    const { balanceTransfer, getSession } = await import("@/lib/api/client");
+    const { auth } = await import("@clerk/nextjs/server");
+    vi.mocked(auth).mockResolvedValue(mockAuthWithToken("test-token"));
+
+    const response = await GET(makeRequest(`?q=test+query&replan=1${qs}`));
+
+    expect(response.status).toBe(400);
+    const contentType = response.headers.get("Content-Type") ?? "";
+    expect(contentType).not.toContain("text/event-stream");
+    expect(balanceTransfer).not.toHaveBeenCalled();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it("replan with no transfer source → error frame", async () => {
     const { getSession } = await import("@/lib/api/client");
     const { auth } = await import("@clerk/nextjs/server");
