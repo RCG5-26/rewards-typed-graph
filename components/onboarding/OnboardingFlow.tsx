@@ -172,36 +172,33 @@ export default function OnboardingFlow() {
     return m;
   }, [wallet, pointsByCard]);
 
-  // The personal-graph balances overlaid with anything the user entered: known
-  // programs get their points overridden; a card's program that isn't in the
-  // graph yet is appended. This is the "available data" shown on steps 2 & 3.
-  const mergedBalances = useMemo<UserBalance[]>(() => {
-    const base = me?.balances ?? [];
-    const out: UserBalance[] = base.map((b) =>
-      enteredByProgram.has(b.programName)
-        ? { ...b, balancePoints: enteredByProgram.get(b.programName)! }
-        : b,
-    );
+  // The "available data" shown on steps 2 & 3 — built purely from what the user
+  // entered in the points modal, never the seeded demo-persona balances. Program
+  // ids/currency are resolved from the personal graph (or the card) for the
+  // agents, but the points are exactly what was entered. Empty until they enter.
+  const enteredBalances = useMemo<UserBalance[]>(() => {
+    const out: UserBalance[] = [];
     for (const [programName, points] of enteredByProgram) {
-      if (out.some((b) => b.programName === programName)) continue;
+      const known = me?.balances.find((b) => b.programName === programName);
       const card = wallet.find((c) => c.programName === programName);
       out.push({
-        programId: programSlug(programName),
+        programId: known?.programId ?? programSlug(programName),
         programName,
-        currencyName: card?.currencyName ?? "points",
+        currencyName: known?.currencyName ?? card?.currencyName ?? "points",
         balancePoints: points,
       });
     }
     return out;
-  }, [me, enteredByProgram, wallet]);
+  }, [enteredByProgram, me, wallet]);
 
-  // Points on hand reflect only the programs of the cards you've selected.
+  // Points on hand reflect only what the user actually entered in the points
+  // modal — never the seeded demo-persona balances. Stays 0 (and hidden) until
+  // they enter real values.
   const pointsOnHand = useMemo(() => {
-    const programs = new Set(wallet.map((c) => c.programName));
-    return mergedBalances
-      .filter((b) => programs.has(b.programName))
-      .reduce((sum, b) => sum + b.balancePoints, 0);
-  }, [mergedBalances, wallet]);
+    let sum = 0;
+    for (const points of enteredByProgram.values()) sum += points;
+    return sum;
+  }, [enteredByProgram]);
 
   const hasEnteredPoints = enteredByProgram.size > 0;
   const firstName = me?.user.displayName?.split(" ")[0] ?? null;
@@ -290,7 +287,7 @@ export default function OnboardingFlow() {
             cardWord={cardWord}
             query={query}
             setQuery={setQuery}
-            balances={mergedBalances}
+            balances={enteredBalances}
             onBack={() => setStep("cards")}
             onPlan={goToPlan}
             prompts={SUGGESTED_PROMPTS}
@@ -302,7 +299,7 @@ export default function OnboardingFlow() {
             queryText={query.trim()}
             selectedCardIds={selected}
             onRestart={handleRestart}
-            balances={mergedBalances}
+            balances={enteredBalances}
           />
         )}
       </div>
