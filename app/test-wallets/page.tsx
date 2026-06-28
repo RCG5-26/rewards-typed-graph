@@ -19,24 +19,36 @@ export default async function TestWalletsPage() {
     loadError = "Could not load test wallets from the API. Is the Hono API running?";
   }
 
+  // The comparison UI is styled for a dark surface (white text, translucent
+  // white card fills). The design-system body is light, so this route paints its
+  // own full-bleed dark background — matching the landing hero — to keep the
+  // white-on-dark contrast the cards were built for.
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-6 py-12 text-white">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold">Test Wallets — Architecture Comparison</h1>
-        <p className="mt-2 max-w-2xl text-sm text-white/60">
-          One canonical wallet, one query, three architectures run independently and
-          scored by the same deterministic evaluator. Inspect the wallet below, then
-          run the comparison.
-        </p>
-      </header>
+    <main
+      className="min-h-screen text-white"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 72% 18%, #14171f 0%, #0b0d12 38%, #06070a 78%)",
+      }}
+    >
+      <div className="mx-auto max-w-6xl px-6 py-12">
+        <header className="mb-8">
+          <h1 className="text-2xl font-semibold">Test Wallets — Architecture Comparison</h1>
+          <p className="mt-2 max-w-2xl text-sm text-white/70">
+            One canonical wallet, one query, three architectures run independently and
+            scored by the same deterministic evaluator. Inspect the wallet below, then
+            run the comparison.
+          </p>
+        </header>
 
-      {loadError ? (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
-          {loadError}
-        </div>
-      ) : (
-        <TestWalletComparison wallets={wallets} />
-      )}
+        {loadError ? (
+          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
+            {loadError}
+          </div>
+        ) : (
+          <TestWalletComparison wallets={wallets} />
+        )}
+      </div>
     </main>
   );
 }

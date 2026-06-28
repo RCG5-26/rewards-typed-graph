@@ -21,7 +21,7 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
 
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/65">
             Program balances
           </h3>
           <ul className="space-y-1.5">
@@ -38,7 +38,7 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
             ))}
           </ul>
 
-          <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-white/40">
+          <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-white/65">
             Transfer routes
           </h3>
           <ul className="space-y-1.5">
@@ -49,26 +49,26 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
               >
                 {programName(facts, route.sourceProgramId)} →{" "}
                 {programName(facts, route.destinationProgramId)}{" "}
-                <span className="text-white/50">({routeRatioLabel(route.ratioBasisPoints)})</span>
+                <span className="text-white/70">({routeRatioLabel(route.ratioBasisPoints)})</span>
               </li>
             ))}
           </ul>
         </div>
 
         <div>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/65">
             Cards
           </h3>
           <ul className="space-y-1.5">
             {facts.cards.map((card) => (
               <li key={card.cardId} className="text-sm text-white/80">
                 {card.cardName}{" "}
-                <span className="text-white/50">· {card.programName}</span>
+                <span className="text-white/70">· {card.programName}</span>
               </li>
             ))}
           </ul>
 
-          <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-white/40">
+          <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-white/65">
             Award options
           </h3>
           <ul className="space-y-1.5">
@@ -78,7 +78,7 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
                 <span className="font-mono text-white/60">
                   {formatPoints(award.pointsRequired)} {award.programSlug.replace("program:", "")}
                 </span>{" "}
-                <span className="text-white/40">· {centsPerPoint(award.valueBasisPoints)}</span>
+                <span className="text-white/65">· {centsPerPoint(award.valueBasisPoints)}</span>
               </li>
             ))}
           </ul>
@@ -86,14 +86,14 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
       </div>
 
       <div className="mt-6 rounded-xl border border-white/10 bg-black/30 p-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-white/40">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-white/65">
           Goal
         </h3>
         <p className="mt-1 text-sm text-white/80">
           {facts.goal.nights}-night {facts.goal.category.replace("_", " ")} in{" "}
           {facts.goal.destination}
         </p>
-        <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-white/40">
+        <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-white/65">
           Query (sent verbatim to all three architectures)
         </h3>
         <p className="mt-1 font-mono text-sm text-white/90">&ldquo;{facts.query}&rdquo;</p>

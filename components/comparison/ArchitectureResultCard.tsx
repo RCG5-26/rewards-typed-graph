@@ -39,7 +39,7 @@ export function ArchitectureResultCard({
 
 function StatusBadge({ state }: { state: CardState }) {
   if (state.phase === "idle") {
-    return <span className="text-xs text-white/40">Not started</span>;
+    return <span className="text-xs text-white/65">Not started</span>;
   }
   if (state.phase === "loading") {
     return <span className="text-xs text-amber-300/80">Running…</span>;
@@ -66,7 +66,7 @@ function Body({
   state: CardState;
 }) {
   if (state.phase === "idle") {
-    return <p className="text-sm text-white/50">Run the comparison to see this architecture&apos;s plan.</p>;
+    return <p className="text-sm text-white/70">Run the comparison to see this architecture&apos;s plan.</p>;
   }
   if (state.phase === "loading") {
     return (
@@ -99,13 +99,13 @@ function Body({
       <p className="text-sm text-white/80">{plan.summary}</p>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt className="text-white/50">Selected award</dt>
+        <dt className="text-white/70">Selected award</dt>
         <dd className="text-right text-white/90">
           {plan.selectedAwardId
             ? plan.selectedAwardId.replace("award:", "")
             : "—"}
         </dd>
-        <dt className="text-white/50">Transfer</dt>
+        <dt className="text-white/70">Transfer</dt>
         <dd className="text-right text-white/90">
           {plan.transferRequired ? `${formatPoints(plan.transferAmount)} pts` : "None"}
         </dd>
@@ -118,7 +118,7 @@ function Body({
               <span className="font-medium text-white/90">{actionLabel(step.actionType)}:</span>{" "}
               {step.title}
               {step.actionType === "transfer" && step.sourceProgramId ? (
-                <span className="block text-xs text-white/45">
+                <span className="block text-xs text-white/65">
                   {programName(facts, step.sourceProgramId)} →{" "}
                   {programName(facts, step.destinationProgramId)}
                   {step.points !== undefined ? ` · ${formatPoints(step.points)} pts` : ""}
@@ -140,7 +140,7 @@ function EvaluationGrid({ checks }: { checks: ArchitectureComparisonResult["eval
   if (!checks) return null;
   return (
     <div>
-      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/40">
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/65">
         Independent evaluation
       </h4>
       <ul className="grid grid-cols-2 gap-1">
@@ -168,7 +168,7 @@ function Evidence({ result }: { result: ArchitectureComparisonResult }) {
   }
   if (evidence.planId) bits.push("persisted plan");
   if (bits.length === 0) return null;
-  return <p className="text-xs text-white/40">{bits.join(" · ")}</p>;
+  return <p className="text-xs text-white/65">{bits.join(" · ")}</p>;
 }
 
 function Metrics({ result }: { result: ArchitectureComparisonResult }) {
@@ -179,7 +179,7 @@ function Metrics({ result }: { result: ArchitectureComparisonResult }) {
   if (typeof metrics.totalTokens === "number") {
     bits.push(`${formatPoints(metrics.totalTokens)} tokens`);
   }
-  return <p className="mt-2 border-t border-white/5 pt-2 font-mono text-xs text-white/45">{bits.join(" · ")}</p>;
+  return <p className="mt-2 border-t border-white/5 pt-2 font-mono text-xs text-white/65">{bits.join(" · ")}</p>;
 }
 
 export type { CardState };
