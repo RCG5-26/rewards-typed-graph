@@ -75,6 +75,8 @@ export interface CanonicalAwardOption {
   programId: string;
   programSlug: string;
   pointsRequired: number;
+  /** Redemption value in basis points (cents-per-point ×100); higher is better value. */
+  valueBasisPoints: number;
   available: boolean;
 }
 
@@ -190,6 +192,7 @@ export const TRANSFER_REQUIRED_WALLET: CanonicalWalletFacts = {
       programId: HYATT.programId,
       programSlug: HYATT.programSlug,
       pointsRequired: 45000,
+      valueBasisPoints: 23333,
       available: true,
     },
     {
@@ -199,6 +202,7 @@ export const TRANSFER_REQUIRED_WALLET: CanonicalWalletFacts = {
       programId: UNITED.programId,
       programSlug: UNITED.programSlug,
       pointsRequired: 60000,
+      valueBasisPoints: 15000,
       available: true,
     },
   ],
