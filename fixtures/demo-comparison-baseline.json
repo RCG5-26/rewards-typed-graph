@@ -1,0 +1,151 @@
+{
+  "fixture_id": "demo-comparison-transfer-required-v1",
+  "description": "Canonical transfer-required wallet (demo-seed-v1 numbers) in the person-c prompt schema, so the LLM baselines receive facts equivalent to the live graph orchestrator. Public facts only — no private gold.",
+  "as_of": "2026-06-28T00:00:00Z",
+  "scope": {
+    "source_currency": "Chase Ultimate Rewards",
+    "source_program_slug": "program:chase_ur",
+    "target_program": "World of Hyatt",
+    "target_program_slug": "program:hyatt",
+    "destination_city": "Tokyo",
+    "nights": 3,
+    "data_mode": "seeded_fixture"
+  },
+  "programs": [
+    {
+      "slug": "program:chase_ur",
+      "display_name": "Chase Ultimate Rewards",
+      "program_kind": "issuer_transferable",
+      "node_type": "RewardProgram"
+    },
+    {
+      "slug": "program:hyatt",
+      "display_name": "World of Hyatt",
+      "program_kind": "hotel",
+      "node_type": "RewardProgram"
+    },
+    {
+      "slug": "program:united",
+      "display_name": "United MileagePlus",
+      "program_kind": "airline",
+      "node_type": "RewardProgram"
+    }
+  ],
+  "transfer_paths": [
+    {
+      "slug": "transfer:chase_ur:hyatt",
+      "source_program_slug": "program:chase_ur",
+      "dest_program_slug": "program:hyatt",
+      "transfer_ratio_basis_points": 10000,
+      "min_increment_points": 1000,
+      "transfer_time_days": 1,
+      "effective_from": "2026-06-23",
+      "effective_to": null,
+      "source": "seed_fixture"
+    },
+    {
+      "slug": "transfer:chase_ur:united",
+      "source_program_slug": "program:chase_ur",
+      "dest_program_slug": "program:united",
+      "transfer_ratio_basis_points": 10000,
+      "min_increment_points": 1000,
+      "transfer_time_days": 1,
+      "effective_from": "2026-06-23",
+      "effective_to": null,
+      "source": "seed_fixture"
+    }
+  ],
+  "users": [
+    {
+      "slug": "user:mvp_demo",
+      "display_name": "Hero Demo User"
+    }
+  ],
+  "balances": [
+    {
+      "slug": "balance:user_mvp_demo:chase_ur",
+      "user_slug": "user:mvp_demo",
+      "program_slug": "program:chase_ur",
+      "balance_points": 180000,
+      "version": 1,
+      "as_of": "2026-06-23T00:00:00Z",
+      "source": "manual_entry",
+      "node_type": "UserBalance"
+    },
+    {
+      "slug": "balance:user_mvp_demo:hyatt",
+      "user_slug": "user:mvp_demo",
+      "program_slug": "program:hyatt",
+      "balance_points": 30000,
+      "version": 1,
+      "as_of": "2026-06-23T00:00:00Z",
+      "source": "manual_entry",
+      "node_type": "UserBalance"
+    },
+    {
+      "slug": "balance:user_mvp_demo:united",
+      "user_slug": "user:mvp_demo",
+      "program_slug": "program:united",
+      "balance_points": 30000,
+      "version": 1,
+      "as_of": "2026-06-23T00:00:00Z",
+      "source": "manual_entry",
+      "node_type": "UserBalance"
+    }
+  ],
+  "trip_request": {
+    "slug": "query:tokyo_3n_best_value",
+    "user_slug": "user:mvp_demo",
+    "query_text": "What is the best way to use my points for a three-night hotel stay in Tokyo?",
+    "city": "Tokyo",
+    "nights": 3,
+    "optimization_goal": "highest_cents_per_point"
+  },
+  "hotels": [
+    {
+      "slug": "hotel:demo_hyatt_ginza",
+      "display_name": "Demo Hyatt Ginza",
+      "city": "Tokyo",
+      "program_slug": "program:hyatt"
+    }
+  ],
+  "award_options": [
+    {
+      "slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "hotel_slug": "hotel:demo_hyatt_ginza",
+      "program_slug": "program:hyatt",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 45000,
+      "cash_total_cents": 105000,
+      "value_basis_points": 23333,
+      "cash_quote_slug": "quote:cash:demo_hyatt_ginza:tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-23T00:00:00Z",
+      "role": "best_value_target"
+    },
+    {
+      "slug": "award:demo_united_tokyo:3n",
+      "hotel_slug": null,
+      "program_slug": "program:united",
+      "city": "Tokyo",
+      "nights": 3,
+      "available": true,
+      "points_total": 60000,
+      "cash_total_cents": 90000,
+      "value_basis_points": 15000,
+      "cash_quote_slug": "quote:cash:demo_united_tokyo:3n",
+      "source_tool": "seed_award_search",
+      "fetched_at": "2026-06-23T00:00:00Z",
+      "role": "alternate_higher_cost"
+    }
+  ],
+  "scenarios": [
+    {
+      "slug": "scenario:transfer_required_initial",
+      "balance_points": 180000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n"
+    }
+  ]
+}

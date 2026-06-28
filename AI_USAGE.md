@@ -1404,3 +1404,259 @@ Deferred — the production composition has no seam for injecting a failing runn
 ### Integration decision
 
 **Person B may safely enable "Simulate completed transfer" without requiring a reset between clicks.** The P2 duplicate-click path now returns HTTP 200 with the existing current plan (same rev2, same balances) instead of HTTP 500. The UI does not need a hard reset between transfers — a second click of the same transfer is idempotent and safe.
+
+---
+
+## 2026-06-28 — Person B — Three-Architecture Comparison Vertical Slice
+
+Branch `demo/test-wallet-comparison` (worktree `../gpFree-comparison`). Built the
+initial three-way comparison: live graph orchestrator vs free-text chat crew vs
+single-agent baseline, over one canonical wallet and one canonical query, scored
+by one deterministic evaluator.
+
+### Tools used
+- Cursor agent (Claude) for implementation, TDD, and review.
+- `vitest` (API + web), Python `unittest` for baseline alignment + scorer grounding.
+- `tsc --noEmit` (API and web), `next build`, `git`, `rg`.
+
+### Important implementation decisions
+- **Adapters normalize, the endpoint evaluates.** Each adapter returns a
+  `NormalizedPlan` + metrics + evidence with no `evaluation` field; the endpoint
+  applies the single evaluator to all three. This makes "no architecture-specific
+  scoring" structurally true — an adapter has no scoring code to bias.
+- **One canonical source** (`apps/api/src/comparison/canonical-wallet.ts`) for
+  public facts + `CANONICAL_QUERY`. Private gold (`expected_top_award_slug`) lives
+  only in `benchmark/gold/demo-comparison-cases.json`, never in agent input or the
+  `GET /demo/test-wallets` response.
+- **Evaluator boundary fix (`_fixture_fact_slugs`):** balance slugs supplied to the
+  model are now grounded; correctness and grounding stay separate fields. Added
+  `fixture_fact_slug_sources` to categorize each slug's origin.
+- **Deterministic evaluator** (`evaluator.ts`): hard-validity gates (grounding,
+  supported route, affordability via balance simulation, negative balance, falsely
+  claimed goal) + lexicographic ranking (goal → feasibility → redemption value →
+  fewer unnecessary transfers → fewer steps → preserved flexible points). No LLM
+  judge, no weighted score.
+- **Honest baseline normalization:** prose steps are parsed for action/points/
+  programs; a transfer is never invented. An architecture-independent helper
+  (`fillImpliedTransferAmounts`) fills the deterministic deficit (award cost −
+  starting balance) when a transfer names a destination but omits the number — the
+  same helper runs for the graph (whose `PlanView` carries transfers as edges
+  without amounts), so neither side is flattered.
+- **Graph normalizer reads the typed graph** (`PlanView.graph` edges/nodes) for the
+  selected award, redeeming program, and transfer route; synthesizes the transfer
+  step the view omits as a step so the evaluator can credit it.
+- **Endpoint** `POST /demo/architecture-comparison`: validates the approved wallet
+  id, resolves facts server-side, runs all three with `Promise.allSettled`,
+  attaches evaluations, returns three independent results; one failure stays
+  isolated (HTTP 200). `GET /demo/test-wallets` exposes public facts so the UI
+  never hard-codes balances.
+- **Web** `/test-wallets`: server-fetches facts, client runs the comparison via a
+  proxy route, three cards render loading/success/failure with steps, separate
+  correctness + grounding, latency, and tokens. Replan button disabled (Step 10
+  gate). Landing "Start Optimizing" routes to `/test-wallets`.
+- **Type mirroring** (no shared TS workspace): `lib/comparison/types.ts` hand-mirrors
+  the API contract; `GraphPlanRunner` narrows the `PlanService` dependency (ISP) so
+  the adapter and its tests need only `createPlan`.
+
+### Validation commands
+| Command | Result |
+|---|---|
+| `vitest run src/comparison/` (API) | ✓ 43 passed (contracts, adapters, evaluator, endpoint incl. partial-failure) |
+| `vitest run` (API, full) | ✓ 263 passed, 10 skipped (live PG) |
+| `vitest run` (web, full) | ✓ 204 passed (incl. 12 new comparison tests) |
+| `python3.12 -m unittest tests.test_demo_comparison_baseline_alignment tests.test_person_c_scorer_grounding` | ✓ 13 passed |
+| `tsc --noEmit` (API) | ✓ clean |
+| `tsc --noEmit` (web) | ✓ clean |
+| `next build` | compiles; static prerender of pre-existing Clerk pages fails (no `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in worktree) — not in changed code; `/test-wallets` is `force-dynamic` |
+| secret scan (`rg` over diff) | ✓ no secret literals; no forbidden replan/orchestrator paths touched |
+| live graph run | ✗ NOT RUN — `rewards_comparison` DB unreachable / PG env unset in this worktree |
+| live chat-crew run | ✗ NOT RUN — `OPENAI_API_KEY` unset in this worktree |
+| live single-agent run | ✗ NOT RUN — `OPENAI_API_KEY` unset in this worktree |
+
+### Manual review / findings caught
+- Baseline program matcher first read "transfer Chase to Hyatt" as a Hyatt→Hyatt
+  self-transfer (only full program names matched, not the short brand "Chase"),
+  netting zero and failing affordability. Broadened the matcher to issuer + brand
+  words; added a regression test.
+- Evaluator reads transfers from `plan.steps`, not the top-level `transferAmount`;
+  the graph `PlanView` carries no step amounts, which would have failed the graph
+  unfairly — resolved with the shared implied-amount helper.
+- `next build` failure is environmental (missing Clerk key), confirmed unrelated to
+  the new code by the failing path list (all pre-existing Clerk pages).
+
+### Deferred / blocked
+- **Three live runs not executed** in this worktree (no `OPENAI_API_KEY`, no
+  `rewards_comparison` DB / PG env). Deterministic behavior is fully covered by
+  fixture-backed adapter/normalizer/evaluator/endpoint tests, but per the freeze
+  skipped live tests are not counted as passing → verdict PARTIAL.
+- Step 9 (Direct Redemption / Insufficient Points wallet tabs): UI renders tabs
+  for any wallet the API exposes; only `transfer-required` is exposed for the
+  vertical slice, so no second tab yet. No fake frontend wallets added.
+- Step 10 (replan "Simulate completed transfer"): disabled with no working claim,
+  pending Person A `LIVE TYPESCRIPT REPLAN VERIFIED`.
+
+### Secrets
+No secret values printed or stored; availability reported as set/unset only.
+No credentials committed; `.env` is absent in this worktree.
+
+### Verdict
+`THREE-WAY COMPARISON PARTIAL` — all six 4-hour checkpoint items met (contracts
+compile, canonical wallet + verbatim query feed all three, evaluator false-positive
+fixed, all three adapters execute under test, one endpoint response returns three
+independent results); live execution of the three architectures is the only
+outstanding item, blocked on credentials/DB in this worktree.
+
+---
+
+## 2026-06-28 — Person B Post-Implementation Code Review (read-only audit)
+
+Independent post-implementation review of `demo/test-wallet-comparison`
+(worktree `../gpFree-comparison`, HEAD `b701fde`) against the joint freeze
+`a3b65fd`. Read-only: no production code modified; only this append.
+
+### Tool used
+- Cursor agent (Claude) via `/ce-code-review` with a custom 10-phase audit
+  prompt. `Read`/`Grep`/`Glob` for the full diff; `git` for history; `vitest`,
+  `tsc`, `python3.12 unittest`, `next build` for verification.
+
+### Verdict
+`PERSON B THREE-WAY COMPARISON NOT VERIFIED` — the implementation is complete,
+deterministic, and merge-ready as a vertical slice, but no architecture was
+executed live (no `OPENAI_API_KEY`, no `rewards_comparison` DB, no running
+backend in this worktree) and the browser hero flow was not run. The comparison
+claim is proven at the contract/test level, not end-to-end. Matches Person B's
+own honest `THREE-WAY COMPARISON PARTIAL`.
+
+### What was verified (passing)
+- No gold leakage: `expected_top_award_slug`/`required_checks` live only in the
+  scoring record, never in `_user_prompt` (both baselines).
+- No test doubles in production comparison code; no secret literals in the diff.
+- Evaluator (`evaluator.ts`) is pure, architecture-blind, recomputes
+  goalSatisfied/affordability by balance simulation (does not trust adapters).
+- Input equivalence proven statically: `canonical-wallet.test.ts` ties the
+  canonical object to BOTH `fixtures/demo-seed.json` (graph) and
+  `fixtures/demo-comparison-baseline.json` (baselines) + the cases query;
+  Python alignment tests prove both baselines receive identical seeded facts +
+  the verbatim canonical query.
+- Endpoint: walletId allow-listed, facts resolved server-side, no user-id
+  injection, `Promise.allSettled` isolates a single failure (HTTP 200), no gold
+  in `GET /demo/test-wallets`.
+- Grounding fix (`person_c_scorer.py`) adds balance slugs + source categories
+  without making arbitrary identifiers valid.
+- UI renders all model output via JSX (auto-escaped); no streaming claim; no
+  LLM-picked "best" badge; balances from server facts.
+
+### Findings (none P0/P1)
+- P2 `apps/api/src/app.ts` edited directly by Person B (Person-A-owned route
+  registration per freeze §9) — guaranteed merge conflict; should be a
+  cherry-pickable commit.
+- P2 `baseline-bridge.ts` default `pythonBin = "python3"` (3.14.2 = wrong per
+  freeze); live baselines need `PYTHON_BIN=python3.12`; `.env.example` not
+  updated.
+- P2 No `baseline-bridge.test.ts` — the real subprocess seam (timeout, env
+  allow-list, argv, JSON parse) is untested; all adapter tests inject a fake
+  report.
+- P2 Graph variant is hard-labeled `live-graph-orchestrator` regardless of
+  `PLAN_ENGINE`; under `python-legacy` it would mislabel a legacy-Python plan.
+- P3 Web proxy timeout 90s < backend baseline timeout 120s; graph adapter has
+  no timeout bound; endpoint `query` param is recorded but ignored by all three
+  (baselines read cases-file query; graph uses a deterministic decomposer);
+  `SIGN_IN_URL` constant now misnamed (points to `/test-wallets`).
+
+### Commands run (read-only)
+| Command | Result |
+|---|---|
+| `npm run typecheck` (apps/api) | ✓ exit 0 |
+| `vitest run src/comparison` (apps/api) | ✓ 44 passed (7 files) |
+| `vitest run` (apps/api, full) | ✓ 264 passed / 10 skipped (live-PG) |
+| `python3.12 -m unittest tests.test_demo_comparison_baseline_alignment tests.test_person_c_scorer_grounding` | ✓ 13 passed |
+| `vitest run components/comparison lib/comparison` (web) | ✓ 12 passed |
+| `tsc --noEmit` (web) | ✓ exit 0 |
+| `next build` | compiles; prerender fails only on pre-existing Clerk pages (missing `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`); `/test-wallets` is force-dynamic, not in failure set |
+| test-double-in-production scan | ✓ none (comments/fixture-paths only) |
+| secret scan over diff | ✓ none |
+| live graph / chat-crew / single-agent runs | ✗ NOT RUN (no key/DB) |
+| browser hero flow | ✗ NOT RUN (no running backend) |
+
+### Input-equivalence result
+`PROVEN_EQUIVALENT` at input-construction level (static contract + prompt
+tests); runtime equivalence (live DB persona == fixture, live prompts actually
+sent) `NOT VERIFIED`.
+
+---
+
+## 2026-06-28 — Person B Review-Fix + Live Verification Attempt
+
+Worktree `../gpFree-comparison`, branch `demo/test-wallet-comparison`, base
+`b701fde`. Addressed all six confirmed post-implementation review findings;
+attempted Stages 2–6 live verification.
+
+### Tools used
+- Cursor agent (Claude) via `/ce-work` with the Person B review-fix prompt.
+- `Read`/`Grep`/`Glob`/`Write`/`StrReplace` for implementation.
+- `vitest`, `tsc`, `python3.12 unittest`, `next build` for offline validation.
+- `git` for status, diff, and focused commits.
+
+### Decisions
+1. **Python interpreter (Fix 1):** `PYTHON_BIN` → `python3.12` default; never
+   `python3`. Missing interpreter fails clearly.
+2. **Engine guard (Fix 2):** `ComparisonDeps.planEngine` optional, fail-closed;
+   only `orchestrator` runs the graph slot.
+3. **Subprocess tests (Fix 3):** real `execFile` seam via `fake-baseline.mjs`
+   (node script), 17 tests covering all 11 required behaviors.
+4. **Timeouts (Fix 4):** `timeouts.ts` constants (graph 60s, baselines 120s,
+   proxy 135s); graph `Promise.race` bound added.
+5. **Canonical query (Fix 5):** endpoint 400 on non-canonical query; web proxy
+   no longer forwards `query`.
+6. **Route integration (Fix 6):** reverted new `app.ts` edits; documented
+   one-line patch in `docs/demo/PERSON_B_ROUTE_INTEGRATION.md`.
+
+### Tests added / updated
+| Area | File | Count |
+|---|---|---|
+| Subprocess bridge seam | `baseline-bridge.test.ts` | 17 new |
+| Timeout contract | `timeouts.test.ts` | 3 new |
+| Graph timeout | `graph-orchestrator.test.ts` | 1 new |
+| Endpoint query + engine | `routes.test.ts` | 5 new |
+| Web proxy floor | `lib/comparison/client.test.ts` | 2 new |
+
+### Commands run
+| Command | Result |
+|---|---|
+| `npm run typecheck` (apps/api) | ✓ exit 0 |
+| `vitest run src/comparison` (apps/api) | ✓ 70 passed (9 files) |
+| `vitest run` (apps/api, full) | ✓ 290 passed / 10 skipped |
+| `python3.12 -m unittest tests.test_demo_comparison_baseline_alignment tests.test_person_c_scorer_grounding` | ✓ 13 passed |
+| `vitest run` (web, full) | ✓ 206 passed |
+| `tsc --noEmit` (web) | ✓ exit 0 |
+| `next build` | compiles; prerender fails on pre-existing Clerk pages only |
+| secret scan over diff | ✓ none |
+| production test-double scan | ✓ none in comparison source |
+
+### Live verification (Stages 2–6) — BLOCKED
+| Stage | Status | Blocker |
+|---|---|---|
+| Env setup (`rewards_comparison`, keys) | ✗ NOT RUN | No `.env` in worktree; `OPENAI_API_KEY`, `DATABASE_URL`, `PGDATABASE` all unset in shell |
+| DB seed + wallet verify | ✗ NOT RUN | Postgres not listening on :5432; Docker daemon absent |
+| Graph orchestrator live | ✗ NOT RUN | No DB, no `PLAN_ENGINE` env |
+| Single-agent live | ✗ NOT RUN | No `OPENAI_API_KEY` |
+| Chat-crew live | ✗ NOT RUN | No `OPENAI_API_KEY` |
+| Runtime input equivalence (live) | ✗ NOT VERIFIED | Static contract tests only |
+| Aggregate endpoint live | ✗ NOT RUN | No running API |
+| Browser hero flow | ✗ NOT RUN | No running API/web |
+| Partial-failure live | ✗ NOT RUN | No running API |
+
+### Manual review
+- Re-read all six review findings against the diff before committing.
+- Confirmed `app.ts` reverted to committed state (no new Person-A conflict).
+- Confirmed UI already sends only `{ walletId }` (no editable query).
+
+### Deferred work
+- Live three-way execution (credentials + `rewards_comparison` DB + running stack).
+- Integrator applies `planEngine: deps.planEngine` one-line patch in `app.ts`.
+- Replan remains disabled pending Person A `LIVE TYPESCRIPT REPLAN VERIFIED`.
+
+### Verdict
+`THREE-WAY LIVE COMPARISON BLOCKED` — all six review fixes shipped and
+offline-verified (290 API + 206 web + 13 Python tests green); live execution
+remains blocked on credentials/DB/runtime in this worktree.

@@ -1,0 +1,48 @@
+{
+  "benchmark_id": "demo-comparison-v1",
+  "description": "Single canonical comparison case: the transfer-required Tokyo wallet with the frozen architecture-neutral query. Drives the LLM baselines for the three-architecture comparison.",
+  "as_of": "2026-06-28T00:00:00Z",
+  "fixture_id": "demo-comparison-transfer-required-v1",
+  "fixture_manifest": {
+    "ticket": "demo-sprint",
+    "seed_fixture": "fixtures/demo-comparison-baseline.json",
+    "query_count": 1,
+    "frozen_world_scope": "Canonical transfer-required wallet: Chase UR 180k, World of Hyatt 30k, United 30k, Chase->Hyatt and Chase->United at 1:1, Ginza award 45k, United award 60k.",
+    "excluded_sources": ["live award inventory", "live cash prices", "unseeded transfer partners"]
+  },
+  "scoring_rules": {
+    "primary_metrics": ["accuracy", "strict_hallucination_rate"],
+    "expected_axis_counts": {
+      "redemption": 1
+    },
+    "strict_hallucinations": [
+      "nonexistent_transfer_partner",
+      "wrong_transfer_ratio",
+      "award_not_in_tool_result",
+      "incorrect_point_balance",
+      "unsupported_hotel_or_program_rule"
+    ],
+    "baseline_rule": "Baselines may persist final plans for scoring, but may not use typed dependency edges or shared graph state internally."
+  },
+  "cases": [
+    {
+      "case_id": "demo_transfer_required_tokyo",
+      "benchmark_axis": "redemption",
+      "category": "normal_redemption",
+      "query": "What is the best way to use my points for a three-night hotel stay in Tokyo?",
+      "starting_balance_points": 180000,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "accepted_award_slugs": ["award:demo_hyatt_ginza:tokyo:3n"],
+      "required_checks": [
+        "recognizes_hyatt_30000_cannot_fund_ginza_45000_directly",
+        "uses_chase_to_hyatt_1_to_1_transfer",
+        "transfers_15000_chase_to_hyatt"
+      ],
+      "disqualifying_hallucinations": [
+        "names_non_seeded_hotel",
+        "claims_non_1_to_1_transfer_ratio",
+        "recommends_unaffordable_award_without_transfer"
+      ]
+    }
+  ]
+}
