@@ -22,21 +22,9 @@ export class FakeWalletAgent implements Agent<"wallet_agent"> {
 export class FakeEarningAgent implements Agent<"earning_agent"> {
   readonly agentType = "earning_agent" as const;
 
-  async run(ctx: AgentContext<"earning_agent">): Promise<void> {
-    await ctx.commit({
-      mutation: {
-        kind: "CreatePlanStep",
-        planId: ctx.planId,
-        stepOrder: 1,
-        stepType: "spend_analysis",
-        payload: {
-          spendCategoryId: ctx.operation.spendCategoryIds[0],
-          recommendedCardId: "card-csp",
-        },
-      },
-      readSet: { "balance-chase-ur": 2, "card-csp": 0 },
-      idempotencyKey: `${ctx.agentRunId}:0`,
-    });
+  // earning_agent owns no mutations (MUTATION_OWNERSHIP earning_agent: [])
+  async run(_ctx: AgentContext<"earning_agent">): Promise<void> {
+    return;
   }
 }
 

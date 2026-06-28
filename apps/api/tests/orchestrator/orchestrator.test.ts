@@ -404,17 +404,16 @@ describe("orchestrator", () => {
     ]);
     expect(runs.every((r) => r.status === "completed")).toBe(true);
     expect(runs[0].state?.last_read_versions).toEqual({ "balance-chase-ur": 2 });
-    expect(runs[1].state?.last_read_versions).toEqual({
-      "balance-chase-ur": 2,
-      "card-csp": 0,
-    });
+    // earning_agent owns no mutations (MUTATION_OWNERSHIP earning_agent: []) — run[1].state is null
+    expect(runs[1].state).toBeNull();
     expect(runs[2].state?.last_read_versions).toEqual({
       "balance-chase-ur": 2,
       "route-chase-hyatt": 5,
     });
 
-    expect(commitFactory.recordedCommits).toHaveLength(3);
-    expect(new Set(commitFactory.recordedCommits.map((c) => c.idempotencyKey)).size).toBe(3);
+    // wallet (1) + redemption (1) = 2 commits; earning_agent submits no mutations
+    expect(commitFactory.recordedCommits).toHaveLength(2);
+    expect(new Set(commitFactory.recordedCommits.map((c) => c.idempotencyKey)).size).toBe(2);
 
     const walletMutation = commitFactory.recordedCommits[0].mutation;
     expect(walletMutation.kind).toBe("UpdateUserBalance");
@@ -422,16 +421,7 @@ describe("orchestrator", () => {
       expect(walletMutation.balanceNodeId).toBe("balance-chase-ur");
     }
 
-    const earningMutation = commitFactory.recordedCommits[1].mutation;
-    expect(earningMutation.kind).toBe("CreatePlanStep");
-    if (
-      earningMutation.kind === "CreatePlanStep" &&
-      earningMutation.stepType === "spend_analysis"
-    ) {
-      expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
-    }
-
-    const redemptionMutation = commitFactory.recordedCommits[2].mutation;
+    const redemptionMutation = commitFactory.recordedCommits[1].mutation;
     expect(redemptionMutation.kind).toBe("CreatePlanStep");
     if (
       redemptionMutation.kind === "CreatePlanStep" &&
@@ -446,20 +436,15 @@ describe("orchestrator", () => {
     const { orchestrator, commitFactory } = buildHarness();
     await orchestrator.run({ userId: "user-1", queryText: PERSONA_QUERY });
 
+    // earning_agent owns no mutations, so only wallet (index 0) and redemption (index 1) commit
+    expect(commitFactory.recordedCommits).toHaveLength(2);
+
     const walletMutation = commitFactory.recordedCommits[0].mutation;
     if (walletMutation.kind === "UpdateUserBalance") {
       expect(walletMutation.balanceNodeId).toBe("balance-chase-ur");
     }
 
-    const earningMutation = commitFactory.recordedCommits[1].mutation;
-    if (
-      earningMutation.kind === "CreatePlanStep" &&
-      earningMutation.stepType === "spend_analysis"
-    ) {
-      expect(earningMutation.payload.spendCategoryId).toBe("category-travel");
-    }
-
-    const redemptionMutation = commitFactory.recordedCommits[2].mutation;
+    const redemptionMutation = commitFactory.recordedCommits[1].mutation;
     if (
       redemptionMutation.kind === "CreatePlanStep" &&
       redemptionMutation.stepType === "redemption_recommendation"
