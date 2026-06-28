@@ -1,4 +1,10 @@
-import type { PlanProjectionPort, PlanRequest, PlanResult } from "../orchestrator/contracts";
+import type {
+  PlanProjectionPort,
+  PlanRequest,
+  PlanResult,
+  RevisionResult,
+  RevisionSpec,
+} from "../orchestrator/contracts";
 import { PlanServiceError, type PlanService } from "./service";
 import type {
   BalanceTransferInput,
@@ -8,6 +14,13 @@ import type {
   SessionView,
 } from "./types";
 
+/** Stable worker identity for the synchronous TS orchestrator replan path. */
+const REPLAN_WORKER_ID = "orchestrator-ts-replan-worker";
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * The orchestrator core as the Plan service sees it: a structural slice of
  * `Orchestrator` (`orchestrator/orchestrator.ts`). Injected so M6 stays
@@ -16,6 +29,45 @@ import type {
  */
 export interface OrchestratorRunner {
   run(request: PlanRequest): Promise<PlanResult>;
+  /**
+   * Replan re-entry: build a revision in an existing lineage. On success the
+   * revision is left 'generating' — the replan-job promotion finalizes it.
+   */
+  runRevision(request: PlanRequest, revision: RevisionSpec): Promise<RevisionResult>;
+}
+
+/** Outcome of applying the canonical transfer mutation (no revision generated). */
+export interface ReplanApplyOutcome {
+  readonly planLineageId: string;
+  readonly staledPlanId: string;
+  readonly replanJobId: string;
+  readonly priorQueryText: string;
+  readonly priorRevisionNumber: number;
+}
+
+/**
+ * Replan lifecycle over the controlled Python write boundary: apply the
+ * canonical mutation (no generation), then promote or fail the replan job once
+ * the TS orchestrator has built the revision. NEVER the legacy Python plan
+ * generator — generation always re-enters the orchestrator.
+ */
+export interface ReplanPort {
+  applyTransfer(userId: string, input: BalanceTransferInput): Promise<ReplanApplyOutcome>;
+  promote(input: {
+    userId: string;
+    planLineageId: string;
+    sourcePlanId: string;
+    resultPlanId: string;
+    workerId: string;
+  }): Promise<void>;
+  fail(input: {
+    userId: string;
+    planLineageId: string;
+    sourcePlanId: string;
+    workerId: string;
+    resultPlanId?: string;
+    error: string;
+  }): Promise<void>;
 }
 
 /**
@@ -37,6 +89,8 @@ export interface OrchestratorPlanServiceDeps {
   readonly orchestrator: OrchestratorRunner;
   readonly projection: PlanProjectionPort;
   readonly readDelegate: OrchestratorReadDelegate;
+  /** Replan lifecycle (apply mutation / promote / fail) — orchestrator re-entry. */
+  readonly replan: ReplanPort;
 }
 
 /**
@@ -117,11 +171,120 @@ export class OrchestratorPlanService implements PlanService {
     return this.deps.readDelegate.getCurrentPlan(userId, lineageId);
   }
 
+  /**
+   * Orchestrator-mode replan (Phase 8). The transfer is the replan trigger, but
+   * unlike the legacy path it does NOT delegate revision generation to Python:
+   *
+   *   apply canonical mutation (stale rev1 + enqueue job)
+   *     → re-enter the TS orchestrator to build revision 2 (fresh AgentRuns)
+   *     → promote the replan job (rev2 current, rev1 superseded, job completed)
+   *
+   * A failure anywhere stays visible: the replan job is failed, the partial
+   * revision is marked failed, and rev1 remains stale — never a silent fallback.
+   */
   async transferBalance(
     userId: string,
     input: BalanceTransferInput,
   ): Promise<BalanceTransferResult> {
-    return this.deps.readDelegate.transferBalance(userId, input);
+    const applied = await this.deps.replan.applyTransfer(userId, input);
+
+    const currentPlan = await this.createRevisedPlan({
+      userId,
+      query: applied.priorQueryText,
+      sourcePlanId: applied.staledPlanId,
+      lineageId: applied.planLineageId,
+      revisionNumber: applied.priorRevisionNumber + 1,
+      replanJobId: applied.replanJobId,
+    });
+
+    return {
+      planLineageId: applied.planLineageId,
+      staledPlanId: applied.staledPlanId,
+      replanJobId: applied.replanJobId,
+      currentPlan,
+    };
+  }
+
+  /**
+   * Build revision 2 through the orchestrator (fresh PostgreSQL snapshot →
+   * Wallet → Redemption → dependencies + AgentRuns), then promote it. The
+   * revision is created in the EXISTING lineage (never `createPlan`, which would
+   * fork a new lineage). Revision 1 is superseded only on success.
+   */
+  async createRevisedPlan(params: {
+    userId: string;
+    query: string;
+    sourcePlanId: string;
+    lineageId: string;
+    revisionNumber: number;
+    replanJobId: string;
+  }): Promise<PlanView> {
+    let revision: RevisionResult | undefined;
+    try {
+      revision = await this.deps.orchestrator.runRevision(
+        { userId: params.userId, queryText: params.query },
+        {
+          planLineageId: params.lineageId,
+          revisionNumber: params.revisionNumber,
+          supersedesPlanId: params.sourcePlanId,
+        },
+      );
+
+      if (revision.status === "failed") {
+        throw new OrchestratorPlanError("orchestrator failed to build the revised plan", {
+          planId: revision.planId,
+          planLineageId: revision.planLineageId,
+          revisionNumber: revision.revisionNumber,
+          agentRunIds: revision.agentRunIds,
+        });
+      }
+
+      await this.deps.replan.promote({
+        userId: params.userId,
+        planLineageId: params.lineageId,
+        sourcePlanId: params.sourcePlanId,
+        resultPlanId: revision.planId,
+        workerId: REPLAN_WORKER_ID,
+      });
+    } catch (err) {
+      await this.failReplanQuietly({
+        userId: params.userId,
+        planLineageId: params.lineageId,
+        sourcePlanId: params.sourcePlanId,
+        resultPlanId: revision?.planId,
+        error: errorMessage(err),
+      });
+      throw err;
+    }
+
+    const view = await this.deps.projection.project(revision.planId, params.userId);
+    if (!view) {
+      throw new OrchestratorPlanError("revised plan committed but projection returned no view", {
+        planId: revision.planId,
+      });
+    }
+    assertValidPlanView(view);
+    return view;
+  }
+
+  /**
+   * Fail the replan job without masking the original error. A failure during
+   * failure-handling is swallowed (the original throw is what matters); rev1
+   * stays stale either way, so the failed replan remains visible.
+   */
+  private async failReplanQuietly(input: {
+    userId: string;
+    planLineageId: string;
+    sourcePlanId: string;
+    resultPlanId?: string;
+    error: string;
+  }): Promise<void> {
+    try {
+      await this.deps.replan.fail({ ...input, workerId: REPLAN_WORKER_ID });
+    } catch {
+      // Intentionally swallowed: the source plan is already stale, so the
+      // incomplete replan is observable regardless of cleanup success.
+    }
   }
 }
 

@@ -35,8 +35,10 @@ from schema.mutations import (  # noqa: E402
     ConcurrencyConflictError,
     CreatePlanRequest,
     CreatePlanStepRequest,
+    MutationCommitError,
     MutationValidationError,
     RecordStateDependencyRequest,
+    TransferPointsRequest,
     V31GraphWriteService,
 )
 from plan_flows.hero_flow import (  # noqa: E402
@@ -953,18 +955,27 @@ def _persona_clone_statements(new_user_id: str) -> list[str]:
 
 
 def do_demo_reset(user_id: str) -> dict[str, Any]:
-    """Clear plans/mutations for the user and restore seed balances for the demo."""
+    """Reset the demo persona to its seed state — scoped to ``user_id`` only.
+
+    Clears the FULL execution trail so a repeated identical transfer creates a
+    fresh mutation + replan job instead of replaying an earlier idempotent
+    result. plan_steps and state_dependencies are removed via the plans cascade;
+    replan_jobs (no cascade), idempotency_records (no plan FK) and agent_runs
+    (plan_id ON DELETE SET NULL, so they survive a plans delete and accumulate)
+    are deleted explicitly by user_id. Balances are restored to seed at
+    version 1. Never touches other users or benchmark state.
+    """
     session = do_session(user_id=user_id)
-    # Order matters: replan_jobs.result_plan_id has no cascade, so it must be
-    # cleared before the plans it points at can be deleted.
     _psql_exec(
         _format_psql_query(
             """
             DELETE FROM replan_jobs WHERE user_id = %s;
+            DELETE FROM idempotency_records WHERE user_id = %s;
+            DELETE FROM agent_runs WHERE user_id = %s;
             DELETE FROM graph_mutations WHERE user_id = %s;
             DELETE FROM plans WHERE user_id = %s;
             """,
-            (user_id, user_id, user_id),
+            (user_id, user_id, user_id, user_id, user_id),
         )
     )
     _reset_seed_balances(user_id)
@@ -1029,14 +1040,20 @@ def do_current_plan(user_id: str, lineage_id: str) -> dict[str, Any] | None:
     return project_plan(user_id, str(rows[0][0]))
 
 
-def do_balance_transfer(
+def _resolve_balance_transfer(
     user_id: str,
     source_program_id: str,
     dest_program_id: str,
     amount_points: int,
-    idempotency_key: str | None = None,
-) -> dict[str, Any]:
-    """Transfer points, stale the prior plan, re-plan, and return the sync result."""
+    idempotency_key: str | None,
+) -> tuple[Any, HeroPlanSnapshot, BalanceTransferSpec]:
+    """Resolve balances, the prior current plan, and a stable transfer spec.
+
+    Shared by the legacy (``balance-transfer``) and orchestrator
+    (``balance-transfer-apply``) paths so the canonical mutation is built one
+    way. The orchestrator path applies the mutation only; the legacy path also
+    runs Python re-plan generation.
+    """
     connection = _PsqlConnection()
     source_balance_id, source_version = resolve_balance(user_id, source_program_id)
     dest_balance_id, dest_version = resolve_balance(user_id, dest_program_id)
@@ -1065,6 +1082,25 @@ def do_balance_transfer(
         idempotency_key=transfer_key,
         request_hash=request_hash,
     )
+    return connection, prior, transfer
+
+
+def do_balance_transfer(
+    user_id: str,
+    source_program_id: str,
+    dest_program_id: str,
+    amount_points: int,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """Transfer points, stale the prior plan, re-plan (legacy Python), and return.
+
+    This is the LEGACY (``PLAN_ENGINE=python-legacy``) path: it generates the
+    revised plan via ``replan_after_balance_transfer``. Orchestrator mode uses
+    ``balance-transfer-apply`` + TS orchestrator re-entry instead.
+    """
+    connection, prior, transfer = _resolve_balance_transfer(
+        user_id, source_program_id, dest_program_id, amount_points, idempotency_key
+    )
 
     new_plan = replan_after_balance_transfer(
         connection, prior=prior, transfer=transfer
@@ -1080,6 +1116,146 @@ def do_balance_transfer(
         "replanJobId": _replan_job_id(prior.plan_id),
         "currentPlan": current_plan,
     }
+
+
+def do_balance_transfer_apply(
+    user_id: str,
+    source_program_id: str,
+    dest_program_id: str,
+    amount_points: int,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """Apply the canonical mutation ONLY (orchestrator replan path).
+
+    Runs ``transfer_points``: mutate the two balances, stale the prior current
+    plan via dependency invalidation, and enqueue a replan job — then STOP. It
+    does NOT generate a revision; the TypeScript orchestrator re-enters to build
+    revision 2 with fresh Wallet + Redemption AgentRuns. Returns the prior
+    plan's lineage/query/revision so the caller can re-plan in the same lineage.
+    """
+    connection, prior, transfer = _resolve_balance_transfer(
+        user_id, source_program_id, dest_program_id, amount_points, idempotency_key
+    )
+
+    service = V31GraphWriteService(connection)
+    service.transfer_points(
+        TransferPointsRequest(
+            actor=transfer.actor,
+            user_id=transfer.user_id,
+            source_balance_id=transfer.source_balance_id,
+            dest_balance_id=transfer.dest_balance_id,
+            amount_points=transfer.amount_points,
+            source_expected_version=transfer.source_expected_version,
+            dest_expected_version=transfer.dest_expected_version,
+            idempotency_key=transfer.idempotency_key,
+            request_hash=transfer.request_hash,
+        )
+    )
+
+    return {
+        "planLineageId": prior.plan_lineage_id,
+        "staledPlanId": prior.plan_id,
+        "replanJobId": _replan_job_id(prior.plan_id),
+        "priorQueryText": prior.query_text,
+        "priorRevisionNumber": prior.revision_number,
+    }
+
+
+def do_replan_promote(
+    user_id: str,
+    plan_lineage_id: str,
+    source_plan_id: str,
+    result_plan_id: str,
+    worker_id: str,
+) -> dict[str, Any]:
+    """Claim and promote the replan job for an orchestrator-built revision 2.
+
+    One connection, atomic at the SQL function: claim the pending job for the
+    staled source plan, then promote — result plan generating→current, source
+    plan stale→superseded, result steps proposed→current, job completed. The
+    promotion SQL requires the result plan to be 'generating' and to supersede
+    the source plan.
+    """
+    if not all([user_id, plan_lineage_id, source_plan_id, result_plan_id, worker_id]):
+        raise BridgeError(
+            "validation",
+            "user_id, plan_lineage_id, source_plan_id, result_plan_id, worker_id are required",
+        )
+
+    connection = _PsqlConnection()
+    service = V31GraphWriteService(connection)
+    job_id = service.claim_replan_job_for_source(
+        user_id=user_id,
+        plan_lineage_id=plan_lineage_id,
+        source_plan_id=source_plan_id,
+        worker_id=worker_id,
+    )
+    result = service.promote_replan_job_success(
+        job_id=job_id,
+        worker_id=worker_id,
+        result_plan_id=result_plan_id,
+    )
+    return {
+        "jobId": result["job_id"],
+        "sourcePlanId": result["source_plan_id"],
+        "resultPlanId": result["result_plan_id"],
+    }
+
+
+def do_replan_fail(
+    user_id: str,
+    plan_lineage_id: str,
+    source_plan_id: str,
+    worker_id: str,
+    error: str,
+    result_plan_id: str | None = None,
+) -> dict[str, Any]:
+    """Mark an orchestrator replan attempt failed, keeping the failure visible.
+
+    Marks any partially-built revision 'failed', then claims and fails the
+    replan job. The source plan deliberately stays 'stale' (never silently
+    restored to 'current'), so a failed re-plan is observable. Tolerates the
+    absence of a claimable job — the failure is already visible via the stale
+    source plan and the failed revision.
+    """
+    if not all([user_id, plan_lineage_id, source_plan_id, worker_id]):
+        raise BridgeError(
+            "validation",
+            "user_id, plan_lineage_id, source_plan_id, worker_id are required",
+        )
+
+    if result_plan_id:
+        _psql_exec(
+            _format_psql_query(
+                """
+                UPDATE plans
+                   SET status = 'failed', updated_at = now()
+                 WHERE id = %s AND user_id = %s AND status = 'generating'
+                """,
+                (result_plan_id, user_id),
+            )
+        )
+
+    service = V31GraphWriteService(_PsqlConnection())
+    try:
+        job_id = service.claim_replan_job_for_source(
+            user_id=user_id,
+            plan_lineage_id=plan_lineage_id,
+            source_plan_id=source_plan_id,
+            worker_id=worker_id,
+        )
+        service.fail_replan_job(
+            user_id=user_id,
+            job_id=job_id,
+            worker_id=worker_id,
+            error=error or "orchestrator replan failed",
+        )
+    except (MutationCommitError, MutationValidationError):
+        # No claimable job to fail (e.g. nothing was enqueued, or it is already
+        # terminal). The failure stays visible via the stale source plan.
+        pass
+
+    return {"ok": True}
 
 
 def _resolve_transfer_idempotency(
@@ -1164,14 +1340,23 @@ def do_orchestrator_create_plan(
     user_id: str,
     plan_lineage_id: str,
     query_text: str,
+    revision_number: int = 1,
+    supersedes_plan_id: str | None = None,
 ) -> dict[str, Any]:
-    """Create a plan revision via V31GraphWriteService (orchestrator path)."""
+    """Create a plan revision via V31GraphWriteService (orchestrator path).
+
+    ``revision_number`` and ``supersedes_plan_id`` let the orchestrator re-enter
+    an EXISTING lineage to build revision 2 (the replan path) instead of minting
+    a new lineage. The plan is created in 'generating'; promotion to 'current'
+    happens later at the transition/promotion boundary, never here.
+    """
     if not user_id or not plan_lineage_id or not query_text:
         raise BridgeError("validation", "user_id, plan_lineage_id, and query_text are required")
+    if revision_number < 1:
+        raise BridgeError("validation", "revision_number must be >= 1")
 
     connection = _PsqlConnection()
     service = V31GraphWriteService(connection)
-    revision_number = 1
 
     plan_id = service.create_plan(
         CreatePlanRequest(
@@ -1180,6 +1365,7 @@ def do_orchestrator_create_plan(
             plan_lineage_id=plan_lineage_id,
             revision_number=revision_number,
             query_text=query_text,
+            supersedes_plan_id=supersedes_plan_id,
         )
     )
     return {
@@ -1190,7 +1376,16 @@ def do_orchestrator_create_plan(
 
 
 def do_orchestrator_transition_plan(user_id: str, plan_id: str, status: str) -> dict[str, Any]:
-    """Transition a plan's status to 'current' or 'failed'."""
+    """Transition a plan's status to 'current' or 'failed'.
+
+    Promoting a plan to 'current' also promotes its accepted ('proposed') steps
+    to 'current', atomically. This is the single final-promotion boundary
+    (`orchestrator.ts` calls it after every specialist completes). Without it,
+    committed steps stay 'proposed' and dependency invalidation can never fire:
+    both staleness paths — `mark_direct_plan_dependents_stale` and the
+    `user_balances` backstop trigger — match only `plan_steps.status = 'current'`.
+    A plan transitioning to 'failed' never promotes its steps.
+    """
     allowed_statuses = {"current", "failed"}
     if status not in allowed_statuses:
         raise BridgeError("validation", f"status must be one of {sorted(allowed_statuses)}")
@@ -1206,12 +1401,25 @@ def do_orchestrator_transition_plan(user_id: str, plan_id: str, status: str) -> 
     if not rows:
         raise BridgeError("not_found", f"plan not found: {plan_id}")
 
-    _psql_exec(
+    statements = [
         _format_psql_query(
             "UPDATE plans SET status = %s, updated_at = now() WHERE id = %s AND user_id = %s",
             (status, plan_id, user_id),
         )
-    )
+    ]
+    if status == "current":
+        statements.append(
+            _format_psql_query(
+                """
+                UPDATE plan_steps
+                   SET status = 'current', updated_at = now()
+                 WHERE plan_id = %s
+                   AND status = 'proposed'
+                """,
+                (plan_id,),
+            )
+        )
+    _psql_tx(statements)
     return {"ok": True}
 
 
@@ -1484,11 +1692,34 @@ def build_parser() -> argparse.ArgumentParser:
     transfer.add_argument("--amount", required=True, type=int)
     transfer.add_argument("--idempotency-key")
 
+    # Orchestrator replan path: apply the canonical mutation only (no generation).
+    transfer_apply = with_user(sub.add_parser("balance-transfer-apply"))
+    transfer_apply.add_argument("--source-program-id", required=True)
+    transfer_apply.add_argument("--dest-program-id", required=True)
+    transfer_apply.add_argument("--amount", required=True, type=int)
+    transfer_apply.add_argument("--idempotency-key")
+
     # ── Orchestrator write commands (additive) ────────────────────────────── #
 
     ocp = with_user(sub.add_parser("orchestrator-create-plan"))
     ocp.add_argument("--plan-lineage-id", required=True)
     ocp.add_argument("--query-text", required=True)
+    ocp.add_argument("--revision-number", type=int, default=1)
+    ocp.add_argument("--supersedes-plan-id")
+
+    # Replan-job lifecycle for orchestrator-built revisions (claim+promote / fail).
+    rpromote = with_user(sub.add_parser("replan-promote"))
+    rpromote.add_argument("--plan-lineage-id", required=True)
+    rpromote.add_argument("--source-plan-id", required=True)
+    rpromote.add_argument("--result-plan-id", required=True)
+    rpromote.add_argument("--worker-id", required=True)
+
+    rfail = with_user(sub.add_parser("replan-fail"))
+    rfail.add_argument("--plan-lineage-id", required=True)
+    rfail.add_argument("--source-plan-id", required=True)
+    rfail.add_argument("--worker-id", required=True)
+    rfail.add_argument("--error", default="")
+    rfail.add_argument("--result-plan-id")
 
     otp = with_user(sub.add_parser("orchestrator-transition-plan"))
     otp.add_argument("--plan-id", required=True)
@@ -1566,12 +1797,41 @@ def dispatch(args: argparse.Namespace) -> Any:
             args.amount,
             idempotency_key=args.idempotency_key,
         )
+    if args.command == "balance-transfer-apply":
+        return do_balance_transfer_apply(
+            args.user_id,
+            args.source_program_id,
+            args.dest_program_id,
+            args.amount,
+            idempotency_key=args.idempotency_key,
+        )
+    if args.command == "replan-promote":
+        return do_replan_promote(
+            user_id=args.user_id,
+            plan_lineage_id=args.plan_lineage_id,
+            source_plan_id=args.source_plan_id,
+            result_plan_id=args.result_plan_id,
+            worker_id=args.worker_id,
+        )
+    if args.command == "replan-fail":
+        return do_replan_fail(
+            user_id=args.user_id,
+            plan_lineage_id=args.plan_lineage_id,
+            source_plan_id=args.source_plan_id,
+            worker_id=args.worker_id,
+            error=args.error,
+            result_plan_id=args.result_plan_id,
+        )
 
     # ── Orchestrator write commands ────────────────────────────────────────── #
 
     if args.command == "orchestrator-create-plan":
         return do_orchestrator_create_plan(
-            args.user_id, args.plan_lineage_id, args.query_text
+            args.user_id,
+            args.plan_lineage_id,
+            args.query_text,
+            revision_number=args.revision_number,
+            supersedes_plan_id=args.supersedes_plan_id,
         )
     if args.command == "orchestrator-transition-plan":
         return do_orchestrator_transition_plan(args.user_id, args.plan_id, args.status)

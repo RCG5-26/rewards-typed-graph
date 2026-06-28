@@ -24,6 +24,8 @@ export class AgentRunRepository implements OrchestratorGraphWrite {
     userId: string;
     planLineageId: string;
     queryText: string;
+    revisionNumber?: number;
+    supersedesPlanId?: string;
   }): Promise<PlanRecord> {
     const result = await this.bridge.createPlan(input);
 
