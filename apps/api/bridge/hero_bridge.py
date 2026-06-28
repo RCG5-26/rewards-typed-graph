@@ -1138,7 +1138,7 @@ def do_balance_transfer_apply(
     )
 
     service = V31GraphWriteService(connection)
-    service.transfer_points(
+    transfer_result = service.transfer_points(
         TransferPointsRequest(
             actor=transfer.actor,
             user_id=transfer.user_id,
@@ -1152,10 +1152,17 @@ def do_balance_transfer_apply(
         )
     )
 
+    idempotency_replayed: bool = bool(transfer_result.get("idempotency_replayed", False))
+
+    # On a replay the balances were NOT changed and no new replan job was created,
+    # so there is nothing to promote — the TS service must short-circuit.
+    replan_job_id = None if idempotency_replayed else _replan_job_id(prior.plan_id)
+
     return {
         "planLineageId": prior.plan_lineage_id,
         "staledPlanId": prior.plan_id,
-        "replanJobId": _replan_job_id(prior.plan_id),
+        "replanJobId": replan_job_id,
+        "idempotencyReplayed": idempotency_replayed,
         "priorQueryText": prior.query_text,
         "priorRevisionNumber": prior.revision_number,
     }

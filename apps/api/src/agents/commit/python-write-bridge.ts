@@ -66,7 +66,10 @@ export interface AgentRunCreateResult {
 export interface ReplanApplyResult {
   readonly planLineageId: string;
   readonly staledPlanId: string;
-  readonly replanJobId: string;
+  /** null when idempotencyReplayed=true — no new replan job was created */
+  readonly replanJobId: string | null;
+  /** Explicit signal from the persistence layer: same transfer replayed, balances unchanged */
+  readonly idempotencyReplayed: boolean;
   readonly priorQueryText: string;
   readonly priorRevisionNumber: number;
 }

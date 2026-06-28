@@ -40,7 +40,10 @@ export interface OrchestratorRunner {
 export interface ReplanApplyOutcome {
   readonly planLineageId: string;
   readonly staledPlanId: string;
-  readonly replanJobId: string;
+  /** null when idempotencyReplayed=true — no new replan job was created */
+  readonly replanJobId: string | null;
+  /** Explicit signal from the persistence layer: same transfer replayed, balances unchanged */
+  readonly idempotencyReplayed: boolean;
   readonly priorQueryText: string;
   readonly priorRevisionNumber: number;
 }
@@ -188,6 +191,23 @@ export class OrchestratorPlanService implements PlanService {
   ): Promise<BalanceTransferResult> {
     const applied = await this.deps.replan.applyTransfer(userId, input);
 
+    // Short-circuit: same transfer replayed — balances unchanged, no new job created.
+    // Return the existing current plan without attempting another revision.
+    if (applied.idempotencyReplayed) {
+      const existing = await this.deps.readDelegate.getCurrentPlan(userId, applied.planLineageId);
+      if (!existing) {
+        throw new OrchestratorPlanError("idempotency replay: no current plan found in lineage", {
+          planLineageId: applied.planLineageId,
+        });
+      }
+      return {
+        planLineageId: applied.planLineageId,
+        staledPlanId: applied.staledPlanId,
+        replanJobId: applied.replanJobId,
+        currentPlan: existing,
+      };
+    }
+
     const currentPlan = await this.createRevisedPlan({
       userId,
       query: applied.priorQueryText,
@@ -217,7 +237,7 @@ export class OrchestratorPlanService implements PlanService {
     sourcePlanId: string;
     lineageId: string;
     revisionNumber: number;
-    replanJobId: string;
+    replanJobId: string | null;
   }): Promise<PlanView> {
     let revision: RevisionResult | undefined;
     try {
