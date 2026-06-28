@@ -332,4 +332,61 @@ const LIVE = process.env.RUN_LIVE_POSTGRES_TESTS === "1";
     });
     expect(snapshot.userBalances).toHaveLength(0);
   });
+
+  // Regression for the LATERAL tiebreaker: ORDER BY cpp_basis_points DESC, id ASC.
+  // Two options with identical cpp must resolve deterministically to the lower id,
+  // otherwise targetRedemptionOptionId could flap across identical snapshot builds.
+  describe("tiebreaker on equal cpp_basis_points", () => {
+    const TB_USER = "00000000-0000-0000-0000-00000000e001";
+    const TB_PROGRAM = "00000000-0000-0000-0000-00000000e010";
+    const TB_OPTION_LOW = "00000000-0000-0000-0000-00000000e0a1";
+    const TB_OPTION_HIGH = "00000000-0000-0000-0000-00000000e0b2";
+    const TB_GOAL = "00000000-0000-0000-0000-00000000e020";
+
+    async function cleanup(): Promise<void> {
+      await pool.query("DELETE FROM user_goals WHERE id = $1", [TB_GOAL]);
+      await pool.query("DELETE FROM redemption_options WHERE id = ANY($1::uuid[])", [
+        [TB_OPTION_LOW, TB_OPTION_HIGH],
+      ]);
+      await pool.query("DELETE FROM reward_programs WHERE id = $1", [TB_PROGRAM]);
+      await pool.query("DELETE FROM users WHERE id = $1", [TB_USER]);
+    }
+
+    beforeAll(async () => {
+      await cleanup(); // clear any residue from a failed prior run
+      await pool.query(
+        `INSERT INTO users (id, clerk_id, email) VALUES ($1, $2, $3)`,
+        [TB_USER, "tiebreak-fixture-user", "tiebreak@example.test"],
+      );
+      await pool.query(
+        `INSERT INTO reward_programs (id, slug, name, program_kind, currency_name)
+         VALUES ($1, $2, $3, 'hotel', 'Points')`,
+        [TB_PROGRAM, "tiebreak-fixture-program", "Tiebreak Fixture Program"],
+      );
+      // Same cpp_basis_points; the lower id must win.
+      await pool.query(
+        `INSERT INTO redemption_options (id, program_id, option_type, cpp_basis_points)
+         VALUES ($1, $3, 'transfer_partner', 150), ($2, $3, 'transfer_partner', 150)`,
+        [TB_OPTION_HIGH, TB_OPTION_LOW, TB_PROGRAM],
+      );
+      await pool.query(
+        `INSERT INTO user_goals (id, user_id, goal_type, description, target_program_id)
+         VALUES ($1, $2, 'maximize_points', 'tiebreak fixture goal', $3)`,
+        [TB_GOAL, TB_USER, TB_PROGRAM],
+      );
+    });
+
+    afterAll(async () => {
+      await cleanup();
+    });
+
+    it("selects the lower id when cpp_basis_points are equal", async () => {
+      const builder = new PgGraphSnapshotBuilder(pool);
+      const snapshot = await builder.build({ userId: TB_USER, planId: "plan-tiebreak" });
+
+      const goal = snapshot.userGoals.find((g) => g.id === TB_GOAL);
+      expect(goal).toBeDefined();
+      expect(goal!.targetRedemptionOptionId).toBe(TB_OPTION_LOW);
+    });
+  });
 });

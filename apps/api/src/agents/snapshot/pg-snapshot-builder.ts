@@ -197,7 +197,7 @@ const GOAL_QUERY = `
     SELECT id
       FROM redemption_options
      WHERE program_id = ug.target_program_id
-     ORDER BY cpp_basis_points DESC
+     ORDER BY cpp_basis_points DESC, id ASC
      LIMIT 1
   ) best_ro ON true
   WHERE ug.user_id = $1

@@ -7,6 +7,10 @@ import { PlanServiceError } from "../../src/plans/service";
 
 const FAKE_BRIDGE = fileURLToPath(new URL("../helpers/fake-bridge.mjs", import.meta.url));
 
+// Each case spawns one or more node subprocesses; under full-suite parallel load
+// cold spawns can exceed vitest's 5s default (see issue #57).
+const SUBPROCESS_TIMEOUT_MS = 30_000;
+
 /**
  * Drive BridgePlanService (the python-legacy / rollback engine) against a fake
  * `node` "bridge" instead of hero_bridge.py, so we can prove the TS marshalling,
@@ -18,7 +22,7 @@ function buildService(env?: NodeJS.ProcessEnv): BridgePlanService {
 
 type Echo = { command: string; argv: string[] };
 
-describe("BridgePlanService marshalling (legacy/rollback engine)", () => {
+describe("BridgePlanService marshalling (legacy/rollback engine)", { timeout: SUBPROCESS_TIMEOUT_MS }, () => {
   it("marshals create-plan args and parses the final JSON envelope line", async () => {
     const echo = (await buildService().createPlan("user-1", "tokyo trip")) as unknown as Echo;
     expect(echo.command).toBe("create-plan");

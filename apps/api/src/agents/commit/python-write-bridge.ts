@@ -24,6 +24,11 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../../", import.meta.url));
 const BRIDGE_TIMEOUT_MS = 30_000;
 const BRIDGE_MAX_BUFFER = 16 * 1024 * 1024;
 
+// Repo rule: "All graph writes through graph-write; agents must not receive
+// DATABASE_URL." This subprocess sits on the agent commit path, so the full
+// application DSN is intentionally withheld — the bridge connects via the
+// narrower libpq PG* graph-write connection details instead. (The read-only
+// projection and legacy bridges are not on the agent path and keep DATABASE_URL.)
 const BRIDGE_ENV_ALLOWLIST = [
   "PATH",
   "HOME",
@@ -31,7 +36,6 @@ const BRIDGE_ENV_ALLOWLIST = [
   "LC_ALL",
   "PYTHON_BIN",
   "PYTHONPATH",
-  "DATABASE_URL",
   "PGHOST",
   "PGPORT",
   "PGUSER",
