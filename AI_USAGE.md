@@ -845,6 +845,18 @@ grep -rn "INSERT|UPDATE|DELETE" apps/api/src/agents/ ... # 0 direct TS writes
 - Phase 9 negative/safety tests — scaffolded but not exhaustive (subprocess timeout, extra stdout noise isolation tests skipped)
 - Prompt C wiring — no HTTP route mounting; adapters ready for `PlanService → orchestrator` composition
 
+### Deferred from code review (Prompt B remediation session, 2026-06-27)
+
+The following findings were identified by two independent reviewers of the Prompt B branch and are deferred — not fixed in this session:
+
+- **F-02** (`controlled-commit.ts:49-54`): `IdempotencyConflict` catch block is dead code — the bridge never emits `idempotency_conflict` for `orchestrator-commit-step`. The synthetic `mutationTxnId = "idempotent-replay:..."` is not a valid UUID and would break `RecordStateDependency` if it ever fired. Deferred pending bridge-side idempotency support in `orchestrator-commit-step`.
+- **F-03** (`hero_bridge.py:1250-1285`): `idempotency_key` and `read_set` accepted by `orchestrator-record-dependency` are not forwarded to `V31GraphWriteService.record_state_dependency()`. No duplicate-row protection at DB layer for `state_dependencies`. Deferred: `RecordStateDependencyRequest` has no `idempotency_key` field; a schema change is required.
+- **F-05** (`orchestrator.ts:159-168`): If both `finalizeAgentRun(completed)` and `finalizeAgentRun(failed)` throw, the `agent_runs` row stays in `status='running'` indefinitely. Deferred: needs a background reaper job or TTL column in schema.
+- **F-06** (`wallet-agent.ts:28-42`): `stepOrder` is incremented but never used; suppressed with `void stepOrder`. Cosmetic only. Deferred until `wallet_agent` adds step-order semantics.
+- **SEC-003** (`hero_bridge.py:199-211`): `_psql_literal` does not escape backslashes. On `standard_conforming_strings=off` (non-default), `\\x27` in user input can break out of a SQL string literal. Deferred: requires switching to psycopg2 or dollar-quoting; pre-existing pattern across the entire bridge, not introduced by Prompt B.
+- **SEC-005** (`python-write-bridge.ts:95-142`): argparse treats any argv token starting with `--` as a flag. An `idempotency_key` or `error` string starting with `--` causes argparse to exit 2, producing `UnexpectedCommitError`. Deferred: full fix requires moving free-form data to stdin JSON.
+- **SEC-006** (`hero_bridge.py:117, 156`): `os.environ.copy()` passes the full Python env to psql subprocesses. The TS allow-list filters before Python starts, but any library that appends to `os.environ` at import time bypasses it. Deferred: low exploitability in current threat model; fix by filtering the dict at the psql call sites.
+
 ### Secrets
 
 No secrets recorded. `CLERK_SECRET_KEY` is explicitly excluded from the bridge env allow-list (`BRIDGE_ENV_ALLOWLIST` in `python-write-bridge.ts`). No `.env` values read or logged.

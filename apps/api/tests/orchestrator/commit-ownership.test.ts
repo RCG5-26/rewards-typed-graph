@@ -201,7 +201,7 @@ describe("commit ownership", () => {
   });
 
   it("replays a CreatePlanStep with the same nested payload and idempotency key", async () => {
-    const { commit, factory } = createCommit("earning_agent");
+    const { commit, factory } = createCommit("redemption_agent");
     const mutation = {
       kind: "CreatePlanStep" as const,
       planId: "plan-1",
@@ -220,7 +220,7 @@ describe("commit ownership", () => {
   });
 
   it("rejects the same key when the CreatePlanStep nested payload differs", async () => {
-    const { commit, factory } = createCommit("earning_agent");
+    const { commit, factory } = createCommit("redemption_agent");
     await commit({
       mutation: {
         kind: "CreatePlanStep" as const,

@@ -5,7 +5,7 @@ export const MUTATION_OWNERSHIP: Readonly<
   Record<SpecialistAgentType, ReadonlyArray<SpecialistMutationKind>>
 > = {
   wallet_agent: ["UpdateUserBalance"],
-  earning_agent: ["CreatePlanStep"],
+  earning_agent: [],
   redemption_agent: ["CreatePlanStep", "RecordStateDependency"],
 } as const;
 
