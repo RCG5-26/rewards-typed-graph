@@ -7,6 +7,7 @@ import {
   FakeRedemptionAgent,
   FakeWalletAgent,
   FailingEarningAgent,
+  NoOpEarningAgent,
   SpecialistNamingPlanCommand,
 } from "../helpers/fake-agents";
 import {
@@ -30,7 +31,9 @@ function buildHarness(options?: {
   const memoryCommitFactory = new InMemoryAgentCommitFactory(graphWrite);
   const registry: AgentRegistry = options?.registry ?? {
     wallet_agent: new FakeWalletAgent(),
-    earning_agent: new FakeEarningAgent(),
+    // tokyoFixture dispatches earning as a benign third participant — use the
+    // explicit no-op, not the production-faithful (throwing) FakeEarningAgent.
+    earning_agent: new NoOpEarningAgent(),
     redemption_agent: new FakeRedemptionAgent(),
   };
   const orchestrator = new Orchestrator({
@@ -99,7 +102,7 @@ describe("orchestrator", () => {
             registeredType: "earning_agent",
             operationAgentType: ctx.operation.agentType,
           });
-          await new FakeEarningAgent().run(ctx);
+          await new NoOpEarningAgent().run(ctx);
         },
       },
       redemption_agent: {
@@ -175,7 +178,7 @@ describe("orchestrator", () => {
           });
         },
       },
-      earning_agent: new FakeEarningAgent(),
+      earning_agent: new NoOpEarningAgent(),
       redemption_agent: new FakeRedemptionAgent(),
     };
     const orchestrator = new Orchestrator({
@@ -357,6 +360,30 @@ describe("orchestrator", () => {
     expect(earningRun.status).toBe("failed");
     expect(earningRun.error).toBe("earning_agent_error: external data unavailable");
     expect(graphWrite.plans.get(result.planId)?.status).toBe("failed");
+    expect([...graphWrite.agentRuns.values()].some((r) => r.agentType === "redemption_agent")).toBe(
+      false,
+    );
+  });
+
+  it("fails the Plan if the production-faithful FakeEarningAgent is dispatched", async () => {
+    // FakeEarningAgent mirrors production EarningAgent: dispatching earning_agent
+    // must fail the flow, not silently succeed. This guards against a fake that
+    // diverges from production and lets an accidental dispatch pass in tests.
+    const { orchestrator, graphWrite } = buildHarness({
+      registry: {
+        wallet_agent: new FakeWalletAgent(),
+        earning_agent: new FakeEarningAgent(),
+        redemption_agent: new FakeRedemptionAgent(),
+      },
+    });
+
+    const result = await orchestrator.run({ userId: "user-1", queryText: PERSONA_QUERY });
+
+    expect(result.status).toBe("failed");
+    const earningRun = [...graphWrite.agentRuns.values()].find(
+      (r) => r.agentType === "earning_agent",
+    )!;
+    expect(earningRun.status).toBe("failed");
     expect([...graphWrite.agentRuns.values()].some((r) => r.agentType === "redemption_agent")).toBe(
       false,
     );
