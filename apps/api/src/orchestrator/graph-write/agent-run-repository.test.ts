@@ -62,9 +62,10 @@ describe("AgentRunRepository", () => {
       const bridge = mockBridge();
       const repo = new AgentRunRepository(bridge);
 
-      await repo.transitionPlanStatus({ planId: "plan-1", toStatus: "current" });
+      await repo.transitionPlanStatus({ userId: "user-1", planId: "plan-1", toStatus: "current" });
 
       expect(bridge.transitionPlanStatus).toHaveBeenCalledWith({
+        userId: "user-1",
         planId: "plan-1",
         toStatus: "current",
       });
@@ -112,10 +113,11 @@ describe("AgentRunRepository", () => {
       const bridge = mockBridge();
       const repo = new AgentRunRepository(bridge);
 
-      await repo.finalizeAgentRun({ agentRunId: "run-1", status: "completed" });
+      await repo.finalizeAgentRun({ agentRunId: "run-1", userId: "user-1", status: "completed" });
 
       expect(bridge.finalizeAgentRun).toHaveBeenCalledWith({
         agentRunId: "run-1",
+        userId: "user-1",
         status: "completed",
       });
     });
@@ -126,12 +128,14 @@ describe("AgentRunRepository", () => {
 
       await repo.finalizeAgentRun({
         agentRunId: "run-1",
+        userId: "user-1",
         status: "failed",
         error: "commit validation failed",
       });
 
       expect(bridge.finalizeAgentRun).toHaveBeenCalledWith({
         agentRunId: "run-1",
+        userId: "user-1",
         status: "failed",
         error: "commit validation failed",
       });

@@ -38,6 +38,7 @@ export class AgentRunRepository implements OrchestratorGraphWrite {
   }
 
   async transitionPlanStatus(input: {
+    userId: string;
     planId: string;
     toStatus: "current" | "failed";
   }): Promise<void> {
@@ -64,6 +65,7 @@ export class AgentRunRepository implements OrchestratorGraphWrite {
 
   async finalizeAgentRun(input: {
     agentRunId: string;
+    userId: string;
     status: "completed" | "failed";
     error?: string;
   }): Promise<void> {

@@ -1189,18 +1189,27 @@ def do_orchestrator_create_plan(
     }
 
 
-def do_orchestrator_transition_plan(plan_id: str, status: str) -> dict[str, Any]:
+def do_orchestrator_transition_plan(user_id: str, plan_id: str, status: str) -> dict[str, Any]:
     """Transition a plan's status to 'current' or 'failed'."""
-    allowed_statuses = {"current", "failed", "generating"}
+    allowed_statuses = {"current", "failed"}
     if status not in allowed_statuses:
         raise BridgeError("validation", f"status must be one of {sorted(allowed_statuses)}")
-    if not plan_id:
-        raise BridgeError("validation", "plan_id is required")
+    if not plan_id or not user_id:
+        raise BridgeError("validation", "plan_id and user_id are required")
+
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT 1 FROM plans WHERE id = %s AND user_id = %s",
+            (plan_id, user_id),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
 
     _psql_exec(
         _format_psql_query(
-            "UPDATE plans SET status = %s, updated_at = now() WHERE id = %s",
-            (status, plan_id),
+            "UPDATE plans SET status = %s, updated_at = now() WHERE id = %s AND user_id = %s",
+            (status, plan_id, user_id),
         )
     )
     return {"ok": True}
@@ -1370,14 +1379,24 @@ def do_orchestrator_create_agent_run(
 def do_orchestrator_finalize_agent_run(
     agent_run_id: str,
     status: str,
+    user_id: str,
     error: str | None = None,
 ) -> dict[str, Any]:
     """Update an agent_run row with terminal status and completion timestamp."""
     allowed_statuses = {"completed", "failed"}
     if status not in allowed_statuses:
         raise BridgeError("validation", f"status must be one of {sorted(allowed_statuses)}")
-    if not agent_run_id:
-        raise BridgeError("validation", "agent_run_id is required")
+    if not agent_run_id or not user_id:
+        raise BridgeError("validation", "agent_run_id and user_id are required")
+
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT 1 FROM agent_runs WHERE id = %s AND user_id = %s",
+            (agent_run_id, user_id),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"agent_run not found: {agent_run_id}")
 
     _psql_exec(
         _format_psql_query(
@@ -1387,9 +1406,9 @@ def do_orchestrator_finalize_agent_run(
                    completed_at = now(),
                    error = %s,
                    updated_at = now()
-             WHERE id = %s
+             WHERE id = %s AND user_id = %s
             """,
-            (status, error, agent_run_id),
+            (status, error, agent_run_id, user_id),
         )
     )
     return {"ok": True}
@@ -1453,7 +1472,7 @@ def build_parser() -> argparse.ArgumentParser:
     ocp.add_argument("--plan-lineage-id", required=True)
     ocp.add_argument("--query-text", required=True)
 
-    otp = sub.add_parser("orchestrator-transition-plan")
+    otp = with_user(sub.add_parser("orchestrator-transition-plan"))
     otp.add_argument("--plan-id", required=True)
     otp.add_argument("--status", required=True)
 
@@ -1491,7 +1510,7 @@ def build_parser() -> argparse.ArgumentParser:
     ocar.add_argument("--plan-id", required=True)
     ocar.add_argument("--agent-type", required=True)
 
-    ofar = sub.add_parser("orchestrator-finalize-agent-run")
+    ofar = with_user(sub.add_parser("orchestrator-finalize-agent-run"))
     ofar.add_argument("--agent-run-id", required=True)
     ofar.add_argument("--status", required=True)
     ofar.add_argument("--error")
@@ -1537,7 +1556,7 @@ def dispatch(args: argparse.Namespace) -> Any:
             args.user_id, args.plan_lineage_id, args.query_text
         )
     if args.command == "orchestrator-transition-plan":
-        return do_orchestrator_transition_plan(args.plan_id, args.status)
+        return do_orchestrator_transition_plan(args.user_id, args.plan_id, args.status)
     if args.command == "orchestrator-commit-step":
         return do_orchestrator_commit_step(
             user_id=args.user_id,
@@ -1584,6 +1603,7 @@ def dispatch(args: argparse.Namespace) -> Any:
         return do_orchestrator_finalize_agent_run(
             agent_run_id=args.agent_run_id,
             status=args.status,
+            user_id=args.user_id,
             error=args.error,
         )
     if args.command == "read-plan":
