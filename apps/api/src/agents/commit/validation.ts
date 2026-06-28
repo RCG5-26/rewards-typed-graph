@@ -114,6 +114,15 @@ export function validateMutationStructure(mutation: SpecialistMutation): void {
       if (!isNonEmptyString(mutation.balanceNodeId)) {
         throw new CommitFailure("ValidationError", "UpdateUserBalance requires balanceNodeId");
       }
+      // NaN/Infinity survive this validator but JSON.stringify turns them into
+      // `null` at the python-write-bridge boundary, so the bridge would receive a
+      // different mutation than the one approved here. Reject them up front.
+      if (!Number.isFinite(mutation.balancePoints)) {
+        throw new CommitFailure(
+          "ValidationError",
+          "UpdateUserBalance requires finite balancePoints",
+        );
+      }
       break;
     case "CreatePlanStep":
       validateCreatePlanStep(mutation);

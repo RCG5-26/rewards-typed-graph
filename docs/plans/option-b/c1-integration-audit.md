@@ -73,7 +73,14 @@ is not invoked on that path.
 
 ## 4. Current server composition (`apps/api/src/server.ts`)
 
-| Concern | Current wiring |
+> **Historical (pre-M5 snapshot).** This table captures `server.ts` *as it was
+> at C1 audit time*, before the integration lane landed. The shipped code no
+> longer hardcodes `BridgePlanService`: boot now selects the engine once via
+> `bootPlanService(process.env, { pool })` (engine assembled in `app.ts`) and
+> `/health` returns the selected `engine`. The seams below describe exactly the
+> changes that were subsequently made.
+
+| Concern | Wiring at C1 audit time (pre-M5; see note above for shipped state) |
 |---|---|
 | Env validation | `requireEnv("DATABASE_URL")` only; `CLERK_SECRET_KEY`, `AUTH_DEV_USER_ID`, `CORS_ORIGIN`, `API_PORT` read optionally. **No `PLAN_ENGINE`.** |
 | pg Pool | `new Pool({ connectionString: DATABASE_URL })` — shared by auth middleware (clerk_id → user_id lookup) |
@@ -106,6 +113,8 @@ integration-owned). The **port interfaces are identical** in both docs
 `OrchestratorGraphWrite`, `PlanProjectionPort`). This is a naming/layout
 divergence, not a contract disagreement — resolved by choosing the
 contracts-doc names (`plans/engine-selector.ts`, `plans/orchestrator-service.ts`).
+The shipped integration uses `plans/orchestrator-service.ts` (not the stale
+`orchestrator-plan-service.ts` name), consistent with this resolution.
 
 ## 6. Default-engine policy (resolved in favor of frozen contracts)
 
@@ -115,6 +124,8 @@ boot" is listed as *thesis-invalidating*). Prompt C Phase 2's looser phrasing
 ("python-legacy remains the operational default") is interpreted as the
 **recommended explicit value / rollback target**, not an implicit default.
 Per AGENTS.md ("locked docs take precedence"), the implementation **fails fast**
-and `python-legacy` must be set explicitly. This changes current boot behavior
-(today `server.ts` boots with no `PLAN_ENGINE`); `.env.example` and the Railway
-notes are updated so existing local/hosted boots set it explicitly.
+and `python-legacy` must be set explicitly. This was a change from the pre-M5
+boot behavior (`server.ts` previously booted with no `PLAN_ENGINE`); the shipped
+`server.ts` now calls `bootPlanService(process.env, { pool })`, which fails fast
+when `PLAN_ENGINE` is unset or invalid. `.env.example` and the Railway notes set
+it explicitly so existing local/hosted boots continue to work.

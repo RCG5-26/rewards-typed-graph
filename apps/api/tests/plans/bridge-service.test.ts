@@ -115,7 +115,7 @@ describe("BridgePlanService marshalling (legacy/rollback engine)", () => {
     const svc = buildService({
       PATH: "/usr/bin",
       DATABASE_URL: "pg://host/db",
-      CLERK_SECRET_KEY: "sk_live_supersecret",
+      CLERK_SECRET_KEY: "test-clerk-secret-placeholder-not-a-real-key",
     });
     const bridgeEnv = (svc as unknown as { env: NodeJS.ProcessEnv }).env;
     expect(bridgeEnv["CLERK_SECRET_KEY"]).toBeUndefined();

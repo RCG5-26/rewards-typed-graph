@@ -44,52 +44,121 @@ export class PgGraphSnapshotBuilder implements GraphSnapshotBuilder {
 }
 
 async function buildSnapshot(client: PoolClient, userId: string): Promise<GraphSnapshot> {
-  const [balancesResult, statusesResult, goalsResult] = await Promise.all([
-    client.query<BalanceRow>(BALANCE_QUERY, [userId]),
-    client.query<StatusRow>(STATUS_QUERY, [userId]),
-    client.query<GoalRow>(GOAL_QUERY, [userId]),
-  ]);
+  const { balances, statuses, goals } = await readConsistentRows(client, userId);
 
-  const userBalances = balancesResult.rows.map(toBalanceRow);
-  const userProgramStatuses = statusesResult.rows.map(toStatusRow);
-  const userGoals = goalsResult.rows.map(toGoalRow);
+  // Validate the raw snake_case rows BEFORE coercion. `String(null)` → "null"
+  // and `Number(null)` → 0, so a post-coercion check can never see the original
+  // null — bad DB rows would cross the GraphSnapshot boundary as valid data.
+  validateRawRows({ userId, balances, statuses, goals });
 
-  validateSnapshot({ userId, userBalances, userProgramStatuses });
-
-  return { userBalances, userProgramStatuses, userGoals };
+  return {
+    userBalances: balances.map(toBalanceRow),
+    userProgramStatuses: statuses.map(toStatusRow),
+    userGoals: goals.map(toGoalRow),
+  };
 }
 
-function validateSnapshot(params: {
+/**
+ * Read the three tables inside one READ ONLY REPEATABLE READ transaction so the
+ * planner observes a single consistent commit state. Without the transaction, a
+ * concurrent write landing between the SELECTs could tear the snapshot (balances
+ * from one commit state, goals from another), violating the cross-table read
+ * contract. node-pg serializes statements on a single client, and REPEATABLE
+ * READ fixes the snapshot at the first statement, so all three SELECTs agree.
+ */
+async function readConsistentRows(
+  client: PoolClient,
+  userId: string,
+): Promise<{ balances: BalanceRow[]; statuses: StatusRow[]; goals: GoalRow[] }> {
+  await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+  try {
+    const [balancesResult, statusesResult, goalsResult] = await Promise.all([
+      client.query<BalanceRow>(BALANCE_QUERY, [userId]),
+      client.query<StatusRow>(STATUS_QUERY, [userId]),
+      client.query<GoalRow>(GOAL_QUERY, [userId]),
+    ]);
+    await client.query("COMMIT");
+    return {
+      balances: balancesResult.rows,
+      statuses: statusesResult.rows,
+      goals: goalsResult.rows,
+    };
+  } catch (err) {
+    // Best-effort rollback; surface the original failure, not a rollback error.
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+/** Present, non-null value that coerces to a finite integer (rejects null → 0). */
+function isPresentInteger(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  return Number.isInteger(Number(value));
+}
+
+// The four valid UserGoalType values (agents/contracts). Goal rows were
+// previously mapped without validating goal_type at all.
+const VALID_GOAL_TYPES: ReadonlySet<string> = new Set([
+  "maximize_points",
+  "maximize_cashback",
+  "specific_redemption",
+  "minimize_fees",
+]);
+
+function validateRawRows(params: {
   userId: string;
-  userBalances: UserBalanceRow[];
-  userProgramStatuses: UserProgramStatusRow[];
+  balances: BalanceRow[];
+  statuses: StatusRow[];
+  goals: GoalRow[];
 }): void {
-  for (const balance of params.userBalances) {
-    if (!balance.id || !balance.programId) {
+  for (const row of params.balances) {
+    if (!isNonEmptyString(row.id) || !isNonEmptyString(row.program_id)) {
       throw new CommitFailure(
         "ValidationError",
         `malformed user_balance row for user ${params.userId}`,
       );
     }
-    if (!Number.isInteger(balance.balancePoints) || balance.balancePoints < 0) {
-      throw new CommitFailure(
-        "ValidationError",
-        `invalid balance_points on row ${balance.id}`,
-      );
+    if (!isPresentInteger(row.balance_points) || Number(row.balance_points) < 0) {
+      throw new CommitFailure("ValidationError", `invalid balance_points on row ${row.id}`);
     }
-    if (!Number.isInteger(balance.version) || balance.version < 0) {
-      throw new CommitFailure(
-        "ValidationError",
-        `invalid version on balance row ${balance.id}`,
-      );
+    if (!isPresentInteger(row.version) || Number(row.version) < 0) {
+      throw new CommitFailure("ValidationError", `invalid version on balance row ${row.id}`);
     }
   }
 
-  for (const status of params.userProgramStatuses) {
-    if (!status.id || !status.programId || !status.statusTier) {
+  for (const row of params.statuses) {
+    if (
+      !isNonEmptyString(row.id) ||
+      !isNonEmptyString(row.program_id) ||
+      !isNonEmptyString(row.status_tier)
+    ) {
       throw new CommitFailure(
         "ValidationError",
         `malformed user_program_status row for user ${params.userId}`,
+      );
+    }
+    if (!isPresentInteger(row.version) || Number(row.version) < 0) {
+      throw new CommitFailure("ValidationError", `invalid version on status row ${row.id}`);
+    }
+  }
+
+  for (const row of params.goals) {
+    if (!isNonEmptyString(row.id)) {
+      throw new CommitFailure(
+        "ValidationError",
+        `malformed user_goal row for user ${params.userId}`,
+      );
+    }
+    if (!isNonEmptyString(row.goal_type) || !VALID_GOAL_TYPES.has(row.goal_type)) {
+      throw new CommitFailure(
+        "ValidationError",
+        `invalid goal_type on row ${row.id}: ${String(row.goal_type)}`,
       );
     }
   }

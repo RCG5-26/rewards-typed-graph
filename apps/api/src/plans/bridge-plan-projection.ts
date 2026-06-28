@@ -97,7 +97,10 @@ export class BridgePlanProjection implements PlanProjectionPort {
 
   async project(planId: string, userId: string): Promise<PlanView | null> {
     const data = await this.readPlan(userId, planId);
-    if (data === null || data === undefined) {
+    // `null` is reserved for a real projection miss (bridge `data: null`). A
+    // malformed envelope is rejected in parseEnvelope, so it can never reach
+    // here disguised as a not-found.
+    if (data === null) {
       return null;
     }
     return assertValidPlanView(data, planId);
@@ -170,11 +173,34 @@ function parseEnvelope<T>(stdout: string): BridgeEnvelope<T> {
     throw new PlanProjectionError("plan projection bridge returned no output");
   }
   const lastLine = trimmed.slice(trimmed.lastIndexOf("\n") + 1);
+  let parsed: unknown;
   try {
-    return JSON.parse(lastLine) as BridgeEnvelope<T>;
+    parsed = JSON.parse(lastLine);
   } catch {
     throw new PlanProjectionError(`plan projection bridge returned non-JSON output: ${trimmed}`);
   }
+
+  // Validate the envelope contract before trusting it. A bare `{"ok":true}`
+  // (no `data`) or a malformed `{"ok":false}` would otherwise slip through as
+  // `undefined`/an untyped destructuring crash instead of a typed error.
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new PlanProjectionError("plan projection bridge returned a malformed envelope");
+  }
+  const envelope = parsed as Record<string, unknown>;
+  if (envelope.ok === true && "data" in envelope) {
+    return envelope as BridgeEnvelope<T>;
+  }
+  if (
+    envelope.ok === false &&
+    typeof envelope.error === "object" &&
+    envelope.error !== null &&
+    typeof (envelope.error as { code?: unknown }).code === "string" &&
+    typeof (envelope.error as { message?: unknown }).message === "string"
+  ) {
+    return envelope as BridgeEnvelope<T>;
+  }
+
+  throw new PlanProjectionError("plan projection bridge returned a malformed envelope");
 }
 
 /** Summarize a subprocess spawn failure for operator-facing error messages. */
@@ -206,6 +232,9 @@ function assertValidPlanView(value: unknown, planId: string): PlanView {
   if (typeof view.revisionNumber !== "number") missing.push("revisionNumber");
   if (typeof view.status !== "string" || view.status.length === 0) missing.push("status");
   if (typeof view.query !== "string") missing.push("query");
+  // `summary` is `string | null` in PlanView; reject any other shape so an
+  // invalid response can't leak past the "runtime-validated PlanView" guarantee.
+  if (view.summary !== null && typeof view.summary !== "string") missing.push("summary");
   if (!Array.isArray(view.steps)) missing.push("steps");
   if (!isGraphShape(view.graph)) missing.push("graph");
   if (missing.length > 0) {

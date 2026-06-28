@@ -104,7 +104,13 @@ export class OrchestratorPlanService implements PlanService {
   }
 
   async getPlanById(userId: string, planId: string): Promise<PlanView | null> {
-    return this.deps.projection.project(planId, userId);
+    const view = await this.deps.projection.project(planId, userId);
+    // null = not found (a valid 404). A present-but-malformed projection is the
+    // same internal error as in createPlan — surface it, don't leak it to callers.
+    if (view) {
+      assertValidPlanView(view);
+    }
+    return view;
   }
 
   async getCurrentPlan(userId: string, lineageId: string): Promise<PlanView | null> {

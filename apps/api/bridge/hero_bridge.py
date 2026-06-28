@@ -1362,6 +1362,18 @@ def do_orchestrator_create_agent_run(
     if not plan_id or not user_id:
         raise BridgeError("validation", "plan_id and user_id are required")
 
+    # Ownership guard: an agent run may only be attached to a plan the caller
+    # owns (mirrors transition-plan / finalize-agent-run). Without this a known
+    # plan_id could bind a run to another user's plan.
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT 1 FROM plans WHERE id = %s AND user_id = %s",
+            (plan_id, user_id),
+        )
+    )
+    if not rows:
+        raise BridgeError("not_found", f"plan not found: {plan_id}")
+
     agent_run_id = str(uuid.uuid4())
     _psql_exec(
         _format_psql_query(
@@ -1398,7 +1410,10 @@ def do_orchestrator_finalize_agent_run(
     if not rows:
         raise BridgeError("not_found", f"agent_run not found: {agent_run_id}")
 
-    _psql_exec(
+    # Guard the terminal transition: only a still-'running' run may be finalized.
+    # Scoping by status (plus RETURNING to observe the affected row) prevents a
+    # completed run from later being flipped to failed, or vice versa.
+    updated = _psql_rows(
         _format_psql_query(
             """
             UPDATE agent_runs
@@ -1406,11 +1421,14 @@ def do_orchestrator_finalize_agent_run(
                    completed_at = now(),
                    error = %s,
                    updated_at = now()
-             WHERE id = %s AND user_id = %s
+             WHERE id = %s AND user_id = %s AND status = 'running'
+             RETURNING id
             """,
             (status, error, agent_run_id, user_id),
         )
     )
+    if not updated:
+        raise BridgeError("conflict", f"agent_run is not running: {agent_run_id}")
     return {"ok": True}
 
 

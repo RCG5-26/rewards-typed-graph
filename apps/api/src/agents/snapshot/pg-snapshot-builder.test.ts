@@ -198,6 +198,75 @@ describe("PgGraphSnapshotBuilder (unit)", () => {
 
     expect(connectSpy).toHaveBeenCalledOnce();
   });
+
+  it("rejects a null version before coercion (would otherwise become 0)", async () => {
+    const pool = mockPool({
+      balances: [{ ...CHASE_BALANCE, version: null }],
+      statuses: [],
+      goals: [],
+    });
+    const builder = new PgGraphSnapshotBuilder(pool);
+
+    await expect(builder.build({ userId: USER_ID, planId: "plan-1" })).rejects.toMatchObject({
+      kind: "ValidationError",
+    });
+  });
+
+  it("rejects a null id before coercion (would otherwise become \"null\")", async () => {
+    const pool = mockPool({
+      balances: [{ ...CHASE_BALANCE, id: null }],
+      statuses: [],
+      goals: [],
+    });
+    const builder = new PgGraphSnapshotBuilder(pool);
+
+    await expect(builder.build({ userId: USER_ID, planId: "plan-1" })).rejects.toMatchObject({
+      kind: "ValidationError",
+    });
+  });
+
+  it("rejects an invalid goal_type (goal rows were previously unvalidated)", async () => {
+    const pool = mockPool({
+      balances: [],
+      statuses: [],
+      goals: [{ id: "g1", goal_type: "not_a_real_goal", target_redemption_option_id: null }],
+    });
+    const builder = new PgGraphSnapshotBuilder(pool);
+
+    await expect(builder.build({ userId: USER_ID, planId: "plan-1" })).rejects.toMatchObject({
+      kind: "ValidationError",
+    });
+  });
+
+  it("reads under a READ ONLY REPEATABLE READ transaction", async () => {
+    const calls: string[] = [];
+    const client = {
+      query: vi.fn().mockImplementation((sql: string) => {
+        const text = typeof sql === "string" ? sql : "";
+        calls.push(text);
+        const key = resolveQueryKey(text);
+        const rows =
+          key === "balances"
+            ? [CHASE_BALANCE]
+            : key === "statuses"
+              ? [CHASE_STATUS]
+              : key === "goals"
+                ? [HYATT_GOAL]
+                : [];
+        return Promise.resolve({ rows } as QueryResult);
+      }),
+      release: vi.fn(),
+    } as unknown as PoolClient;
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+
+    await new PgGraphSnapshotBuilder(pool).build({ userId: USER_ID, planId: "plan-1" });
+
+    const begin = calls.find((s) => s.toUpperCase().includes("BEGIN"));
+    expect(begin).toBeDefined();
+    expect(begin!.toUpperCase()).toContain("REPEATABLE READ");
+    expect(begin!.toUpperCase()).toContain("READ ONLY");
+    expect(calls.some((s) => s.toUpperCase().includes("COMMIT"))).toBe(true);
+  });
 });
 
 // ──────────────────────────────────────────────

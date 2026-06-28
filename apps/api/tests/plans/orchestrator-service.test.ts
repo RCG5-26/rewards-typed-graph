@@ -153,6 +153,17 @@ describe("OrchestratorPlanService reads + delegation", () => {
     expect(await service.getPlanById(USER_ID, "missing")).toBeNull();
   });
 
+  it("rejects a malformed projection from getPlanById (same guard as createPlan)", async () => {
+    const malformed = {
+      ...samplePlan,
+      status: undefined as unknown as PlanView["status"],
+    } as PlanView;
+    const { service } = buildService({ projection: { project: vi.fn(async () => malformed) } });
+    await expect(service.getPlanById(USER_ID, samplePlan.planId)).rejects.toThrow(
+      OrchestratorPlanError,
+    );
+  });
+
   it("delegates session, reset, current-plan and transfer to the engine-agnostic delegate", async () => {
     const { service, readDelegate } = buildService();
     const identity = { userId: USER_ID };
@@ -191,6 +202,19 @@ describe("OrchestratorPlanService reads + delegation", () => {
 const LIVE = process.env.RUN_LIVE_POSTGRES_TESTS === "1";
 const HERO_QUERY = "What is the best Hyatt redemption for a 3-night Tokyo trip?";
 
+/**
+ * Fail fast when the live suites are enabled without a connection string.
+ * Without this, `new Pool()` falls back to libpq `PG*` defaults and these live
+ * write tests could silently hit the wrong database.
+ */
+function requireDatabaseUrl(): void {
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "RUN_LIVE_POSTGRES_TESTS=1 requires DATABASE_URL; refusing to fall back to libpq PG* defaults",
+    );
+  }
+}
+
 /** Order-insensitive view of a PlanView so parity ignores incidental row order. */
 function normalizePlanView(view: PlanView): PlanView {
   return {
@@ -218,6 +242,7 @@ const LIVE_PG_TIMEOUT_MS = 60_000;
   let orchestratorService: PlanService;
 
   beforeAll(async () => {
+    requireDatabaseUrl();
     const { Pool } = await import("pg");
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     bridge = new BridgePlanService();
@@ -286,6 +311,7 @@ interface AgentRunRow {
     let service: PlanService;
 
     beforeAll(async () => {
+      requireDatabaseUrl();
       const { Pool } = await import("pg");
       pool = new Pool({ connectionString: process.env.DATABASE_URL });
       service = composeOrchestratorPlanService({ pool, env: process.env });

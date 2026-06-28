@@ -13,6 +13,19 @@ const FROZEN_DEMO_QUERY =
   "Book a 3-night Hyatt award stay in Tokyo in October using my points.";
 const LIVE_ORCHESTRATOR_TIMEOUT_MS = 120_000;
 
+/**
+ * Fail fast when the live suite is enabled without a connection string. Without
+ * this, `new Pool()` falls back to libpq `PG*` defaults and these reset/create
+ * writes could hit an unintended database.
+ */
+function requireDatabaseUrl(): void {
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "RUN_LIVE_POSTGRES_TESTS=1 requires DATABASE_URL; refusing to fall back to libpq PG* defaults",
+    );
+  }
+}
+
 function postJson(path: string, body: unknown) {
   return new Request(`http://localhost${path}`, {
     method: "POST",
@@ -26,6 +39,7 @@ function postJson(path: string, body: unknown) {
   let app: Hono<AuthEnv>;
 
   beforeAll(async () => {
+    requireDatabaseUrl();
     const { Pool } = await import("pg");
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const env = { ...process.env, PLAN_ENGINE: "orchestrator" as const };

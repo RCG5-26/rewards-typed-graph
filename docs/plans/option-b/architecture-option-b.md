@@ -154,20 +154,25 @@ conflict exists.
 
 ## 7. Implementation Lane Ownership
 
+> **Updated to landed paths (post-implementation).** The original plan used
+> provisional file names (`orchestrator/snapshot.ts`, `orchestrator/adapters/*`,
+> `plans/orchestrator-plan-service.ts`). The code that actually shipped lives
+> under `apps/api/src/agents/*`, `apps/api/src/plans/orchestrator-service.ts`,
+> and `apps/api/src/orchestrator/graph-write/*`. The lists below reflect the
+> concrete landed locations so the handoff table no longer misdirects.
+
 ### Prompt B — `feat/orchestrator-production-adapters`
 
 **Owns exclusively:**
-- `apps/api/src/orchestrator/snapshot.ts` (M1 — NEW)
-- `apps/api/src/orchestrator/adapters/wallet.ts` (M2 — NEW)
-- `apps/api/src/orchestrator/adapters/redemption.ts` (M2 — NEW)
-- `apps/api/src/orchestrator/commit-adapter.ts` (M3 — NEW)
-- `apps/api/src/orchestrator/agent-run-repository.ts` (M4 — NEW)
-- `apps/api/src/orchestrator/validation.ts` (M7 — NEW)
-- `apps/api/src/orchestrator/errors.ts` (M8 — NEW)
-- `apps/api/src/orchestrator/observability.ts` (M9 — NEW)
-- `apps/api/src/orchestrator/plan-projection.ts` (Contract 7 impl — NEW)
+- `apps/api/src/agents/snapshot/pg-snapshot-builder.ts` (M1 — NEW)
+- `apps/api/src/agents/wallet/wallet-agent.ts` (M2 — NEW)
+- `apps/api/src/agents/redemption/redemption-agent.ts` (M2 — NEW)
+- `apps/api/src/agents/commit/controlled-commit.ts` + `validation.ts` (M3/M7 — NEW)
+- `apps/api/src/agents/commit/python-write-bridge.ts` (M3 bridge marshaller — NEW)
+- `apps/api/src/orchestrator/graph-write/agent-run-repository.ts` (M4 — NEW)
+- `apps/api/src/orchestrator/graph-write/*` (graph-write boundary — NEW)
 - `apps/api/bridge/hero_bridge.py` (additive subcommands only)
-- All adapter tests under `apps/api/tests/orchestrator/`
+- All adapter tests under `apps/api/tests/orchestrator/` and `apps/api/src/agents/**`
 
 **Must NOT touch:** `apps/api/src/server.ts`, `apps/api/src/plans/routes.ts`,
 `apps/api/src/plans/service.ts`, `apps/api/src/plans/bridge-service.ts`.
@@ -175,9 +180,12 @@ conflict exists.
 ### Prompt C — `feat/orchestrator-thesis-integration`
 
 **Owns exclusively:**
-- `apps/api/src/plans/orchestrator-plan-service.ts` (M6 — NEW)
-- `apps/api/src/server.ts` (M5 PLAN_ENGINE selector — one edit)
-- Integration tests: `apps/api/tests/integration/orchestrator-e2e.test.ts`
+- `apps/api/src/plans/orchestrator-service.ts` (M6 — NEW)
+- `apps/api/src/plans/orchestrator-composition.ts` (composition root — NEW)
+- `apps/api/src/plans/bridge-plan-projection.ts` (Contract 7 projection — NEW)
+- `apps/api/src/plans/engine-selector.ts` + `apps/api/src/app.ts` + `server.ts`
+  (M5 PLAN_ENGINE selection and boot wiring)
+- Integration tests under `apps/api/tests/plans/` (e.g. `routes-live.test.ts`)
 
 **Must NOT touch:** hero_bridge.py, adapter files, Python boundary.
 **Merges after Prompt B.**

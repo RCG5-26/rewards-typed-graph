@@ -1,4 +1,5 @@
 import type { Agent, AgentContext, SpecialistMutation } from "../../src/agents/contracts";
+import { CommitFailure } from "../../src/agents/contracts";
 
 export class FakeWalletAgent implements Agent<"wallet_agent"> {
   readonly agentType = "wallet_agent" as const;
@@ -22,7 +23,29 @@ export class FakeWalletAgent implements Agent<"wallet_agent"> {
 export class FakeEarningAgent implements Agent<"earning_agent"> {
   readonly agentType = "earning_agent" as const;
 
-  // earning_agent owns no mutations (MUTATION_OWNERSHIP earning_agent: [])
+  // Faithful double of the production EarningAgent: earning_agent is excluded
+  // from the thesis two-specialist flow, so an accidental dispatch must fail
+  // loudly in tests too — not silently succeed and diverge from production.
+  // Tests that deliberately need a benign third participant (to exercise
+  // generic 3-agent orchestration mechanics) use NoOpEarningAgent instead.
+  async run(_ctx: AgentContext<"earning_agent">): Promise<void> {
+    throw new CommitFailure(
+      "ValidationError",
+      "earning_agent is not part of the thesis two-specialist flow; " +
+        "invoke only wallet_agent and redemption_agent for this milestone",
+    );
+  }
+}
+
+/**
+ * Benign no-op in the earning_agent slot. Used only where a test intentionally
+ * dispatches a third agent to exercise orchestrator mechanics (ordered runs,
+ * null-state runs from a non-committing agent). It is NOT a production double —
+ * use FakeEarningAgent for production-fidelity behavior.
+ */
+export class NoOpEarningAgent implements Agent<"earning_agent"> {
+  readonly agentType = "earning_agent" as const;
+
   async run(_ctx: AgentContext<"earning_agent">): Promise<void> {
     return;
   }

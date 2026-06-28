@@ -360,7 +360,10 @@ class TestDoOrchestratorRecordMutation(unittest.TestCase):
 
 class TestDoOrchestratorCreateAgentRun(unittest.TestCase):
     def test_returns_agent_run_id_uuid(self):
-        with patch.object(BRIDGE, "_psql_exec"):
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec"),
+        ):
             result = BRIDGE.do_orchestrator_create_agent_run(
                 plan_id=PLAN_ID,
                 user_id=USER_ID,
@@ -371,7 +374,10 @@ class TestDoOrchestratorCreateAgentRun(unittest.TestCase):
         uuid.UUID(agent_run_id)  # raises if not valid UUID
 
     def test_issues_insert_to_agent_runs(self):
-        with patch.object(BRIDGE, "_psql_exec") as mock_exec:
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
             BRIDGE.do_orchestrator_create_agent_run(
                 plan_id=PLAN_ID,
                 user_id=USER_ID,
@@ -384,13 +390,44 @@ class TestDoOrchestratorCreateAgentRun(unittest.TestCase):
 
     def test_accepts_all_valid_agent_types(self):
         for agent_type in ("orchestrator", "wallet_agent", "earning_agent", "redemption_agent"):
-            with patch.object(BRIDGE, "_psql_exec"):
+            with (
+                patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
+                patch.object(BRIDGE, "_psql_exec"),
+            ):
                 result = BRIDGE.do_orchestrator_create_agent_run(
                     plan_id=PLAN_ID,
                     user_id=USER_ID,
                     agent_type=agent_type,
                 )
             self.assertIn("agentRunId", result)
+
+    def test_verifies_plan_ownership_before_insert(self):
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]) as mock_rows,
+            patch.object(BRIDGE, "_psql_exec"),
+        ):
+            BRIDGE.do_orchestrator_create_agent_run(
+                plan_id=PLAN_ID,
+                user_id=USER_ID,
+                agent_type="wallet_agent",
+            )
+        ownership_sql = mock_rows.call_args[0][0]
+        self.assertIn("FROM plans", ownership_sql)
+        self.assertIn(USER_ID, ownership_sql)
+
+    def test_returns_not_found_when_plan_not_owned(self):
+        with (
+            patch.object(BRIDGE, "_psql_rows", return_value=[]),
+            patch.object(BRIDGE, "_psql_exec") as mock_exec,
+        ):
+            with self.assertRaises(BRIDGE.BridgeError) as ctx:
+                BRIDGE.do_orchestrator_create_agent_run(
+                    plan_id=PLAN_ID,
+                    user_id="wrong-user-id",
+                    agent_type="wallet_agent",
+                )
+        self.assertEqual(ctx.exception.code, "not_found")
+        mock_exec.assert_not_called()
 
     def test_rejects_unknown_agent_type(self):
         with self.assertRaises(BRIDGE.BridgeError) as ctx:
@@ -413,10 +450,9 @@ class TestDoOrchestratorCreateAgentRun(unittest.TestCase):
 
 class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
     def test_accepts_completed_status(self):
-        with (
-            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
-            patch.object(BRIDGE, "_psql_exec") as mock_exec,
-        ):
+        # _psql_rows is called twice: existence SELECT, then the guarded
+        # UPDATE ... RETURNING id. Both return a row → run finalized.
+        with patch.object(BRIDGE, "_psql_rows", side_effect=[[(1,)], [(1,)]]) as mock_rows:
             result = BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id=AGENT_RUN_ID,
                 status="completed",
@@ -424,13 +460,12 @@ class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
-        mock_exec.assert_called_once()
+        update_sql = mock_rows.call_args_list[1][0][0]
+        self.assertIn("status = 'running'", update_sql)
+        self.assertIn("RETURNING id", update_sql)
 
     def test_accepts_failed_status_with_error(self):
-        with (
-            patch.object(BRIDGE, "_psql_rows", return_value=[(1,)]),
-            patch.object(BRIDGE, "_psql_exec") as mock_exec,
-        ):
+        with patch.object(BRIDGE, "_psql_rows", side_effect=[[(1,)], [(1,)]]) as mock_rows:
             result = BRIDGE.do_orchestrator_finalize_agent_run(
                 agent_run_id=AGENT_RUN_ID,
                 status="failed",
@@ -439,9 +474,21 @@ class TestDoOrchestratorFinalizeAgentRun(unittest.TestCase):
             )
 
         self.assertTrue(result["ok"])
-        sql_issued = mock_exec.call_args[0][0]
-        # Error string should appear in the parameterized query SQL
-        self.assertIn("commit validation failed", sql_issued)
+        update_sql = mock_rows.call_args_list[1][0][0]
+        # Error string should appear in the parameterized UPDATE SQL
+        self.assertIn("commit validation failed", update_sql)
+
+    def test_raises_conflict_when_run_not_running(self):
+        # Run exists (SELECT returns a row) but the guarded UPDATE matches no
+        # row because the run is already terminal → conflict, not silent no-op.
+        with patch.object(BRIDGE, "_psql_rows", side_effect=[[(1,)], []]):
+            with self.assertRaises(BRIDGE.BridgeError) as ctx:
+                BRIDGE.do_orchestrator_finalize_agent_run(
+                    agent_run_id=AGENT_RUN_ID,
+                    status="completed",
+                    user_id=USER_ID,
+                )
+        self.assertEqual(ctx.exception.code, "conflict")
 
     def test_rejects_unknown_status(self):
         with self.assertRaises(BRIDGE.BridgeError) as ctx:
@@ -552,6 +599,41 @@ class TestOrchestratorBridgeArgParser(unittest.TestCase):
         self.assertEqual(ns.command, "orchestrator-commit-step")
         self.assertEqual(ns.step_order, 0)
         self.assertEqual(ns.step_type, "transfer_recommendation")
+
+    def test_orchestrator_record_dependency_subcommand_registered(self):
+        ns = self._parse([
+            "orchestrator-record-dependency",
+            "--user-id", USER_ID,
+            "--plan-step-id", PLAN_ID,
+            "--target-node-id", "node-1",
+            "--target-node-type", "UserBalance",
+            "--target-table", "user_balances",
+            "--observed-version", "3",
+            "--snapshot-value", "{}",
+            "--idempotency-key", "key-1",
+            "--read-set", "{}",
+        ])
+        self.assertEqual(ns.command, "orchestrator-record-dependency")
+        self.assertEqual(ns.observed_version, 3)
+        self.assertEqual(ns.target_table, "user_balances")
+        self.assertEqual(ns.depended_property, "")
+
+    def test_orchestrator_record_mutation_subcommand_registered(self):
+        ns = self._parse([
+            "orchestrator-record-mutation",
+            "--user-id", USER_ID,
+            "--plan-id", PLAN_ID,
+            "--agent-run-id", AGENT_RUN_ID,
+            "--mutation-type", "UpdateUserBalance",
+            "--target-node-id", "node-1",
+            "--target-table", "user_balances",
+            "--idempotency-key", "key-1",
+            "--read-set", "{}",
+            "--payload", "{}",
+        ])
+        self.assertEqual(ns.command, "orchestrator-record-mutation")
+        self.assertEqual(ns.mutation_type, "UpdateUserBalance")
+        self.assertEqual(ns.target_node_id, "node-1")
 
     def test_orchestrator_create_agent_run_subcommand_registered(self):
         ns = self._parse([

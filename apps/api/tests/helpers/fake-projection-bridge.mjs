@@ -5,7 +5,9 @@
 // projected view's `summary` so a test can prove the call is user-scoped.
 //
 //   --plan-id __NOTFOUND__  → {ok:true, data:null}            (projection miss → null)
+//   --plan-id __NODATA__    → {ok:true}  (no data key)        (malformed envelope → error)
 //   --plan-id __MALFORMED__ → {ok:true, data:{planId only}}   (fails runtime validation)
+//   --plan-id __BADSUMMARY__→ {ok:true, data:{...summary:1}}  (invalid summary → error)
 //   --plan-id __ERROR__     → {ok:false, internal} exit 1     (bridge error envelope)
 //   --plan-id __NONJSON__   → non-JSON line, exit 0           (protocol error)
 //   otherwise               → {ok:true, data:<valid PlanView>} exit 0
@@ -25,7 +27,23 @@ const planId = readFlag("--plan-id");
 const userId = readFlag("--user-id");
 
 if (planId === "__NOTFOUND__") emit({ ok: true, data: null });
+if (planId === "__NODATA__") emit({ ok: true });
 if (planId === "__MALFORMED__") emit({ ok: true, data: { planId: "p1" } });
+if (planId === "__BADSUMMARY__") {
+  emit({
+    ok: true,
+    data: {
+      planId,
+      planLineageId: `lineage-${planId}`,
+      revisionNumber: 1,
+      status: "current",
+      query: "q",
+      summary: 1,
+      steps: [],
+      graph: { nodes: [], edges: [] },
+    },
+  });
+}
 if (planId === "__ERROR__") {
   process.stdout.write(
     JSON.stringify({ ok: false, error: { code: "internal", message: "boom" } }) + "\n",

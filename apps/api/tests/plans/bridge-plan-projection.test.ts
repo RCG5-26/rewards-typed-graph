@@ -78,6 +78,22 @@ describe("BridgePlanProjection (Phase 2 — production PlanProjectionPort over r
     );
   });
 
+  it("rejects a malformed envelope ({ok:true} with no data) instead of masking it as not-found", async () => {
+    const projection = buildProjection();
+
+    // A missing `data` key is a protocol bug, not a projection miss. It must
+    // surface as an error, never as a silent null/404.
+    await expect(projection.project("__NODATA__", USER_ID)).rejects.toThrow(
+      /malformed envelope/,
+    );
+  });
+
+  it("rejects a PlanView whose summary is neither string nor null", async () => {
+    const projection = buildProjection();
+
+    await expect(projection.project("__BADSUMMARY__", USER_ID)).rejects.toThrow(/summary/);
+  });
+
   it("throws a PlanProjectionError when the bridge subprocess cannot be spawned", async () => {
     const projection = buildProjection({ pythonBin: "definitely-not-a-real-binary-xyz" });
 

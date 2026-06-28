@@ -161,6 +161,18 @@ describe("RedemptionAgent", () => {
       const step = ctx.calls[0].mutation as { stepType: string };
       expect(step.stepType).not.toBe("transfer_recommendation");
     });
+
+    it("readSet for direct redemption excludes Chase (depends on Hyatt alone)", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(60_000, 150_000, 2, 3);
+
+      await agent.run(ctx);
+
+      // Only Hyatt is in the read-set: a Chase version bump must not invalidate
+      // a direct-redemption step that never depended on Chase.
+      expect(ctx.calls[0].readSet).toEqual({ [D002]: 2 });
+      expect(ctx.calls[0].readSet).not.toHaveProperty(D001);
+    });
   });
 
   describe("insufficient total points", () => {
@@ -175,6 +187,16 @@ describe("RedemptionAgent", () => {
         "redemption_recommendation",
       );
       expect((ctx.calls[1].mutation as { targetNodeId: string }).targetNodeId).toBe(D002); // Hyatt
+    });
+
+    it("readSet for insufficient path excludes Chase (depends on Hyatt alone)", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(5_000, 10_000, 4, 7); // total < threshold
+
+      await agent.run(ctx);
+
+      expect(ctx.calls[0].readSet).toEqual({ [D002]: 4 });
+      expect(ctx.calls[0].readSet).not.toHaveProperty(D001);
     });
   });
 
@@ -282,6 +304,33 @@ describe("RedemptionAgent", () => {
       };
 
       await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+    });
+
+    it("rejects a non-demo targetRedemptionOptionId instead of rewriting it to Hyatt", async () => {
+      const agent = new RedemptionAgent();
+      const base = makeContext(60_000, 150_000, 2, 2);
+      const ctx = {
+        ...base,
+        operation: {
+          ...makeOperation(),
+          targetRedemptionOptionId: "00000000-0000-0000-0000-0000000000ff", // not Hyatt f001
+        },
+      };
+
+      await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+      expect(base.calls).toHaveLength(0);
+    });
+
+    it("rejects an unsupported sourceProgramId outside the Hyatt/Chase demo set", async () => {
+      const agent = new RedemptionAgent();
+      const base = makeContext(60_000, 150_000, 2, 2);
+      const ctx = {
+        ...base,
+        operation: makeOperation([B002, "00000000-0000-0000-0000-0000000000aa"]),
+      };
+
+      await expect(agent.run(ctx)).rejects.toMatchObject({ kind: "ValidationError" });
+      expect(base.calls).toHaveLength(0);
     });
   });
 });

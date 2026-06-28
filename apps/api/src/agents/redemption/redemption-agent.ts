@@ -40,6 +40,11 @@ const HYATT_MIN_POINTS = 45_000;
 
 const CHASE_UR_PROGRAM_ID = "00000000-0000-0000-0000-00000000b001";
 
+// This deterministic milestone adapter only models the Hyatt demo option funded
+// by Hyatt or Chase UR (ADR 0010 §5). Any operation outside this set is rejected
+// rather than silently rewritten into a Hyatt/Chase plan.
+const SUPPORTED_SOURCE_PROGRAM_IDS = new Set([HYATT_PROGRAM_ID, CHASE_UR_PROGRAM_ID]);
+
 export class RedemptionAgent implements Agent<"redemption_agent"> {
   readonly agentType = "redemption_agent" as const;
 
@@ -72,7 +77,9 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
             sourceProgramId: HYATT_PROGRAM_ID,
           },
         },
-        readSet: buildReadSet(hyattBalance, chaseBalance),
+        // Direct redemption depends on Hyatt alone. Including Chase here would let
+        // an unrelated Chase version bump fail an otherwise-valid step.
+        readSet: { [hyattBalance.id]: hyattBalance.version },
         idempotencyKey: `redemption-direct:${planId}:${HYATT_REDEMPTION_OPTION_ID}`,
       });
 
@@ -151,7 +158,9 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
           sourceProgramId: HYATT_PROGRAM_ID,
         },
       },
-      readSet: buildReadSet(hyattBalance, chaseBalance),
+      // Insufficient-points path depends on Hyatt alone (the dependency edge below
+      // anchors on Hyatt); keep Chase out of the read-set to avoid spurious staleness.
+      readSet: { [hyattBalance.id]: hyattBalance.version },
       idempotencyKey: `redemption-insufficient:${planId}:${HYATT_REDEMPTION_OPTION_ID}`,
     });
 
@@ -179,6 +188,31 @@ function validateOperation(op: RedemptionTraversalOperation): void {
     throw new CommitFailure(
       "ValidationError",
       "RedemptionTraversalOperation requires at least one sourceProgramId",
+    );
+  }
+
+  // A non-null target that is not the demo option would otherwise be silently
+  // rewritten to the Hyatt payload — fail fast instead. (null is allowed: the
+  // demo goal may not have a resolved option, and the adapter targets Hyatt.)
+  if (
+    op.targetRedemptionOptionId !== null &&
+    op.targetRedemptionOptionId !== HYATT_REDEMPTION_OPTION_ID
+  ) {
+    throw new CommitFailure(
+      "ValidationError",
+      `redemption adapter only supports demo option ${HYATT_REDEMPTION_OPTION_ID}; ` +
+        `got ${op.targetRedemptionOptionId}`,
+    );
+  }
+
+  const unsupported = op.sourceProgramIds.filter(
+    (id) => !SUPPORTED_SOURCE_PROGRAM_IDS.has(id),
+  );
+  if (unsupported.length > 0) {
+    throw new CommitFailure(
+      "ValidationError",
+      `redemption adapter only supports Hyatt/Chase demo source programs; ` +
+        `got unsupported: ${unsupported.join(", ")}`,
     );
   }
 }

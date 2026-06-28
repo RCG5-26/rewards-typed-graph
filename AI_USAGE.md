@@ -894,7 +894,7 @@ No secrets recorded. `CLERK_SECRET_KEY` is explicitly excluded from the bridge e
 
 ### Offline validation
 
-```
+```bash
 npm run typecheck          # clean
 npm run test:coverage      # 203 passed, coverage floors met
 ```
@@ -908,3 +908,50 @@ npm run test:coverage      # 203 passed, coverage floors met
 - C2 work is **uncommitted** on `feat/orchestrator-thesis-integration` (user requested commit after live gate passes).
 - Phase 8+ (synchronous replan, rev 1 stale/superseded, browser integration, Prompt D handoff) remains.
 - `pg` parallel-query deprecation warning during live tests (cosmetic; no functional failure).
+
+## Entry 013 — CodeRabbit remediation on PR #53 (2026-06-28)
+
+CodeRabbit reviewed PR #53 with 16 inline findings. Each was verified against the
+current code; 14 were fixed with tests, 2 (Critical #1 + Major #4) were confirmed
+valid and **deferred as architectural work** (no partial fix).
+
+### Fixed (with tests)
+
+- **Bridge ownership/lifecycle** (`hero_bridge.py`): plan-ownership guard before
+  `agent_runs` INSERT; terminal-run finalize guarded by `status = 'running'` +
+  `RETURNING` zero-row → `conflict`. Parser coverage for record-dependency /
+  record-mutation.
+- **Commit validation** (`validation.ts`): reject non-finite `balancePoints`
+  before the `JSON.stringify` bridge boundary.
+- **Redemption** (`redemption-agent.ts`): reject operations outside the Hyatt/Chase
+  demo set (fail fast, no silent rewrite); Hyatt-only read-set on the
+  direct/insufficient paths (Chase only on the transfer path).
+- **Snapshot** (`pg-snapshot-builder.ts`): validate raw snake_case rows before
+  coercion (null id/version, invalid goal_type); read the three tables under one
+  `READ ONLY REPEATABLE READ` transaction.
+- **Projection** (`orchestrator-service.ts`): `getPlanById` now applies
+  `assertValidPlanView`, matching `createPlan`.
+- **Boot/health** : extracted `createApp(deps)` (`app.ts`) from `server.ts` so the
+  `PLAN_ENGINE` → `/health` engine contract is testable; added the test.
+- **Test fidelity**: `FakeEarningAgent` now throws like production `EarningAgent`;
+  benign third-agent role moved to an explicit `NoOpEarningAgent`. Replaced the
+  `sk_live_*`-shaped Clerk fixture with an inert placeholder.
+- **Docs**: corrected stale paths in `architecture-option-b.md` /
+  `c1-integration-audit.md`.
+
+### Deferred (confirmed valid; architectural)
+
+Findings #1 (atomic read-set OCC + idempotency) and #4 (replay metadata) require a
+read-set protocol change, a single-transaction `orchestrator-commit-batch`, and a
+durable idempotency schema. Design + demo guardrails captured in
+[`deferred-occ-idempotency-design.md`](docs/plans/option-b/deferred-occ-idempotency-design.md).
+The demo is single-user and sequential with no write retries; **no production
+idempotency or atomic cross-command OCC is claimed**, and `python-legacy` remains
+the rollback engine.
+
+### Validation
+
+- `npm run typecheck` → 0 errors.
+- `npm run test:coverage` → 211 passed / 9 skipped; functions 91.02% (≥88%),
+  branches 85.49% (≥76%).
+- `python3.10 -m unittest discover -s tests -p "test_*.py"` → 213 passed / 10 skipped.

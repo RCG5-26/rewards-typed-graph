@@ -103,6 +103,21 @@ describe("ControlledAgentCommitFactory", () => {
       expect(bridge.commitMutation).not.toHaveBeenCalled();
     });
 
+    it.each([NaN, Infinity, -Infinity])(
+      "rejects non-finite balancePoints (%s) before calling bridge",
+      async (balancePoints) => {
+        const bridge = mockBridge();
+        const factory = new ControlledAgentCommitFactory(bridge);
+        const commit = factory.create(BASE_BINDING);
+
+        await expect(
+          commit(makeInput({ ...UPDATE_BALANCE_MUTATION, balancePoints })),
+        ).rejects.toMatchObject({ kind: "ValidationError" });
+
+        expect(bridge.commitMutation).not.toHaveBeenCalled();
+      },
+    );
+
     it("rejects ownership violation (wallet_agent cannot submit RecordStateDependency)", async () => {
       const bridge = mockBridge();
       const factory = new ControlledAgentCommitFactory(bridge);
