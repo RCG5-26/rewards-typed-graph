@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { simulateDemoTransfer } from "@/lib/comparison/client";
+import { PublicApiError, simulateDemoTransfer } from "@/lib/comparison/client";
 
 /**
  * POST /api/demo/simulate-transfer — proxy to the public Hono demo replan route.
@@ -27,6 +27,13 @@ export async function POST(request: Request) {
     const response = await simulateDemoTransfer(body.walletId, idempotencyKey);
     return NextResponse.json(response);
   } catch (err) {
+    // Forward the upstream status/message (e.g. 503 PLAN_ENGINE misconfig, 400
+    // bad input) so the UI can show an actionable reason instead of a blanket
+    // gateway error. Non-API failures still fall back to a generic 502.
+    if (err instanceof PublicApiError) {
+      const status = err.status >= 400 && err.status < 600 ? err.status : 502;
+      return NextResponse.json({ error: err.message }, { status });
+    }
     console.error("POST /api/demo/simulate-transfer failed", err);
     return NextResponse.json({ error: "Could not simulate the transfer." }, { status: 502 });
   }

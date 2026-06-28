@@ -20,6 +20,21 @@ import type {
  */
 export const COMPARISON_PROXY_TIMEOUT_MS = 135_000;
 
+/**
+ * Raised when the Hono API answers with a non-2xx status. Carries the upstream
+ * status and parsed message so proxy routes can forward an accurate status/body
+ * instead of collapsing every failure into a generic 502 (review finding #2).
+ */
+export class PublicApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "PublicApiError";
+  }
+}
+
 function baseUrl(): string {
   const url = process.env.API_BASE_URL;
   if (!url) {
@@ -39,7 +54,12 @@ async function publicFetch<T>(path: string, init: RequestInit, timeoutMs: number
       cache: "no-store",
     });
     if (!res.ok) {
-      throw new Error(`Hono API responded ${res.status} for ${path}`);
+      const body = (await res.json().catch(() => undefined)) as { error?: unknown } | undefined;
+      const message =
+        typeof body?.error === "string"
+          ? body.error
+          : `Hono API responded ${res.status} for ${path}`;
+      throw new PublicApiError(res.status, message);
     }
     return (await res.json()) as T;
   } finally {

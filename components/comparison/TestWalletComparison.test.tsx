@@ -85,7 +85,7 @@ describe("TestWalletComparison", () => {
     expect(screen.getAllByText(/Not started/i).length).toBe(3);
   });
 
-  it("enables the replan button after a successful comparison", () => {
+  it("disables the replan button before a comparison has run", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
     const replan = screen.getByText(/Simulate completed transfer/i) as HTMLButtonElement;
     expect(replan.disabled).toBe(true);

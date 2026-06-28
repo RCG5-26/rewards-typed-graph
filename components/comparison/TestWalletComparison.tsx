@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import type {
   ArchitectureComparisonResponse,
@@ -9,6 +9,7 @@ import type {
   PublicBalance,
   PublicWalletFacts,
 } from "@/lib/comparison/types";
+import { formatPoints } from "@/lib/comparison/presentation";
 import { ArchitectureResultCard, type CardState } from "./ArchitectureResultCard";
 import { WalletFactsPanel } from "./WalletFactsPanel";
 
@@ -35,9 +36,18 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
     null,
   );
   const [balanceOverrides, setBalanceOverrides] = useState<PublicBalance[] | null>(null);
-  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [simulateError, setSimulateError] = useState<string | null>(null);
+
+  // Each async op claims the next generation; a completion only commits state
+  // if it is still the current generation. This invalidates a stale simulate
+  // when a new comparison/tab-switch starts (finding #1). `simulateInFlightRef`
+  // is a synchronous lock that survives the render gap between rapid clicks so a
+  // double-click cannot mint two idempotency keys (finding #3). The key lives in
+  // a ref so concurrent clicks share one value before any re-render.
+  const generationRef = useRef(0);
+  const simulateInFlightRef = useRef(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const baseFacts = useMemo(
     () => wallets.find((w) => w.walletId === selectedWalletId) ?? wallets[0],
@@ -55,14 +65,29 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
     return phase === "done" && graph?.status === "succeeded" && Boolean(graph.evidence?.lineageId);
   }, [phase, response]);
 
+  function resetRun() {
+    generationRef.current += 1;
+    simulateInFlightRef.current = false;
+    idempotencyKeyRef.current = null;
+    setPhase("idle");
+    setSimulatePhase("idle");
+    setResponse(null);
+    setSimulateResponse(null);
+    setBalanceOverrides(null);
+    setErrorMessage(null);
+    setSimulateError(null);
+  }
+
   async function runComparison() {
     if (!facts) return;
+    const generation = ++generationRef.current;
+    simulateInFlightRef.current = false;
+    idempotencyKeyRef.current = null;
     setPhase("running");
     setSimulatePhase("idle");
     setResponse(null);
     setSimulateResponse(null);
     setBalanceOverrides(null);
-    setIdempotencyKey(null);
     setErrorMessage(null);
     setSimulateError(null);
     try {
@@ -71,6 +96,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletId: facts.walletId }),
       });
+      if (generation !== generationRef.current) return;
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -78,6 +104,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
       setResponse((await res.json()) as ArchitectureComparisonResponse);
       setPhase("done");
     } catch (error) {
+      if (generation !== generationRef.current) return;
       setErrorMessage(error instanceof Error ? error.message : "Comparison failed.");
       setPhase("error");
     }
@@ -85,10 +112,13 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
 
   async function simulateTransfer() {
     if (!facts || !graphReady) return;
+    if (simulateInFlightRef.current) return;
+    simulateInFlightRef.current = true;
+    const generation = ++generationRef.current;
     setSimulatePhase("running");
     setSimulateError(null);
-    const key = idempotencyKey ?? crypto.randomUUID();
-    if (!idempotencyKey) setIdempotencyKey(key);
+    const key = idempotencyKeyRef.current ?? crypto.randomUUID();
+    idempotencyKeyRef.current = key;
 
     try {
       const res = await fetch("/api/demo/simulate-transfer", {
@@ -96,6 +126,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletId: facts.walletId, idempotencyKey: key }),
       });
+      if (generation !== generationRef.current) return;
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -120,8 +151,11 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         );
       }
     } catch (error) {
+      if (generation !== generationRef.current) return;
       setSimulateError(error instanceof Error ? error.message : "Transfer simulation failed.");
       setSimulatePhase("error");
+    } finally {
+      if (generation === generationRef.current) simulateInFlightRef.current = false;
     }
   }
 
@@ -149,12 +183,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
               aria-selected={wallet.walletId === selectedWalletId}
               onClick={() => {
                 setSelectedWalletId(wallet.walletId);
-                setPhase("idle");
-                setSimulatePhase("idle");
-                setResponse(null);
-                setSimulateResponse(null);
-                setBalanceOverrides(null);
-                setIdempotencyKey(null);
+                resetRun();
               }}
               className={`rounded-full px-4 py-1.5 text-sm transition ${
                 wallet.walletId === selectedWalletId
@@ -173,7 +202,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
       <div className="flex flex-wrap items-center gap-4">
         <button
           onClick={runComparison}
-          disabled={phase === "running"}
+          disabled={phase === "running" || simulatePhase === "running"}
           className="rounded-full bg-indigo-400 px-6 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {phase === "running" ? "Running all three…" : "Run comparison"}
@@ -278,8 +307,4 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
       </ul>
     </div>
   );
-}
-
-function formatPoints(value: number): string {
-  return value.toLocaleString("en-US");
 }
