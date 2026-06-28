@@ -9,7 +9,9 @@ and `build` so the contract can't drift unnoticed. The typed-graph branch of
 
 from __future__ import annotations
 
+import copy
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -122,6 +124,41 @@ class BuildTest(unittest.TestCase):
             self.assertIn("run", by_key[baseline])
         self.assertIn("generatedAt", report)
         self.assertIn("benchmarkId", report)
+
+    def test_partial_baseline_report_is_rejected_before_it_can_be_measured(self) -> None:
+        typed_report = bbr.run_benchmark()
+        partial_report = copy.deepcopy(typed_report)
+        partial_report["architecture"] = "single_agent_llm_baseline"
+        partial_report["evaluator_version"] = "single-agent-partial-test"
+        partial_report["case_count"] = 1
+        partial_report["cases"] = partial_report["cases"][:1]
+        partial_report["metrics"]["accuracy_total"] = 1
+
+        with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
+            path = Path(d) / "single_agent_llm_baseline.json"
+            path.write_text(json.dumps(partial_report), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "full ordered case list"):
+                bbr.build()
+
+    def test_baseline_report_with_unknown_hallucination_case_id_is_rejected(
+        self,
+    ) -> None:
+        typed_report = bbr.run_benchmark()
+        baseline_report = copy.deepcopy(typed_report)
+        baseline_report["architecture"] = "single_agent_llm_baseline"
+        baseline_report["evaluator_version"] = "single-agent-hallucination-id-test"
+        baseline_report["metrics"]["strict_hallucination_case_count"] = 1
+        baseline_report["metrics"]["strict_hallucination_case_ids"] = [
+            "not_a_benchmark_case"
+        ]
+
+        with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
+            path = Path(d) / "single_agent_llm_baseline.json"
+            path.write_text(json.dumps(baseline_report), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "outside the benchmark corpus"):
+                bbr.build()
 
 
 if __name__ == "__main__":

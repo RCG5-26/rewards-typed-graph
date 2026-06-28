@@ -93,6 +93,38 @@ class GraphInstrumentationTests(unittest.TestCase):
             "plan_type_not_agent_generated",
         )
 
+    def test_pending_replan_job_is_partial_evidence_not_invalidation_success(self):
+        connection = FakeConnection(
+            source_plan=(
+                USER_ID,
+                LINEAGE_ID,
+                "agent_generated",
+                "stale",
+                BENCHMARK_QUERY_ID,
+            ),
+            dependent_steps=(2, 2),
+            replan_job=("pending", None, MUTATION_TXN_ID),
+            result_plan=None,
+            mutation_counts=[
+                ("TransferPoints", "user_balances", 2),
+                ("MarkStale", "plans", 1),
+                ("MarkStale", "plan_steps", 2),
+            ],
+            token_cost_total=0,
+        )
+
+        metrics = collect_graph_eval_metrics(
+            connection,
+            user_id=USER_ID,
+            source_plan_id=SOURCE_PLAN_ID,
+        )
+
+        self.assertFalse(metrics["plan_invalidation_correct"])
+        self.assertEqual(
+            metrics["metric_scores"]["invalidation_failure_reason"],
+            "replan_job_not_completed",
+        )
+
     def test_missing_source_plan_is_rejected_before_scoring(self):
         connection = FakeConnection(
             source_plan=None,

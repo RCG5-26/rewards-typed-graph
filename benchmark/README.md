@@ -77,6 +77,20 @@ benchmark, fixture, and ordered case list, then emits an architecture summary
 plus a case-by-case matrix for accuracy, hallucination count, and invalidation
 correctness.
 
+For the frontend-facing benchmark artifact, run:
+
+```bash
+python scripts/build_benchmark_report.py
+```
+
+That builder always scores the typed fixture path live. A baseline report is
+shown as measured only when its JSON covers the full 30-case corpus with the
+same benchmark id, fixture id, metric definitions, ordered case list, accuracy
+total, and invalidation total as the typed report. Missing baseline reports are
+shown as `not_run`; partial or mismatched reports fail the build so they cannot
+be published by accident. Unknown token cost remains blank/null rather than
+being displayed as zero.
+
 ## Graph-Lane Invalidation Evidence
 
 RCG-52 adds a read-only graph instrumentation helper for the cross-architecture eval harness:
@@ -92,3 +106,8 @@ metrics = collect_graph_eval_metrics(
 ```
 
 It returns an `evaluations`-ready payload with `plan_invalidation_correct`, `token_cost_total`, `metric_scores`, and `evaluator_version`. The helper scores only structural evidence from canonical tables: `plans`, `plan_steps`, `state_dependencies`, `graph_mutations`, `replan_jobs`, and `agent_runs`. Baseline plans intentionally receive no structural invalidation credit.
+
+Structural invalidation credit requires a completed replan job whose result plan
+is the current direct successor of the invalidated source plan. Queued or
+processing replan jobs are reported as partial evidence, not as successful
+invalidation.

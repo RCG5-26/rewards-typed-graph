@@ -43,8 +43,15 @@ python -m benchmark.person_c_scorer --pretty
 ```
 
 - Compare the fixture-backed planner with the single-agent and free-text multi-agent benchmark baselines.
+- Build the benchmark display data with:
+
+```bash
+python scripts/build_benchmark_report.py
+```
 
 The current Person C slice is fixture-based. It can pick the best seeded Tokyo Hyatt redemption, write the plan into the database, detect when a Chase balance change makes the old plan stale, and prepare a new plan revision. Its benchmark now includes 30 seeded questions across earning, redemption, and portfolio scenarios, with explicit hallucination and invalidation metric breakdowns.
+
+The benchmark display only labels a baseline as measured when a full 30-question baseline report is present and matches the same questions as the typed-graph report. Missing baselines are shown as not run. Partial or mismatched baseline files are rejected instead of being shown as real results.
 
 ## Current Limitations
 
@@ -52,6 +59,8 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - Award and cash prices are seeded fixture data, not live travel prices.
 - The live demo uses Layers 1-3 only: seeded rewards data, typed graph mutations, and plan replanning.
 - Layer 4, the planned ingestion and verifier layer, is cut for the June 29 demo. It should be described as future work, not as a feature being shown live.
+- Token cost is shown only when the benchmark has real token records. Unknown cost is left blank instead of being treated as zero.
+- A replan only counts as successful benchmark evidence after the new current plan exists. A queued or still-running replan is treated as incomplete evidence.
 
 ## Recent Changes
 
@@ -68,3 +77,4 @@ The current Person C slice is fixture-based. It can pick the best seeded Tokyo H
 - The plan API now includes typed graph details, so signed-in users see the traversal view even though their personal demo data uses cloned IDs.
 - Added free-text multi-agent baseline reporting and a comparison report across typed-graph, single-agent, and free-text benchmark architectures.
 - The API container now checks for the schema and demo seed before starting, so an empty database can be initialized automatically.
+- Tightened benchmark publishing checks so incomplete baseline reports, unknown token costs, and unfinished replans are not presented as successful measured results.

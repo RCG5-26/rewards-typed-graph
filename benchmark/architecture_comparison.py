@@ -113,7 +113,7 @@ def _architecture_summary(report: dict[str, Any]) -> dict[str, Any]:
         "invalidation_passed": metrics["invalidation_passed"],
         "invalidation_total": metrics["invalidation_total"],
         "invalidation_rate": metrics["invalidation_rate"],
-        "token_cost_total": metrics.get("token_cost_total", 0),
+        "token_cost_total": metrics.get("token_cost_total"),
     }
 
 
