@@ -1164,3 +1164,104 @@ command substitution, never echoed.
 
 ### Verdict
 `JOINT FREEZE COMPLETE — DATA ALIGNMENT REQUIRED`
+
+---
+
+## 2026-06-28 — Person B — Three-Architecture Comparison Vertical Slice
+
+Branch `demo/test-wallet-comparison` (worktree `../gpFree-comparison`). Built the
+initial three-way comparison: live graph orchestrator vs free-text chat crew vs
+single-agent baseline, over one canonical wallet and one canonical query, scored
+by one deterministic evaluator.
+
+### Tools used
+- Cursor agent (Claude) for implementation, TDD, and review.
+- `vitest` (API + web), Python `unittest` for baseline alignment + scorer grounding.
+- `tsc --noEmit` (API and web), `next build`, `git`, `rg`.
+
+### Important implementation decisions
+- **Adapters normalize, the endpoint evaluates.** Each adapter returns a
+  `NormalizedPlan` + metrics + evidence with no `evaluation` field; the endpoint
+  applies the single evaluator to all three. This makes "no architecture-specific
+  scoring" structurally true — an adapter has no scoring code to bias.
+- **One canonical source** (`apps/api/src/comparison/canonical-wallet.ts`) for
+  public facts + `CANONICAL_QUERY`. Private gold (`expected_top_award_slug`) lives
+  only in `benchmark/gold/demo-comparison-cases.json`, never in agent input or the
+  `GET /demo/test-wallets` response.
+- **Evaluator boundary fix (`_fixture_fact_slugs`):** balance slugs supplied to the
+  model are now grounded; correctness and grounding stay separate fields. Added
+  `fixture_fact_slug_sources` to categorize each slug's origin.
+- **Deterministic evaluator** (`evaluator.ts`): hard-validity gates (grounding,
+  supported route, affordability via balance simulation, negative balance, falsely
+  claimed goal) + lexicographic ranking (goal → feasibility → redemption value →
+  fewer unnecessary transfers → fewer steps → preserved flexible points). No LLM
+  judge, no weighted score.
+- **Honest baseline normalization:** prose steps are parsed for action/points/
+  programs; a transfer is never invented. An architecture-independent helper
+  (`fillImpliedTransferAmounts`) fills the deterministic deficit (award cost −
+  starting balance) when a transfer names a destination but omits the number — the
+  same helper runs for the graph (whose `PlanView` carries transfers as edges
+  without amounts), so neither side is flattered.
+- **Graph normalizer reads the typed graph** (`PlanView.graph` edges/nodes) for the
+  selected award, redeeming program, and transfer route; synthesizes the transfer
+  step the view omits as a step so the evaluator can credit it.
+- **Endpoint** `POST /demo/architecture-comparison`: validates the approved wallet
+  id, resolves facts server-side, runs all three with `Promise.allSettled`,
+  attaches evaluations, returns three independent results; one failure stays
+  isolated (HTTP 200). `GET /demo/test-wallets` exposes public facts so the UI
+  never hard-codes balances.
+- **Web** `/test-wallets`: server-fetches facts, client runs the comparison via a
+  proxy route, three cards render loading/success/failure with steps, separate
+  correctness + grounding, latency, and tokens. Replan button disabled (Step 10
+  gate). Landing "Start Optimizing" routes to `/test-wallets`.
+- **Type mirroring** (no shared TS workspace): `lib/comparison/types.ts` hand-mirrors
+  the API contract; `GraphPlanRunner` narrows the `PlanService` dependency (ISP) so
+  the adapter and its tests need only `createPlan`.
+
+### Validation commands
+| Command | Result |
+|---|---|
+| `vitest run src/comparison/` (API) | ✓ 43 passed (contracts, adapters, evaluator, endpoint incl. partial-failure) |
+| `vitest run` (API, full) | ✓ 263 passed, 10 skipped (live PG) |
+| `vitest run` (web, full) | ✓ 204 passed (incl. 12 new comparison tests) |
+| `python3.12 -m unittest tests.test_demo_comparison_baseline_alignment tests.test_person_c_scorer_grounding` | ✓ 13 passed |
+| `tsc --noEmit` (API) | ✓ clean |
+| `tsc --noEmit` (web) | ✓ clean |
+| `next build` | compiles; static prerender of pre-existing Clerk pages fails (no `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` in worktree) — not in changed code; `/test-wallets` is `force-dynamic` |
+| secret scan (`rg` over diff) | ✓ no secret literals; no forbidden replan/orchestrator paths touched |
+| live graph run | ✗ NOT RUN — `rewards_comparison` DB unreachable / PG env unset in this worktree |
+| live chat-crew run | ✗ NOT RUN — `OPENAI_API_KEY` unset in this worktree |
+| live single-agent run | ✗ NOT RUN — `OPENAI_API_KEY` unset in this worktree |
+
+### Manual review / findings caught
+- Baseline program matcher first read "transfer Chase to Hyatt" as a Hyatt→Hyatt
+  self-transfer (only full program names matched, not the short brand "Chase"),
+  netting zero and failing affordability. Broadened the matcher to issuer + brand
+  words; added a regression test.
+- Evaluator reads transfers from `plan.steps`, not the top-level `transferAmount`;
+  the graph `PlanView` carries no step amounts, which would have failed the graph
+  unfairly — resolved with the shared implied-amount helper.
+- `next build` failure is environmental (missing Clerk key), confirmed unrelated to
+  the new code by the failing path list (all pre-existing Clerk pages).
+
+### Deferred / blocked
+- **Three live runs not executed** in this worktree (no `OPENAI_API_KEY`, no
+  `rewards_comparison` DB / PG env). Deterministic behavior is fully covered by
+  fixture-backed adapter/normalizer/evaluator/endpoint tests, but per the freeze
+  skipped live tests are not counted as passing → verdict PARTIAL.
+- Step 9 (Direct Redemption / Insufficient Points wallet tabs): UI renders tabs
+  for any wallet the API exposes; only `transfer-required` is exposed for the
+  vertical slice, so no second tab yet. No fake frontend wallets added.
+- Step 10 (replan "Simulate completed transfer"): disabled with no working claim,
+  pending Person A `LIVE TYPESCRIPT REPLAN VERIFIED`.
+
+### Secrets
+No secret values printed or stored; availability reported as set/unset only.
+No credentials committed; `.env` is absent in this worktree.
+
+### Verdict
+`THREE-WAY COMPARISON PARTIAL` — all six 4-hour checkpoint items met (contracts
+compile, canonical wallet + verbatim query feed all three, evaluator false-positive
+fixed, all three adapters execute under test, one endpoint response returns three
+independent results); live execution of the three architectures is the only
+outstanding item, blocked on credentials/DB in this worktree.
