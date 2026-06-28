@@ -38,8 +38,10 @@ export default function AgentActivityLive({ title }: { title?: string }) {
     });
 
     // EventSource auto-reconnects; once a connection opens we're "ready" even
-    // before the first event (empty state), so loading doesn't hang forever.
-    es.addEventListener("open", () => setPhase((p) => (p === "loading" ? "ready" : p)));
+    // before the first event (empty state). This also recovers from an initial
+    // "error" (the first attempt failed, then a reconnect succeeded), so the
+    // panel never stays stuck in the alert state after the stream comes back.
+    es.addEventListener("open", () => setPhase("ready"));
     es.addEventListener("error", () => {
       // Only surface an error if we never received anything; otherwise the
       // browser is mid-reconnect and existing rows stay visible.

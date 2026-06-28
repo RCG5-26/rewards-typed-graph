@@ -80,6 +80,17 @@ describe("AgentActivityLive", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
+  it("recovers from an initial error once the stream later opens", () => {
+    render(<AgentActivityLive />);
+    act(() => MockEventSource.last?.emit("error"));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    // EventSource reconnects and opens: the panel must leave the alert state
+    // and show the ready (empty) state, not stay stuck on the error.
+    act(() => MockEventSource.last?.emit("open"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText(/No agent activity yet/i)).toBeInTheDocument();
+  });
+
   it("closes the EventSource on unmount", () => {
     const { unmount } = render(<AgentActivityLive />);
     const es = MockEventSource.last;
