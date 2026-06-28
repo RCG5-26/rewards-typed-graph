@@ -4,7 +4,21 @@ import { NextResponse } from "next/server";
 import { balanceTransfer, createPlan, getPlan, getSession } from "@/lib/api/client";
 import { diffStale, toPlanResult, transferParamsFromPersona } from "@/lib/api/adapters";
 import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
+import type { ApiTransferParams } from "@/lib/api/types";
 import type { PlanResult } from "@/lib/plan/types";
+
+/**
+ * Read a user-entered transfer from the query string (`?src=&dest=&amt=`).
+ * Returns null when none is supplied, so the caller can fall back to the seeded
+ * persona's scripted transfer (back-compat with the demo trigger).
+ */
+function userTransferParams(url: URL): ApiTransferParams | null {
+  const sourceProgramId = url.searchParams.get("src")?.trim();
+  const destProgramId = url.searchParams.get("dest")?.trim();
+  const amountPoints = Number(url.searchParams.get("amt"));
+  if (!sourceProgramId || !destProgramId) return null;
+  return { sourceProgramId, destProgramId, amountPoints };
+}
 
 /**
  * GET /api/plan/stream — Server-Sent Events for the agent console.
@@ -45,6 +59,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: cardsError }, { status: 400 });
   }
   const isReplan = url.searchParams.get("replan") === "1";
+  const transfer = userTransferParams(url);
+  if (isReplan && transfer && !(transfer.amountPoints > 0)) {
+    return NextResponse.json({ error: "Transfer amount must be a positive number." }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
 
@@ -61,8 +79,9 @@ export async function GET(request: Request) {
 
       try {
         if (isReplan) {
-          const session = await getSession(token);
-          const params = transferParamsFromPersona(session);
+          // User-entered transfer wins; otherwise fall back to the seeded
+          // persona's scripted transfer (the original demo trigger).
+          const params = transfer ?? transferParamsFromPersona(await getSession(token));
           const transferResult = await balanceTransfer(params, token);
 
           if (!transferResult.staledPlanId) {

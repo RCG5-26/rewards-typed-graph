@@ -85,6 +85,16 @@ export interface RealMutationEvent {
   plan_lineage_id: string | null;
   plan_id: string | null;
   summary: string;
+  /**
+   * Additional fields the Hono `MutationEvent` actually carries over the wire
+   * (apps/api/src/mutations/events.ts) — the stream route forwards the full JSON.
+   * Optional here because the legacy Python runtime leaves `agent_run_id` null;
+   * it is populated only once the orchestrator (M4/M9) is mounted. Consumed by
+   * `activity-adapter.ts`.
+   */
+  agent_run_id?: string | null;
+  mutation_txn_id?: string;
+  committed_at?: string;
 }
 
 export type ApiErrorKind =

@@ -15,6 +15,7 @@ import type {
   PlanStep,
   StepStatus,
 } from "@/lib/plan/types";
+import { isUserGraph, type UserBalance } from "@/lib/user/types";
 import BenchmarkView from "./BenchmarkView";
 import ContrastView from "./ContrastView";
 import NodeDetailPopover from "./NodeDetailPopover";
@@ -45,6 +46,29 @@ const STATUS_VARS: Record<StepStatus, { color: string; bg: string }> = {
 
 type Meta = Omit<PlanResult, "mutations">;
 
+/** One program's balance before vs. after a transfer, for the replan summary. */
+interface BalanceDelta {
+  programId: string;
+  name: string;
+  before: number;
+  after: number;
+}
+
+/** What the replan changed: which steps the new revision dropped + the balance moves. */
+interface ReplanSummary {
+  /** Steps present in revision N−1 but absent from the new revision (e.g. the transfer step). */
+  removedSteps: PlanStep[];
+  source: BalanceDelta | null;
+  dest: BalanceDelta | null;
+}
+
+/** Steps in the prior revision that the new revision no longer contains (matched by type+title). */
+function removedSteps(prior: PlanStep[], next: PlanStep[]): PlanStep[] {
+  const key = (s: PlanStep) => `${s.type}::${s.title}`;
+  const nextKeys = new Set(next.map(key));
+  return prior.filter((s) => !nextKeys.has(key(s)));
+}
+
 /** Where a keyboard-selected node's popover anchors (no pointer coordinates). */
 const KEYBOARD_POPOVER_Y = 160;
 
@@ -72,10 +96,13 @@ export default function AgentConsole({
   queryText,
   selectedCardIds,
   onRestart,
+  balances = [],
 }: {
   queryText: string;
   selectedCardIds: string[];
   onRestart: () => void;
+  /** The user's real program balances (from `/api/me`) — powers the replan transfer control. */
+  balances?: UserBalance[];
 }) {
   const [steps, setSteps] = useState<PlanStep[]>([]);
   const [mutations, setMutations] = useState<MutationLogEntry[]>([]);
@@ -93,6 +120,18 @@ export default function AgentConsole({
   const [selected, setSelected] = useState<HoverNode | null>(null);
   const [logOpen, setLogOpen] = useState(false);
 
+  // ── user-driven replan ("I transferred points") ──
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferSrc, setTransferSrc] = useState("");
+  const [transferDest, setTransferDest] = useState("");
+  const [transferAmt, setTransferAmt] = useState("");
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [replanSummary, setReplanSummary] = useState<ReplanSummary | null>(null);
+  // Prior-revision snapshot captured at submit, resolved into a summary on `done`.
+  const priorRef = useRef<{ steps: PlanStep[]; balances: UserBalance[]; src: string; dest: string } | null>(null);
+  // Latest streamed steps — the `done` closure can't read `steps` state directly.
+  const stepsRef = useRef<PlanStep[]>([]);
+
   const esRef = useRef<EventSource | null>(null);
   const mutEsRef = useRef<EventSource | null>(null);
   const lastCursorRef = useRef<string>("0");
@@ -101,7 +140,7 @@ export default function AgentConsole({
   const logRef = useRef<HTMLDivElement | null>(null);
   const railRef = useRef<HTMLDivElement | null>(null);
 
-  function openStream(replan: boolean) {
+  function openStream(replan: boolean, transfer?: { src: string; dest: string; amt: number }) {
     esRef.current?.close();
     mutEsRef.current?.close();
     doneRef.current = false;
@@ -126,6 +165,11 @@ export default function AgentConsole({
     const params = new URLSearchParams({ q: queryText });
     if (selectedCardIds.length) params.set("cards", selectedCardIds.join(","));
     if (replan) params.set("replan", "1");
+    if (transfer) {
+      params.set("src", transfer.src);
+      params.set("dest", transfer.dest);
+      params.set("amt", String(transfer.amt));
+    }
     const es = new EventSource(`/api/plan/stream?${params.toString()}`);
     esRef.current = es;
 
@@ -139,6 +183,7 @@ export default function AgentConsole({
 
     es.addEventListener("meta", (ev) => {
       const meta = JSON.parse((ev as MessageEvent).data) as Meta;
+      stepsRef.current = meta.steps;
       setSteps(meta.steps);
       setGraph((g) => mergeGraph(g, meta.graph));
       if (typeof meta.planValueCents === "number") setValueCents(meta.planValueCents);
@@ -161,12 +206,73 @@ export default function AgentConsole({
       doneRef.current = true;
       es.close();
       // Keep mutEs open so replan mutations continue to arrive if triggered.
+      if (replan && priorRef.current) void resolveReplanSummary();
     });
 
     es.addEventListener("error", () => {
       if (!doneRef.current) setStatus("failed");
       es.close();
     });
+  }
+
+  /**
+   * After a user-driven replan completes, diff the prior revision against the
+   * new one (dropped steps) and refetch real balances to show before → after.
+   */
+  async function resolveReplanSummary() {
+    const prior = priorRef.current;
+    if (!prior) return;
+    let after: UserBalance[] = prior.balances;
+    try {
+      const graph = await fetch("/api/me").then((r) => (r.ok ? r.json() : null));
+      if (graph && isUserGraph(graph)) after = graph.balances;
+    } catch {
+      // Network hiccup: fall back to the pre-transfer balances (delta shows 0).
+    }
+    const deltaFor = (programId: string): BalanceDelta | null => {
+      const b = prior.balances.find((x) => x.programId === programId);
+      const a = after.find((x) => x.programId === programId);
+      const meta = a ?? b;
+      if (!meta) return null;
+      return {
+        programId,
+        name: meta.programName,
+        before: b?.balancePoints ?? 0,
+        after: a?.balancePoints ?? b?.balancePoints ?? 0,
+      };
+    };
+    setReplanSummary({
+      removedSteps: removedSteps(prior.steps, stepsRef.current),
+      source: deltaFor(prior.src),
+      dest: deltaFor(prior.dest),
+    });
+  }
+
+  /** Validate the transfer form, snapshot the prior revision, and fire the replan. */
+  function submitTransfer() {
+    const amt = Number(transferAmt);
+    if (!transferSrc || !transferDest) {
+      setTransferError("Pick a source and destination program.");
+      return;
+    }
+    if (transferSrc === transferDest) {
+      setTransferError("Source and destination must differ.");
+      return;
+    }
+    if (!(amt > 0)) {
+      setTransferError("Enter a positive amount.");
+      return;
+    }
+    const srcBalance = balances.find((b) => b.programId === transferSrc);
+    if (srcBalance && amt > srcBalance.balancePoints) {
+      setTransferError(`Only ${srcBalance.balancePoints.toLocaleString()} ${srcBalance.currencyName} available.`);
+      return;
+    }
+    setTransferError(null);
+    setReplanSummary(null);
+    priorRef.current = { steps, balances, src: transferSrc, dest: transferDest };
+    setTransferOpen(false);
+    openStream(true, { src: transferSrc, dest: transferDest, amt });
   }
 
   // Open the initial stream once.
@@ -429,7 +535,7 @@ export default function AgentConsole({
 
             {/* right — agent plan card */}
             <div className="flex min-h-0 flex-col overflow-hidden rounded-card bg-surface shadow-raised">
-              <div className="flex items-center justify-between border-b border-subtle px-5 pb-3 pt-4">
+              <div className="flex items-center justify-between gap-2 border-b border-subtle px-5 pb-3 pt-4">
                 <div>
                   <div className="font-display text-xs font-semibold uppercase tracking-wide text-text-primary">
                     agent plan
@@ -438,7 +544,37 @@ export default function AgentConsole({
                     multi-step · per-step reasoning{revision > 1 ? ` · revision ${revision}` : ""}
                   </div>
                 </div>
+                {balances.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferError(null);
+                      setTransferOpen((o) => !o);
+                    }}
+                    disabled={status === "streaming" || status === "replanning"}
+                    aria-expanded={transferOpen}
+                    className="flex-none rounded-full border border-DEFAULT bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary shadow-xs transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    ⇄ I transferred points
+                  </button>
+                )}
               </div>
+              {transferOpen && (
+                <TransferForm
+                  balances={balances}
+                  src={transferSrc}
+                  dest={transferDest}
+                  amt={transferAmt}
+                  error={transferError}
+                  busy={status === "replanning"}
+                  onSrc={setTransferSrc}
+                  onDest={setTransferDest}
+                  onAmt={setTransferAmt}
+                  onSubmit={submitTransfer}
+                  onCancel={() => setTransferOpen(false)}
+                />
+              )}
+              {replanSummary && <ReplanSummaryBlock summary={replanSummary} revision={revision} />}
               {steps.length > 0 && <RouteBar steps={steps} />}
               <div className="flex-1 overflow-y-auto px-5 py-1">
                 {steps.map((s, i) => {
@@ -623,6 +759,165 @@ function ComparisonStrip({ onOpen }: { onOpen: () => void }) {
         </button>
       ))}
     </div>
+  );
+}
+
+// ── user-driven replan: transfer form + summary ──────────────────────
+function TransferForm({
+  balances,
+  src,
+  dest,
+  amt,
+  error,
+  busy,
+  onSrc,
+  onDest,
+  onAmt,
+  onSubmit,
+  onCancel,
+}: {
+  balances: UserBalance[];
+  src: string;
+  dest: string;
+  amt: string;
+  error: string | null;
+  busy: boolean;
+  onSrc: (v: string) => void;
+  onDest: (v: string) => void;
+  onAmt: (v: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const selectCls =
+    "rounded-lg border border-DEFAULT bg-surface px-2.5 py-2 text-xs text-text-primary";
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+      className="border-b border-subtle px-5 py-3"
+      style={{ background: "var(--color-surface-subtle)" }}
+      aria-label="Record a balance transfer to re-plan"
+    >
+      <div className="flex flex-wrap items-end gap-2.5">
+        <label className="flex flex-col gap-1 text-2xs font-medium uppercase tracking-wide text-text-tertiary">
+          From
+          <select className={selectCls} value={src} onChange={(e) => onSrc(e.target.value)}>
+            <option value="">Select program…</option>
+            {balances.map((b) => (
+              <option key={b.programId} value={b.programId}>
+                {b.programName} ({b.balancePoints.toLocaleString()})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-2xs font-medium uppercase tracking-wide text-text-tertiary">
+          To
+          <select className={selectCls} value={dest} onChange={(e) => onDest(e.target.value)}>
+            <option value="">Select program…</option>
+            {balances.map((b) => (
+              <option key={b.programId} value={b.programId}>
+                {b.programName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-2xs font-medium uppercase tracking-wide text-text-tertiary">
+          Amount
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={amt}
+            onChange={(e) => onAmt(e.target.value)}
+            placeholder="30000"
+            className={`${selectCls} w-28 tabular-nums`}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded-full px-4 py-2 text-xs font-semibold text-white shadow-xs transition disabled:cursor-not-allowed disabled:opacity-60"
+          style={{ background: "var(--status-current)" }}
+        >
+          {busy ? "re-planning…" : "Apply & re-plan"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-full px-3 py-2 text-xs font-medium text-text-tertiary transition hover:text-text-primary"
+        >
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="mt-2 text-xs" style={{ color: "var(--status-failed)" }}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function deltaText(d: BalanceDelta): string {
+  const diff = d.after - d.before;
+  const sign = diff > 0 ? "+" : "";
+  return `${d.before.toLocaleString()} → ${d.after.toLocaleString()} (${sign}${diff.toLocaleString()})`;
+}
+
+function ReplanSummaryBlock({ summary, revision }: { summary: ReplanSummary; revision: number }) {
+  return (
+    <section
+      aria-label="Re-plan summary"
+      className="border-b border-subtle px-5 py-3"
+      style={{ background: "var(--status-current-bg)" }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="rounded font-mono text-2xs font-semibold"
+          style={{ color: STATUS_VARS.superseded.color, background: STATUS_VARS.superseded.bg, padding: "2px 6px" }}
+        >
+          revision {Math.max(1, revision - 1)} · superseded
+        </span>
+        <span aria-hidden className="text-text-tertiary">
+          →
+        </span>
+        <span
+          className="rounded font-mono text-2xs font-semibold"
+          style={{ color: STATUS_VARS.current.color, background: STATUS_VARS.current.bg, padding: "2px 6px" }}
+        >
+          revision {revision} · current
+        </span>
+      </div>
+      {(summary.source || summary.dest) && (
+        <dl className="mt-2 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+          {summary.source && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-text-tertiary">{summary.source.name}</dt>
+              <dd className="font-mono tabular-nums text-text-secondary">{deltaText(summary.source)}</dd>
+            </div>
+          )}
+          {summary.dest && (
+            <div className="flex justify-between gap-2">
+              <dt className="text-text-tertiary">{summary.dest.name}</dt>
+              <dd className="font-mono tabular-nums text-text-secondary">{deltaText(summary.dest)}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {summary.removedSteps.length > 0 && (
+        <div className="mt-2 text-xs">
+          <span className="text-text-tertiary">Removed from plan: </span>
+          {summary.removedSteps.map((s, i) => (
+            <span key={`${s.type}-${s.order}`} className="text-text-secondary">
+              <span className="line-through">{s.title}</span>
+              {i < summary.removedSteps.length - 1 ? ", " : ""}
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

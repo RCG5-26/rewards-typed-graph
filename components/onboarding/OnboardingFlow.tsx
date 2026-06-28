@@ -220,6 +220,7 @@ export default function OnboardingFlow() {
             queryText={query.trim()}
             selectedCardIds={selected}
             onRestart={handleRestart}
+            balances={me?.balances ?? []}
           />
         )}
       </div>
