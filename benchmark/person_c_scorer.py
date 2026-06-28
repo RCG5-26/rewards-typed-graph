@@ -210,11 +210,32 @@ def _case_marks_unavailable(case: dict[str, Any], award_slug: str) -> bool:
 
 
 def _fixture_fact_slugs(fixture: dict[str, Any]) -> set[str]:
-    slugs = set()
-    for collection_name in ("transfer_paths", "award_options", "hotels"):
-        slugs.update(item["slug"] for item in fixture[collection_name])
-    slugs.update(award["cash_quote_slug"] for award in fixture["award_options"])
-    return slugs
+    return set(fixture_fact_slug_sources(fixture))
+
+
+def fixture_fact_slug_sources(fixture: dict[str, Any]) -> dict[str, str]:
+    """Map every genuinely-supplied fact slug to its source category.
+
+    A slug is "grounded" iff it appears here. Categorizing by source (rather than
+    a flat set) lets callers distinguish, e.g., a supplied balance slug from a
+    normalizer-invented one: the latter has no category and is never grounded.
+
+    The prior EVALUATOR_BOUNDARY_MISMATCH was caused by omitting `balances` here
+    while the balance slug was supplied to the model in the prompt. Balances are
+    now included; the set is still strictly the union of supplied facts, so the
+    evaluator does not accept arbitrary identifiers.
+    """
+    sources: dict[str, str] = {}
+    for item in fixture.get("transfer_paths", []):
+        sources[item["slug"]] = "transfer_path"
+    for item in fixture.get("hotels", []):
+        sources[item["slug"]] = "hotel"
+    for award in fixture.get("award_options", []):
+        sources[award["slug"]] = "award_option"
+        sources[award["cash_quote_slug"]] = "cash_quote"
+    for balance in fixture.get("balances", []):
+        sources[balance["slug"]] = "balance"
+    return sources
 
 
 # Public scoring API. Alternative architectures (e.g. the single-agent LLM
@@ -223,6 +244,7 @@ def _fixture_fact_slugs(fixture: dict[str, Any]) -> set[str]:
 accuracy_correct = _accuracy_correct
 hallucination_issues = _hallucination_issues
 case_current_balance = _case_current_balance
+fixture_fact_slugs = _fixture_fact_slugs
 rate = score_rate
 
 
