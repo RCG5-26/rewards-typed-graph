@@ -177,17 +177,20 @@ interface ResolvedPrograms {
   destinationProgramId?: string;
 }
 
-/** Map program names/slugs mentioned in order to source (1st) and dest (2nd). */
+// Generic words in program names that must not be used as brand match tokens.
+const STOPWORDS = new Set(["ultimate", "rewards", "world", "mileageplus", "of", "the"]);
+
+/**
+ * Map program references mentioned in order to source (1st) and dest (2nd).
+ * Prose uses short brands ("Chase", "Hyatt") rather than full names ("Chase
+ * Ultimate Rewards"), so each program matches on its full name, slug, issuer, or
+ * any distinctive (≥4-char, non-stopword) word from its name.
+ */
 export function resolveProgramsInText(text: string, facts: CanonicalWalletFacts): ResolvedPrograms {
   const lower = text.toLowerCase();
   const mentions: Array<{ index: number; programId: string }> = [];
   for (const program of facts.programs) {
-    const candidates = [program.name.toLowerCase(), program.programSlug.toLowerCase()];
-    let earliest = -1;
-    for (const candidate of candidates) {
-      const at = lower.indexOf(candidate);
-      if (at !== -1 && (earliest === -1 || at < earliest)) earliest = at;
-    }
+    const earliest = earliestMatch(lower, programMatchTokens(program));
     if (earliest !== -1) mentions.push({ index: earliest, programId: program.programId });
   }
   mentions.sort((a, b) => a.index - b.index);
@@ -195,6 +198,28 @@ export function resolveProgramsInText(text: string, facts: CanonicalWalletFacts)
   if (mentions[0]) result.sourceProgramId = mentions[0].programId;
   if (mentions[1]) result.destinationProgramId = mentions[1].programId;
   return result;
+}
+
+function programMatchTokens(program: CanonicalWalletFacts["programs"][number]): string[] {
+  const brandWords = program.name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length >= 4 && !STOPWORDS.has(word));
+  return [
+    program.name.toLowerCase(),
+    program.programSlug.toLowerCase(),
+    program.issuer.toLowerCase(),
+    ...brandWords,
+  ];
+}
+
+function earliestMatch(haystack: string, tokens: string[]): number {
+  let earliest = -1;
+  for (const token of tokens) {
+    const at = haystack.indexOf(token);
+    if (at !== -1 && (earliest === -1 || at < earliest)) earliest = at;
+  }
+  return earliest;
 }
 
 function buildSummary(
