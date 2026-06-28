@@ -47,7 +47,12 @@ export type ValidationResult = "passed" | "failed" | "not_run";
  */
 export interface SpecialistRunEntry {
   readonly kind: "specialist_run";
-  /** `agent_runs.id` — stable, used as the React key and SR description. */
+  /**
+   * Stable per-row id used as the React key. From the live mutations stream this
+   * is the mutation `event_id` (unique per row); once the orchestrator surfaces
+   * `agent_runs`, a run may map to several rows, so the per-event id is what
+   * guarantees uniqueness.
+   */
   readonly runId: string;
   readonly specialist: AgentType;
   /** Typed operation kind, e.g. "assess_wallet" / "traverse_redemption". */

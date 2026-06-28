@@ -62,13 +62,25 @@ describe("mutationEventsToActivityTrace", () => {
     expect(runs[1].commit).toBeUndefined();
   });
 
-  it("prefers agent_run_id as the run id when present, else event_id", () => {
+  it("uses event_id as the row id so repeated agent_run_id values don't collide", () => {
     const { entries } = mutationEventsToActivityTrace([
       ev({ event_id: "e1", mutation_type: "UpdateUserBalance", agent_run_id: "run-7" }),
-      ev({ event_id: "e2", mutation_type: "UpdateUserBalance" }),
+      ev({ event_id: "e2", mutation_type: "CreatePlanStep", agent_run_id: "run-7" }),
     ]);
     const ids = entries.flatMap((e) => (e.kind === "specialist_run" ? [e.runId] : []));
-    expect(ids).toEqual(["run-7", "e2"]);
+    expect(ids).toEqual(["e1", "e2"]);
+    expect(new Set(ids).size).toBe(ids.length); // unique despite shared agent_run_id
+  });
+
+  it("maps committed_at to endedAt on a specialist run", () => {
+    const { entries } = mutationEventsToActivityTrace([
+      ev({ event_id: "1", mutation_type: "CreatePlanStep", committed_at: "2026-06-27T10:00:00Z" }),
+    ]);
+    const run = entries[0];
+    expect(run.kind).toBe("specialist_run");
+    if (run.kind === "specialist_run") {
+      expect(run.endedAt).toBe("2026-06-27T10:00:00Z");
+    }
   });
 
   it("never fabricates snapshot or validation fields (backend-gated)", () => {

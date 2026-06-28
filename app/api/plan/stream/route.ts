@@ -7,17 +7,39 @@ import { planQueryError, selectedCardIdsError } from "@/lib/plan/limits";
 import type { ApiTransferParams } from "@/lib/api/types";
 import type { PlanResult } from "@/lib/plan/types";
 
+type TransferParse =
+  | { kind: "none" }
+  | { kind: "invalid"; message: string }
+  | { kind: "ok"; params: ApiTransferParams };
+
 /**
- * Read a user-entered transfer from the query string (`?src=&dest=&amt=`).
- * Returns null when none is supplied, so the caller can fall back to the seeded
- * persona's scripted transfer (back-compat with the demo trigger).
+ * Parse a user-entered transfer from the query string (`?src=&dest=&amt=`).
+ *
+ * Fail-closed: if the caller supplies *any* of the three params it must supply a
+ * complete, valid tuple — otherwise we reject (`invalid`) rather than silently
+ * falling back to the seeded persona transfer (which would fire an unintended
+ * demo transfer). Only when *none* are present do we return `none` so the caller
+ * uses the persona fallback.
  */
-function userTransferParams(url: URL): ApiTransferParams | null {
-  const sourceProgramId = url.searchParams.get("src")?.trim();
-  const destProgramId = url.searchParams.get("dest")?.trim();
-  const amountPoints = Number(url.searchParams.get("amt"));
-  if (!sourceProgramId || !destProgramId) return null;
-  return { sourceProgramId, destProgramId, amountPoints };
+function parseUserTransfer(url: URL): TransferParse {
+  const rawSrc = url.searchParams.get("src");
+  const rawDest = url.searchParams.get("dest");
+  const rawAmt = url.searchParams.get("amt");
+  if (rawSrc === null && rawDest === null && rawAmt === null) return { kind: "none" };
+
+  const sourceProgramId = rawSrc?.trim() ?? "";
+  const destProgramId = rawDest?.trim() ?? "";
+  const amountPoints = Number(rawAmt);
+  if (!sourceProgramId || !destProgramId) {
+    return { kind: "invalid", message: "Transfer requires both a source and destination program." };
+  }
+  if (sourceProgramId === destProgramId) {
+    return { kind: "invalid", message: "Transfer source and destination must differ." };
+  }
+  if (!Number.isFinite(amountPoints) || amountPoints <= 0) {
+    return { kind: "invalid", message: "Transfer amount must be a positive number." };
+  }
+  return { kind: "ok", params: { sourceProgramId, destProgramId, amountPoints } };
 }
 
 /**
@@ -59,9 +81,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: cardsError }, { status: 400 });
   }
   const isReplan = url.searchParams.get("replan") === "1";
-  const transfer = userTransferParams(url);
-  if (isReplan && transfer && !(transfer.amountPoints > 0)) {
-    return NextResponse.json({ error: "Transfer amount must be a positive number." }, { status: 400 });
+  const transfer = parseUserTransfer(url);
+  if (isReplan && transfer.kind === "invalid") {
+    return NextResponse.json({ error: transfer.message }, { status: 400 });
   }
 
   const encoder = new TextEncoder();
@@ -79,9 +101,12 @@ export async function GET(request: Request) {
 
       try {
         if (isReplan) {
-          // User-entered transfer wins; otherwise fall back to the seeded
-          // persona's scripted transfer (the original demo trigger).
-          const params = transfer ?? transferParamsFromPersona(await getSession(token));
+          // A valid user-entered transfer wins; with none supplied, fall back to
+          // the seeded persona's scripted transfer (the original demo trigger).
+          const params =
+            transfer.kind === "ok"
+              ? transfer.params
+              : transferParamsFromPersona(await getSession(token));
           const transferResult = await balanceTransfer(params, token);
 
           if (!transferResult.staledPlanId) {

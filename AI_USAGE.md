@@ -744,8 +744,6 @@ plus an Option B contracts doc-fix.
 
 ### Deferred / pending
 
-- Tests for the user-driven replan feature (control submits with `src/dest/amt`;
-  summary shows removed step + balance delta + revision badges) — not yet written.
 - Presentation artifacts (Phase 5: diagrams, narration, screenshots) — intentionally
   omitted at user direction ("no demo things").
 - Claims 2/3/4 remain blocked on the orchestrator backend; the UI will populate the
@@ -754,3 +752,69 @@ plus an Option B contracts doc-fix.
 ### Secrets
 
 No secrets recorded. No `.env` read; tokens never logged.
+
+---
+
+## Entry 011 — Real benchmark report tabs + review hardening (2026-06-27)
+
+**Task:** Replace the fabricated baselines/benchmark comparison constants with a
+captured **real** benchmark report, and resolve a code-review pass on the
+demo-observability + replan work.
+**Branch:** `chore/option-b-shared-baseline`
+**Production code changed:** Yes (frontend + one Python report generator; no Hono
+routes, no backend contracts)
+
+### Benchmark report (replaces fabricated metrics)
+
+- `scripts/build_benchmark_report.py` (NEW) — runs the fixture-backed typed scorer
+  (`benchmark.person_c_scorer`, real, no key) and merges committed LLM-baseline
+  reports if present; emits `lib/benchmark/architecture-comparison.json`. Baselines
+  with no report are `not_run` (never fabricated). Tolerant of empty/partial files.
+- `lib/benchmark/report.ts` (NEW) — typed loader for the captured report.
+- `components/onboarding/{BenchmarkView,ContrastView}.tsx` — rewired to render the
+  real report (typed measured: accuracy 30/30, 0 hallucinations, invalidation 5/5;
+  baselines show `not run` + the command to produce them). Dropped the
+  `deriveComparison` constants and invented accuracy/hallucination fixtures.
+- Token-cost row omitted: needs LLM-in-loop + `agent_runs.token_count` (deferred).
+- To fill baselines: `OPENAI_API_KEY=... python -m benchmark.single_agent_baseline
+  > benchmark/reports/single_agent_llm_baseline.json` (and the free-text baseline),
+  then re-run the generator. The plan-tab header "tokens vs baseline" chip is still
+  the old illustrative estimate — flagged for a follow-up.
+
+### Code-review fixes (verified against current code)
+
+- `lib/api/activity-adapter.ts` — `runId` now uses `event_id` (unique per row) so
+  several mutations from one `agent_run_id` can't collide React keys.
+- `components/onboarding/AgentActivityLive.tsx` — dedupe streamed events by
+  `event_id` so EventSource auto-reconnect can't replay/duplicate rows.
+- `app/api/plan/stream/route.ts` — `parseUserTransfer` is **fail-closed**: any
+  partial/invalid/same-source/non-positive user tuple → 400, never a silent persona
+  fallback; persona fallback only when no transfer params are present.
+- `components/onboarding/AgentConsole.tsx` — transfer flow reads/refreshes
+  `liveBalances` (refetched from `/api/me` after each replan) instead of the stale
+  prop, and a synchronous in-flight guard prevents double-submit launching two
+  replans.
+
+### Tests added/updated
+
+- Replan flow (AgentConsole): control visibility, same-src/dest + over-balance
+  validation, query-param forwarding, summary (removed step + before→after deltas +
+  revision badges).
+- `AgentActivityLive`: SSE setup, append, dedupe on replay, open/error phases,
+  unmount cleanup.
+- Adapter: `event_id` row identity, `committed_at`→`endedAt`.
+- Route: user-transfer precedence over persona, fail-closed 400 cases, persona-only
+  fallback.
+- Benchmark loader + both tab components (report-driven).
+
+### Validation
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` (web) | ✓ clean (2 pre-existing pg-env warnings filtered) |
+| `npx vitest run` (web) | ✓ 191 passed |
+| `python scripts/build_benchmark_report.py` | ✓ typed measured; baselines not_run |
+
+### Secrets
+
+No secrets recorded. No `.env` read; API keys never logged or committed.

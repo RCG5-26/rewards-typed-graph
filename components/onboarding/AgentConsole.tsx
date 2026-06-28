@@ -127,10 +127,15 @@ export default function AgentConsole({
   const [transferAmt, setTransferAmt] = useState("");
   const [transferError, setTransferError] = useState<string | null>(null);
   const [replanSummary, setReplanSummary] = useState<ReplanSummary | null>(null);
+  // Live balances: seeded from the prop, refreshed from /api/me after each replan
+  // so repeat transfers validate/snapshot against current (not stale) balances.
+  const [liveBalances, setLiveBalances] = useState<UserBalance[]>(balances);
   // Prior-revision snapshot captured at submit, resolved into a summary on `done`.
   const priorRef = useRef<{ steps: PlanStep[]; balances: UserBalance[]; src: string; dest: string } | null>(null);
   // Latest streamed steps — the `done` closure can't read `steps` state directly.
   const stepsRef = useRef<PlanStep[]>([]);
+  // Synchronous guard so a double-click can't launch two replan streams.
+  const replanInFlightRef = useRef(false);
 
   const esRef = useRef<EventSource | null>(null);
   const mutEsRef = useRef<EventSource | null>(null);
@@ -206,11 +211,15 @@ export default function AgentConsole({
       doneRef.current = true;
       es.close();
       // Keep mutEs open so replan mutations continue to arrive if triggered.
-      if (replan && priorRef.current) void resolveReplanSummary();
+      if (replan) {
+        replanInFlightRef.current = false; // allow the next transfer
+        if (priorRef.current) void resolveReplanSummary();
+      }
     });
 
     es.addEventListener("error", () => {
       if (!doneRef.current) setStatus("failed");
+      replanInFlightRef.current = false; // release the guard on failure too
       es.close();
     });
   }
@@ -225,7 +234,10 @@ export default function AgentConsole({
     let after: UserBalance[] = prior.balances;
     try {
       const graph = await fetch("/api/me").then((r) => (r.ok ? r.json() : null));
-      if (graph && isUserGraph(graph)) after = graph.balances;
+      if (graph && isUserGraph(graph)) {
+        after = graph.balances;
+        setLiveBalances(graph.balances); // refresh so the next transfer uses current balances
+      }
     } catch {
       // Network hiccup: fall back to the pre-transfer balances (delta shows 0).
     }
@@ -250,6 +262,7 @@ export default function AgentConsole({
 
   /** Validate the transfer form, snapshot the prior revision, and fire the replan. */
   function submitTransfer() {
+    if (replanInFlightRef.current) return; // guard against double-submit
     const amt = Number(transferAmt);
     if (!transferSrc || !transferDest) {
       setTransferError("Pick a source and destination program.");
@@ -263,17 +276,24 @@ export default function AgentConsole({
       setTransferError("Enter a positive amount.");
       return;
     }
-    const srcBalance = balances.find((b) => b.programId === transferSrc);
+    const srcBalance = liveBalances.find((b) => b.programId === transferSrc);
     if (srcBalance && amt > srcBalance.balancePoints) {
       setTransferError(`Only ${srcBalance.balancePoints.toLocaleString()} ${srcBalance.currencyName} available.`);
       return;
     }
     setTransferError(null);
     setReplanSummary(null);
-    priorRef.current = { steps, balances, src: transferSrc, dest: transferDest };
+    replanInFlightRef.current = true;
+    priorRef.current = { steps, balances: liveBalances, src: transferSrc, dest: transferDest };
     setTransferOpen(false);
     openStream(true, { src: transferSrc, dest: transferDest, amt });
   }
+
+  // Adopt a new balances prop (e.g. after a reset) unless we already have fresher
+  // balances from a replan refetch this session.
+  useEffect(() => {
+    setLiveBalances((curr) => (curr.length === 0 ? balances : curr));
+  }, [balances]);
 
   // Open the initial stream once.
   useEffect(() => {
@@ -411,11 +431,11 @@ export default function AgentConsole({
 
       {view === "baselines" ? (
         <div className="flex min-h-[360px] flex-1 flex-col">
-          <ContrastView metrics={liveMetrics} />
+          <ContrastView />
         </div>
       ) : view === "benchmark" ? (
         <div className="flex min-h-[360px] flex-1 flex-col">
-          <BenchmarkView metrics={liveMetrics} />
+          <BenchmarkView />
         </div>
       ) : failed && steps.length === 0 ? (
         <div className="flex min-h-[320px] flex-1 items-center justify-center rounded-card bg-surface text-sm text-error-fg shadow-raised">
@@ -544,7 +564,7 @@ export default function AgentConsole({
                     multi-step · per-step reasoning{revision > 1 ? ` · revision ${revision}` : ""}
                   </div>
                 </div>
-                {balances.length > 0 && (
+                {liveBalances.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -561,7 +581,7 @@ export default function AgentConsole({
               </div>
               {transferOpen && (
                 <TransferForm
-                  balances={balances}
+                  balances={liveBalances}
                   src={transferSrc}
                   dest={transferDest}
                   amt={transferAmt}

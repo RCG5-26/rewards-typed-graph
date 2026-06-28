@@ -98,7 +98,12 @@ def run_free_text_multiagent_baseline(
     fixture = load_fixture(fixture_path)
     benchmark = load_fixture(cases_path)
     cases = benchmark["cases"][:limit] if limit is not None else benchmark["cases"]
-    case_results = [_run_case(llm_client, fixture, case) for case in cases]
+    # Progress to stderr (stdout stays the clean JSON report). The free-text
+    # baseline makes several LLM calls per case, so it is the slowest run.
+    case_results = []
+    for index, case in enumerate(cases, start=1):
+        print(f"[free-text] {index}/{len(cases)} {case['case_id']}", file=sys.stderr, flush=True)
+        case_results.append(_run_case(llm_client, fixture, case))
     token_cost_total = sum(result["token_cost_total"] for result in case_results)
 
     return {

@@ -20,17 +20,20 @@ import AgentActivity from "./AgentActivity";
 export default function AgentActivityLive({ title }: { title?: string }) {
   const [events, setEvents] = useState<RealMutationEvent[]>([]);
   const [phase, setPhase] = useState<ActivityPhase>("loading");
-  const cursorRef = useRef("0");
   const esRef = useRef<EventSource | null>(null);
+  // event_ids already appended — guards against EventSource auto-reconnect
+  // replaying rows we've already shown (the proxy resends from the query cursor).
+  const seenRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const es = new EventSource(`/api/mutations/stream?after=${cursorRef.current}`);
+    const es = new EventSource(`/api/mutations/stream?after=0`);
     esRef.current = es;
 
     es.addEventListener("graph_mutation", (ev) => {
       const event = JSON.parse((ev as MessageEvent).data) as RealMutationEvent;
-      cursorRef.current = event.event_id;
       setPhase("ready");
+      if (seenRef.current.has(event.event_id)) return; // drop replays
+      seenRef.current.add(event.event_id);
       setEvents((prev) => [...prev, event]);
     });
 

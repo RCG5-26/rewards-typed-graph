@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-06-28T02:10:07Z",
+  "benchmarkId": "person-c-mvp-redemption-v1",
+  "fixtureId": "person-c-mvp-tokyo-hyatt-v1",
+  "evaluatorVersion": "person-c-offline-scorer-v1",
+  "caseCount": 30,
+  "note": "Captured real benchmark evidence. Typed-graph metrics are scored live by the fixture-backed scorer; LLM baselines require a paid key and are marked not_run until their report files exist under benchmark/reports/.",
+  "architectures": [
+    {
+      "key": "typed_graph_fixture",
+      "label": "Typed graph",
+      "status": "measured",
+      "caseCount": 30,
+      "accuracyRate": 1.0,
+      "accuracyPassed": 30,
+      "accuracyTotal": 30,
+      "hallucinationCount": 0,
+      "hallucinationRate": 0.0,
+      "invalidationRate": 1.0,
+      "invalidationPassed": 5,
+      "invalidationTotal": 5,
+      "tokenCostTotal": null
+    },
+    {
+      "key": "free_text_multiagent_baseline",
+      "label": "CrewAI (free-text)",
+      "status": "not_run",
+      "run": "OPENAI_API_KEY=... python -m benchmark.free_text_multiagent_baseline > benchmark/reports/free_text_multiagent_baseline.json"
+    },
+    {
+      "key": "single_agent_llm_baseline",
+      "label": "Single agent",
+      "status": "not_run",
+      "run": "OPENAI_API_KEY=... python -m benchmark.single_agent_baseline > benchmark/reports/single_agent_llm_baseline.json"
+    }
+  ]
+}

@@ -83,7 +83,9 @@ function lifecycleTransition(type: string): PlanLifecycleEntry["transition"] {
 function specialistEntry(event: RealMutationEvent): SpecialistRunEntry {
   const entry: SpecialistRunEntry = {
     kind: "specialist_run",
-    runId: event.agent_run_id ?? event.event_id,
+    // event_id is unique per mutation row, so it is the stable React key even
+    // when one agent_run_id emits several mutations (which would collide).
+    runId: event.event_id,
     specialist: specialistForMutation(event.mutation_type),
     operation: event.mutation_type,
     operationLabel: operationLabel(event.mutation_type),

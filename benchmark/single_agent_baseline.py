@@ -87,6 +87,7 @@ class OpenAIChatCompletionsClient:
         model: str,
         api_url: str = DEFAULT_API_URL,
         timeout_seconds: int = 60,
+        temperature: float | None = None,
     ) -> None:
         if not api_key.strip():
             raise BaselineConfigError(f"{API_KEY_ENV} must be non-empty")
@@ -94,6 +95,9 @@ class OpenAIChatCompletionsClient:
         self.model = model
         self.api_url = api_url
         self.timeout_seconds = timeout_seconds
+        # Omitted from the request when None (uses the model default). Newer
+        # models (gpt-5 / o-series) only accept the default temperature.
+        self.temperature = temperature
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "OpenAIChatCompletionsClient":
@@ -110,23 +114,34 @@ class OpenAIChatCompletionsClient:
             raise BaselineConfigError(
                 f"SINGLE_AGENT_BASELINE_TIMEOUT_SECONDS must be an integer, got {timeout_raw!r}"
             ) from error
+        temperature_raw = source.get("SINGLE_AGENT_BASELINE_TEMPERATURE", "").strip()
+        temperature: float | None = None
+        if temperature_raw:
+            try:
+                temperature = float(temperature_raw)
+            except ValueError as error:
+                raise BaselineConfigError(
+                    f"SINGLE_AGENT_BASELINE_TEMPERATURE must be a number, got {temperature_raw!r}"
+                ) from error
         return cls(
             api_key=api_key,
             model=source.get("SINGLE_AGENT_BASELINE_MODEL", DEFAULT_MODEL),
             api_url=source.get("SINGLE_AGENT_BASELINE_API_URL", DEFAULT_API_URL),
             timeout_seconds=timeout_seconds,
+            temperature=temperature,
         )
 
     def complete_json(self, *, system_prompt: str, user_prompt: str) -> LLMResponse:
-        payload = {
+        payload: dict[str, object] = {
             "model": self.model,
-            "temperature": 0,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
         request = urllib.request.Request(
             self.api_url,
             data=json.dumps(payload).encode("utf-8"),
@@ -174,7 +189,12 @@ def run_single_agent_baseline(
     fixture = load_fixture(fixture_path)
     benchmark = load_fixture(cases_path)
     cases = benchmark["cases"][:limit] if limit is not None else benchmark["cases"]
-    case_results = [_run_case(llm_client, fixture, case) for case in cases]
+    # Progress to stderr (stdout stays the clean JSON report) — one LLM call per
+    # case runs sequentially, so without this the run looks frozen.
+    case_results = []
+    for index, case in enumerate(cases, start=1):
+        print(f"[single-agent] {index}/{len(cases)} {case['case_id']}", file=sys.stderr, flush=True)
+        case_results.append(_run_case(llm_client, fixture, case))
     token_cost_total = sum(result["token_cost_total"] for result in case_results)
 
     return {
