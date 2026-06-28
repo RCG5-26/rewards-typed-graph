@@ -13,6 +13,10 @@ const FAKE_BRIDGE = fileURLToPath(
 
 const USER_ID = "00000000-0000-0000-0000-00000000a001";
 
+// Each case spawns a node subprocess; under full-suite parallel load cold spawns
+// can exceed vitest's 5s default (see issue #57).
+const SUBPROCESS_TIMEOUT_MS = 30_000;
+
 /** Drive the adapter against the fake bridge instead of the real Python script. */
 function buildProjection(overrides: { pythonBin?: string } = {}): BridgePlanProjection {
   return new BridgePlanProjection({
@@ -22,7 +26,7 @@ function buildProjection(overrides: { pythonBin?: string } = {}): BridgePlanProj
   });
 }
 
-describe("BridgePlanProjection (Phase 2 — production PlanProjectionPort over read-plan)", () => {
+describe("BridgePlanProjection (Phase 2 — production PlanProjectionPort over read-plan)", { timeout: SUBPROCESS_TIMEOUT_MS }, () => {
   it("projects a persisted plan into a runtime-validated PlanView", async () => {
     const projection = buildProjection();
 
