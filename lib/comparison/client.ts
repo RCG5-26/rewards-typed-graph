@@ -1,6 +1,10 @@
 import "server-only";
 
-import type { ArchitectureComparisonResponse, TestWalletsResponse } from "./types";
+import type {
+  ArchitectureComparisonResponse,
+  DemoSimulateTransferResponse,
+  TestWalletsResponse,
+} from "./types";
 
 /**
  * Server-only client for the public demo comparison endpoints. These Hono routes
@@ -55,5 +59,23 @@ export async function runArchitectureComparison(
     "/demo/architecture-comparison",
     { method: "POST", body: JSON.stringify({ walletId }) },
     COMPARISON_PROXY_TIMEOUT_MS,
+  );
+}
+
+/** Apply the canonical hero-demo transfer and return revision 2 for the graph card. */
+export async function simulateDemoTransfer(
+  walletId: string,
+  idempotencyKey?: string,
+): Promise<DemoSimulateTransferResponse> {
+  return publicFetch<DemoSimulateTransferResponse>(
+    "/demo/simulate-transfer",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        walletId,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+      }),
+    },
+    60_000,
   );
 }

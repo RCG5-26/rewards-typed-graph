@@ -95,4 +95,6 @@ export interface BalanceTransferResult {
   staledPlanId: string | null;
   replanJobId: string | null;
   currentPlan: PlanView;
+  /** True when the same idempotency key replayed an already-applied transfer. */
+  idempotencyReplayed?: boolean;
 }

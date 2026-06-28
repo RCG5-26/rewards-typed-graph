@@ -172,3 +172,27 @@ export interface PublicWalletFacts {
 export interface TestWalletsResponse {
   wallets: PublicWalletFacts[];
 }
+
+/** Mirror of `apps/api/src/comparison/simulate-transfer.ts` response. */
+export interface DemoSimulateTransferResponse {
+  walletId: string;
+  walletVersion: string;
+  idempotencyReplayed: boolean;
+  transfer: {
+    sourceProgramId: string;
+    destProgramId: string;
+    amountPoints: number;
+  };
+  replanJobId: string | null;
+  staledPlanId: string | null;
+  currentPlan: {
+    planId: string;
+    planLineageId: string;
+    revisionNumber: number;
+    status: string;
+    query: string;
+    summary: string | null;
+    steps: Array<{ order: number; type: string; summary: string; status: string }>;
+  };
+  graphResult: ArchitectureComparisonResult;
+}

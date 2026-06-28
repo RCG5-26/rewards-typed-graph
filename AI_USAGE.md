@@ -1660,3 +1660,104 @@ attempted Stages 2–6 live verification.
 `THREE-WAY LIVE COMPARISON BLOCKED` — all six review fixes shipped and
 offline-verified (290 API + 206 web + 13 Python tests green); live execution
 remains blocked on credentials/DB/runtime in this worktree.
+
+---
+
+## Entry 017 — Final Integration + Live Demo Verification (2026-06-28)
+
+**Task:** Merge Person A orchestrator-replan + Person B three-way comparison on
+`demo/final-integration`, verify live PostgreSQL + live OpenAI + browser hero flow.
+**Branch:** `demo/final-integration` (worktree `gpFree`).
+**Production code changed:** Yes — simulate-transfer demo route, Test Wallets replan
+button, `force-dynamic` root layout, `idempotencyReplayed` on transfer result.
+
+### Integration SHAs
+
+| Item | SHA |
+|---|---|
+| Starting base (Person A tip before merge) | `ffcbab6` |
+| Person A | `9208f5c`, `501df8f`, `6216609`, `ffcbab6` |
+| Person B (merge parent) | `37e9079` |
+| Integration merge | `2c080f2` |
+| Post-merge live wiring (this session) | uncommitted → commit below |
+
+**Conflict resolution:** Only `AI_USAGE.md` (concatenated both lanes). Manual
+`app.ts` patch: `planEngine: deps.planEngine` + `replanService: deps.planService`
+on comparison routes.
+
+### Tools used
+- Cursor agent (Claude) via `/ce-work`.
+- Live PostgreSQL 14 (local `.localpg`, DB `rewards_comparison`).
+- Live OpenAI (rotated key; user confirmed revocation/rotation).
+- Browser MCP (accessibility snapshots + CDP viewport fix).
+- `vitest`, `tsc`, `python3.12 unittest`, `next build`, `curl`, `psql`.
+
+### Key decisions
+1. **Simulate-transfer wiring:** Person B left the button disabled pending Person A
+   replan; after live replan verified, added `POST /demo/simulate-transfer` (Hono +
+   Next proxy) calling `transferBalance` for `CANONICAL_GRAPH_USER_ID` with derived
+   15k Chase→Hyatt transfer; UI enables after graph comparison succeeds.
+2. **`idempotencyReplayed` on `BalanceTransferResult`:** surfaces replay for UI +
+   duplicate-click gate without inferring from null job id alone.
+3. **`force-dynamic` on root layout:** fixes production build for all real app
+   routes under Clerk; residual Next auto-generated `/404`+`/500` prerender quirk
+   remains pre-existing.
+4. **Orchestrator env:** Python write bridge needs `PGHOST`/`PGPORT`/`PGUSER`/
+   `PGPASSWORD`/`PGDATABASE` (not just `DATABASE_URL`) — documented in runbook.
+
+### Validation totals
+
+| Check | Result |
+|---|---|
+| API typecheck | ✓ |
+| Web typecheck | ✓ (after faithful `npm ci` removed stray `@types/pg`) |
+| API suite (serial) | ✓ 310 passed |
+| Web suite | ✓ 206 passed |
+| Python 3.12 (clean env) | ✓ 230 passed / 10 live-skipped / 0 fail |
+| Comparison + simulate tests | ✓ 14 route + 5 component new |
+| Live graph / single / chat seams | ✓ |
+| Runtime equivalence | ✓ `RUNTIME INPUTS PROVEN EQUIVALENT` |
+| Aggregate endpoint + partial failure | ✓ (unit test + live) |
+| Live replan + duplicate replay (API) | ✓ |
+| Browser hero flow | ✓ landing → facts → compare → simulate → rev2 → replay |
+| Production build | **PARTIAL** — 7/7 real routes; Next infra `/404`+`/500` only |
+| Secret scan | ✓ no literals in tracked files; `.env` gitignored |
+
+### Browser evidence (live)
+- Canonical facts visible: Chase 180k, Hyatt 30k, United 30k, Ginza 45k, Chase→Hyatt 1:1.
+- Three cards after comparison (graph transfer step rev1; chat 9k+ tokens; single ~2.2k tokens).
+- Simulate: balances → Chase 165k / Hyatt 45k; panel "Revision 2 is now current"; transfer step removed.
+- Duplicate click: "Idempotent replay detected — revision 2 remains current"; balances unchanged.
+
+### Exact demo runbook
+```bash
+# 1. Postgres + seed
+#    DB: rewards_comparison  user/pass: rewards/rewards  (PG14+ compatible)
+python3.12 scripts/ensure_schema_seed.py  # with DATABASE_URL set
+
+# 2. API (apps/api) — required env NAMES (set values locally, never commit):
+#    DATABASE_URL, PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE=rewards_comparison
+#    PLAN_ENGINE=orchestrator, AUTH_DEV_USER_ID, RUN_LIVE_POSTGRES_TESTS=1
+#    PYTHON_BIN=python3.12, OPENAI_API_KEY, CORS_ORIGIN=http://localhost:3000
+npm run dev   # port 8787
+
+# 3. Web (repo root) — NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY, CLERK_SECRET_KEY, API_BASE_URL
+npm run dev   # port 3000
+
+# 4. Browser: http://localhost:3000/ → Start Optimizing → Test Wallets
+#    Run comparison → Simulate completed transfer → Repeat (idempotent replay)
+
+# 5. Reset between full demos:
+curl -X POST http://localhost:8787/demo/reset
+```
+
+### Backup recording status
+Not performed in this session (no screen capture tooling invoked).
+
+### Verdict
+`FINAL LIVE DEMO VERIFIED` — merged stack runs live against PostgreSQL +
+OpenAI; browser hero flow including simulate transfer and idempotent replay
+succeeded. Residual: production build `/404`+`/500` prerender (pre-existing Next
+infra); PG16-only Python artifact tests skip on PG14; demo runbook requires full
+`PG*` env set for orchestrator subprocesses.
+

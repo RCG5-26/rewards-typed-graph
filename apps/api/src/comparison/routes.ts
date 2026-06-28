@@ -16,6 +16,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
 import { type AuthEnv } from "../http/auth";
+import type { PlanService } from "../plans/service";
 import {
   APPROVED_WALLET_IDS,
   CANONICAL_QUERY,
@@ -23,6 +24,7 @@ import {
   isApprovedWalletId,
 } from "./canonical-wallet";
 import { type ComparisonDeps, runArchitectureComparison } from "./run-comparison";
+import { runDemoSimulateTransfer } from "./simulate-transfer";
 
 export function createComparisonRoutes(deps: ComparisonDeps) {
   const app = new Hono<AuthEnv>();
@@ -43,6 +45,26 @@ export function createComparisonRoutes(deps: ComparisonDeps) {
     const query = parseQuery(body);
     const response = await runArchitectureComparison(walletId, query, deps);
     return c.json(response);
+  });
+
+  app.post("/demo/simulate-transfer", async (c) => {
+    const body = await readJsonBody(c.req.raw);
+    const walletId = parseWalletId(body);
+    const replanService = deps.replanService ?? (deps.graphService as PlanService);
+    const idempotencyKey = parseOptionalIdempotencyKey(body);
+    try {
+      const response = await runDemoSimulateTransfer(walletId, {
+        replanService,
+        planEngine: deps.planEngine,
+      }, idempotencyKey);
+      return c.json(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("PLAN_ENGINE=") || message.includes("requires PLAN_ENGINE")) {
+        throw new HTTPException(503, { message });
+      }
+      throw new HTTPException(400, { message });
+    }
   });
 
   return app;
@@ -86,4 +108,13 @@ function parseQuery(body: Record<string, unknown>): string {
   throw new HTTPException(400, {
     message: "query is fixed for this demo; omit it or send the exact canonical query",
   });
+}
+
+function parseOptionalIdempotencyKey(body: Record<string, unknown>): string | undefined {
+  const key = body.idempotencyKey;
+  if (key === undefined) return undefined;
+  if (typeof key !== "string" || key.trim().length === 0) {
+    throw new HTTPException(400, { message: "idempotencyKey must be a non-empty string when provided" });
+  }
+  return key.trim();
 }

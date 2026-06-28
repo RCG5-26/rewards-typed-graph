@@ -82,6 +82,7 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
     createComparisonRoutes({
       graphService: deps.planService,
       planEngine: deps.planEngine,
+      replanService: deps.planService,
     }),
   );
 

@@ -7,6 +7,7 @@ import { createComparisonRoutes } from "./routes";
 import type { ComparisonDeps } from "./run-comparison";
 import type { ArchitectureComparisonResponse } from "./types";
 import type { PlanView } from "../plans/types";
+import type { PlanService } from "../plans/service";
 
 const GINZA_SLUG = "award:demo_hyatt_ginza:tokyo:3n";
 const CHASE = "00000000-0000-0000-0000-00000000b001";
@@ -74,7 +75,14 @@ function baselineReport(architecture: string): BaselineReport {
 const happyReport: RunBaselineReport = async (module) => baselineReport(module);
 
 function deps(overrides: Partial<ComparisonDeps> = {}): ComparisonDeps {
-  return { graphService, planEngine: "orchestrator", runReport: happyReport, env: {}, ...overrides };
+  return {
+    graphService,
+    planEngine: "orchestrator",
+    replanService: graphService as unknown as PlanService,
+    runReport: happyReport,
+    env: {},
+    ...overrides,
+  };
 }
 
 async function postComparison(d: ComparisonDeps, body: unknown) {
@@ -222,5 +230,93 @@ describe("POST /demo/architecture-comparison", () => {
       body: "not json",
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("POST /demo/simulate-transfer", () => {
+  function rev2View(): PlanView {
+    return {
+      ...graphView(),
+      planId: "plan-2",
+      revisionNumber: 2,
+      summary: "Redeem Ginza with updated Hyatt balance.",
+      steps: [
+        {
+          order: 1,
+          type: "redemption_recommendation",
+          summary: "Redeem the Ginza award",
+          reasoning: "Hyatt balance now covers the award.",
+          status: "current",
+          dependsOn: [],
+          dependencies: [],
+        },
+      ],
+      graph: {
+        nodes: graphView().graph.nodes,
+        edges: [{ id: "e2", from: "n-hyatt", to: "n-award", kind: "redeem" }],
+      },
+    };
+  }
+
+  const replanService: PlanService = {
+    getSession: async () => ({ userId: "u", clerkId: null, seeded: true }),
+    resetDemo: async () => ({ userId: "u", clerkId: null, seeded: true }),
+    createPlan: graphService.createPlan,
+    getPlanById: async () => rev2View(),
+    getCurrentPlan: async () => rev2View(),
+    transferBalance: async () => ({
+      planLineageId: "lineage-1",
+      staledPlanId: "plan-1",
+      replanJobId: "job-1",
+      currentPlan: rev2View(),
+      idempotencyReplayed: false,
+    }),
+  };
+
+  it("returns revision 2 graph result for the canonical transfer", async () => {
+    const app = createComparisonRoutes(deps({ replanService }));
+    const response = await app.request("/demo/simulate-transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walletId: "transfer-required" }),
+    });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      transfer: { amountPoints: number };
+      currentPlan: { revisionNumber: number };
+      graphResult: { variant: string; status: string };
+      idempotencyReplayed: boolean;
+    };
+    expect(json.transfer.amountPoints).toBe(15000);
+    expect(json.currentPlan.revisionNumber).toBe(2);
+    expect(json.graphResult.variant).toBe("live-graph-orchestrator");
+    expect(json.graphResult.status).toBe("succeeded");
+    expect(json.idempotencyReplayed).toBe(false);
+  });
+
+  it("surfaces idempotent replay without a new replan job", async () => {
+    const replayService: PlanService = {
+      ...replanService,
+      transferBalance: async () => ({
+        planLineageId: "lineage-1",
+        staledPlanId: "plan-1",
+        replanJobId: null,
+        currentPlan: rev2View(),
+        idempotencyReplayed: true,
+      }),
+    };
+    const app = createComparisonRoutes(deps({ replanService: replayService }));
+    const response = await app.request("/demo/simulate-transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        walletId: "transfer-required",
+        idempotencyKey: "same-key",
+      }),
+    });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { idempotencyReplayed: boolean; replanJobId: null };
+    expect(json.idempotencyReplayed).toBe(true);
+    expect(json.replanJobId).toBeNull();
   });
 });

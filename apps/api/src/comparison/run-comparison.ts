@@ -12,6 +12,7 @@ import { runChatCrew, runSingleAgent } from "./adapters/baseline-adapter";
 import type { RunBaselineReport } from "./adapters/baseline-bridge";
 import { evaluatePlan } from "./evaluator";
 import type { PlanEngineKind } from "../plans/engine-selector";
+import type { PlanService } from "../plans/service";
 import type {
   ArchitectureComparisonResponse,
   ArchitectureComparisonResult,
@@ -39,6 +40,11 @@ export interface ComparisonDeps {
    * patch to supply it (Fix 6); until then the graph fails closed, not silent.
    */
   planEngine?: PlanEngineKind;
+  /**
+   * Full plan service for demo replan simulate. Defaults to the same instance as
+   * `graphService` when wired from `app.ts`.
+   */
+  replanService?: PlanService;
   /** Graph persona; defaults to the canonical demo user inside the adapter. */
   graphUserId?: string;
   /** Injected for tests; defaults to the real Python subprocess. */

@@ -53,6 +53,7 @@ function response(): ArchitectureComparisonResponse {
         query: WALLET.query,
         plan: { summary: "Graph plan.", goalSatisfied: true, transferRequired: true, transferAmount: 15000, steps: [] },
         metrics: { latencyMs: 10400 },
+        evidence: { lineageId: "lineage-1", planId: "plan-1", revisionNumber: 1 },
       },
       {
         variant: "chat-crew",
@@ -84,10 +85,65 @@ describe("TestWalletComparison", () => {
     expect(screen.getAllByText(/Not started/i).length).toBe(3);
   });
 
-  it("gates the replan button until Person A verifies (disabled, no claim it works)", () => {
+  it("enables the replan button after a successful comparison", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
     const replan = screen.getByText(/Simulate completed transfer/i) as HTMLButtonElement;
     expect(replan.disabled).toBe(true);
+  });
+
+  it("simulates the canonical transfer and updates the graph card", async () => {
+    const comparison = response();
+    const simulate = {
+      walletId: "transfer-required",
+      walletVersion: "demo-seed-v1",
+      idempotencyReplayed: false,
+      transfer: {
+        sourceProgramId: "p-chase",
+        destProgramId: "p-hyatt",
+        amountPoints: 15000,
+      },
+      replanJobId: "job-1",
+      staledPlanId: "plan-1",
+      currentPlan: {
+        planId: "plan-2",
+        planLineageId: "lineage-1",
+        revisionNumber: 2,
+        status: "current",
+        query: WALLET.query,
+        summary: "Redeem Ginza.",
+        steps: [{ order: 1, type: "redemption_recommendation", summary: "Redeem Ginza", status: "current" }],
+      },
+      graphResult: {
+        ...comparison.results[0],
+        plan: {
+          summary: "Redeem Ginza after transfer.",
+          goalSatisfied: true,
+          transferRequired: false,
+          steps: [],
+        },
+        evidence: { ...comparison.results[0].evidence, revisionNumber: 2 },
+      },
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => comparison })
+      .mockResolvedValueOnce({ ok: true, json: async () => simulate });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TestWalletComparison wallets={[WALLET]} />);
+    fireEvent.click(screen.getByText("Run comparison"));
+    await waitFor(() => expect(screen.getAllByText("Succeeded").length).toBe(2));
+
+    const replan = screen.getByText(/Simulate completed transfer/i) as HTMLButtonElement;
+    expect(replan.disabled).toBe(false);
+    fireEvent.click(replan);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Revision 2 is now current/i)).toBeTruthy(),
+    );
+    expect(screen.getByText("165,000")).toBeTruthy();
+    expect(screen.getByText("45,000")).toBeTruthy();
   });
 
   it("runs the comparison and renders three independent results", async () => {
