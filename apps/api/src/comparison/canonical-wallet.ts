@@ -25,8 +25,18 @@
 export const CANONICAL_QUERY =
   "What is the best way to use my points for a three-night hotel stay in Tokyo?";
 
-/** Approved wallet ids the comparison endpoint will accept (vertical slice = transfer-required). */
-export const APPROVED_WALLET_IDS = ["transfer-required"] as const;
+/**
+ * Approved wallet ids the comparison endpoint will accept. Each is a distinct
+ * card-combination scenario the user can pick on `/test-wallets`:
+ *  - `transfer-required`  Hyatt < award; a 1:1 Chase→Hyatt transfer closes the gap.
+ *  - `direct-redemption`  Hyatt already covers the award; no transfer needed.
+ *  - `no-feasible-path`   no balance (and no fundable route) covers any award.
+ */
+export const APPROVED_WALLET_IDS = [
+  "transfer-required",
+  "direct-redemption",
+  "no-feasible-path",
+] as const;
 export type ApprovedWalletId = (typeof APPROVED_WALLET_IDS)[number];
 
 /** Live-DB persona that the graph orchestrator plans for (demo-seed-v1). */
@@ -210,9 +220,104 @@ export const TRANSFER_REQUIRED_WALLET: CanonicalWalletFacts = {
   query: CANONICAL_QUERY,
 };
 
+/**
+ * The five cards and two transfer routes are identical across all three
+ * scenarios — only the balances change. Sharing them keeps each scenario's
+ * definition to the one thing that actually differs (its balances), so the
+ * scenarios cannot drift in their card set or routes.
+ */
+const SHARED_CARDS: CanonicalCard[] = TRANSFER_REQUIRED_WALLET.cards;
+const SHARED_TRANSFER_ROUTES: CanonicalTransferRoute[] = TRANSFER_REQUIRED_WALLET.transferRoutes;
+const SHARED_AWARD_OPTIONS: CanonicalAwardOption[] = TRANSFER_REQUIRED_WALLET.awardOptions;
+
+function balance(program: CanonicalProgram, points: number): CanonicalBalance {
+  return {
+    programId: program.programId,
+    programSlug: program.programSlug,
+    programName: program.name,
+    points,
+    version: 1,
+  };
+}
+
+/**
+ * Direct redemption: Hyatt already holds 60k ≥ the 45k Ginza award, so the
+ * planner should redeem directly and NOT add an unnecessary Chase→Hyatt
+ * transfer. Chase and United are zero — there is no flexible balance to spend.
+ */
+export const DIRECT_REDEMPTION_WALLET: CanonicalWalletFacts = {
+  walletId: "direct-redemption",
+  version: "demo-seed-v1",
+  displayName: "Direct Redemption (no transfer needed)",
+  description:
+    "Hyatt balance already funds the Ginza award outright, so the planner should redeem directly and add no transfer.",
+  programs: [CHASE, HYATT, UNITED],
+  cards: SHARED_CARDS,
+  balances: [balance(CHASE, 0), balance(HYATT, 60000), balance(UNITED, 0)],
+  transferRoutes: SHARED_TRANSFER_ROUTES,
+  awardOptions: SHARED_AWARD_OPTIONS,
+  goal: { destination: "Tokyo", category: "hotel_award", nights: 3 },
+  query: CANONICAL_QUERY,
+};
+
+/**
+ * No feasible path: Hyatt 20k < 45k Ginza and United 20k < 60k United award,
+ * and Chase holds 0 — the only routes are Chase→X, so nothing can fund either
+ * award. A correct planner reports infeasibility honestly instead of inventing
+ * a transfer it cannot make.
+ */
+export const NO_FEASIBLE_PATH_WALLET: CanonicalWalletFacts = {
+  walletId: "no-feasible-path",
+  version: "demo-seed-v1",
+  displayName: "No Feasible Path (honest infeasibility)",
+  description:
+    "No balance funds any award and no Chase points exist to transfer, so the planner should report infeasibility rather than hallucinate a plan.",
+  programs: [CHASE, HYATT, UNITED],
+  cards: SHARED_CARDS,
+  balances: [balance(CHASE, 0), balance(HYATT, 20000), balance(UNITED, 20000)],
+  transferRoutes: SHARED_TRANSFER_ROUTES,
+  awardOptions: SHARED_AWARD_OPTIONS,
+  goal: { destination: "Tokyo", category: "hotel_award", nights: 3 },
+  query: CANONICAL_QUERY,
+};
+
 const WALLETS_BY_ID: Record<ApprovedWalletId, CanonicalWalletFacts> = {
   "transfer-required": TRANSFER_REQUIRED_WALLET,
+  "direct-redemption": DIRECT_REDEMPTION_WALLET,
+  "no-feasible-path": NO_FEASIBLE_PATH_WALLET,
 };
+
+/**
+ * Server-only mapping from wallet id to the per-scenario baseline fixture and
+ * gold cases the Python subprocesses read. Kept OUT of {@link CanonicalWalletFacts}
+ * on purpose: those facts are serialized to the browser via `GET /demo/test-wallets`,
+ * and a `benchmark/gold/...` path would both leak baseline plumbing and trip the
+ * "no private gold" guard. Resolving it here keeps the public facts public-only.
+ */
+export interface BaselineFixturePaths {
+  fixturePath: string;
+  casesPath: string;
+}
+
+const BASELINE_FIXTURES_BY_ID: Record<ApprovedWalletId, BaselineFixturePaths> = {
+  "transfer-required": {
+    fixturePath: CANONICAL_BASELINE_FIXTURE_PATH,
+    casesPath: CANONICAL_BASELINE_CASES_PATH,
+  },
+  "direct-redemption": {
+    fixturePath: "fixtures/demo-comparison-direct.json",
+    casesPath: "benchmark/gold/demo-comparison-direct-cases.json",
+  },
+  "no-feasible-path": {
+    fixturePath: "fixtures/demo-comparison-infeasible.json",
+    casesPath: "benchmark/gold/demo-comparison-infeasible-cases.json",
+  },
+};
+
+/** Resolve the baseline fixture + gold cases paths for an approved wallet id. */
+export function getBaselineFixturePaths(walletId: ApprovedWalletId): BaselineFixturePaths {
+  return BASELINE_FIXTURES_BY_ID[walletId];
+}
 
 export function isApprovedWalletId(value: unknown): value is ApprovedWalletId {
   return typeof value === "string" && (APPROVED_WALLET_IDS as readonly string[]).includes(value);
