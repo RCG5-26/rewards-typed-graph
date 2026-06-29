@@ -11,13 +11,29 @@ const PROGRAM_DESCRIPTOR: Record<string, string> = {
   "United MileagePlus": "fly United & Star Alliance partners",
 };
 
+/** Gold EMV chip — shared visual language with the landing hero card. */
+function EmvChip({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`relative block overflow-hidden rounded-md ${className}`}
+      style={{
+        background: "linear-gradient(135deg, var(--card-chip-gold-1), var(--card-chip-gold-2))",
+        boxShadow:
+          "0 1px 2px rgba(0,0,0,0.5), 0 0 0 0.5px rgba(0,0,0,0.3) inset",
+      }}
+      aria-hidden="true"
+    >
+      <span className="absolute bottom-1.5 left-1/2 top-1.5 w-px -translate-x-1/2 bg-[rgba(60,40,10,0.45)]" />
+      <span className="absolute left-1.5 right-1.5 top-1/2 h-px -translate-y-1/2 bg-[rgba(60,40,10,0.45)]" />
+      <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-[rgba(60,40,10,0.4)]" />
+    </span>
+  );
+}
+
 /**
- * A selectable credit-card tile — big and interactive: a pointer-driven 3D tilt
- * with a cursor-tracking glare, spring hover-lift, and an accent glow-ring on
- * select. The gradient `face`/`accent` are presentational (per-card hex, the
- * scoped exception); the chrome is design-system tokens. Cards stagger in via
- * `index`. The outer wrapper owns the entrance so it doesn't fight the tilt
- * transform on the inner surface.
+ * A selectable credit-card tile — premium metal treatment (brushed texture, gold
+ * chip, glint sweep, iris edge glow) matching the landing hero card. Pointer tilt
+ * + cursor glare; icy highlight ring on select.
  */
 export default function CardTile({
   card,
@@ -75,29 +91,61 @@ export default function CardTile({
             : "transform 0.5s var(--spring-snappy, ease), box-shadow 0.28s ease",
           transformStyle: "preserve-3d",
           boxShadow: selected
-            ? `0 0 0 2px ${card.accent}, 0 22px 48px -12px ${card.accent}77, var(--shadow-md)`
-            : "var(--shadow-raised)",
+            ? "0 0 0 2px var(--color-highlight), 0 22px 48px -12px color-mix(in srgb, var(--color-highlight-glow) 55%, transparent), var(--shadow-md)"
+            : "0 14px 32px -10px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.07) inset",
         }}
       >
+        {/* brushed metal texture */}
+        <span
+          className="pointer-events-none absolute inset-0 opacity-50"
+          style={{
+            background:
+              "repeating-linear-gradient(115deg, var(--card-brush-line) 0px, var(--card-brush-line) 1px, transparent 2px, transparent 4px)",
+          }}
+        />
+        {/* diagonal glint sweep */}
+        {!reduced && (
+          <span
+            className="pointer-events-none absolute -top-[30%] left-0 h-[160%] w-[34%] mix-blend-overlay"
+            style={{
+              background: `linear-gradient(90deg, transparent, var(--card-sheen), transparent)`,
+              filter: "blur(5px)",
+              animation: "gp-glint 7.5s ease-in-out 2.4s infinite",
+            }}
+          />
+        )}
+        {/* iris edge glow */}
+        <span
+          className="pointer-events-none absolute inset-0 rounded-2xl"
+          style={{
+            boxShadow: `0 0 28px color-mix(in srgb, var(--card-edge-glow) 60%, transparent) inset`,
+          }}
+        />
         {/* cursor-tracking glare */}
         <span
           className="pointer-events-none absolute inset-0 transition-opacity duration-base"
           style={{
             opacity: tilt.active ? 1 : 0,
-            background: `radial-gradient(420px circle at ${glare.x}% ${glare.y}%, rgba(255,255,255,0.18), transparent 45%)`,
+            background: `radial-gradient(420px circle at ${glare.x}% ${glare.y}%, rgba(255,255,255,0.22), transparent 45%)`,
+            mixBlendMode: "soft-light",
           }}
         />
-        {/* top sheen + accent rail */}
         <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/35 to-transparent" />
         <span className="absolute left-0 top-0 h-full w-1.5" style={{ background: card.accent }} />
 
         <div className="relative flex h-full flex-col">
           <div className="flex items-start justify-between">
             <div>
-              <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+              <div
+                className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50"
+                style={{ textShadow: "0 1px 0 rgba(0,0,0,0.35)" }}
+              >
                 {card.bank}
               </div>
-              <div className="mt-1.5 text-lg font-semibold leading-tight text-white/95">
+              <div
+                className="mt-1.5 text-lg font-semibold leading-tight text-white/95"
+                style={{ textShadow: "0 1px 0 rgba(0,0,0,0.28), 0 -1px 0 rgba(255,255,255,0.12)" }}
+              >
                 {card.name}
               </div>
               <div className="mt-1 font-mono text-[10px] uppercase tracking-wide text-white/65">
@@ -110,14 +158,16 @@ export default function CardTile({
             <div
               className="flex h-7 w-7 flex-none items-center justify-center rounded-full transition-all duration-base ease-spring-snappy"
               style={{
-                background: selected ? card.accent : "rgba(255,255,255,0.12)",
-                boxShadow: selected ? `0 2px 12px ${card.accent}aa` : "none",
+                background: selected ? "var(--color-highlight)" : "rgba(255,255,255,0.12)",
+                boxShadow: selected
+                  ? "0 2px 12px color-mix(in srgb, var(--color-highlight-glow) 70%, transparent)"
+                  : "none",
                 transform: selected ? "scale(1)" : "scale(0.85)",
               }}
             >
               {selected && (
                 <span
-                  className="text-[13px] leading-none text-white"
+                  className="text-[13px] leading-none text-on-highlight"
                   style={{ animation: "gp-check 0.4s var(--spring-snappy, ease) both" }}
                 >
                   ✓
@@ -127,11 +177,7 @@ export default function CardTile({
           </div>
 
           <div className="mt-auto flex items-end justify-between">
-            {/* EMV chip */}
-            <span className="relative block h-7 w-10 overflow-hidden rounded-md bg-gradient-to-br from-white/45 to-white/15">
-              <span className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-black/15" />
-              <span className="absolute bottom-1.5 left-1/2 top-1.5 w-px -translate-x-1/2 bg-black/15" />
-            </span>
+            <EmvChip className="h-7 w-10" />
             <div className="text-right">
               {card.annualFeeCents > 0 ? (
                 <div className="font-mono text-[10px] text-white/40">

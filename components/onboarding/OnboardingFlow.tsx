@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import BackLink from "@/components/BackLink";
 import type { CardView } from "@/lib/cards/types";
 import type { PublicWalletFacts } from "@/lib/comparison/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
@@ -262,19 +263,32 @@ export default function OnboardingFlow() {
   const imageUrl = me?.user.imageUrl ?? null;
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-surface-subtle">
-      {/* ledger dot-grid + iris glow — the typed graph as quiet texture */}
+    <div
+      data-theme="dark"
+      className="relative flex h-screen w-full flex-col overflow-hidden bg-surface-subtle text-text-primary"
+    >
+      {/* ambient iris glow + ledger dot-grid */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: "radial-gradient(var(--color-border-strong) 1px, transparent 1px)",
+          background:
+            "radial-gradient(120% 90% at 72% 18%, #14171f 0%, var(--color-bg-elevated) 38%, var(--color-bg) 78%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
           backgroundSize: "24px 24px",
           WebkitMaskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
           maskImage: "radial-gradient(ellipse 78% 78% at 42% 38%, black, transparent 100%)",
           animation: "gp-grid-drift 60s linear infinite",
         }}
       />
-      <div className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full" style={{ background: "var(--blob-glow-lg)", opacity: 0.35 }} />
+      <div
+        className="pointer-events-none absolute -left-40 -top-40 h-[460px] w-[460px] rounded-full"
+        style={{ background: "var(--blob-glow-lg)", opacity: 0.4 }}
+      />
 
       <TopBar step={step} displayName={displayName} imageUrl={imageUrl} />
 
@@ -317,6 +331,7 @@ export default function OnboardingFlow() {
             queryText={query.trim()}
             selectedCardIds={selected}
             onRestart={handleRestart}
+            onEditWallet={() => setStep("cards")}
             balances={enteredBalances}
             facts={facts}
             walletProgramNames={walletProgramNames}
@@ -377,8 +392,8 @@ function CardsStep({
         <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
           {firstName ? `welcome back, ${firstName}` : "build your wallet"}
         </div>
-        <h1 className="mt-2 font-display text-3xl font-semibold uppercase leading-[0.98] tracking-snug text-text-primary">
-          which cards
+        <h1 className="mt-2 font-display text-3xl font-light leading-[1.08] tracking-snug text-text-primary">
+          Which cards
           <br />
           do you carry?
         </h1>
@@ -393,7 +408,7 @@ function CardsStep({
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-[188px] animate-pulse rounded-2xl bg-neutral-200/70"
+                  className="h-[188px] animate-pulse rounded-2xl bg-white/[0.06]"
                   style={{ animationDelay: `${i * 80}ms` }}
                 />
               ))}
@@ -423,7 +438,10 @@ function CardsStep({
       {/* right — wallet rail (theme grey, full height) */}
       <aside className="relative flex w-[360px] flex-none flex-col overflow-hidden border-l border-strong bg-bg-elevated px-7 py-7">
         <div className="flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" style={{ boxShadow: "0 0 8px var(--color-accent)" }} />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-highlight"
+            style={{ boxShadow: "0 0 8px var(--color-highlight-glow)" }}
+          />
           <span className="font-mono text-2xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
             your wallet
           </span>
@@ -463,7 +481,17 @@ function CardsStep({
                     {w.bank}
                   </div>
                   <div className="mt-1.5 truncate pr-2 text-lg font-semibold text-white/95">{w.name}</div>
-                  <div className="absolute bottom-4 left-5 h-6 w-9 rounded-md bg-gradient-to-br from-white/40 to-white/15" />
+                  <div className="absolute bottom-4 left-5">
+                    <span
+                      className="relative block h-6 w-9 overflow-hidden rounded-md"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--card-chip-gold-1), var(--card-chip-gold-2))",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.45)",
+                      }}
+                      aria-hidden="true"
+                    />
+                  </div>
                   <div className="absolute bottom-4 right-5 font-mono text-sm font-semibold" style={{ color: w.accent }}>
                     {w.rate}
                   </div>
@@ -482,14 +510,14 @@ function CardsStep({
         </div>
 
         {/* projected value */}
-        <div className="relative mb-4 overflow-hidden rounded-card bg-surface p-4 shadow-sm">
-          <span className="absolute left-0 top-0 h-full w-1 bg-accent" />
-          {/* flowing sheen */}
+        <div className="relative mb-4 overflow-hidden rounded-card bg-surface p-4 shadow-sm ring-1 ring-border-subtle">
+          <span className="absolute left-0 top-0 h-full w-1 bg-highlight" />
           {hasCards && (
             <span
               className="pointer-events-none absolute inset-0"
               style={{
-                background: "linear-gradient(110deg, transparent 35%, var(--color-accent-muted) 50%, transparent 65%)",
+                background:
+                  "linear-gradient(110deg, transparent 35%, color-mix(in srgb, var(--color-highlight-glow) 35%, transparent) 50%, transparent 65%)",
                 backgroundSize: "220% 100%",
                 animation: "gp-shimmer 3.6s linear infinite",
                 opacity: 0.7,
@@ -511,7 +539,7 @@ function CardsStep({
           <button
             type="button"
             onClick={onOpenPoints}
-            className="mb-2.5 flex items-center justify-center gap-2 rounded-full border border-strong bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-accent hover:text-text-primary"
+            className="mb-2.5 flex items-center justify-center gap-2 rounded-full border border-strong bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
           >
             <span className="text-accent-text">＋</span>
             {hasEnteredPoints ? "edit your points" : "add your points"}
@@ -522,7 +550,11 @@ function CardsStep({
           type="button"
           onClick={onContinue}
           disabled={!hasCards}
-          className="group relative flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3.5 text-base font-medium text-white shadow-lg transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-float disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          className="group relative flex items-center justify-center gap-2 rounded-full bg-highlight px-4 py-3.5 text-base font-medium text-on-highlight shadow-lg transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:bg-highlight-hover hover:shadow-float disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          style={{
+            boxShadow:
+              "0 10px 34px color-mix(in srgb, var(--color-highlight-glow) 40%, transparent), 0 0 0 1px color-mix(in srgb, var(--color-highlight) 60%, transparent)",
+          }}
         >
           {hasCards ? "continue" : "pick a card to continue"}
           <span className="transition-transform duration-base group-hover:translate-x-0.5">→</span>
@@ -563,8 +595,8 @@ function AskStep({
         <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
           step 02 · set the goal
         </div>
-        <h1 className="mt-2.5 font-display text-4xl font-semibold uppercase leading-[0.96] tracking-snug text-text-primary">
-          what do you want
+        <h1 className="mt-2.5 font-display text-4xl font-light leading-[1.06] tracking-snug text-text-primary">
+          What do you want
           <br />
           your points to do?
         </h1>
@@ -574,7 +606,7 @@ function AskStep({
           <span className="font-mono text-text-primary tabular-nums">{walletCount}</span> {cardWord}.
         </p>
 
-        <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-accent">
+        <div className="flex items-end gap-3 rounded-2xl bg-surface py-2.5 pl-4 pr-2.5 shadow-lg ring-1 ring-border transition duration-base focus-within:shadow-float focus-within:ring-2 focus-within:ring-highlight-glow">
           <span className="self-start pt-4 font-mono text-md text-accent-text">›</span>
           <label htmlFor="goal-query" className="sr-only">
             Describe what you want your points to do
@@ -591,7 +623,7 @@ function AskStep({
             type="button"
             onClick={onPlan}
             disabled={!ready}
-            className="group h-12 flex-none self-end whitespace-nowrap rounded-xl bg-neutral-900 px-5 text-base font-medium text-white shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+            className="group h-12 flex-none self-end whitespace-nowrap rounded-xl bg-highlight px-5 text-base font-medium text-on-highlight shadow-md transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:bg-highlight-hover hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
           >
             plan it <span className="inline-block transition-transform duration-base group-hover:translate-x-0.5">→</span>
           </button>
@@ -605,7 +637,7 @@ function AskStep({
                 key={p.text}
                 type="button"
                 onClick={() => setQuery(p.text)}
-                className="flex items-center gap-1.5 rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-strong hover:text-text-primary"
+                className="flex items-center gap-1.5 rounded-full border border-subtle bg-surface px-3 py-1.5 text-xs font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
               >
                 <span className="text-accent-text">{p.tag}</span>
                 {p.text}
@@ -631,13 +663,7 @@ function AskStep({
       </div>
 
       <div className="mt-9 flex w-full max-w-[700px] items-center justify-between">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary"
-        >
-          <span>←</span> back to wallet
-        </button>
+        <BackLink onClick={onBack}>back to wallet</BackLink>
         <span className="font-mono text-2xs uppercase tracking-wide text-text-tertiary">
           coordination is typed graph state — never free text
         </span>

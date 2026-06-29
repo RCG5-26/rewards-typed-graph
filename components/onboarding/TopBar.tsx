@@ -54,7 +54,7 @@ export default function TopBar({
   return (
     <header className="relative z-20 flex flex-none items-center justify-between border-b border-subtle bg-[var(--glass-light)] px-7 py-3.5 backdrop-blur-md">
       {/* global wordmark — click to go home */}
-      <Logo href="/" />
+      <Logo href="/" tone="light" />
 
       {/* typed step rail — numbered nodes with a filled accent active/done node */}
       <nav
@@ -72,17 +72,19 @@ export default function TopBar({
                   className="flex h-6 w-6 items-center justify-center rounded-full font-mono text-2xs font-semibold tabular-nums transition-all duration-base"
                   style={{
                     background: active
-                      ? "var(--color-accent)"
+                      ? "var(--color-highlight)"
                       : done
-                        ? "var(--color-accent-muted)"
-                        : "var(--color-surface-subtle)",
+                        ? "color-mix(in srgb, var(--color-highlight-glow) 25%, transparent)"
+                        : "var(--color-surface-raised)",
                     color: active
-                      ? "var(--color-neutral-0)"
+                      ? "var(--color-on-highlight)"
                       : done
-                        ? "var(--color-accent-text)"
+                        ? "var(--color-highlight-glow)"
                         : "var(--color-text-disabled)",
                     border: active ? "none" : "1px solid var(--color-border-strong)",
-                    boxShadow: active ? "0 0 0 4px var(--status-current-bg)" : "none",
+                    boxShadow: active
+                      ? "0 0 0 4px color-mix(in srgb, var(--color-highlight-glow) 30%, transparent)"
+                      : "none",
                   }}
                 >
                   {s.n}
@@ -101,7 +103,7 @@ export default function TopBar({
                   className="h-px w-7"
                   style={{
                     background:
-                      filled && done ? "var(--color-accent)" : "var(--color-border-strong)",
+                      filled && done ? "var(--color-highlight-glow)" : "var(--color-border-strong)",
                   }}
                 />
               )}
