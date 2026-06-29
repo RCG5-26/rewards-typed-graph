@@ -149,6 +149,9 @@ describe("AgentConsole", () => {
     renderConsole(BAL);
     completeInitialPlan([namedStep("redemption_recommendation", 1, "Book it")]);
 
+    // The facts panels start collapsed on the plan step; open the disclosure.
+    fireEvent.click(screen.getByRole("button", { name: /what the agents see/i }));
+
     expect(screen.getByText("your points · what the agents see")).toBeTruthy();
     // The panel surfaces the seeded liveBalances (programName + formatted points).
     expect(screen.getByText("Chase UR")).toBeTruthy();
