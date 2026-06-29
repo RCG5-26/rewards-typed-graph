@@ -33,11 +33,7 @@ describe("/test-wallets page", () => {
   });
 
   it("renders the loadError state when the API call throws", async () => {
-    // Throw on call (not an eagerly-created rejected promise) so the page's
-    // try/catch consumes it without a spurious unhandled-rejection.
-    mockGetTestWallets.mockImplementation(async () => {
-      throw new Error("API down");
-    });
+    mockGetTestWallets.mockRejectedValue(new Error("API down"));
     render(await TestWalletsPage());
 
     expect(screen.getByText(/Could not load test wallets from the API/i)).toBeInTheDocument();
