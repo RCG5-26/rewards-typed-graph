@@ -61,9 +61,13 @@ export default function WalletPointsModal({
     if (submitting) return;
     setError(null);
     setSubmitting(true);
+    // Only include cards the user actually filled in — an untouched/blank field
+    // is "not entered", not a zero balance. (Explicitly typing "0" is kept.)
     const pointsByCardId: Record<string, number> = {};
     for (const card of cards) {
-      pointsByCardId[card.id] = parseInt(values[card.id] ?? "", 10) || 0;
+      const raw = values[card.id];
+      if (raw === undefined || raw.trim() === "") continue;
+      pointsByCardId[card.id] = parseInt(raw, 10) || 0;
     }
     try {
       await onSubmit(pointsByCardId);

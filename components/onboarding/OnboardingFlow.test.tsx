@@ -239,6 +239,89 @@ describe("OnboardingFlow selection wiring", () => {
   });
 });
 
+type SaveCall = { url: string; method?: string; body?: string };
+
+/**
+ * Records fetches and resolves bootstrap (`/api/cards`, `/api/me`,
+ * `/api/demo/test-wallets`) happily while the caller controls `/api/balances`.
+ * Returns two cards in the same program so the per-program summing is exercised.
+ */
+function mockSaveFetch(balances: () => Promise<unknown>): SaveCall[] {
+  const calls: SaveCall[] = [];
+  const card2 = { ...sampleCard, id: "card-2", slug: "chase-freedom", name: "Chase Freedom" };
+  const fetchMock = vi.fn(
+    (input: RequestInfo | URL, init?: { method?: string; body?: string }) => {
+      const url = String(input);
+      calls.push({ url, method: init?.method, body: init?.body });
+      if (url === "/api/cards") {
+        return Promise.resolve({ ok: true, json: async () => ({ cards: [sampleCard, card2] }) });
+      }
+      if (url === "/api/me") {
+        return Promise.resolve({ ok: true, json: async () => sampleGraph });
+      }
+      if (url === "/api/demo/test-wallets") {
+        return Promise.resolve({ ok: true, json: async () => ({ wallets: [] }) });
+      }
+      if (url === "/api/balances") {
+        return balances();
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    },
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  return calls;
+}
+
+/** Select both cards, open the points modal, and enter points on each. */
+async function openModalAndEnter(a: string, b: string) {
+  render(<OnboardingFlow />);
+  fireEvent.click(await screen.findByTestId("card-card-1"));
+  fireEvent.click(screen.getByTestId("card-card-2"));
+  fireEvent.click(screen.getByRole("button", { name: /add your points/i }));
+  fireEvent.change(await screen.findByLabelText(/points on chase sapphire/i), {
+    target: { value: a },
+  });
+  fireEvent.change(screen.getByLabelText(/points on chase freedom/i), { target: { value: b } });
+  fireEvent.click(screen.getByRole("button", { name: /save points/i }));
+}
+
+describe("OnboardingFlow entered points", () => {
+  it("sums points per program and POSTs the payload to /api/balances", async () => {
+    const calls = mockSaveFetch(() =>
+      Promise.resolve({ ok: true, json: async () => ({ userId: "u1", balances: [] }) }),
+    );
+    // Both sample cards share program "Chase UR" (→ programId p1 from /api/me).
+    await openModalAndEnter("5000", "3000");
+
+    await waitFor(() => {
+      const call = calls.find((c) => c.url === "/api/balances");
+      expect(call?.method).toBe("POST");
+      expect(JSON.parse(call!.body!)).toEqual({
+        balances: [{ programId: "p1", points: 8000 }],
+      });
+    });
+    // On success the modal closes and the rail reflects the entered points.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /edit your points/i })).toBeTruthy(),
+    );
+  });
+
+  it("surfaces the server error and keeps the modal open when the save fails", async () => {
+    mockSaveFetch(() =>
+      Promise.resolve({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "points must be a non-negative safe integer" }),
+      }),
+    );
+    await openModalAndEnter("5000", "3000");
+
+    await waitFor(() => expect(screen.getByText(/non-negative safe integer/i)).toBeTruthy());
+    // Modal stays open (inputs still present) so the user can correct and retry.
+    expect(screen.getByLabelText(/points on chase sapphire/i)).toBeTruthy();
+  });
+});
+
 describe("OnboardingFlow demo reset", () => {
   it("POSTs /api/demo/reset, refetches the graph, and returns to cards on success", async () => {
     const calls = mockResetFetch(() => Promise.resolve({ ok: true, json: async () => ({}) }));

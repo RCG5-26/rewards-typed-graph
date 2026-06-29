@@ -94,4 +94,23 @@ describe("POST /balances", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("rejects a malformed JSON body (readJsonBody parse branch)", async () => {
+    const app = buildApp();
+    const res = await app.request(
+      new Request("http://local/balances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{ not valid json",
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a non-object JSON body (readJsonBody scalar branch)", async () => {
+    const app = buildApp();
+    // A bare JSON scalar parses fine but isn't an object.
+    const res = await app.request(postJson("/balances", 42));
+    expect(res.status).toBe(400);
+  });
 });

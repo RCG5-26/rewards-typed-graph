@@ -60,10 +60,22 @@ export async function apiFetch<T>(path: string, opts: FetchOpts): Promise<T> {
       if (res.status === 403) {
         throw new ApiError({ kind: "unprovisioned", status: 403 });
       }
+      // Surface the upstream `{ error }` message (e.g. a Hono validation reason
+      // like "balances[0].points must be a non-negative safe integer") instead
+      // of masking it with a generic status string. Best-effort: falls back to
+      // the generic message when the body is absent or not JSON.
+      const serverMessage = await res
+        .json()
+        .then((body) =>
+          body && typeof (body as { error?: unknown }).error === "string"
+            ? (body as { error: string }).error
+            : undefined,
+        )
+        .catch(() => undefined);
       throw new ApiError({
         kind: "server-error",
         status: res.status,
-        message: `Hono API responded ${res.status}`,
+        message: serverMessage ?? `Hono API responded ${res.status}`,
       });
     }
 
