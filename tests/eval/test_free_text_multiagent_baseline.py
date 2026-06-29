@@ -13,6 +13,7 @@ from benchmark.free_text_multiagent_baseline import (
     DEFAULT_CASES_PATH,
     LLMResponse,
     OpenAIChatCompletionsClient,
+    _normalize_ranked_award,
     run_free_text_multiagent_baseline,
 )
 
@@ -247,6 +248,46 @@ class FreeTextMultiAgentBaselineTests(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 2)
         self.assertIn("FREE_TEXT_MULTIAGENT_BASELINE_API_KEY", completed.stderr)
+
+
+class NormalizeRankedAwardCandidateFactSlugs(unittest.TestCase):
+    """`candidate_fact_slugs` is supporting evidence on a ranked entry, not the
+    chosen-award decision. A malformed value on a ranked-but-not-chosen award
+    used to crash the whole run; it is now coerced to a filtered list of strings
+    so a correct verdict survives LLM output variance. The load-bearing fields
+    (award_slug, required_source_points) stay strict."""
+
+    def _entry(self, **overrides: Any) -> dict[str, Any]:
+        base = {
+            "award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+            "required_source_points": 45000,
+            "candidate_fact_slugs": ["balance:user_mvp_demo:hyatt"],
+        }
+        base.update(overrides)
+        return base
+
+    def test_drops_non_string_candidate_fact_slugs(self) -> None:
+        result = _normalize_ranked_award(
+            self._entry(candidate_fact_slugs=["balance:hyatt", None, 42, {"k": "v"}])
+        )
+        self.assertEqual(result["candidate_fact_slugs"], ["balance:hyatt"])
+
+    def test_coerces_missing_or_non_list_candidate_fact_slugs_to_empty(self) -> None:
+        for bad in (None, "balance:hyatt", 7):
+            with self.subTest(bad=bad):
+                result = _normalize_ranked_award(self._entry(candidate_fact_slugs=bad))
+                self.assertEqual(result["candidate_fact_slugs"], [])
+
+    def test_preserves_valid_candidate_fact_slugs(self) -> None:
+        slugs = ["balance:user_mvp_demo:hyatt", "program:hyatt"]
+        result = _normalize_ranked_award(self._entry(candidate_fact_slugs=slugs))
+        self.assertEqual(result["candidate_fact_slugs"], slugs)
+
+    def test_keeps_award_slug_and_points_strict(self) -> None:
+        with self.assertRaises(BaselineOutputError):
+            _normalize_ranked_award(self._entry(award_slug=None))
+        with self.assertRaises(BaselineOutputError):
+            _normalize_ranked_award(self._entry(required_source_points="45000"))
 
 
 if __name__ == "__main__":

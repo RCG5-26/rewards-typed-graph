@@ -372,11 +372,18 @@ def _normalize_ranked_award(value: Any) -> dict[str, Any]:
     required_source_points = value.get("required_source_points")
     if not isinstance(required_source_points, int):
         raise BaselineOutputError("ranked award required_source_points must be an integer")
-    candidate_fact_slugs = value.get("candidate_fact_slugs")
-    if not isinstance(candidate_fact_slugs, list) or not all(
-        isinstance(slug, str) for slug in candidate_fact_slugs
-    ):
-        raise BaselineOutputError("ranked award candidate_fact_slugs must be a list of strings")
+    # candidate_fact_slugs is supporting evidence on a ranked entry, not the
+    # chosen-award decision. Coerce a malformed value to a filtered list of
+    # strings instead of crashing the whole run — a ranked-but-not-chosen award
+    # with a badly formatted fact list (common when the LLM reports an infeasible
+    # scenario) must not sink an otherwise-correct verdict. The chosen award is
+    # validated separately, so this does not relax hallucination scoring.
+    raw_slugs = value.get("candidate_fact_slugs")
+    candidate_fact_slugs = (
+        [slug for slug in raw_slugs if isinstance(slug, str)]
+        if isinstance(raw_slugs, list)
+        else []
+    )
     return {
         "award_slug": award_slug,
         "required_source_points": required_source_points,
