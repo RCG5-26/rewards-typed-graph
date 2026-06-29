@@ -125,6 +125,19 @@ describe("AgentConsole", () => {
     expect(screen.getByRole("button", { name: /view details for chase ur/i })).toBeTruthy();
   });
 
+  it("labels the console as an illustrative preview with truthful metric names", () => {
+    renderConsole(BAL);
+    // The console is not a live run against the user's wallet — say so.
+    expect(screen.getByText(/Illustrative Plan Preview/i)).toBeTruthy();
+    // Metrics relabeled truthfully (no '/yr' on a one-time redemption; the
+    // token figure is framed as model usage vs an illustrative baseline).
+    expect(screen.getByText(/estimated redemption value/i)).toBeTruthy();
+    expect(screen.getByText(/model usage/i)).toBeTruthy();
+    expect(screen.getByText(/illustrative baseline/i)).toBeTruthy();
+    // The primary forward action is the live comparison.
+    expect(screen.getByText(/Compare planners live/i)).toBeTruthy();
+  });
+
   it("opens and closes the node-detail popover from the keyboard list", () => {
     renderConsole();
     emit("meta", meta());
