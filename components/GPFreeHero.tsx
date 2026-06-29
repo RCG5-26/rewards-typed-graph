@@ -89,15 +89,15 @@ const MARKUP = `
         </h1>
         <div style="display:flex;align-items:center;gap:22px;margin-top:38px;animation:gpxRise 1s var(--settle) .65s both">
           <a href="${SIGN_IN_URL}" class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:14px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:16px 30px;border-radius:999px;box-shadow:0 10px 34px color-mix(in srgb, var(--iris) 40%, transparent), 0 0 0 1px color-mix(in srgb, var(--iris-bright) 60%, transparent)">
-            start optimizing <span style="font-size:14px">&rarr;</span>
+            build my wallet <span style="font-size:14px">&rarr;</span>
           </a>
           <a href="#gpx-how" class="seehow" style="font-family:var(--fs);font-size:14px;letter-spacing:.02em;color:var(--tx2);text-decoration:none;border-bottom:1px solid var(--brd);padding-bottom:3px;transition:color .2s var(--soft),border-color .2s var(--soft)">see how it works</a>
         </div>
 
         <div style="display:flex;align-items:center;gap:18px;margin-top:46px;animation:gpxRise 1s var(--settle) .8s both">
           <div style="font-family:var(--fm);font-size:12px;letter-spacing:.04em;color:var(--tx3);line-height:1.7">
-            <span style="color:var(--tx2)">tracking 240,000 pts</span><br>
-            <span data-count style="color:var(--iris-bright);font-size:15px">&asymp; $0</span><span style="color:var(--tx3)"> in travel value</span>
+            <span style="color:var(--tx2)">example wallet &middot; 240,000 pts</span><br>
+            <span data-count style="color:var(--iris-bright);font-size:15px">&asymp; $0</span><span style="color:var(--tx3)"> sample travel value</span>
           </div>
         </div>
       </div>
@@ -164,7 +164,7 @@ const MARKUP = `
                 <div style="display:flex;align-items:flex-end;justify-content:space-between">
                   <div>
                     <div style="font-family:var(--fm);font-size:8px;letter-spacing:.18em;color:var(--card-ink-faint);margin-bottom:4px">MEMBER</div>
-                    <div style="font-family:var(--fd);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--card-ink);text-shadow:0 1px 0 rgba(0,0,0,.28), 0 -1px 0 rgba(255,255,255,.28)">RAQ ROBINSON</div>
+                    <div style="font-family:var(--fd);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--card-ink);text-shadow:0 1px 0 rgba(0,0,0,.28), 0 -1px 0 rgba(255,255,255,.28)">DEMO MEMBER</div>
                   </div>
                   <div style="text-align:right">
                     <div style="font-family:var(--fm);font-size:8px;letter-spacing:.16em;color:var(--card-ink-faint);margin-bottom:4px">VALID THRU</div>
@@ -225,7 +225,7 @@ const MARKUP = `
               <span style="font-family:var(--fm);font-size:13px;color:var(--iris-bright);flex:none">03</span>
               <div>
                 <div style="font-family:var(--fd);font-size:20px;color:var(--tx1)">Let the agents plan</div>
-                <div style="font-family:var(--fs);font-size:13px;color:var(--tx2);margin-top:5px;line-height:1.5">They search every program and book the sweet spot.</div>
+                <div style="font-family:var(--fs);font-size:13px;color:var(--tx2);margin-top:5px;line-height:1.5">They evaluate the supported programs, transfer routes, and award options.</div>
               </div>
             </div>
             <div data-stepbar style="height:2px;background:rgba(255,255,255,.1);margin-top:18px;border-radius:999px;overflow:hidden;opacity:0;transition:opacity .28s var(--soft)"><div data-stepfill style="height:100%;width:0%;background:var(--iris-bright)"></div></div>
@@ -312,7 +312,7 @@ const MARKUP = `
       <h2 style="margin:0;font-family:var(--fd);font-weight:300;font-size:clamp(38px,6vw,86px);line-height:1.02;letter-spacing:-0.04em;color:var(--tx1)">Go <em style="font-style:italic;font-weight:300;color:var(--iris-bright)">anywhere</em></h2>
       <p style="margin:26px auto 0;max-width:460px;font-family:var(--fs);font-size:16px;line-height:1.6;color:var(--tx2)">The points are already in your wallet. Let the agents turn them into the trip you keep putting off.</p>
       <div style="margin-top:40px;display:flex;justify-content:center">
-        <a href="${SIGN_IN_URL}" class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:15px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:18px 36px;border-radius:999px;box-shadow:0 14px 40px color-mix(in srgb,var(--iris) 42%,transparent), 0 0 0 1px color-mix(in srgb,var(--iris-bright) 60%,transparent)">start optimizing — free <span>&rarr;</span></a>
+        <a href="${SIGN_IN_URL}" class="cta" style="text-decoration:none;display:inline-flex;align-items:center;gap:9px;font-family:var(--fs);font-size:15px;font-weight:600;letter-spacing:.03em;color:#0a0b0e;background:var(--iris-bright);padding:18px 36px;border-radius:999px;box-shadow:0 14px 40px color-mix(in srgb,var(--iris) 42%,transparent), 0 0 0 1px color-mix(in srgb,var(--iris-bright) 60%,transparent)">build my wallet — free <span>&rarr;</span></a>
       </div>
       <div style="margin-top:22px;font-family:var(--fm);font-size:11px;letter-spacing:.06em;color:var(--tx3)">no card numbers stored&nbsp;&nbsp;&middot;&nbsp;&nbsp;free to start&nbsp;&nbsp;&middot;&nbsp;&nbsp;2-minute setup</div>
     </div>
