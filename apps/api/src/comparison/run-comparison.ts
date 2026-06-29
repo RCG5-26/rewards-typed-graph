@@ -12,6 +12,7 @@ import {
   type ApprovedWalletId,
   CANONICAL_GRAPH_USER_ID,
   type CanonicalWalletFacts,
+  getBaselineFixturePaths,
   getCanonicalWallet,
 } from "./canonical-wallet";
 import { type GraphPlanRunner, runGraphOrchestrator } from "./adapters/graph-orchestrator";
@@ -92,9 +93,14 @@ export async function runArchitectureComparison(
   }
 
   const input = { facts, query };
+  // Point the baselines at this scenario's fixture/gold so they plan over the
+  // selected wallet's balances — never silently reuse another scenario's facts.
+  const fixturePaths = getBaselineFixturePaths(facts.walletId);
   const baselineExtras = {
     ...(deps.runReport ? { runReport: deps.runReport } : {}),
     ...(deps.env ? { env: deps.env } : {}),
+    fixturePath: fixturePaths.fixturePath,
+    casesPath: fixturePaths.casesPath,
   };
 
   const graphRun =

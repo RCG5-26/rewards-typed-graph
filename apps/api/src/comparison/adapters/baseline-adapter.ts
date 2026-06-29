@@ -29,6 +29,9 @@ interface BaselineAdapterConfig {
 export interface BaselineAdapterOptions extends AdapterInput {
   runReport?: RunBaselineReport;
   env?: NodeJS.ProcessEnv;
+  /** Per-scenario baseline fixture/gold paths; default to the canonical pair. */
+  fixturePath?: string;
+  casesPath?: string;
 }
 
 const DEFAULT_MODEL = "gpt-5.5";
@@ -51,7 +54,12 @@ async function runBaselineAdapter(
   } as const;
 
   try {
-    const report = await runReport(config.module, { env, timeoutMs: config.timeoutMs });
+    const report = await runReport(config.module, {
+      env,
+      timeoutMs: config.timeoutMs,
+      ...(options.fixturePath ? { fixturePath: options.fixturePath } : {}),
+      ...(options.casesPath ? { casesPath: options.casesPath } : {}),
+    });
     const latencyMs = Date.now() - startedAt;
     const caseResult = firstCase(report);
     const rawOutput = caseResult.baseline_plan_record?.raw_output;

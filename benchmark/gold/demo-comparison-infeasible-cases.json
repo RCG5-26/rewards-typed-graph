@@ -1,0 +1,50 @@
+{
+  "benchmark_id": "demo-comparison-infeasible-v1",
+  "description": "No-feasible-path comparison case: Hyatt 20k < 45k Ginza, United 20k < 60k United award, Chase 0 with only Chase->X routes, so nothing funds any award. The correct plan reports infeasibility rather than inventing a transfer. Drives the LLM baselines for the no-feasible-path scenario.",
+  "as_of": "2026-06-28T00:00:00Z",
+  "fixture_id": "demo-comparison-no-feasible-path-v1",
+  "fixture_manifest": {
+    "ticket": "demo-sprint",
+    "seed_fixture": "fixtures/demo-comparison-infeasible.json",
+    "query_count": 1,
+    "frozen_world_scope": "No-feasible-path wallet: Chase UR 0, World of Hyatt 20k, United 20k, Chase->Hyatt and Chase->United at 1:1, Ginza award 45k, United award 60k.",
+    "excluded_sources": ["live award inventory", "live cash prices", "unseeded transfer partners"]
+  },
+  "scoring_rules": {
+    "primary_metrics": ["accuracy", "strict_hallucination_rate"],
+    "expected_axis_counts": {
+      "redemption": 1
+    },
+    "strict_hallucinations": [
+      "nonexistent_transfer_partner",
+      "wrong_transfer_ratio",
+      "award_not_in_tool_result",
+      "incorrect_point_balance",
+      "unsupported_hotel_or_program_rule"
+    ],
+    "baseline_rule": "Baselines may persist final plans for scoring, but may not use typed dependency edges or shared graph state internally."
+  },
+  "cases": [
+    {
+      "case_id": "demo_no_feasible_path_tokyo",
+      "benchmark_axis": "redemption",
+      "category": "infeasible_redemption",
+      "query": "What is the best way to use my points for a three-night hotel stay in Tokyo?",
+      "starting_balance_points": 0,
+      "expected_top_award_slug": null,
+      "accepted_award_slugs": [],
+      "required_checks": [
+        "recognizes_hyatt_20000_cannot_fund_ginza_45000",
+        "recognizes_united_20000_cannot_fund_united_award_60000",
+        "recognizes_no_chase_balance_to_transfer",
+        "reports_infeasibility_without_inventing_a_transfer"
+      ],
+      "disqualifying_hallucinations": [
+        "names_non_seeded_hotel",
+        "claims_non_1_to_1_transfer_ratio",
+        "recommends_unaffordable_award_without_funding",
+        "invents_a_transfer_from_a_zero_balance"
+      ]
+    }
+  ]
+}

@@ -117,6 +117,32 @@ describe("POST /demo/architecture-comparison", () => {
     }
   });
 
+  it("accepts all three approved wallet ids and returns three results each", async () => {
+    for (const walletId of ["transfer-required", "direct-redemption", "no-feasible-path"]) {
+      const response = await postComparison(deps(), { walletId });
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as ArchitectureComparisonResponse;
+      expect(json.walletId).toBe(walletId);
+      expect(json.results).toHaveLength(3);
+    }
+  });
+
+  it("points the baselines at each scenario's own fixture (no cross-scenario leak)", async () => {
+    const seen: Record<string, { fixturePath?: string; casesPath?: string }> = {};
+    const capturing: RunBaselineReport = async (module: BaselineModule, options) => {
+      seen[module] = { fixturePath: options?.fixturePath, casesPath: options?.casesPath };
+      return baselineReport(module);
+    };
+    await postComparison(deps({ runReport: capturing }), { walletId: "direct-redemption" });
+    expect(seen["benchmark.single_agent_baseline"]).toEqual({
+      fixturePath: "fixtures/demo-comparison-direct.json",
+      casesPath: "benchmark/gold/demo-comparison-direct-cases.json",
+    });
+    expect(seen["benchmark.free_text_multiagent_baseline"]?.fixturePath).toBe(
+      "fixtures/demo-comparison-direct.json",
+    );
+  });
+
   it("isolates a single architecture failure (partial success, still HTTP 200)", async () => {
     const failChatCrew: RunBaselineReport = async (module: BaselineModule) => {
       if (module === "benchmark.free_text_multiagent_baseline") {

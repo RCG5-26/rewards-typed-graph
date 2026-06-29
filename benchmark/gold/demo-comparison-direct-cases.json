@@ -1,0 +1,47 @@
+{
+  "benchmark_id": "demo-comparison-direct-v1",
+  "description": "Direct-redemption comparison case: Hyatt 60k already funds the 45k Ginza award, so the correct plan redeems directly with no transfer. Drives the LLM baselines for the direct-redemption scenario.",
+  "as_of": "2026-06-28T00:00:00Z",
+  "fixture_id": "demo-comparison-direct-redemption-v1",
+  "fixture_manifest": {
+    "ticket": "demo-sprint",
+    "seed_fixture": "fixtures/demo-comparison-direct.json",
+    "query_count": 1,
+    "frozen_world_scope": "Direct-redemption wallet: Chase UR 0, World of Hyatt 60k, United 0, Chase->Hyatt and Chase->United at 1:1, Ginza award 45k, United award 60k.",
+    "excluded_sources": ["live award inventory", "live cash prices", "unseeded transfer partners"]
+  },
+  "scoring_rules": {
+    "primary_metrics": ["accuracy", "strict_hallucination_rate"],
+    "expected_axis_counts": {
+      "redemption": 1
+    },
+    "strict_hallucinations": [
+      "nonexistent_transfer_partner",
+      "wrong_transfer_ratio",
+      "award_not_in_tool_result",
+      "incorrect_point_balance",
+      "unsupported_hotel_or_program_rule"
+    ],
+    "baseline_rule": "Baselines may persist final plans for scoring, but may not use typed dependency edges or shared graph state internally."
+  },
+  "cases": [
+    {
+      "case_id": "demo_direct_redemption_tokyo",
+      "benchmark_axis": "redemption",
+      "category": "normal_redemption",
+      "query": "What is the best way to use my points for a three-night hotel stay in Tokyo?",
+      "starting_balance_points": 0,
+      "expected_top_award_slug": "award:demo_hyatt_ginza:tokyo:3n",
+      "accepted_award_slugs": ["award:demo_hyatt_ginza:tokyo:3n"],
+      "required_checks": [
+        "recognizes_hyatt_60000_already_funds_ginza_45000_directly",
+        "redeems_without_any_transfer"
+      ],
+      "disqualifying_hallucinations": [
+        "names_non_seeded_hotel",
+        "claims_non_1_to_1_transfer_ratio",
+        "adds_unnecessary_chase_to_hyatt_transfer"
+      ]
+    }
+  ]
+}
