@@ -397,9 +397,9 @@ export default function AgentConsole({
               and legible on the dark lane. */}
           <a
             href="/test-wallets"
-            className="group inline-flex items-center gap-2 rounded-full border border-strong bg-surface px-4 py-2 text-xs font-semibold text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
+            className="group inline-flex items-center gap-2 rounded-full border border-highlight-glow bg-surface px-4 py-2 text-xs font-semibold text-text-primary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
           >
-            head-to-head comparison
+            Compare planners live
             <span
               className="transition-transform duration-base group-hover:translate-x-0.5"
               aria-hidden="true"
@@ -410,15 +410,32 @@ export default function AgentConsole({
         </div>
       </div>
 
-      {/* ── metric strip: plan value · invalidation caught · tokens vs baseline ── */}
+      {/* ── illustrative-preview disclosure ──
+          This console is a presentation of how a rewards Plan reads — its plan
+          stream and the token comparison below are sample/illustrative, not a
+          live run against the user's entered wallet. The live, evaluated run
+          lives on the comparison page (CTA above + below). */}
+      <div
+        role="note"
+        className="flex flex-none flex-col gap-1 rounded-card border border-strong bg-surface px-4 py-3 shadow-xs"
+      >
+        <span className="font-display text-xs font-semibold uppercase tracking-snug text-text-primary">
+          Illustrative Plan Preview
+        </span>
+        <span className="text-2xs leading-relaxed text-text-secondary">
+          Sample plan shown to demonstrate how a rewards Plan is presented. Continue to the live
+          comparison to run the planners against a controlled wallet.
+        </span>
+      </div>
+
+      {/* ── metric strip: estimated redemption value · state monitoring · model usage ── */}
       <div className="grid flex-none grid-cols-1 gap-3 md:grid-cols-3">
-        <MetricCard label="plan value">
+        <MetricCard label="estimated redemption value">
           <div className="flex items-center gap-3">
             <div className="flex items-baseline gap-1">
               <span className="font-display text-4xl font-semibold leading-none text-text-primary tabular-nums">
                 {dollars(effectiveValueCents)}
               </span>
-              <span className="font-mono text-2xs text-text-tertiary">/ yr</span>
             </div>
             {prevValueCents !== null && prevValueCents !== effectiveValueCents && (
               <span
@@ -431,7 +448,7 @@ export default function AgentConsole({
           </div>
         </MetricCard>
 
-        <MetricCard label="invalidation caught" tone="secondary">
+        <MetricCard label="state monitoring" tone="secondary">
           <div className="flex items-center gap-2.5">
             <span
               className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-bold"
@@ -443,24 +460,34 @@ export default function AgentConsole({
               {caughtInvalidation ? "✓" : "◴"}
             </span>
             <span className="text-sm font-medium text-text-secondary">
-              {caughtInvalidation ? `auto re-planned · r${revision}` : "watching state"}
+              {caughtInvalidation ? `dependency change · re-planned r${revision}` : "active"}
             </span>
           </div>
         </MetricCard>
 
-        <MetricCard label="tokens vs baseline" tone="secondary">
+        {/* Model usage. The live numerator (typed.tokens) is real; the
+            comparison baseline is an illustrative projection, not a measured
+            second architecture (see lib/plan/comparison.ts). Labeled as such so
+            the figure is never read as a head-to-head measurement — the measured
+            comparison lives on /test-wallets and /benchmark. */}
+        <MetricCard label="model usage" tone="secondary">
           <div className="flex items-center justify-between gap-3">
-            <span className="font-display text-2xl font-semibold leading-none tabular-nums text-text-secondary">
-              −{tokenSavingPct}%
-            </span>
+            <div className="flex flex-col gap-1">
+              <span className="font-display text-2xl font-semibold leading-none tabular-nums text-text-primary">
+                {fmtTokens(cmp.typed.tokens)}
+              </span>
+              <span className="font-mono text-2xs text-text-tertiary">
+                tokens · ≈{tokenSavingPct}% under an illustrative baseline
+              </span>
+            </div>
             <div className="flex items-end gap-2.5">
               <TokenBar
-                label="current"
+                label="live"
                 value={fmtTokens(cmp.typed.tokens)}
                 pct={cmp.crewai.tokens > 0 ? Math.round((cmp.typed.tokens / cmp.crewai.tokens) * 100) : 100}
                 accent
               />
-              <TokenBar label="baseline" value={fmtTokens(cmp.crewai.tokens)} pct={100} />
+              <TokenBar label="proj" value={fmtTokens(cmp.crewai.tokens)} pct={100} />
             </div>
           </div>
         </MetricCard>
