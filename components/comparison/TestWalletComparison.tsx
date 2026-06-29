@@ -21,6 +21,19 @@ const CARD_ORDER: ArchitectureVariant[] = [
   "single-agent",
 ];
 
+/** Shared error-panel surface, driven by the design-system error tokens. */
+const ERROR_PANEL_STYLE = {
+  background: "var(--color-error-bg)",
+  color: "var(--color-error-fg)",
+  border: "1px solid color-mix(in srgb, var(--color-error) 24%, transparent)",
+} as const;
+
+/** Shared success-panel surface (replan result), driven by the success tokens. */
+const SUCCESS_PANEL_STYLE = {
+  background: "var(--color-success-bg)",
+  border: "1px solid color-mix(in srgb, var(--color-success) 24%, transparent)",
+} as const;
+
 type RunPhase = "idle" | "running" | "done" | "error";
 type SimulatePhase = "idle" | "running" | "done" | "error";
 
@@ -197,7 +210,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
 
   if (!facts) {
     return (
-      <p className="text-sm text-white/60">No test wallets are available from the API.</p>
+      <p className="text-sm text-text-tertiary">No test wallets are available from the API.</p>
     );
   }
 
@@ -214,10 +227,10 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
                 setSelectedWalletId(wallet.walletId);
                 resetRun();
               }}
-              className={`rounded-full px-4 py-1.5 text-sm transition ${
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
                 wallet.walletId === selectedWalletId
-                  ? "bg-white text-black"
-                  : "border border-white/15 text-white/70 hover:text-white"
+                  ? "bg-highlight text-on-highlight"
+                  : "border border-strong text-text-secondary hover:text-text-primary"
               }`}
             >
               {wallet.displayName}
@@ -234,7 +247,11 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         <button
           onClick={runComparison}
           disabled={phase === "running" || simulatePhase === "running"}
-          className="rounded-full bg-indigo-400 px-6 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full bg-highlight px-6 py-2.5 text-sm font-semibold text-on-highlight shadow-lg transition hover:bg-highlight-hover disabled:cursor-not-allowed disabled:opacity-60"
+          style={{
+            boxShadow:
+              "0 8px 28px color-mix(in srgb, var(--color-highlight-glow) 38%, transparent)",
+          }}
           aria-busy={phase === "running"}
         >
           {phase === "running"
@@ -250,7 +267,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
               ? "Apply the 15,000-point Chase→Hyatt transfer, invalidate the dependent Plan, and replan"
               : "Run the comparison first to enable this action"
           }
-          className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-full border border-strong bg-surface px-6 py-2.5 text-sm font-semibold text-text-secondary transition hover:border-highlight-glow hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
         >
           {simulatePhase === "running"
             ? "Applying transfer…"
@@ -261,13 +278,13 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
       </div>
 
       {phase === "error" && errorMessage ? (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
+        <div className="rounded-card p-4 text-sm" style={ERROR_PANEL_STYLE}>
           {errorMessage}
         </div>
       ) : null}
 
       {simulatePhase === "error" && simulateError ? (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
+        <div className="rounded-card p-4 text-sm" style={ERROR_PANEL_STYLE}>
           {simulateError}
         </div>
       ) : null}
@@ -334,17 +351,18 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
 
   return (
     <div
-      className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-sm"
+      className="rounded-card p-5 text-sm"
+      style={SUCCESS_PANEL_STYLE}
       aria-live="polite"
       aria-label="Replan result"
     >
-      <h3 className="font-semibold text-emerald-200">
+      <h3 className="font-semibold" style={{ color: "var(--color-success-fg)" }}>
         {idempotencyReplayed
           ? "Transfer already applied — Plan unchanged"
           : `Revision ${currentPlan.revisionNumber} is now current`}
       </h3>
       {idempotencyReplayed ? (
-        <p className="mt-1 text-xs text-emerald-100/60">
+        <p className="mt-1 text-xs text-text-secondary">
           Idempotent replay — balances and Plan revision unchanged.
         </p>
       ) : null}
@@ -368,21 +386,21 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
       {/* Plan revision timeline */}
       {!idempotencyReplayed ? (
         <div className="mt-4">
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300/60">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-success">
             Plan revision timeline
           </h4>
-          <ol className="space-y-1.5 border-l border-emerald-500/20 pl-3">
-            <li className="text-xs text-emerald-100/55">
-              <span className="font-medium text-emerald-100/70">Revision 1</span> — stale →
+          <ol className="space-y-1.5 border-l border-subtle pl-3">
+            <li className="text-xs text-text-tertiary">
+              <span className="font-medium text-text-secondary">Revision 1</span> — stale →
               superseded
-              <span className="block text-emerald-100/40">
+              <span className="block text-text-tertiary">
                 Dependency on Hyatt balance v1 invalidated
               </span>
             </li>
-            <li className="text-xs text-emerald-100/85">
-              <span className="font-medium text-emerald-200">Revision {currentPlan.revisionNumber}</span>{" "}
+            <li className="text-xs text-text-secondary">
+              <span className="font-medium text-text-primary">Revision {currentPlan.revisionNumber}</span>{" "}
               — current
-              <span className="block text-emerald-100/55">
+              <span className="block text-text-tertiary">
                 {hasTransferStep
                   ? "Transfer still present (balance not yet sufficient)"
                   : "No transfer required — Hyatt balance now covers the award"}
@@ -395,12 +413,12 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
       {/* Summary steps from revision 2 */}
       {!idempotencyReplayed && currentPlan.steps.length > 0 ? (
         <div className="mt-3">
-          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-300/60">
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-success">
             Revision {currentPlan.revisionNumber} steps
           </h4>
           <ol className="space-y-1">
             {currentPlan.steps.map((step) => (
-              <li key={step.order} className="text-xs text-emerald-100/70">
+              <li key={step.order} className="text-xs text-text-secondary">
                 {step.order}. {step.summary}
               </li>
             ))}
@@ -409,7 +427,7 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
       ) : null}
 
       {response.replanJobId ? (
-        <p className="mt-3 font-mono text-[11px] text-emerald-100/35">
+        <p className="mt-3 font-mono text-[11px] text-text-tertiary">
           Replan job: {response.replanJobId.slice(0, 8)}…
         </p>
       ) : null}
@@ -431,18 +449,18 @@ function BalanceVersionCard({
 }) {
   const amount = deduction ?? addition;
   return (
-    <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-3">
-      <p className="text-xs font-medium text-emerald-200/80">{programName}</p>
+    <div className="rounded-lg border border-subtle bg-surface p-3">
+      <p className="text-xs font-medium text-text-primary">{programName}</p>
       {replayed ? (
-        <p className="mt-1 text-xs text-emerald-100/40">
+        <p className="mt-1 text-xs text-text-tertiary">
           Unchanged (idempotent replay)
         </p>
       ) : (
-        <p className="mt-1 font-mono text-xs text-emerald-100/70">
+        <p className="mt-1 font-mono text-xs text-text-secondary">
           v1 →{" "}
-          <span className="font-semibold text-emerald-200">v2</span>
+          <span className="font-semibold text-text-primary">v2</span>
           {amount ? (
-            <span className="ml-2 text-emerald-100/55">
+            <span className="ml-2 text-text-tertiary">
               ({deduction ? "−" : "+"}
               {formatPoints(amount)} pts)
             </span>

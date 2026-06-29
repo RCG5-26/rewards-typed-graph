@@ -1,5 +1,7 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import type { ArchitectureRunStatus } from "@/lib/comparison/types";
 
 /**
@@ -44,31 +46,49 @@ const SINGLE_STEPS = [
   { id: "plan-output", label: "Generated Plan", detail: "award + steps in structured output" },
 ];
 
-function statusColor(status: ArchitectureRunStatus): string {
+/**
+ * Lane container tint per status. Returned as inline styles because Tailwind
+ * opacity modifiers (`/10`) don't apply to the CSS-variable color tokens, and
+ * `color-mix` keeps the tints theme-aware (running = icy highlight, the app's
+ * primary accent on the dark lane).
+ */
+function laneStyle(status: ArchitectureRunStatus): CSSProperties {
   switch (status) {
     case "running":
-      return "border-indigo-400/60 bg-indigo-500/10";
+      return {
+        borderColor: "color-mix(in srgb, var(--color-highlight-glow) 55%, transparent)",
+        background: "color-mix(in srgb, var(--color-highlight-glow) 10%, transparent)",
+      };
     case "succeeded":
-      return "border-emerald-500/40 bg-emerald-500/8";
+      return {
+        borderColor: "color-mix(in srgb, var(--color-success) 40%, transparent)",
+        background: "color-mix(in srgb, var(--color-success) 8%, transparent)",
+      };
     case "failed":
     case "timed_out":
-      return "border-rose-500/40 bg-rose-500/8";
+      return {
+        borderColor: "color-mix(in srgb, var(--color-error) 40%, transparent)",
+        background: "color-mix(in srgb, var(--color-error) 8%, transparent)",
+      };
     default:
-      return "border-white/10 bg-white/[0.03]";
+      return {
+        borderColor: "var(--color-border)",
+        background: "var(--color-surface)",
+      };
   }
 }
 
 function statusDot(status: ArchitectureRunStatus): string {
   switch (status) {
     case "running":
-      return "animate-pulse motion-reduce:animate-none bg-indigo-400";
+      return "animate-pulse motion-reduce:animate-none bg-highlight";
     case "succeeded":
-      return "bg-emerald-400";
+      return "bg-success";
     case "failed":
     case "timed_out":
-      return "bg-rose-400";
+      return "bg-error";
     default:
-      return "bg-white/20";
+      return "bg-text-tertiary";
   }
 }
 
@@ -103,15 +123,20 @@ function LaneSteps({ steps, running }: { steps: Step[]; running: boolean }) {
             <div
               className={`h-5 w-5 rounded-full border text-center text-[10px] font-bold leading-[18px] ${
                 step.isShared
-                  ? "border-white/20 bg-white/10 text-white/60"
-                  : "border-white/15 bg-white/5 text-white/50"
+                  ? "border-strong bg-surface-raised text-text-secondary"
+                  : "border-subtle bg-surface text-text-tertiary"
               }`}
             >
               {i + 1}
             </div>
             {i < steps.length - 1 ? (
               <div
-                className={`mt-1 h-3 w-px ${running ? "bg-indigo-400/40" : "bg-white/10"}`}
+                className="mt-1 h-3 w-px"
+                style={{
+                  background: running
+                    ? "color-mix(in srgb, var(--color-highlight-glow) 45%, transparent)"
+                    : "var(--color-border)",
+                }}
                 aria-hidden="true"
               />
             ) : null}
@@ -119,12 +144,12 @@ function LaneSteps({ steps, running }: { steps: Step[]; running: boolean }) {
           <div className="min-w-0">
             <div
               className={`text-xs font-medium ${
-                step.isShared ? "text-white/70" : "text-white/85"
+                step.isShared ? "text-text-secondary" : "text-text-primary"
               }`}
             >
               {step.label}
             </div>
-            <div className="text-[11px] text-white/40">{step.detail}</div>
+            <div className="text-[11px] text-text-tertiary">{step.detail}</div>
           </div>
         </li>
       ))}
@@ -144,27 +169,28 @@ function Lane({ title, tagline, steps, status, coordinationNote }: LaneProps) {
   const running = status === "running";
   return (
     <div
-      className={`flex flex-col rounded-xl border p-4 transition-colors duration-300 ${statusColor(status)}`}
+      className="flex flex-col rounded-xl border p-4 transition-colors duration-300"
+      style={laneStyle(status)}
       role="region"
       aria-label={`${title} execution lane`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          <p className="mt-0.5 text-[11px] text-white/45">{tagline}</p>
+          <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+          <p className="mt-0.5 text-[11px] text-text-tertiary">{tagline}</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`inline-block h-2 w-2 rounded-full ${statusDot(status)}`}
             aria-hidden="true"
           />
-          <span className="text-[11px] text-white/50">{statusLabel(status)}</span>
+          <span className="text-[11px] text-text-secondary">{statusLabel(status)}</span>
         </div>
       </div>
 
       <LaneSteps steps={steps} running={running} />
 
-      <p className="mt-3 text-[11px] text-white/35 italic">{coordinationNote}</p>
+      <p className="mt-3 text-[11px] italic text-text-tertiary">{coordinationNote}</p>
     </div>
   );
 }
@@ -172,14 +198,18 @@ function Lane({ title, tagline, steps, status, coordinationNote }: LaneProps) {
 function EvaluatorNode() {
   return (
     <div
-      className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center"
+      className="rounded-xl p-4 text-center"
+      style={{
+        background: "color-mix(in srgb, var(--color-warning) 8%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--color-warning) 22%, transparent)",
+      }}
       role="region"
       aria-label="Independent deterministic evaluator"
     >
-      <div className="text-xs font-semibold uppercase tracking-wide text-amber-300/80">
+      <div className="text-xs font-semibold uppercase tracking-wide text-warning">
         Independent evaluator
       </div>
-      <div className="mt-1 text-[11px] text-white/45">
+      <div className="mt-1 text-[11px] text-text-tertiary">
         Architecture-blind · deterministic · same rules for all three
       </div>
     </div>
@@ -189,9 +219,9 @@ function EvaluatorNode() {
 function ConvergenceArrow() {
   return (
     <div className="flex items-center justify-center py-1" aria-hidden="true">
-      <div className="h-px flex-1 bg-white/10" />
-      <div className="mx-2 text-white/20 text-xs">↓</div>
-      <div className="h-px flex-1 bg-white/10" />
+      <div className="h-px flex-1 bg-[var(--color-border)]" />
+      <div className="mx-2 text-xs text-text-tertiary">↓</div>
+      <div className="h-px flex-1 bg-[var(--color-border)]" />
     </div>
   );
 }
@@ -199,12 +229,12 @@ function ConvergenceArrow() {
 export function ArchitectureExecutionOverview({ laneStatus }: Props) {
   return (
     <section
-      className="rounded-2xl border border-white/10 bg-white/[0.02] p-6"
+      className="rounded-card border border-subtle bg-surface p-6"
       aria-label="Architecture execution overview"
     >
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-white">Conceptual execution view</h2>
-        <p className="mt-1 text-sm text-white/50">
+        <h2 className="text-base font-semibold text-text-primary">Conceptual execution view</h2>
+        <p className="mt-1 text-sm text-text-secondary">
           The planners do not score themselves. Their outputs are converted to one normalized
           contract and evaluated by the same deterministic rules.
         </p>
@@ -236,7 +266,7 @@ export function ArchitectureExecutionOverview({ laneStatus }: Props) {
 
       <ConvergenceArrow />
 
-      <div className="mt-1 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center text-xs text-white/50">
+      <div className="mt-1 rounded-xl border border-subtle bg-surface-subtle p-3 text-center text-xs text-text-secondary">
         Normalized Plan Contract — same fields, same order, same schema for all three
       </div>
 

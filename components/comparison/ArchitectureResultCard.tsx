@@ -19,6 +19,31 @@ export type CardState =
   | { phase: "loading" }
   | { phase: "result"; result: ArchitectureComparisonResult };
 
+/** Tinted status panel fills (warning/error), driven by the design tokens. */
+const WARNING_PANEL_STYLE = {
+  background: "var(--color-warning-bg)",
+  border: "1px solid color-mix(in srgb, var(--color-warning) 24%, transparent)",
+} as const;
+const ERROR_PANEL_STYLE = {
+  background: "var(--color-error-bg)",
+  border: "1px solid color-mix(in srgb, var(--color-error) 24%, transparent)",
+} as const;
+
+const VALIDITY_PILL_STYLE: Record<"valid" | "incomplete" | "invalid", { background: string; color: string }> = {
+  valid: {
+    background: "color-mix(in srgb, var(--color-success) 16%, transparent)",
+    color: "var(--color-success)",
+  },
+  incomplete: {
+    background: "color-mix(in srgb, var(--color-warning) 16%, transparent)",
+    color: "var(--color-warning)",
+  },
+  invalid: {
+    background: "color-mix(in srgb, var(--color-error) 16%, transparent)",
+    color: "var(--color-error)",
+  },
+};
+
 export function ArchitectureResultCard({
   variant,
   facts,
@@ -30,11 +55,11 @@ export function ArchitectureResultCard({
 }) {
   return (
     <article
-      className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+      className="flex flex-col rounded-card border border-subtle bg-surface p-5 shadow-raised"
       aria-label={`${VARIANT_LABELS[variant]} result`}
     >
       <header className="mb-4 space-y-1">
-        <h3 className="text-base font-semibold text-white">{VARIANT_LABELS[variant]}</h3>
+        <h3 className="text-base font-semibold text-text-primary">{VARIANT_LABELS[variant]}</h3>
         <StatusRows state={state} facts={facts} />
       </header>
       <Body variant={variant} facts={facts} state={state} />
@@ -56,20 +81,20 @@ function StatusRows({
   if (state.phase === "idle") {
     return (
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-        <dt className="text-white/45">Execution</dt>
-        <dd className="text-white/55">Not started</dd>
-        <dt className="text-white/45">Plan validity</dt>
-        <dd className="text-white/45">—</dd>
+        <dt className="text-text-tertiary">Execution</dt>
+        <dd className="text-text-secondary">Not started</dd>
+        <dt className="text-text-tertiary">Plan validity</dt>
+        <dd className="text-text-tertiary">—</dd>
       </dl>
     );
   }
   if (state.phase === "loading") {
     return (
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs" aria-busy="true">
-        <dt className="text-white/45">Execution</dt>
-        <dd className="text-amber-300/80">Running…</dd>
-        <dt className="text-white/45">Plan validity</dt>
-        <dd className="text-white/45">—</dd>
+        <dt className="text-text-tertiary">Execution</dt>
+        <dd className="text-warning">Running…</dd>
+        <dt className="text-text-tertiary">Plan validity</dt>
+        <dd className="text-text-tertiary">—</dd>
       </dl>
     );
   }
@@ -80,18 +105,18 @@ function StatusRows({
 
   const validity = result.evaluation ? derivePlanValidity(result.evaluation) : null;
   const validityLabel = validity ? planValidityLabel(validity) : "—";
-  const validityColor = validity ? planValidityColor(validity) : "text-white/45";
+  const validityColor = validity ? planValidityColor(validity) : "text-text-tertiary";
 
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-      <dt className="text-white/45">Execution</dt>
+      <dt className="text-text-tertiary">Execution</dt>
       <dd className={executionColor}>{executionLabel}</dd>
-      <dt className="text-white/45">Plan validity</dt>
+      <dt className="text-text-tertiary">Plan validity</dt>
       <dd className={validityColor}>{validityLabel}</dd>
       {result.metrics.latencyMs ? (
         <>
-          <dt className="text-white/45">Latency</dt>
-          <dd className="font-mono text-white/55">{formatLatency(result.metrics.latencyMs)}</dd>
+          <dt className="text-text-tertiary">Latency</dt>
+          <dd className="font-mono text-text-secondary">{formatLatency(result.metrics.latencyMs)}</dd>
         </>
       ) : null}
     </dl>
@@ -116,14 +141,14 @@ function executionStatusLabel(result: ArchitectureComparisonResult): string {
 function executionStatusColor(result: ArchitectureComparisonResult): string {
   switch (result.status) {
     case "succeeded":
-      return "text-emerald-300";
+      return "text-success";
     case "failed":
     case "timed_out":
-      return "text-rose-300";
+      return "text-error";
     case "running":
-      return "text-amber-300";
+      return "text-warning";
     default:
-      return "text-white/45";
+      return "text-text-tertiary";
   }
 }
 
@@ -141,11 +166,11 @@ function planValidityLabel(validity: "valid" | "incomplete" | "invalid"): string
 function planValidityColor(validity: "valid" | "incomplete" | "invalid"): string {
   switch (validity) {
     case "valid":
-      return "text-emerald-300";
+      return "text-success";
     case "incomplete":
-      return "text-amber-300";
+      return "text-warning";
     case "invalid":
-      return "text-rose-300";
+      return "text-error";
   }
 }
 
@@ -164,7 +189,7 @@ function Body({
 }) {
   if (state.phase === "idle") {
     return (
-      <p className="text-sm text-white/55">
+      <p className="text-sm text-text-secondary">
         Run the comparison to see this architecture&apos;s plan.
       </p>
     );
@@ -172,10 +197,10 @@ function Body({
   if (state.phase === "loading") {
     return (
       <div className="space-y-2" aria-label="Loading result" aria-busy="true">
-        <div className="h-3 w-3/4 animate-pulse motion-reduce:animate-none rounded bg-white/10" />
-        <div className="h-3 w-2/3 animate-pulse motion-reduce:animate-none rounded bg-white/10" />
-        <div className="h-3 w-1/2 animate-pulse motion-reduce:animate-none rounded bg-white/10" />
-        <div className="h-3 w-5/6 animate-pulse motion-reduce:animate-none rounded bg-white/10" />
+        <div className="h-3 w-3/4 animate-pulse motion-reduce:animate-none rounded bg-white/[0.06]" />
+        <div className="h-3 w-2/3 animate-pulse motion-reduce:animate-none rounded bg-white/[0.06]" />
+        <div className="h-3 w-1/2 animate-pulse motion-reduce:animate-none rounded bg-white/[0.06]" />
+        <div className="h-3 w-5/6 animate-pulse motion-reduce:animate-none rounded bg-white/[0.06]" />
       </div>
     );
   }
@@ -185,12 +210,12 @@ function Body({
   if (result.status !== "succeeded" || !result.plan) {
     return (
       <div className="space-y-3">
-        <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
-          <p className="text-sm font-medium text-rose-200">
+        <div className="rounded-lg p-3" style={ERROR_PANEL_STYLE}>
+          <p className="text-sm font-medium" style={{ color: "var(--color-error-fg)" }}>
             {result.error?.message ?? "This architecture did not return a plan."}
           </p>
           {result.error?.category ? (
-            <p className="mt-1 font-mono text-xs text-rose-300/55">{result.error.category}</p>
+            <p className="mt-1 font-mono text-xs text-text-tertiary">{result.error.category}</p>
           ) : null}
         </div>
         <MetricsRow result={result} />
@@ -207,17 +232,17 @@ function Body({
     <div className="space-y-4">
       {/* Plan summary */}
       {plan.summary ? (
-        <p className="text-sm text-white/75">{plan.summary}</p>
+        <p className="text-sm text-text-secondary">{plan.summary}</p>
       ) : null}
 
       {/* Incomplete recommendation notice */}
       {missingFields.length > 0 ? (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
-          <p className="text-xs font-semibold text-amber-200">Incomplete recommendation</p>
-          <p className="mt-0.5 text-xs text-amber-100/70">Missing:</p>
+        <div className="rounded-lg p-3" style={WARNING_PANEL_STYLE}>
+          <p className="text-xs font-semibold text-warning">Incomplete recommendation</p>
+          <p className="mt-0.5 text-xs text-text-secondary">Missing:</p>
           <ul className="mt-1 list-inside list-disc space-y-0.5">
             {missingFields.map((field) => (
-              <li key={field} className="text-xs text-amber-100/70">
+              <li key={field} className="text-xs text-text-secondary">
                 {field}
               </li>
             ))}
@@ -228,39 +253,39 @@ function Body({
       {/* Normalized recommendation fields */}
       <dl className="space-y-1.5 text-sm">
         <div className="flex items-start justify-between gap-3">
-          <dt className="shrink-0 text-white/50">Selected award</dt>
-          <dd className="text-right text-white/90">
+          <dt className="shrink-0 text-text-tertiary">Selected award</dt>
+          <dd className="text-right text-text-primary">
             {selectedAward ? (
               selectedAward.displayName
             ) : plan.selectedAwardId ? (
-              <span className="font-mono text-xs text-white/55">{plan.selectedAwardId}</span>
+              <span className="font-mono text-xs text-text-secondary">{plan.selectedAwardId}</span>
             ) : (
-              <span className="text-white/30">—</span>
+              <span className="text-text-tertiary">—</span>
             )}
           </dd>
         </div>
         <div className="flex items-start justify-between gap-3">
-          <dt className="shrink-0 text-white/50">Transfer</dt>
-          <dd className="text-right text-white/90">
+          <dt className="shrink-0 text-text-tertiary">Transfer</dt>
+          <dd className="text-right text-text-primary">
             {plan.transferRequired ? (
               <>
                 {formatPoints(plan.transferAmount)} pts{" "}
-                <span className="text-white/55">Chase → Hyatt</span>
+                <span className="text-text-secondary">Chase → Hyatt</span>
               </>
             ) : plan.steps.some((s) => s.actionType === "transfer") ? (
               "See steps"
             ) : (
-              <span className="text-white/30">None</span>
+              <span className="text-text-tertiary">None</span>
             )}
           </dd>
         </div>
         {plan.redemptionPoints ? (
           <div className="flex items-start justify-between gap-3">
-            <dt className="shrink-0 text-white/50">Redemption</dt>
-            <dd className="text-right text-white/90">
+            <dt className="shrink-0 text-text-tertiary">Redemption</dt>
+            <dd className="text-right text-text-primary">
               {formatPoints(plan.redemptionPoints)} pts
               {selectedAward ? (
-                <span className="text-white/55"> · {selectedAward.programSlug.replace("program:", "")}</span>
+                <span className="text-text-secondary"> · {selectedAward.programSlug.replace("program:", "")}</span>
               ) : null}
             </dd>
           </div>
@@ -270,25 +295,25 @@ function Body({
       {/* Ordered steps */}
       {plan.steps.length > 0 ? (
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/50">
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-tertiary">
             Steps
           </h4>
-          <ol className="space-y-2 border-l border-white/10 pl-3">
+          <ol className="space-y-2 border-l border-subtle pl-3">
             {plan.steps.map((step) => (
               <li key={step.order} className="text-sm">
-                <span className="text-xs font-medium text-white/55">{step.order}.</span>{" "}
-                <span className="font-medium text-white/85">{actionLabel(step.actionType)}</span>
+                <span className="text-xs font-medium text-text-tertiary">{step.order}.</span>{" "}
+                <span className="font-medium text-text-primary">{actionLabel(step.actionType)}</span>
                 {" — "}
-                <span className="text-white/70">{step.title}</span>
+                <span className="text-text-secondary">{step.title}</span>
                 {step.actionType === "transfer" && step.sourceProgramId ? (
-                  <div className="mt-0.5 text-xs text-white/45">
+                  <div className="mt-0.5 text-xs text-text-tertiary">
                     {programName(facts, step.sourceProgramId)} →{" "}
                     {programName(facts, step.destinationProgramId)}
                     {step.points !== undefined ? ` · ${formatPoints(step.points)} pts` : ""}
                   </div>
                 ) : null}
                 {step.actionType === "redeem" && step.awardId ? (
-                  <div className="mt-0.5 text-xs text-white/45">
+                  <div className="mt-0.5 text-xs text-text-tertiary">
                     {findAward(facts, step.awardId)?.displayName ?? step.awardId}
                     {step.points !== undefined ? ` · ${formatPoints(step.points)} pts` : ""}
                   </div>
@@ -330,18 +355,13 @@ function EvaluationSection({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-white/50">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
           Independent evaluation
         </h4>
         {validity ? (
           <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              validity === "valid"
-                ? "bg-emerald-500/15 text-emerald-300"
-                : validity === "incomplete"
-                  ? "bg-amber-500/15 text-amber-300"
-                  : "bg-rose-500/15 text-rose-300"
-            }`}
+            className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+            style={VALIDITY_PILL_STYLE[validity]}
           >
             {planValidityLabel(validity)}
           </span>
@@ -351,22 +371,22 @@ function EvaluationSection({
         {checks.map((check) => (
           <li
             key={check.label}
-            className="flex items-center gap-1.5 text-xs text-white/65"
+            className="flex items-center gap-1.5 text-xs text-text-secondary"
           >
             <span
-              className={check.ok ? "text-emerald-400" : "text-rose-400"}
+              className={check.ok ? "text-success" : "text-error"}
               aria-hidden="true"
             >
               {check.ok ? "✓" : "✗"}
             </span>
-            <span className={!check.ok ? "text-rose-300/80" : ""}>{check.label}</span>
+            <span className={!check.ok ? "text-error" : ""}>{check.label}</span>
           </li>
         ))}
       </ul>
       {errorIssues.length > 0 ? (
         <ul className="mt-2 space-y-0.5">
           {errorIssues.map((issue) => (
-            <li key={issue.code} className="text-[11px] text-rose-300/70">
+            <li key={issue.code} className="text-[11px] text-error">
               {issue.message}
             </li>
           ))}
@@ -387,7 +407,7 @@ function EvidenceRow({ result }: { result: ArchitectureComparisonResult }) {
   if (evidence.planId) bits.push("persisted plan");
   if (bits.length === 0) return null;
   return (
-    <p className="text-xs text-white/45" aria-label="Architecture evidence">
+    <p className="text-xs text-text-tertiary" aria-label="Architecture evidence">
       {bits.join(" · ")}
     </p>
   );
@@ -403,7 +423,7 @@ function MetricsRow({ result }: { result: ArchitectureComparisonResult }) {
   }
   if (bits.length === 0) return null;
   return (
-    <p className="border-t border-white/5 pt-2 font-mono text-xs text-white/40">
+    <p className="border-t border-subtle pt-2 font-mono text-xs text-text-tertiary">
       {bits.join(" · ")}
     </p>
   );
