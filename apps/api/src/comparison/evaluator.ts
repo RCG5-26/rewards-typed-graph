@@ -30,6 +30,7 @@ export function evaluatePlan(plan: NormalizedPlan, facts: CanonicalWalletFacts):
   const issues: EvaluationIssue[] = [];
 
   const structurallyValid = checkStructure(plan, issues);
+  checkCompleteness(plan, issues);
   const allAwardReferencesGrounded = checkGrounding(plan, facts, issues);
   const supportedTransferRoute = checkTransferRoutes(plan, facts, issues);
   const simulation = simulateBalances(plan, facts, issues);
@@ -58,6 +59,16 @@ export function evaluatePlan(plan: NormalizedPlan, facts: CanonicalWalletFacts):
   };
 }
 
+/** Overall plan validity label derived from evaluation issues. */
+export type PlanValidity = "valid" | "incomplete" | "invalid";
+
+export function planValidity(evaluation: PlanEvaluation): PlanValidity {
+  if (evaluation.issues.some((i) => i.severity === "error")) return "invalid";
+  if (evaluation.issues.some((i) => i.severity === "warning" && i.code.startsWith("missing_")))
+    return "incomplete";
+  return "valid";
+}
+
 /** A plan is hard-valid iff no error-severity gate failed. */
 export function isHardValid(evaluation: PlanEvaluation): boolean {
   return !evaluation.issues.some((issue) => issue.severity === "error");
@@ -80,6 +91,28 @@ function checkStructure(plan: NormalizedPlan, issues: EvaluationIssue[]): boolea
     valid = false;
   }
   return valid;
+}
+
+/**
+ * Architecture-independent completeness checks.
+ * Issues warning-severity findings when a plan is missing required fields.
+ * These do not make a plan invalid — an incomplete graph plan may still be
+ * a correct "next-action" recommendation.
+ */
+function checkCompleteness(plan: NormalizedPlan, issues: EvaluationIssue[]): void {
+  if (!plan.selectedAwardId) {
+    issues.push(warning("missing_selected_award", "plan does not name a selected award"));
+  }
+  const hasRedeemStep = plan.steps.some((s) => s.actionType === "redeem");
+  if (!hasRedeemStep && plan.selectedAwardId) {
+    issues.push(warning("missing_redemption", "plan names an award but has no redemption step"));
+  }
+  const hasActionableStep = plan.steps.some(
+    (s) => s.actionType === "transfer" || s.actionType === "redeem",
+  );
+  if (plan.steps.length > 0 && !hasActionableStep) {
+    issues.push(warning("missing_actionable_step", "plan has steps but none are transfer or redeem actions"));
+  }
 }
 
 function checkGrounding(

@@ -2,16 +2,19 @@
  * M2 — Deterministic Redemption specialist adapter.
  *
  * Evaluates whether the demo user's Hyatt balance meets the minimum for
- * redemption option f001 (Hyatt Ginza 3-night, min 45k pts), then emits:
- *  1. CreatePlanStep  (redemption_recommendation OR transfer_recommendation)
- *  2. RecordStateDependency  (structural-stale anchor, thesis claim 8/9/10)
+ * redemption option f001 (Hyatt Ginza 3-night, min 45k pts), then emits one or
+ * two (CreatePlanStep + RecordStateDependency) pairs. The dependency is the
+ * structural-stale anchor (thesis claim 8/9/10).
  *
- * State-dependency target selection (demo fixture §3, orchestrator-thesis-contracts):
- *  - Hyatt ≥ threshold → direct redemption → depend on **Hyatt** balance
- *    (stale if Hyatt drops below minimum)
- *  - Hyatt < threshold but Chase+Hyatt ≥ threshold → transfer recommendation →
- *    depend on **Chase UR** balance (the funding source; stale when Chase bumps
- *    version, which is exactly what transfer_points() does)
+ * Branch + state-dependency selection (demo fixture §3, orchestrator-thesis-contracts):
+ *  - Hyatt ≥ threshold → direct redemption → one step, depend on **Hyatt**
+ *    (stale if Hyatt drops below minimum).
+ *  - Hyatt < threshold but Chase+Hyatt ≥ threshold → **complete two-step plan**:
+ *    transfer (depends on **Chase UR**, the funding source) + the redemption it
+ *    unlocks (depends on **Hyatt**). Executing the transfer bumps both versions,
+ *    staling the plan and enqueuing exactly one replan job (one job per stale
+ *    plan, deduped by `replan_jobs.source_plan_id`). Emitting the redemption now
+ *    makes rev1 a complete, goal-satisfying plan comparable to one-shot baselines.
  *
  * Ownership: redemption_agent is the SOLE owner of RecordStateDependency
  * (agents/ownership.ts). No other specialist can write this mutation.
@@ -39,6 +42,8 @@ const HYATT_REDEMPTION_OPTION_ID = "00000000-0000-0000-0000-00000000f001";
 const HYATT_MIN_POINTS = 45_000;
 
 const CHASE_UR_PROGRAM_ID = "00000000-0000-0000-0000-00000000b001";
+
+const GINZA_AWARD_NAME = "Demo Hyatt Ginza 3-night Tokyo award";
 
 // This deterministic milestone adapter only models the Hyatt demo option funded
 // by Hyatt or Chase UR (ADR 0010 §5). Any operation outside this set is rejected
@@ -75,6 +80,9 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
           payload: {
             redemptionOptionId: HYATT_REDEMPTION_OPTION_ID,
             sourceProgramId: HYATT_PROGRAM_ID,
+            action: redemptionAction(),
+            reasoning:
+              "Hyatt balance already meets the 45,000-point minimum for the Ginza award.",
           },
         },
         // Direct redemption depends on Hyatt alone. Including Chase here would let
@@ -107,11 +115,17 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
       chaseBalance !== null &&
       chaseBalance.balancePoints + hyattBalance.balancePoints >= HYATT_MIN_POINTS
     ) {
-      // Transfer from Chase UR → Hyatt, then redeem.
-      // Depend on Chase UR: the funding source. When transfer_points() bumps the
-      // Chase UR version, this dependency triggers structural invalidation of the
-      // step, causing the plan to go stale and a replan job to be enqueued.
-      const stepResult = await commit({
+      // Transfer-first path: Hyatt is short, but Chase UR can fund the gap.
+      // Emit a COMPLETE rev1 plan — transfer (step 1) AND the redemption it
+      // unlocks (step 2) — so the plan is directly comparable to one-shot
+      // baselines and goal-satisfying immediately, while still driving the
+      // reactive replan: each step records a balance dependency, so executing
+      // the transfer (which bumps both Chase and Hyatt versions) stales the
+      // plan and enqueues a single replan job.
+
+      // Step 1 — transfer. Depend on Chase UR (the funding source).
+      const deficit = transferDeficit(hyattBalance.balancePoints);
+      const transferStep = await commit({
         mutation: {
           kind: "CreatePlanStep",
           planId,
@@ -120,6 +134,8 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
           payload: {
             fromProgramId: CHASE_UR_PROGRAM_ID,
             toProgramId: HYATT_PROGRAM_ID,
+            action: transferAction(deficit),
+            reasoning: transferReasoning(hyattBalance.balancePoints, deficit),
           },
         },
         readSet: buildReadSet(hyattBalance, chaseBalance),
@@ -129,7 +145,7 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
       await commit({
         mutation: {
           kind: "RecordStateDependency",
-          planStepId: stepResult.mutationTxnId,
+          planStepId: transferStep.mutationTxnId,
           targetNodeId: chaseBalance.id,
           observedVersion: chaseBalance.version,
           target: {
@@ -141,6 +157,43 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
         },
         readSet: { [chaseBalance.id]: chaseBalance.version },
         idempotencyKey: `redemption-dep:${planId}:chase:${chaseBalance.id}`,
+      });
+
+      // Step 2 — the redemption the transfer funds. Depend on Hyatt (the
+      // redeeming program), consistent with the direct-redemption branch.
+      const redemptionStep = await commit({
+        mutation: {
+          kind: "CreatePlanStep",
+          planId,
+          stepOrder: 2,
+          stepType: "redemption_recommendation",
+          payload: {
+            redemptionOptionId: HYATT_REDEMPTION_OPTION_ID,
+            sourceProgramId: HYATT_PROGRAM_ID,
+            action: redemptionAction(),
+            reasoning:
+              "After the Chase transfer, redeem the best-value Tokyo hotel award.",
+          },
+        },
+        readSet: { [hyattBalance.id]: hyattBalance.version },
+        idempotencyKey: `redemption-after-transfer:${planId}:${HYATT_REDEMPTION_OPTION_ID}`,
+      });
+
+      await commit({
+        mutation: {
+          kind: "RecordStateDependency",
+          planStepId: redemptionStep.mutationTxnId,
+          targetNodeId: hyattBalance.id,
+          observedVersion: hyattBalance.version,
+          target: {
+            targetNodeType: "UserBalance",
+            targetTable: "user_balances",
+            dependedProperty: "balance_points",
+            snapshotValue: { balancePoints: hyattBalance.balancePoints },
+          },
+        },
+        readSet: { [hyattBalance.id]: hyattBalance.version },
+        idempotencyKey: `redemption-dep:${planId}:hyatt-after-transfer:${hyattBalance.id}`,
       });
 
       return;
@@ -156,6 +209,11 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
         payload: {
           redemptionOptionId: HYATT_REDEMPTION_OPTION_ID,
           sourceProgramId: HYATT_PROGRAM_ID,
+          action: redemptionAction(),
+          reasoning: insufficientReasoning(
+            hyattBalance.balancePoints,
+            chaseBalance?.balancePoints ?? 0,
+          ),
         },
       },
       // Insufficient-points path depends on Hyatt alone (the dependency edge below
@@ -235,4 +293,34 @@ function buildReadSet(
     readSet[chaseBalance.id] = chaseBalance.version;
   }
   return readSet;
+}
+
+function formatPoints(points: number): string {
+  return points.toLocaleString("en-US");
+}
+
+function transferDeficit(hyattPoints: number): number {
+  return Math.max(0, HYATT_MIN_POINTS - hyattPoints);
+}
+
+function transferAction(deficit: number): string {
+  return `Transfer ${formatPoints(deficit)} Chase Ultimate Rewards points to World of Hyatt.`;
+}
+
+function transferReasoning(hyattPoints: number, deficit: number): string {
+  return (
+    `Hyatt holds ${formatPoints(hyattPoints)} but ${GINZA_AWARD_NAME} requires ` +
+    `${formatPoints(HYATT_MIN_POINTS)}; Chase UR can fund the ${formatPoints(deficit)} gap at 1:1.`
+  );
+}
+
+function redemptionAction(): string {
+  return `Book ${GINZA_AWARD_NAME} for ${formatPoints(HYATT_MIN_POINTS)} Hyatt points.`;
+}
+
+function insufficientReasoning(hyattPoints: number, chasePoints: number): string {
+  return (
+    `Combined Hyatt and Chase balances (${formatPoints(hyattPoints + chasePoints)}) are below ` +
+    `the ${formatPoints(HYATT_MIN_POINTS)}-point award minimum.`
+  );
 }

@@ -1760,3 +1760,101 @@ OpenAI; browser hero flow including simulate transfer and idempotent replay
 succeeded. Residual: production build `/404`+`/500` prerender (pre-existing Next
 infra); PG16-only Python artifact tests skip on PG14; demo runbook requires full
 `PG*` env set for orchestrator subprocesses.
+
+## Entry 018 — Graph Crew incomplete-recommendation investigation (2026-06-28)
+
+Read-only, evidence-based root-cause investigation (no production code changed)
+of why the Test Wallet comparison's Graph Crew card reports `status: succeeded`
+but renders `Selected award: —`, `Transfer: None`, summary "Graph plan produced
+no redemption.", `Goal satisfied: false`. Run from the final-integration
+worktree (`gpFree`, branch `demo/final-integration`, HEAD `a40a736`).
+
+### Tools used
+- Live PostgreSQL inspection (`psql`, DB `rewards_comparison`, user a001) —
+  read-only; secrets handled name/length-only (PGPASSWORD sourced from `.env`,
+  never echoed).
+- Live projection re-run: `PYTHON_BIN=python3.12 python3.12
+  apps/api/bridge/hero_bridge.py read-plan --user-id … --plan-id …`.
+- Whole-file source reads across the seam (bridge projection, normalizer,
+  evaluator, UI card, decomposer/specialists, commit validation).
+- Multi-agent verification workflow (5 agents: semantics, evaluator, UI,
+  normalizer, + adversarial root-cause verifier).
+
+### Reproduction commands
+```text
+# PLAN_ENGINE=orchestrator confirmed via .demo-evidence/api_server.log
+# Captured API truth: .demo-evidence/aggregate_comparison.json (graph variant)
+psql -d rewards_comparison -c "select id,step_order,step_type,payload \
+  from plan_steps where plan_id='<recent a001 plan>'"
+PYTHONPATH=. PG*=… PYTHON_BIN=python3.12 python3.12 \
+  apps/api/bridge/hero_bridge.py read-plan --user-id <a001> --plan-id <plan>
+```
+
+### Layers inspected
+Specialist output → commit input → PostgreSQL `plan_steps` → PlanView
+projection (`do_read_plan` / `_build_plan_graph`) → graph normalizer →
+deterministic evaluator → API response → React result card.
+
+### Root cause
+`MULTIPLE GRAPH-PATH DEFECTS CONFIRMED` (adversarially verified, confidence
+0.97). First failing layer = **PLAN PROJECTION**. The DB is complete:
+`redemption_recommendation` payload `{redemptionOptionId: f001, sourceProgramId:
+b002}` (and the transfer-only shape `{fromProgramId: b001, toProgramId: b002}`).
+But `do_read_plan` reads `payload->>'action'`/`'reasoning'` and `_build_plan_graph`
+builds the redemption node / award / edges only from
+`payload["planner_payload"]` (`award_slug`, `candidate_fact_slugs`,
+`source/dest_program_slug`) — fields produced ONLY by the legacy writer
+`plan_flows/redemption_graph_writer.py` (via `hero_flow.py`), never by the live
+orchestrator commit path (`do_orchestrator_commit_step` →
+`V31GraphWriteService.create_plan_step`, which persists the v3.1 structured
+payload verbatim per `apps/api/src/agents/commit/validation.ts`). The two write
+paths emit structurally different payloads; the single shared projection only
+understands the legacy one, so the award/route/title are dropped before the
+normalizer runs. `tests/test_hero_bridge_projection.py` feeds only the legacy
+shape, so CI never caught it. Secondary defect: revision-1 is single-step by
+design (redemption XOR transfer, balance-state-selected — `redemption-agent.ts`
+3 branches), and `fillImpliedTransferAmounts` only fills an *existing* transfer
+step, so even a fixed projection leaves an award-only plan showing
+`Transfer: None`.
+
+### Manual review
+Each layer cross-checked against live DB rows and a live `read-plan` projection;
+the captured `aggregate_comparison.json` graph result is reproduced byte-for-byte
+by normalizing the live transfer-only projection. Evaluator confirmed working as
+designed (`goal_falsely_claimed` correctly refutes the false `status===current`
+goal claim); UI confirmed an honest mirror of incomplete API data, not the
+origin.
+
+### Proposed fixes (NOT implemented — read-only investigation)
+1. P1 — Fix the projection (`_build_plan_graph` + step summary in
+   `do_read_plan`) to map the v3.1 payload (`redemptionOptionId`/`sourceProgramId`,
+   `fromProgramId`/`toProgramId`) into the redemption node, redeem edge, transfer
+   edge, and a derived step title; add a projection test with the v3.1 shape.
+2. P1/P2 — Decide intended revision-1 semantics; either persist the implied
+   transfer step alongside the redemption, or have the GRAPH adapter (not the
+   shared baseline fill) synthesize a deficit-driven transfer so award-only plans
+   render the full transfer→redeem plan.
+3. P2 — Evaluator completeness gate: broaden `checkStructure` to flag an
+   award-less, no-executable-step plan as `structurallyValid:false`.
+4. P3 — Rename UI badge "Succeeded"→"Run completed"; stop the normalizer setting
+   `goalSatisfied = (status==='current')`.
+
+### Deferred work
+Actual code fixes (projection mapping, semantics decision, evaluator rule, UI
+badge) are deferred to an implementation task with TDD per repo gates. The
+v3.1↔legacy projection mismatch likely also affects any other consumer of
+`read-plan` for orchestrator-written plans — audit beyond the comparison card.
+
+### Presentation-safe claim
+CAN claim: the live graph orchestrator runs end-to-end on PostgreSQL and
+persists a correct, grounded award (f001) + source program. CANNOT currently
+claim: that the Graph Crew comparison card shows a complete/competitive
+recommendation, or that the three architectures are compared on equal OUTPUT
+semantics (inputs + rubric are equal; output semantics are PARTIALLY EQUIVALENT
+— graph is single-next-action-per-revision, baselines are end-to-end).
+
+### Verdict
+`MULTIPLE GRAPH-PATH DEFECTS CONFIRMED` — primary PLAN PROJECTION defect
+(v3.1-vs-legacy payload-shape mismatch) drops the persisted award/route;
+secondary single-step orchestrator semantics + normalizer gating keep
+`Transfer: None` even once the projection is fixed.

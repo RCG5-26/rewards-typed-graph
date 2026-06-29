@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { TRANSFER_REQUIRED_WALLET } from "./canonical-wallet";
-import { comparePlans, evaluatePlan, isHardValid, rankPlans } from "./evaluator";
+import { comparePlans, evaluatePlan, isHardValid, planValidity, rankPlans } from "./evaluator";
 import type { NormalizedPlan } from "./types";
 
 const FACTS = TRANSFER_REQUIRED_WALLET;
@@ -189,5 +189,71 @@ describe("deterministic evaluator", () => {
     plan.steps[1].awardId = "award:demo_hyatt_ginza:tokyo:3n";
     const evaluation = evaluatePlan(plan, FACTS);
     expect(evaluation.allAwardReferencesGrounded).toBe(true);
+  });
+
+  describe("completeness checks and planValidity", () => {
+    it("canonical plan is valid (no missing_ warnings)", () => {
+      const evaluation = evaluatePlan(transferThenRedeem(), FACTS);
+      expect(evaluation.issues.filter((i) => i.code.startsWith("missing_"))).toEqual([]);
+      expect(planValidity(evaluation)).toBe("valid");
+    });
+
+    it("plan with no selected award gets missing_selected_award warning", () => {
+      const plan: NormalizedPlan = {
+        summary: "No award selected.",
+        goalSatisfied: false,
+        transferRequired: false,
+        steps: [],
+      };
+      const evaluation = evaluatePlan(plan, FACTS);
+      expect(evaluation.issues.some((i) => i.code === "missing_selected_award")).toBe(true);
+      expect(evaluation.issues.find((i) => i.code === "missing_selected_award")?.severity).toBe("warning");
+      expect(planValidity(evaluation)).toBe("incomplete");
+    });
+
+    it("plan with award but no redemption step gets missing_redemption warning", () => {
+      // Use a wallet where Hyatt already covers Ginza (50k ≥ 45k) so the only
+      // issue is the missing redemption step, not affordability.
+      const richFacts = structuredClone(FACTS);
+      const hyattBalance = richFacts.balances.find((b) => b.programId === HYATT)!;
+      hyattBalance.points = 50000;
+      const plan: NormalizedPlan = {
+        summary: "Award identified but not redeemed.",
+        goalSatisfied: false,
+        transferRequired: false,
+        selectedAwardId: GINZA,
+        steps: [],
+      };
+      const evaluation = evaluatePlan(plan, richFacts);
+      expect(evaluation.issues.some((i) => i.code === "missing_redemption")).toBe(true);
+      expect(evaluation.issues.find((i) => i.code === "missing_redemption")?.severity).toBe("warning");
+      expect(planValidity(evaluation)).toBe("incomplete");
+    });
+
+    it("plan with error-severity issues is invalid, not incomplete", () => {
+      const plan = transferThenRedeem();
+      plan.selectedAwardId = "award:hallucinated:award";
+      const evaluation = evaluatePlan(plan, FACTS);
+      expect(evaluation.issues.some((i) => i.severity === "error")).toBe(true);
+      expect(planValidity(evaluation)).toBe("invalid");
+    });
+
+    it("next-action-only plan (redeem, no transfer) is invalid due to overspend", () => {
+      // This is the graph orchestrator revision-1 shape: one redemption step, no transfer.
+      // Hyatt balance (30k) < Ginza cost (45k) → overspend error.
+      const plan: NormalizedPlan = {
+        summary: "Redeem Ginza award.",
+        goalSatisfied: true,
+        transferRequired: false,
+        selectedAwardId: GINZA,
+        selectedProgramId: HYATT,
+        redemptionPoints: 45000,
+        steps: [{ order: 1, actionType: "redeem", title: "Redeem award", awardId: GINZA, points: 45000 }],
+      };
+      const evaluation = evaluatePlan(plan, FACTS);
+      expect(evaluation.affordable).toBe(false);
+      expect(evaluation.issues.some((i) => i.code === "overspend")).toBe(true);
+      expect(planValidity(evaluation)).toBe("invalid");
+    });
   });
 });

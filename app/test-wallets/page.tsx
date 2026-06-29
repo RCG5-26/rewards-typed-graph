@@ -19,24 +19,29 @@ export default async function TestWalletsPage() {
     loadError = "Could not load test wallets from the API. Is the Hono API running?";
   }
 
-  // Styled with the Malleable UI design-system tokens so this route matches the
-  // rest of the app's light surface — no bespoke dark background. Colors, radii,
-  // and shadows all come from tokens via the Tailwind preset.
+  // The comparison UI uses translucent white-on-dark cards. Paint a full-bleed
+  // dark background here so contrast stays legible even though the app body is light.
   return (
-    <main className="min-h-screen bg-surface-subtle text-text-primary">
+    <main
+      className="min-h-screen text-white"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 72% 18%, #14171f 0%, #0b0d12 38%, #06070a 78%)",
+      }}
+    >
       <div className="mx-auto max-w-6xl px-6 py-12">
         <header className="mb-8">
-          <h1 className="font-display text-2xl tracking-tight text-text-primary">
+          <h1 className="font-display text-2xl tracking-tight text-white">
             Test Wallets — Architecture Comparison
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+          <p className="mt-2 max-w-2xl text-sm text-white/70">
             One canonical wallet, one query, three architectures run independently and scored by the
             same deterministic evaluator. Inspect the wallet below, then run the comparison.
           </p>
         </header>
 
         {loadError ? (
-          <div className="rounded-card bg-[var(--color-error-bg)] p-4 text-sm text-[var(--color-error-fg)] ring-1 ring-[var(--color-error-200)]">
+          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
             {loadError}
           </div>
         ) : (

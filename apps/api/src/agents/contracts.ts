@@ -111,11 +111,17 @@ export interface SpendAnalysisPayload {
 export interface RedemptionRecommendationPayload {
   readonly redemptionOptionId: string;
   readonly sourceProgramId: string;
+  /** Human-readable step title; projected as PlanView step summary. */
+  readonly action?: string;
+  readonly reasoning?: string;
 }
 
 export interface TransferRecommendationPayload {
   readonly fromProgramId: string;
   readonly toProgramId: string;
+  /** Human-readable step title; projected as PlanView step summary. */
+  readonly action?: string;
+  readonly reasoning?: string;
 }
 
 export interface RecordStateDependencyMutation {

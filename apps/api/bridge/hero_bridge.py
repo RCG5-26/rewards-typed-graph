@@ -251,7 +251,16 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
         _format_psql_query(
             """
             SELECT id, step_order, step_type, status,
-                   payload::text, payload->>'action', payload->>'reasoning'
+                   payload::text,
+                   COALESCE(
+                       payload->>'action',
+                       CASE step_type
+                           WHEN 'redemption_recommendation' THEN 'Redeem award'
+                           WHEN 'transfer_recommendation'  THEN 'Transfer points'
+                           ELSE step_type
+                       END
+                   ),
+                   payload->>'reasoning'
               FROM plan_steps
              WHERE plan_id = %s
              ORDER BY step_order
@@ -279,7 +288,7 @@ def project_plan(user_id: str, plan_id: str) -> dict[str, Any] | None:
             {
                 "order": int(step_order),
                 "type": step_type,
-                "summary": action or "",
+                "summary": action or _default_step_summary(step_type),
                 "reasoning": reasoning or "",
                 "status": status_value,
                 "dependsOn": [dependency["id"] for dependency in dependencies],
@@ -517,6 +526,15 @@ def _dependency_view(
     return view
 
 
+def _default_step_summary(step_type: str) -> str:
+    """Human-readable fallback for v3.1 steps that omit the legacy 'action' field."""
+    if step_type == "redemption_recommendation":
+        return "Redeem award"
+    if step_type == "transfer_recommendation":
+        return "Transfer points"
+    return step_type
+
+
 def _build_plan_graph(
     steps: list[dict[str, Any]],
     step_payloads: list[dict[str, Any]],
@@ -555,6 +573,12 @@ def _build_plan_graph(
             parsed_source, parsed_dest = _parse_transfer_slug(candidate_transfer)
             source_slug = source_slug or parsed_source
             dest_slug = dest_slug or parsed_dest
+        if (source_slug is None or dest_slug is None) and step["type"] == "transfer_recommendation":
+            # Orchestrator write contract persists thin transfer payloads
+            # ({fromProgramId, toProgramId}) with no planner slugs; resolve them.
+            thin_source, thin_dest = _thin_transfer_from_payload(payload)
+            source_slug = source_slug or thin_source
+            dest_slug = dest_slug or thin_dest
 
         if source_slug is not None:
             _add_program_node(nodes, source_slug)
@@ -581,23 +605,40 @@ def _build_plan_graph(
                 (slug for slug in candidate_slugs if slug.startswith("award:")),
                 None,
             )
+
+        thin_redemption: tuple[str, str, str, str] | None = None
+        if award_slug is None and step["type"] == "redemption_recommendation":
+            thin_redemption = _thin_redemption_from_payload(payload)
+
+        program_slug: str | None = None
+        award_label: str | None = None
+        redemption_program_id: str | None = None
+        if thin_redemption is not None:
+            award_slug, program_slug, award_label, redemption_program_id = thin_redemption
+
         if award_slug is None:
             continue
 
-        program_slug = dest_slug or last_dest_program_slug or _program_slug_from_dependencies(
-            step["dependencies"]
-        )
+        if program_slug is None:
+            program_slug = dest_slug or last_dest_program_slug or _program_slug_from_dependencies(
+                step["dependencies"]
+            )
         if program_slug is None:
             continue
-        _add_program_node(nodes, program_slug)
+        _add_program_node(
+            nodes,
+            program_slug,
+            program_id=redemption_program_id,
+        )
 
-        award_label = _string_or_none(planner.get("hotel_name")) or step["summary"]
+        if award_label is None:
+            award_label = _string_or_none(planner.get("hotel_name")) or step["summary"]
         nodes[award_slug] = {
             "id": award_slug,
             "kind": "redemption",
             "slug": award_slug,
             "label": award_label,
-            "programId": _program_id_for_slug(program_slug),
+            "programId": redemption_program_id or _program_id_for_slug(program_slug),
         }
         edge_id = f"redeem:{program_slug}->{award_slug}"
         edges[edge_id] = {
@@ -645,6 +686,59 @@ def _program_by_slug(slug: str) -> dict[str, str | None]:
         return {"programId": None, "label": None}
     program_id, label = rows[0]
     return {"programId": str(program_id), "label": str(label)}
+
+
+def _program_by_id(program_id: str) -> dict[str, str | None]:
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT slug, name FROM reward_programs WHERE id = %s",
+            (program_id,),
+        )
+    )
+    if not rows:
+        return {"slug": None, "label": None}
+    slug, label = rows[0]
+    return {"slug": str(slug), "label": str(label)}
+
+
+def _redemption_option_label(option_id: str) -> str | None:
+    rows = _psql_rows(
+        _format_psql_query(
+            "SELECT COALESCE(description, '') FROM redemption_options WHERE id = %s",
+            (option_id,),
+        )
+    )
+    if not rows:
+        return None
+    label = str(rows[0][0]).strip()
+    return label or None
+
+
+def _thin_transfer_from_payload(
+    payload: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """Map an orchestrator transfer payload (fromProgramId/toProgramId) to program slugs."""
+    from_id = _string_or_none(payload.get("fromProgramId"))
+    to_id = _string_or_none(payload.get("toProgramId"))
+    source = _program_by_id(from_id).get("slug") if from_id else None
+    dest = _program_by_id(to_id).get("slug") if to_id else None
+    return source, dest
+
+
+def _thin_redemption_from_payload(
+    payload: dict[str, Any],
+) -> tuple[str, str, str, str] | None:
+    """Map orchestrator write payloads (redemptionOptionId + sourceProgramId) to graph nodes."""
+    option_id = _string_or_none(payload.get("redemptionOptionId"))
+    source_program_id = _string_or_none(payload.get("sourceProgramId"))
+    if option_id is None or source_program_id is None:
+        return None
+    program = _program_by_id(source_program_id)
+    program_slug = program.get("slug")
+    if program_slug is None:
+        return None
+    label = _redemption_option_label(option_id) or "Redemption"
+    return option_id, program_slug, label, source_program_id
 
 
 def _program_id_for_slug(slug: str) -> str | None:
