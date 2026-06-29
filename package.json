@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "test:py": "python3 -m coverage run -m unittest discover -s tests && python3 -m coverage xml",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "demo:reset": "bash scripts/reset-demo-run.sh"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.5",
