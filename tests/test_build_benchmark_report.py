@@ -157,6 +157,17 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(by_key["single_agent_llm_baseline"]["status"], "measured")
         self.assertEqual(by_key["single_agent_llm_baseline"]["caseCount"], 30)
 
+    def test_build_rejects_invalid_baseline_file_before_publishing(self) -> None:
+        _, baseline_report = _comparable_baseline_report()
+        baseline_report["metrics"]["accuracy_total"] = 1
+
+        with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
+            path = Path(d) / "single_agent_llm_baseline.json"
+            path.write_text(json.dumps(baseline_report), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "accuracy_total must be 30"):
+                bbr.build()
+
     def test_mismatched_baseline_benchmark_id_is_rejected(self) -> None:
         self.assertBaselineValidationError(
             lambda report: report.update({"benchmark_id": "other-benchmark"}),
