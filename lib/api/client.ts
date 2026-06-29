@@ -12,6 +12,13 @@ import { ApiError } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+/**
+ * Floor for plan create / balance-transfer proxy calls. Must sit above the live
+ * graph orchestrator bound (60s in `apps/api/src/comparison/timeouts.ts`) plus
+ * response overhead — mirrored here because the repo has no shared TS workspace.
+ */
+export const PLAN_PROXY_TIMEOUT_MS = 75_000;
+
 function baseUrl(): string {
   const url = process.env.API_BASE_URL;
   if (!url) {
@@ -36,12 +43,21 @@ interface FetchOpts {
   method: "GET" | "POST";
   body?: unknown;
   token: string;
+  /** Per-call override; defaults to {@link fetchTimeoutMs}. */
+  timeoutMs?: number;
+}
+
+function planOperationTimeoutMs(): number {
+  return Math.max(fetchTimeoutMs(), PLAN_PROXY_TIMEOUT_MS);
 }
 
 export async function apiFetch<T>(path: string, opts: FetchOpts): Promise<T> {
   const url = `${baseUrl()}${path}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs());
+  const timeout = setTimeout(
+    () => controller.abort(),
+    opts.timeoutMs ?? fetchTimeoutMs(),
+  );
   try {
     const res = await fetch(url, {
       method: opts.method,
@@ -112,7 +128,12 @@ export async function createPlan(
 ): Promise<ApiPlan> {
   const body: Record<string, unknown> = { query };
   if (cardSlugs && cardSlugs.length > 0) body.cardSlugs = cardSlugs;
-  return apiFetch<ApiPlan>("/plans", { method: "POST", body, token });
+  return apiFetch<ApiPlan>("/plans", {
+    method: "POST",
+    body,
+    token,
+    timeoutMs: planOperationTimeoutMs(),
+  });
 }
 
 export async function getPlan(planId: string, token: string): Promise<ApiPlan> {
@@ -127,6 +148,7 @@ export async function balanceTransfer(
     method: "POST",
     body: params,
     token,
+    timeoutMs: planOperationTimeoutMs(),
   });
 }
 
