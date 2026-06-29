@@ -27,9 +27,9 @@ export function ArchitectureResultCard({
   state: CardState;
 }) {
   return (
-    <article className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+    <article className="flex flex-col rounded-card bg-surface p-5 shadow-sm ring-1 ring-[var(--color-border)]">
       <header className="mb-3 flex items-center justify-between">
-        <h3 className="text-base font-semibold text-white">{VARIANT_LABELS[variant]}</h3>
+        <h3 className="text-base font-semibold text-text-primary">{VARIANT_LABELS[variant]}</h3>
         <StatusBadge state={state} />
       </header>
       <Body variant={variant} facts={facts} state={state} />
@@ -39,16 +39,18 @@ export function ArchitectureResultCard({
 
 function StatusBadge({ state }: { state: CardState }) {
   if (state.phase === "idle") {
-    return <span className="text-xs text-white/65">Not started</span>;
+    return <span className="text-xs text-text-tertiary">Not started</span>;
   }
   if (state.phase === "loading") {
-    return <span className="text-xs text-amber-300/80">Running…</span>;
+    return <span className="text-xs text-[var(--color-warning-fg)]">Running…</span>;
   }
   const ok = state.result.status === "succeeded";
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        ok ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"
+        ok
+          ? "bg-[var(--color-success-bg)] text-[var(--color-success-fg)]"
+          : "bg-[var(--color-error-bg)] text-[var(--color-error-fg)]"
       }`}
     >
       {ok ? "Succeeded" : "Failed"}
@@ -66,14 +68,14 @@ function Body({
   state: CardState;
 }) {
   if (state.phase === "idle") {
-    return <p className="text-sm text-white/70">Run the comparison to see this architecture&apos;s plan.</p>;
+    return <p className="text-sm text-text-secondary">Run the comparison to see this architecture&apos;s plan.</p>;
   }
   if (state.phase === "loading") {
     return (
       <div className="space-y-2" aria-label="loading">
-        <div className="h-3 w-3/4 animate-pulse rounded bg-white/10" />
-        <div className="h-3 w-2/3 animate-pulse rounded bg-white/10" />
-        <div className="h-3 w-1/2 animate-pulse rounded bg-white/10" />
+        <div className="h-3 w-3/4 animate-pulse rounded bg-surface-subtle" />
+        <div className="h-3 w-2/3 animate-pulse rounded bg-surface-subtle" />
+        <div className="h-3 w-1/2 animate-pulse rounded bg-surface-subtle" />
       </div>
     );
   }
@@ -81,12 +83,12 @@ function Body({
   const { result } = state;
   if (result.status !== "succeeded" || !result.plan) {
     return (
-      <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
-        <p className="text-sm text-rose-200">
+      <div className="rounded-md bg-[var(--color-error-bg)] p-3 ring-1 ring-[var(--color-error-200)]">
+        <p className="text-sm text-[var(--color-error-fg)]">
           {result.error?.message ?? "This architecture did not return a plan."}
         </p>
         {result.error?.category ? (
-          <p className="mt-1 font-mono text-xs text-rose-300/60">{result.error.category}</p>
+          <p className="mt-1 font-mono text-xs text-[var(--color-error-fg)] opacity-70">{result.error.category}</p>
         ) : null}
         <Metrics result={result} />
       </div>
@@ -96,29 +98,29 @@ function Body({
   const { plan, evaluation } = result;
   return (
     <div className="space-y-4">
-      <p className="text-sm text-white/80">{plan.summary}</p>
+      <p className="text-sm text-text-secondary">{plan.summary}</p>
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <dt className="text-white/70">Selected award</dt>
-        <dd className="text-right text-white/90">
+        <dt className="text-text-tertiary">Selected award</dt>
+        <dd className="text-right text-text-primary">
           {plan.selectedAwardId
             ? plan.selectedAwardId.replace("award:", "")
             : "—"}
         </dd>
-        <dt className="text-white/70">Transfer</dt>
-        <dd className="text-right text-white/90">
+        <dt className="text-text-tertiary">Transfer</dt>
+        <dd className="text-right text-text-primary">
           {plan.transferRequired ? `${formatPoints(plan.transferAmount)} pts` : "None"}
         </dd>
       </dl>
 
       {plan.steps.length > 0 ? (
-        <ol className="space-y-1.5 border-l border-white/10 pl-3">
+        <ol className="space-y-1.5 border-l border-subtle pl-3">
           {plan.steps.map((step) => (
-            <li key={step.order} className="text-sm text-white/75">
-              <span className="font-medium text-white/90">{actionLabel(step.actionType)}:</span>{" "}
+            <li key={step.order} className="text-sm text-text-secondary">
+              <span className="font-medium text-text-primary">{actionLabel(step.actionType)}:</span>{" "}
               {step.title}
               {step.actionType === "transfer" && step.sourceProgramId ? (
-                <span className="block text-xs text-white/65">
+                <span className="block text-xs text-text-tertiary">
                   {programName(facts, step.sourceProgramId)} →{" "}
                   {programName(facts, step.destinationProgramId)}
                   {step.points !== undefined ? ` · ${formatPoints(step.points)} pts` : ""}
@@ -140,13 +142,13 @@ function EvaluationGrid({ checks }: { checks: ArchitectureComparisonResult["eval
   if (!checks) return null;
   return (
     <div>
-      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/65">
+      <h4 className="mb-1.5 font-mono text-2xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
         Independent evaluation
       </h4>
       <ul className="grid grid-cols-2 gap-1">
         {evaluationChecks(checks).map((check) => (
-          <li key={check.label} className="flex items-center gap-1.5 text-xs text-white/70">
-            <span className={check.ok ? "text-emerald-400" : "text-rose-400"}>
+          <li key={check.label} className="flex items-center gap-1.5 text-xs text-text-secondary">
+            <span className={check.ok ? "text-[var(--color-success-fg)]" : "text-[var(--color-error-fg)]"}>
               {check.ok ? "✓" : "✗"}
             </span>
             {check.label}
@@ -168,7 +170,7 @@ function Evidence({ result }: { result: ArchitectureComparisonResult }) {
   }
   if (evidence.planId) bits.push("persisted plan");
   if (bits.length === 0) return null;
-  return <p className="text-xs text-white/65">{bits.join(" · ")}</p>;
+  return <p className="text-xs text-text-tertiary">{bits.join(" · ")}</p>;
 }
 
 function Metrics({ result }: { result: ArchitectureComparisonResult }) {
@@ -179,7 +181,7 @@ function Metrics({ result }: { result: ArchitectureComparisonResult }) {
   if (typeof metrics.totalTokens === "number") {
     bits.push(`${formatPoints(metrics.totalTokens)} tokens`);
   }
-  return <p className="mt-2 border-t border-white/5 pt-2 font-mono text-xs text-white/65">{bits.join(" · ")}</p>;
+  return <p className="mt-2 border-t border-subtle pt-2 font-mono text-xs text-text-tertiary">{bits.join(" · ")}</p>;
 }
 
 export type { CardState };

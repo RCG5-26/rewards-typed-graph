@@ -168,7 +168,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
 
   if (!facts) {
     return (
-      <p className="text-sm text-white/60">No test wallets are available from the API.</p>
+      <p className="text-sm text-text-tertiary">No test wallets are available from the API.</p>
     );
   }
 
@@ -185,10 +185,10 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
                 setSelectedWalletId(wallet.walletId);
                 resetRun();
               }}
-              className={`rounded-full px-4 py-1.5 text-sm transition ${
+              className={`rounded-full px-4 py-1.5 text-sm transition duration-base ${
                 wallet.walletId === selectedWalletId
-                  ? "bg-white text-black"
-                  : "border border-white/15 text-white/70 hover:text-white"
+                  ? "bg-accent text-neutral-0 shadow-sm"
+                  : "bg-surface text-text-secondary ring-1 ring-[var(--color-border)] hover:text-text-primary hover:ring-[var(--color-border-strong)]"
               }`}
             >
               {wallet.displayName}
@@ -203,7 +203,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         <button
           onClick={runComparison}
           disabled={phase === "running" || simulatePhase === "running"}
-          className="rounded-full bg-indigo-400 px-6 py-2.5 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-neutral-0 shadow-sm transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-raised disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
         >
           {phase === "running" ? "Running all three…" : "Run comparison"}
         </button>
@@ -212,7 +212,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
           onClick={simulateTransfer}
           disabled={!graphReady || simulatePhase === "running"}
           title={graphReady ? "Apply the canonical Chase→Hyatt transfer and replan" : "Run the comparison first"}
-          className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-full bg-surface px-6 py-2.5 text-sm font-semibold text-text-secondary shadow-xs ring-1 ring-[var(--color-border)] transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:text-text-primary hover:ring-[var(--color-border-strong)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
         >
           {simulatePhase === "running"
             ? "Simulating transfer…"
@@ -223,13 +223,13 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
       </div>
 
       {phase === "error" && errorMessage ? (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
+        <div className="rounded-card bg-[var(--color-error-bg)] p-4 text-sm text-[var(--color-error-fg)] ring-1 ring-[var(--color-error-200)]">
           {errorMessage}
         </div>
       ) : null}
 
       {simulatePhase === "error" && simulateError ? (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-200">
+        <div className="rounded-card bg-[var(--color-error-bg)] p-4 text-sm text-[var(--color-error-fg)] ring-1 ring-[var(--color-error-200)]">
           {simulateError}
         </div>
       ) : null}
@@ -283,15 +283,15 @@ function ReplanStatusPanel({ response }: { response: DemoSimulateTransferRespons
 
   return (
     <div
-      className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-emerald-100"
+      className="rounded-card bg-[var(--color-success-bg)] p-4 text-sm text-[var(--color-success-fg)] ring-1 ring-[var(--color-success-200)]"
       aria-live="polite"
     >
-      <p className="font-semibold text-emerald-200">
+      <p className="font-semibold text-[var(--color-success-fg)]">
         {idempotencyReplayed
           ? "Idempotent replay detected — revision 2 remains current."
           : `Revision ${currentPlan.revisionNumber} is now current (revision 1 superseded).`}
       </p>
-      <ul className="mt-2 space-y-1 text-emerald-100/90">
+      <ul className="mt-2 space-y-1 text-[var(--color-success-fg)]">
         <li>
           Transfer applied: {formatPoints(transfer.amountPoints)} pts Chase → Hyatt
           {idempotencyReplayed ? " (replay — balances unchanged)" : ""}
