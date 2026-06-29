@@ -53,8 +53,21 @@ export default async function TestWalletsPage() {
       <div className="relative z-[2] mx-auto max-w-6xl px-6 py-12">
         {/* Closes the dead-end: this page is reached from the plan's
             "head-to-head comparison →" link, so it returns to onboarding. */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <BackLink href="/onboarding">back to onboarding</BackLink>
+          {/* Contextual forward step in the journey: comparison → evidence. */}
+          <a
+            href="/benchmark"
+            className="group inline-flex items-center gap-2 rounded-full border border-strong bg-surface px-4 py-2 text-xs font-semibold text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
+          >
+            Benchmark &amp; Evidence
+            <span
+              className="transition-transform duration-base group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </a>
         </div>
         <header className="mb-8">
           <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
