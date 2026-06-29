@@ -17,19 +17,11 @@ import type {
 } from "@/lib/plan/types";
 import type { PublicWalletFacts } from "@/lib/comparison/types";
 import { isUserGraph, type UserBalance } from "@/lib/user/types";
-import BenchmarkView from "./BenchmarkView";
-import ContrastView from "./ContrastView";
 import NodeDetailPopover from "./NodeDetailPopover";
 import TypedGraph, { type HoverNode } from "./TypedGraph";
 import WalletDataPanel from "./WalletDataPanel";
 import WalletOptionsPanel from "./WalletOptionsPanel";
 
-type ConsoleView = "plan" | "baselines" | "benchmark";
-const VIEWS: { id: ConsoleView; label: string }[] = [
-  { id: "plan", label: "plan" },
-  { id: "baselines", label: "baselines" },
-  { id: "benchmark", label: "benchmark" },
-];
 
 /**
  * Agent console — stream-driven. Subscribes to `/api/plan/stream` (SSE) and
@@ -125,7 +117,6 @@ export default function AgentConsole({
   const [revision, setRevision] = useState(1);
   const [status, setStatus] = useState<"streaming" | "current" | "replanning" | "failed">("streaming");
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
-  const [view, setView] = useState<ConsoleView>("plan");
   const [selected, setSelected] = useState<HoverNode | null>(null);
   const [logOpen, setLogOpen] = useState(false);
 
@@ -380,7 +371,7 @@ export default function AgentConsole({
 
   return (
     <div className="absolute inset-0 z-[2] flex flex-col gap-4 overflow-y-auto px-7 pb-7 pt-5">
-      {/* ── console header: title · phase · view tabs ── */}
+      {/* ── console header: title · phase · head-to-head link ── */}
       <div className="flex flex-none flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3.5">
           <div className="font-display text-xl font-semibold uppercase leading-none tracking-snug text-text-primary">
@@ -388,23 +379,15 @@ export default function AgentConsole({
           </div>
           <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
         </div>
-        <div className="flex rounded-full bg-surface-subtle p-1">
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setView(v.id)}
-              className="rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-base"
-              style={{
-                background: view === v.id ? "var(--color-surface)" : "transparent",
-                color: view === v.id ? "var(--color-text-primary)" : "var(--color-text-tertiary)",
-                boxShadow: view === v.id ? "var(--shadow-xs)" : "none",
-              }}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        {/* Head-to-head comparison lives on its own page now (the three
+            architectures run against the canonical wallet there). */}
+        <a
+          href="/test-wallets"
+          className="group flex flex-none items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-float"
+        >
+          head-to-head comparison
+          <span className="transition-transform duration-base group-hover:translate-x-0.5">→</span>
+        </a>
       </div>
 
       {/* ── metric strip: plan value · invalidation caught · tokens vs baseline ── */}
@@ -466,15 +449,7 @@ export default function AgentConsole({
         </MetricCard>
       </div>
 
-      {view === "baselines" ? (
-        <div className="flex min-h-[360px] flex-1 flex-col">
-          <ContrastView />
-        </div>
-      ) : view === "benchmark" ? (
-        <div className="flex min-h-[360px] flex-1 flex-col">
-          <BenchmarkView />
-        </div>
-      ) : failed && steps.length === 0 ? (
+      {failed && steps.length === 0 ? (
         <div className="flex min-h-[320px] flex-1 items-center justify-center rounded-card bg-surface text-sm text-error-fg shadow-raised">
           Could not build a plan. Try resetting.
         </div>
@@ -713,9 +688,6 @@ export default function AgentConsole({
               </div>
             </div>
           </div>
-
-          {/* ── bottom: three-architecture comparison summary ── */}
-          <ComparisonStrip onOpen={() => setView("baselines")} />
         </>
       )}
     </div>
@@ -751,87 +723,6 @@ function TokenBar({ label, value, pct, accent }: { label: string; value: string;
 }
 
 // ── bottom comparison strip (condensed baselines) ────────────────────
-function ComparisonStrip({ onOpen }: { onOpen: () => void }) {
-  const cols = [
-    {
-      key: "typed",
-      title: "Typed graph",
-      badge: "BEST",
-      badgeStyle: { background: "var(--color-accent-muted)", color: "var(--color-accent-text)" },
-      accent: "var(--color-accent)",
-      marks: [
-        { ok: true, t: "Validity aware" },
-        { ok: true, t: "Up-to-date" },
-        { ok: true, t: "Higher value" },
-      ],
-    },
-    {
-      key: "crewai",
-      title: "CrewAI free-text",
-      badge: "LOWER VALUE",
-      badgeStyle: { background: "var(--color-warning-bg)", color: "var(--color-warning-fg)" },
-      accent: "var(--color-warning)",
-      marks: [
-        { ok: true, t: "Natural language" },
-        { ok: false, t: "Validation gaps" },
-        { ok: false, t: "Lower value" },
-      ],
-    },
-    {
-      key: "single",
-      title: "Single agent",
-      badge: "LOWEST VALUE",
-      badgeStyle: { background: "var(--color-surface-subtle)", color: "var(--color-text-tertiary)" },
-      accent: "var(--color-neutral-500)",
-      marks: [
-        { ok: true, t: "Simple" },
-        { ok: false, t: "No validation" },
-        { ok: false, t: "Lowest value" },
-      ],
-    },
-  ] as const;
-
-  return (
-    <div className="grid flex-none grid-cols-1 gap-3 md:grid-cols-3">
-      {cols.map((c) => (
-        <button
-          key={c.key}
-          type="button"
-          onClick={onOpen}
-          className="flex flex-col rounded-card bg-surface p-4 text-left shadow-raised transition duration-base hover:-translate-y-0.5 hover:shadow-float"
-          style={c.key === "typed" ? { border: "1px solid var(--color-accent-subtle)" } : undefined}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: c.accent }} />
-              <span className="font-display text-sm font-semibold text-text-primary">{c.title}</span>
-            </div>
-            <span className="rounded font-mono text-[10px] font-semibold uppercase tracking-wide" style={{ ...c.badgeStyle, padding: "2px 7px" }}>
-              {c.badge}
-            </span>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-            {c.marks.map((m) => (
-              <span key={m.t} className="flex items-center gap-1.5 text-xs text-text-secondary">
-                <span
-                  className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-bold"
-                  style={{
-                    background: m.ok ? "var(--color-success-bg)" : "var(--color-warning-bg)",
-                    color: m.ok ? "var(--color-success-fg)" : "var(--color-warning-fg)",
-                  }}
-                >
-                  {m.ok ? "✓" : "✕"}
-                </span>
-                {m.t}
-              </span>
-            ))}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ── user-driven replan: transfer form + summary ──────────────────────
 function TransferForm({
   balances,

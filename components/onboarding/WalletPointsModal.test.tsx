@@ -46,6 +46,18 @@ describe("WalletPointsModal", () => {
     expect((screen.getByLabelText(/points on card b/i) as HTMLInputElement).value).toBe("");
   });
 
+  it("prefills a saved 0 as \"0\" (not blank) so an explicit zero survives reopen", () => {
+    render(
+      <WalletPointsModal
+        cards={[card({ id: "a", name: "Card A" })]}
+        initialByCard={{ a: 0 }}
+        onClose={() => {}}
+        onSubmit={async () => {}}
+      />,
+    );
+    expect((screen.getByLabelText(/points on card a/i) as HTMLInputElement).value).toBe("0");
+  });
+
   it("closes via the close button, backdrop, and Escape", () => {
     const onClose = vi.fn();
     render(<WalletPointsModal cards={[card()]} onClose={onClose} onSubmit={async () => {}} />);

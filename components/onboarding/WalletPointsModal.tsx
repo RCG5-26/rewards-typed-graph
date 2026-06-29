@@ -28,7 +28,9 @@ export default function WalletPointsModal({
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      cards.map((c) => [c.id, initialByCard[c.id] ? String(initialByCard[c.id]) : ""]),
+      // Use `!== undefined` (not truthiness) so a saved 0 prefills "0" rather
+      // than rendering blank and being lost on reopen.
+      cards.map((c) => [c.id, initialByCard[c.id] !== undefined ? String(initialByCard[c.id]) : ""]),
     ),
   );
   const [submitting, setSubmitting] = useState(false);

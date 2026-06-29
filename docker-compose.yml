@@ -1,7 +1,7 @@
 # Full local stack (ADR 0004): Postgres + Hono API + Next.js web, all in Docker.
 #
 # Bring up:   docker compose up --build
-#   web → http://localhost:3000   api → http://localhost:8787   db → localhost:5432
+#   web → http://localhost:3001   api → http://localhost:8787   db → localhost:5432
 #
 # Clerk keys are interpolated from the project `.env` (compose reads it for
 # ${VAR} substitution; the file itself is .dockerignored from the image build).
