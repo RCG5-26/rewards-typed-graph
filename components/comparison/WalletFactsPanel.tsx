@@ -15,7 +15,9 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
   return (
     <section className="rounded-card bg-surface p-6 shadow-sm ring-1 ring-[var(--color-border)]">
       <header className="mb-4">
-        <h2 className="font-display text-lg tracking-tight text-text-primary">{facts.displayName}</h2>
+        <h2 className="font-display text-lg tracking-tight text-text-primary">
+          {facts.displayName}
+        </h2>
         <p className="mt-1 text-sm text-text-secondary">{facts.description}</p>
       </header>
 
@@ -49,7 +51,9 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
               >
                 {programName(facts, route.sourceProgramId)} →{" "}
                 {programName(facts, route.destinationProgramId)}{" "}
-                <span className="text-text-tertiary">({routeRatioLabel(route.ratioBasisPoints)})</span>
+                <span className="text-text-tertiary">
+                  ({routeRatioLabel(route.ratioBasisPoints)})
+                </span>
               </li>
             ))}
           </ul>
@@ -62,8 +66,7 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
           <ul className="space-y-1.5">
             {facts.cards.map((card) => (
               <li key={card.cardId} className="text-sm text-text-secondary">
-                {card.cardName}{" "}
-                <span className="text-text-tertiary">· {card.programName}</span>
+                {card.cardName} <span className="text-text-tertiary">· {card.programName}</span>
               </li>
             ))}
           </ul>
@@ -78,7 +81,9 @@ export function WalletFactsPanel({ facts }: { facts: PublicWalletFacts }) {
                 <span className="font-mono text-text-tertiary">
                   {formatPoints(award.pointsRequired)} {award.programSlug.replace("program:", "")}
                 </span>{" "}
-                <span className="text-text-tertiary">· {centsPerPoint(award.valueBasisPoints)}</span>
+                <span className="text-text-tertiary">
+                  · {centsPerPoint(award.valueBasisPoints)}
+                </span>
               </li>
             ))}
           </ul>

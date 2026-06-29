@@ -68,7 +68,11 @@ function Body({
   state: CardState;
 }) {
   if (state.phase === "idle") {
-    return <p className="text-sm text-text-secondary">Run the comparison to see this architecture&apos;s plan.</p>;
+    return (
+      <p className="text-sm text-text-secondary">
+        Run the comparison to see this architecture&apos;s plan.
+      </p>
+    );
   }
   if (state.phase === "loading") {
     return (
@@ -88,7 +92,9 @@ function Body({
           {result.error?.message ?? "This architecture did not return a plan."}
         </p>
         {result.error?.category ? (
-          <p className="mt-1 font-mono text-xs text-[var(--color-error-fg)] opacity-70">{result.error.category}</p>
+          <p className="mt-1 font-mono text-xs text-[var(--color-error-fg)] opacity-70">
+            {result.error.category}
+          </p>
         ) : null}
         <Metrics result={result} />
       </div>
@@ -103,9 +109,7 @@ function Body({
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <dt className="text-text-tertiary">Selected award</dt>
         <dd className="text-right text-text-primary">
-          {plan.selectedAwardId
-            ? plan.selectedAwardId.replace("award:", "")
-            : "—"}
+          {plan.selectedAwardId ? plan.selectedAwardId.replace("award:", "") : "—"}
         </dd>
         <dt className="text-text-tertiary">Transfer</dt>
         <dd className="text-right text-text-primary">
@@ -148,7 +152,11 @@ function EvaluationGrid({ checks }: { checks: ArchitectureComparisonResult["eval
       <ul className="grid grid-cols-2 gap-1">
         {evaluationChecks(checks).map((check) => (
           <li key={check.label} className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <span className={check.ok ? "text-[var(--color-success-fg)]" : "text-[var(--color-error-fg)]"}>
+            <span
+              className={
+                check.ok ? "text-[var(--color-success-fg)]" : "text-[var(--color-error-fg)]"
+              }
+            >
               {check.ok ? "✓" : "✗"}
             </span>
             {check.label}
@@ -181,7 +189,11 @@ function Metrics({ result }: { result: ArchitectureComparisonResult }) {
   if (typeof metrics.totalTokens === "number") {
     bits.push(`${formatPoints(metrics.totalTokens)} tokens`);
   }
-  return <p className="mt-2 border-t border-subtle pt-2 font-mono text-xs text-text-tertiary">{bits.join(" · ")}</p>;
+  return (
+    <p className="mt-2 border-t border-subtle pt-2 font-mono text-xs text-text-tertiary">
+      {bits.join(" · ")}
+    </p>
+  );
 }
 
 export type { CardState };

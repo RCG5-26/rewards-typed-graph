@@ -30,9 +30,8 @@ export default async function TestWalletsPage() {
             Test Wallets — Architecture Comparison
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-            One canonical wallet, one query, three architectures run independently and
-            scored by the same deterministic evaluator. Inspect the wallet below, then
-            run the comparison.
+            One canonical wallet, one query, three architectures run independently and scored by the
+            same deterministic evaluator. Inspect the wallet below, then run the comparison.
           </p>
         </header>
 

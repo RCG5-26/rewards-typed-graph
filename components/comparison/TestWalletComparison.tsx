@@ -13,11 +13,7 @@ import { formatPoints } from "@/lib/comparison/presentation";
 import { ArchitectureResultCard, type CardState } from "./ArchitectureResultCard";
 import { WalletFactsPanel } from "./WalletFactsPanel";
 
-const CARD_ORDER: ArchitectureVariant[] = [
-  "live-graph-orchestrator",
-  "chat-crew",
-  "single-agent",
-];
+const CARD_ORDER: ArchitectureVariant[] = ["live-graph-orchestrator", "chat-crew", "single-agent"];
 
 type RunPhase = "idle" | "running" | "done" | "error";
 type SimulatePhase = "idle" | "running" | "done" | "error";
@@ -146,9 +142,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
       });
 
       if (!payload.idempotencyReplayed) {
-        setBalanceOverrides(
-          applyTransferToBalances(facts.balances, payload.transfer),
-        );
+        setBalanceOverrides(applyTransferToBalances(facts.balances, payload.transfer));
       }
     } catch (error) {
       if (generation !== generationRef.current) return;
@@ -211,7 +205,11 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         <button
           onClick={simulateTransfer}
           disabled={!graphReady || simulatePhase === "running"}
-          title={graphReady ? "Apply the canonical Chase→Hyatt transfer and replan" : "Run the comparison first"}
+          title={
+            graphReady
+              ? "Apply the canonical Chase→Hyatt transfer and replan"
+              : "Run the comparison first"
+          }
           className="rounded-full bg-surface px-6 py-2.5 text-sm font-semibold text-text-secondary shadow-xs ring-1 ring-[var(--color-border)] transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:text-text-primary hover:ring-[var(--color-border-strong)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
         >
           {simulatePhase === "running"
@@ -234,9 +232,7 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         </div>
       ) : null}
 
-      {simulateResponse ? (
-        <ReplanStatusPanel response={simulateResponse} />
-      ) : null}
+      {simulateResponse ? <ReplanStatusPanel response={simulateResponse} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {CARD_ORDER.map((variant) => (
