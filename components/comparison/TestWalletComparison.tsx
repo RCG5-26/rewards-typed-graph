@@ -88,9 +88,18 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
     return { ...baseFacts, balances: balanceOverrides };
   }, [baseFacts, balanceOverrides]);
 
+  // The replan action completes the graph's Chase→Hyatt transfer, so it is only
+  // valid when the graph actually planned a transfer. Scenarios that redeem
+  // directly or are infeasible produce no transfer step, so the button stays
+  // disabled — never offering a "complete transfer" the orchestrator never made.
   const graphReady = useMemo(() => {
     const graph = response?.results.find((r) => r.variant === "live-graph-orchestrator");
-    return phase === "done" && graph?.status === "succeeded" && Boolean(graph.evidence?.lineageId);
+    return (
+      phase === "done" &&
+      graph?.status === "succeeded" &&
+      Boolean(graph.evidence?.lineageId) &&
+      graph.plan?.transferRequired === true
+    );
   }, [phase, response]);
 
   const laneStatus = useMemo<LaneStatus>(() => {

@@ -102,6 +102,26 @@ describe("TestWalletComparison", () => {
     expect(replan.disabled).toBe(true);
   });
 
+  it("keeps the replan button disabled when the graph plan needs no transfer", async () => {
+    // Direct-redemption / infeasible scenarios: the graph succeeds (lineageId
+    // present) but plans no transfer, so the scenario-1-only replan action must
+    // stay disabled rather than offering a transfer the orchestrator never made.
+    const comparison = response();
+    comparison.results[0] = {
+      ...comparison.results[0],
+      plan: { summary: "Redeem Ginza directly.", goalSatisfied: true, transferRequired: false, steps: [] },
+    };
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => comparison });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TestWalletComparison wallets={[WALLET]} />);
+    fireEvent.click(screen.getByText("Run comparison"));
+    await waitFor(() => expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(1));
+
+    const replan = screen.getByText(/Complete 15,000-point transfer/i) as HTMLButtonElement;
+    expect(replan.disabled).toBe(true);
+  });
+
   it("simulates the canonical transfer and updates the graph card", async () => {
     const comparison = response();
     const simulate = {
