@@ -6,7 +6,14 @@
  * comes back as a `failed` result while the rest carry plans and evaluations.
  */
 
-import { type ApprovedWalletId, getCanonicalWallet } from "./canonical-wallet";
+import type { Pool } from "pg";
+
+import {
+  type ApprovedWalletId,
+  CANONICAL_GRAPH_USER_ID,
+  type CanonicalWalletFacts,
+  getCanonicalWallet,
+} from "./canonical-wallet";
 import { type GraphPlanRunner, runGraphOrchestrator } from "./adapters/graph-orchestrator";
 import { runChatCrew, runSingleAgent } from "./adapters/baseline-adapter";
 import type { RunBaselineReport } from "./adapters/baseline-bridge";
@@ -47,6 +54,13 @@ export interface ComparisonDeps {
   replanService?: PlanService;
   /** Graph persona; defaults to the canonical demo user inside the adapter. */
   graphUserId?: string;
+  /**
+   * Live DB pool. When supplied, each run resets the graph persona's balances to
+   * the canonical scenario before the architectures read state — so a prior
+   * replan transfer never leaks into the next run. Best-effort: a reset failure
+   * is logged and the run proceeds (a drifted DB beats a failed comparison).
+   */
+  pool?: Pool;
   /** Injected for tests; defaults to the real Python subprocess. */
   runReport?: RunBaselineReport;
   /** Injected for tests; defaults to `process.env`. */
@@ -69,6 +83,14 @@ export async function runArchitectureComparison(
   if (!facts) {
     throw new Error(`unknown canonical wallet: ${walletId}`);
   }
+
+  // Reset the canonical persona to the controlled scenario before any
+  // architecture reads it, so a prior replan's balance mutation never carries
+  // into this run. Awaited so the graph snapshot sees the reset state.
+  if (deps.pool) {
+    await resetCanonicalBalances(deps.pool, deps.graphUserId ?? CANONICAL_GRAPH_USER_ID, facts);
+  }
+
   const input = { facts, query };
   const baselineExtras = {
     ...(deps.runReport ? { runReport: deps.runReport } : {}),
@@ -95,6 +117,29 @@ export async function runArchitectureComparison(
   );
 
   return { walletId: facts.walletId, walletVersion: facts.version, query, results };
+}
+
+/**
+ * Restore the graph persona's balances to the canonical scenario values.
+ * Resets `balance_points` only (not `version`) — the scenario depends on the
+ * points, and leaving the optimistic-concurrency version untouched avoids any
+ * interaction with in-flight reads. Best-effort: never throws into the run.
+ */
+async function resetCanonicalBalances(
+  pool: Pool,
+  userId: string,
+  facts: CanonicalWalletFacts,
+): Promise<void> {
+  try {
+    for (const balance of facts.balances) {
+      await pool.query(
+        "UPDATE user_balances SET balance_points = $1, updated_at = now() WHERE user_id = $2 AND program_id = $3",
+        [balance.points, userId, balance.programId],
+      );
+    }
+  } catch (err) {
+    console.error("comparison canonical-balance reset failed (continuing)", err);
+  }
 }
 
 /**

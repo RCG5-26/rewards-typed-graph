@@ -85,6 +85,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
       graphService: deps.planService,
       planEngine: deps.planEngine,
       replanService: deps.planService,
+      // Pool lets each comparison run reset the canonical persona's balances
+      // before the architectures read them, so the controlled scenario holds
+      // even after a prior replan mutated the wallet.
+      pool: deps.pool,
     }),
   );
 

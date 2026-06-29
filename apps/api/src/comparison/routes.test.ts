@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { Pool } from "pg";
 
 import { CANONICAL_QUERY } from "./canonical-wallet";
 import type { GraphPlanRunner } from "./adapters/graph-orchestrator";
@@ -318,5 +319,27 @@ describe("POST /demo/simulate-transfer", () => {
     const json = (await response.json()) as { idempotencyReplayed: boolean; replanJobId: null };
     expect(json.idempotencyReplayed).toBe(true);
     expect(json.replanJobId).toBeNull();
+  });
+
+  it("resets the canonical persona's balances before each run when a pool is provided", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+
+    const response = await postComparison(deps({ pool }), { walletId: "transfer-required" });
+    expect(response.status).toBe(200);
+
+    // One UPDATE per canonical balance (Chase / Hyatt / United), scoped to a001.
+    const updates = query.mock.calls.filter((c) => String(c[0]).includes("UPDATE user_balances"));
+    expect(updates).toHaveLength(3);
+    const hyatt = updates.find((c) => c[1]?.[2] === "00000000-0000-0000-0000-00000000b002");
+    expect(hyatt?.[1]?.[0]).toBe(30000); // Hyatt restored to the transfer-required 30k
+    expect(hyatt?.[1]?.[1]).toBe("00000000-0000-0000-0000-00000000a001");
+  });
+
+  it("runs without a pool (no reset) and still returns three results", async () => {
+    const response = await postComparison(deps(), { walletId: "transfer-required" });
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as ArchitectureComparisonResponse;
+    expect(json.results).toHaveLength(3);
   });
 });
