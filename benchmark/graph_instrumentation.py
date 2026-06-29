@@ -14,7 +14,7 @@ GRAPH_INSTRUMENTATION_EVALUATOR_VERSION = "graph-lane-instrumentation-v1"
 
 _STRUCTURAL_PLAN_TYPES = {"agent_generated"}
 _INVALIDATED_SOURCE_STATUSES = {"stale", "superseded"}
-_OPEN_OR_COMPLETED_JOB_STATUSES = {"pending", "processing", "completed"}
+_COMPLETED_JOB_STATUS = "completed"
 
 
 def collect_graph_eval_metrics(
@@ -329,8 +329,10 @@ def _invalidation_failure_reason(metric_scores: dict[str, Any]) -> str | None:
         != metric_scores["dependent_step_count"]
     ):
         return "dependent_steps_not_invalidated"
-    if metric_scores["replan_job_status"] not in _OPEN_OR_COMPLETED_JOB_STATUSES:
+    if metric_scores["replan_job_status"] is None:
         return "missing_replan_job"
+    if metric_scores["replan_job_status"] != _COMPLETED_JOB_STATUS:
+        return "replan_job_not_completed"
     if metric_scores["transfer_points_mutation_count"] <= 0:
         return "missing_transfer_points_mutation"
     if metric_scores["mark_stale_plan_mutation_count"] <= 0:
@@ -340,11 +342,10 @@ def _invalidation_failure_reason(metric_scores: dict[str, Any]) -> str | None:
         < metric_scores["stale_or_superseded_step_count"]
     ):
         return "missing_mark_stale_step_mutation"
-    if metric_scores["replan_job_status"] == "completed":
-        if metric_scores["result_plan_status"] != "current":
-            return "completed_job_result_plan_not_current"
-        if not metric_scores["result_supersedes_source"]:
-            return "result_plan_not_direct_successor"
+    if metric_scores["result_plan_status"] != "current":
+        return "completed_job_result_plan_not_current"
+    if not metric_scores["result_supersedes_source"]:
+        return "result_plan_not_direct_successor"
     return None
 
 

@@ -9,7 +9,9 @@ and `build` so the contract can't drift unnoticed. The typed-graph branch of
 
 from __future__ import annotations
 
+import copy
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -48,6 +50,14 @@ def _raw_report(architecture: str) -> dict:
             "invalidation_total": 2,
         },
     }
+
+
+def _comparable_baseline_report() -> tuple[dict, dict]:
+    typed_report = bbr.run_benchmark()
+    baseline_report = copy.deepcopy(typed_report)
+    baseline_report["architecture"] = "single_agent_llm_baseline"
+    baseline_report["evaluator_version"] = "single-agent-validation-test"
+    return typed_report, baseline_report
 
 
 class NormalizeTest(unittest.TestCase):
@@ -110,6 +120,17 @@ class LoadBaselineTest(unittest.TestCase):
 
 
 class BuildTest(unittest.TestCase):
+    def assertBaselineValidationError(
+        self,
+        mutate,
+        expected_message: str,
+    ) -> None:
+        typed_report, baseline_report = _comparable_baseline_report()
+        mutate(baseline_report)
+
+        with self.assertRaisesRegex(ValueError, expected_message):
+            bbr._validate_baseline_report(baseline_report, typed_report)
+
     def test_typed_graph_measured_baselines_not_run_when_absent(self) -> None:
         with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
             report = bbr.build()
@@ -122,6 +143,106 @@ class BuildTest(unittest.TestCase):
             self.assertIn("run", by_key[baseline])
         self.assertIn("generatedAt", report)
         self.assertIn("benchmarkId", report)
+
+    def test_comparable_baseline_report_can_be_measured(self) -> None:
+        _, baseline_report = _comparable_baseline_report()
+
+        with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
+            path = Path(d) / "single_agent_llm_baseline.json"
+            path.write_text(json.dumps(baseline_report), encoding="utf-8")
+
+            report = bbr.build()
+
+        by_key = {a["key"]: a for a in report["architectures"]}
+        self.assertEqual(by_key["single_agent_llm_baseline"]["status"], "measured")
+        self.assertEqual(by_key["single_agent_llm_baseline"]["caseCount"], 30)
+
+    def test_build_rejects_invalid_baseline_file_before_publishing(self) -> None:
+        _, baseline_report = _comparable_baseline_report()
+        baseline_report["metrics"]["accuracy_total"] = 1
+
+        with _repo_temp_reports_dir() as d, patch.object(bbr, "REPORTS_DIR", Path(d)):
+            path = Path(d) / "single_agent_llm_baseline.json"
+            path.write_text(json.dumps(baseline_report), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "accuracy_total must be 30"):
+                bbr.build()
+
+    def test_mismatched_baseline_benchmark_id_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.update({"benchmark_id": "other-benchmark"}),
+            "benchmark_id",
+        )
+
+    def test_mismatched_baseline_fixture_id_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.update({"fixture_id": "other-fixture"}),
+            "fixture_id",
+        )
+
+    def test_mismatched_baseline_metric_definitions_are_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.update({"metric_definitions": {"version": "other"}}),
+            "metric definitions",
+        )
+
+    def test_missing_baseline_cases_are_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.pop("cases"),
+            "must include cases",
+        )
+
+    def test_partial_baseline_report_is_rejected_before_it_can_be_measured(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.update({"cases": report["cases"][:1]}),
+            "full ordered case list",
+        )
+
+    def test_baseline_case_count_mismatch_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report.update({"case_count": 1}),
+            "case_count must be 30",
+        )
+
+    def test_baseline_accuracy_total_mismatch_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report["metrics"].update({"accuracy_total": 1}),
+            "accuracy_total must be 30",
+        )
+
+    def test_missing_baseline_hallucination_case_ids_are_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report["metrics"].pop("strict_hallucination_case_ids"),
+            "strict_hallucination_case_ids",
+        )
+
+    def test_baseline_hallucination_case_count_mismatch_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report["metrics"].update(
+                {"strict_hallucination_case_count": 1}
+            ),
+            "strict_hallucination_case_count must match",
+        )
+
+    def test_baseline_report_with_unknown_hallucination_case_id_is_rejected(
+        self,
+    ) -> None:
+        def add_unknown_hallucination_id(report: dict) -> None:
+            report["metrics"]["strict_hallucination_case_count"] = 1
+            report["metrics"]["strict_hallucination_case_ids"] = [
+                "not_a_benchmark_case"
+            ]
+
+        self.assertBaselineValidationError(
+            add_unknown_hallucination_id,
+            "outside the benchmark corpus",
+        )
+
+    def test_baseline_invalidation_total_mismatch_is_rejected(self) -> None:
+        self.assertBaselineValidationError(
+            lambda report: report["metrics"].update({"invalidation_total": 1}),
+            "invalidation_total must be 5",
+        )
 
 
 if __name__ == "__main__":

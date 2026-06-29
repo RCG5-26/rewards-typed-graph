@@ -106,7 +106,7 @@ class ArchitectureComparisonTests(unittest.TestCase):
         self.assertEqual(typed["accuracy_rate"], 1.0)
         self.assertEqual(typed["strict_hallucination_rate"], 0.0)
         self.assertEqual(typed["invalidation_rate"], 1.0)
-        self.assertEqual(typed["token_cost_total"], 0)
+        self.assertIsNone(typed["token_cost_total"])
         free_text = comparison["architectures"]["free_text_multiagent_baseline"]
         self.assertEqual(free_text["token_cost_total"], 980)
         self.assertEqual(len(comparison["case_matrix"]), 2)

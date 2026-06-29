@@ -7,8 +7,9 @@ evidence** the console's baselines/benchmark tabs render (no fabricated constant
   in `benchmark.person_c_scorer`; no API key, deterministic).
 - The two LLM baselines (`single_agent_llm_baseline`, `free_text_multiagent_baseline`)
   require a paid LLM key, so they are picked up from committed report files under
-  `benchmark/reports/` **only if present**. Otherwise they are marked `not_run`
-  with the exact command to produce them — never fabricated.
+  `benchmark/reports/` only if present and fully comparable with the typed report.
+  Missing baselines are marked `not_run`; partial or mismatched baseline reports
+  fail the build instead of being published.
 
 Usage:
     python scripts/build_benchmark_report.py
@@ -91,6 +92,70 @@ def _load_baseline(key: str) -> dict[str, Any] | None:
     return report
 
 
+def _validate_baseline_report(report: dict[str, Any], typed: dict[str, Any]) -> None:
+    """Fail fast when a baseline file is not a full comparable benchmark run."""
+    architecture = report.get("architecture")
+    for field_name in ("benchmark_id", "fixture_id"):
+        if report.get(field_name) != typed.get(field_name):
+            raise ValueError(
+                f"{architecture} report must share {field_name} with typed report"
+            )
+
+    if report.get("metric_definitions") != typed.get("metric_definitions"):
+        raise ValueError(f"{architecture} report must share metric definitions")
+
+    expected_case_ids = _case_ids(typed)
+    if _case_ids(report) != expected_case_ids:
+        raise ValueError(
+            f"{architecture} report must include the full ordered case list"
+        )
+
+    expected_case_count = typed["case_count"]
+    if report.get("case_count") != expected_case_count:
+        raise ValueError(
+            f"{architecture} report case_count must be {expected_case_count}"
+        )
+
+    metrics = report.get("metrics", {})
+    if metrics.get("accuracy_total") != expected_case_count:
+        raise ValueError(
+            f"{architecture} report accuracy_total must be {expected_case_count}"
+        )
+
+    hallucination_case_ids = metrics.get("strict_hallucination_case_ids")
+    if not isinstance(hallucination_case_ids, list):
+        raise ValueError(
+            f"{architecture} report must include strict_hallucination_case_ids"
+        )
+    if metrics.get("strict_hallucination_case_count") != len(hallucination_case_ids):
+        raise ValueError(
+            f"{architecture} report strict_hallucination_case_count must match "
+            "strict_hallucination_case_ids"
+        )
+    unexpected_hallucination_ids = sorted(
+        set(hallucination_case_ids) - set(expected_case_ids)
+    )
+    if unexpected_hallucination_ids:
+        raise ValueError(
+            f"{architecture} report includes hallucination case ids outside the "
+            f"benchmark corpus: {unexpected_hallucination_ids}"
+        )
+
+    expected_invalidation_total = typed["metrics"]["invalidation_total"]
+    if metrics.get("invalidation_total") != expected_invalidation_total:
+        raise ValueError(
+            f"{architecture} report invalidation_total must be "
+            f"{expected_invalidation_total}"
+        )
+
+
+def _case_ids(report: dict[str, Any]) -> list[str]:
+    cases = report.get("cases")
+    if not isinstance(cases, list):
+        raise ValueError(f"{report.get('architecture')} report must include cases")
+    return [case["case_id"] for case in cases]
+
+
 def build() -> dict[str, Any]:
     typed = run_benchmark()
     architectures = []
@@ -101,6 +166,8 @@ def build() -> dict[str, Any]:
         if raw is None:
             entry.update({"status": "not_run", "run": arch["run"]})
         else:
+            if key != "typed_graph_fixture":
+                _validate_baseline_report(raw, typed)
             entry.update(_normalize(raw))
         architectures.append(entry)
 
