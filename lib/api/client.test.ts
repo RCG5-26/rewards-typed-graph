@@ -245,6 +245,24 @@ describe("API helper functions", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("uses the plan proxy timeout floor for createPlan", async () => {
+    vi.useFakeTimers();
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    });
+    const { createPlan, PLAN_PROXY_TIMEOUT_MS } = await getClient();
+
+    const assertion = expect(createPlan("Tokyo Hyatt", "token-b")).rejects.toMatchObject({
+      kind: { kind: "server-error", status: 504 },
+    });
+    await vi.advanceTimersByTimeAsync(PLAN_PROXY_TIMEOUT_MS);
+    await assertion;
+  });
 });
 
 describe("submitBalances", () => {

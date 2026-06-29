@@ -63,6 +63,42 @@ describe("graph normalizer", () => {
     expect(plan.transferAmount).toBe(15000);
   });
 
+  it("resolves a redemption node keyed by award UUID (orchestrator write contract)", () => {
+    const awardId = "00000000-0000-0000-0000-00000000f001";
+    const view: PlanView = {
+      planId: "plan-uuid",
+      planLineageId: "lineage-uuid",
+      revisionNumber: 1,
+      status: "current",
+      query: FACTS.query,
+      summary: null,
+      steps: [
+        {
+          order: 1,
+          type: "redemption_recommendation",
+          summary: "",
+          reasoning: "",
+          status: "current",
+          dependsOn: [],
+          dependencies: [],
+        },
+      ],
+      graph: {
+        nodes: [
+          { id: HYATT, kind: "program", slug: "program:hyatt", label: "World of Hyatt", programId: HYATT },
+          { id: awardId, kind: "redemption", slug: awardId, label: "Demo Hyatt Ginza 3-night Tokyo award", programId: HYATT },
+        ],
+        edges: [
+          { id: "e-redeem", from: "program:hyatt", to: awardId, kind: "redeem" },
+        ],
+      },
+    };
+    const plan = normalizeGraphPlan(view, FACTS);
+    expect(plan.selectedAwardId).toBe(GINZA_SLUG);
+    expect(plan.summary).toContain("Demo Hyatt Ginza");
+    expect(plan.redemptionPoints).toBe(45000);
+  });
+
   it("produces a hard-valid, goal-satisfying plan under the deterministic evaluator", () => {
     const evaluation = evaluatePlan(normalizeGraphPlan(transferThenRedeemView(), FACTS), FACTS);
     expect(isHardValid(evaluation)).toBe(true);

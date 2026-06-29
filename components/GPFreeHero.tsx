@@ -44,6 +44,7 @@ const STYLE = `
 #gpx-hero .cta{transition:filter .2s var(--soft)}
 #gpx-hero .cta:hover{filter:brightness(1.08)}
 #gpx-hero .seehow:hover{color:var(--tx1);border-color:var(--brd-2)}
+#gpx-hero [data-totop]:hover{border-color:var(--iris-bright);background:color-mix(in srgb,var(--iris) 22%,rgba(10,11,14,.7))}
 /* Branded cursor: hollow iris ring (hotspot centered). Applied to children too
    so it stays consistent over links/CTAs instead of reverting to the pointer. */
 #gpx-hero, #gpx-hero *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='9' fill='none' stroke='%238E96F2' stroke-width='2'/%3E%3C/svg%3E") 14 14, auto}
@@ -325,6 +326,12 @@ const MARKUP = `
       <span style="font-family:var(--fm);font-size:11px;color:var(--tx3)">© 2026 GPFree</span>
     </div>
   </section>
+
+  <!-- ░░░░░░░░░ BACK TO TOP ░░░░░░░░░ -->
+  <button type="button" data-totop aria-label="Back to top" title="Back to top" style="position:fixed;right:max(7vw,24px);bottom:28px;z-index:40;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--brd-2);background:color-mix(in srgb,var(--iris) 14%,rgba(10,11,14,.6));color:var(--tx1);font-family:var(--fs);font-size:13px;letter-spacing:.02em;backdrop-filter:blur(10px);box-shadow:0 10px 30px -10px rgba(0,0,0,.7);cursor:pointer;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .3s var(--soft),transform .3s var(--soft),border-color .2s var(--soft),background .2s var(--soft)">
+    <span style="font-size:15px;line-height:1">&uarr;</span>
+    <span>top</span>
+  </button>
 `;
 
 export default function GPFreeHero() {
@@ -367,6 +374,26 @@ export default function GPFreeHero() {
     if (!reduced) {
       window.addEventListener("pointermove", onBg);
       cleanups.push(() => window.removeEventListener("pointermove", onBg));
+    }
+
+    // ── back-to-top button (fades in past the hero, returns to the top) ──
+    const toTop = root.querySelector<HTMLElement>("[data-totop]");
+    if (toTop) {
+      const onScroll = () => {
+        const show = window.scrollY > window.innerHeight * 0.6;
+        toTop.style.opacity = show ? "1" : "0";
+        toTop.style.transform = show ? "translateY(0)" : "translateY(10px)";
+        toTop.style.pointerEvents = show ? "auto" : "none";
+      };
+      const onToTop = () =>
+        window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      toTop.addEventListener("click", onToTop);
+      cleanups.push(() => {
+        window.removeEventListener("scroll", onScroll);
+        toTop.removeEventListener("click", onToTop);
+      });
     }
 
     // ── 3D card tilt ──

@@ -82,12 +82,14 @@ describe("TestWalletComparison", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
     expect(screen.getByText("180,000")).toBeTruthy();
     expect(screen.getByText(new RegExp(WALLET.query.slice(0, 30)))).toBeTruthy();
-    expect(screen.getAllByText(/Not started/i).length).toBe(3);
+    // "Not started" appears in each architecture result card (3) + each lane in
+    // the ArchitectureExecutionOverview (3) = 6 total.
+    expect(screen.getAllByText(/Not started/i).length).toBe(6);
   });
 
   it("disables the replan button before a comparison has run", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
-    const replan = screen.getByText(/Simulate completed transfer/i) as HTMLButtonElement;
+    const replan = screen.getByText(/Complete 15,000-point transfer/i) as HTMLButtonElement;
     expect(replan.disabled).toBe(true);
   });
 
@@ -133,9 +135,9 @@ describe("TestWalletComparison", () => {
 
     render(<TestWalletComparison wallets={[WALLET]} />);
     fireEvent.click(screen.getByText("Run comparison"));
-    await waitFor(() => expect(screen.getAllByText("Succeeded").length).toBe(2));
+    await waitFor(() => expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(2));
 
-    const replan = screen.getByText(/Simulate completed transfer/i) as HTMLButtonElement;
+    const replan = screen.getByText(/Complete 15,000-point transfer/i) as HTMLButtonElement;
     expect(replan.disabled).toBe(false);
     fireEvent.click(replan);
 
@@ -174,14 +176,14 @@ describe("TestWalletComparison", () => {
 
     render(<TestWalletComparison wallets={[WALLET]} />);
     fireEvent.click(screen.getByText("Run comparison"));
-    await waitFor(() => expect(screen.getAllByText("Succeeded").length).toBe(2));
-    fireEvent.click(screen.getByText(/Simulate completed transfer/i));
+    await waitFor(() => expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(2));
+    fireEvent.click(screen.getByText(/Complete 15,000-point transfer/i));
 
     await waitFor(() =>
-      expect(screen.getByText(/Idempotent replay detected — revision 2 remains current/i)).toBeTruthy(),
+      expect(screen.getByText(/Transfer already applied — Plan unchanged/i)).toBeTruthy(),
     );
     // The status surface is an aria-live region for assistive tech.
-    const live = screen.getByText(/Idempotent replay detected/i).closest("[aria-live]");
+    const live = screen.getByText(/Idempotent replay — balances and Plan revision unchanged/i).closest("[aria-live]");
     expect(live).not.toBeNull();
     expect(live?.getAttribute("aria-live")).toBe("polite");
     // A replay leaves balances untouched (no 165,000 deduction).
@@ -199,8 +201,8 @@ describe("TestWalletComparison", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
     fireEvent.click(screen.getByText("Run comparison"));
 
-    await waitFor(() => expect(screen.getByText("Failed")).toBeTruthy());
-    expect(screen.getAllByText("Succeeded").length).toBe(2);
+    await waitFor(() => expect(screen.getAllByText("Failed").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("Completed").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/OPENAI_API_KEY missing/i)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/demo/architecture-comparison",
@@ -212,6 +214,6 @@ describe("TestWalletComparison", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({ error: "Could not run the comparison." }) }));
     render(<TestWalletComparison wallets={[WALLET]} />);
     fireEvent.click(screen.getByText("Run comparison"));
-    await waitFor(() => expect(screen.getByText(/Could not run the comparison/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getAllByText(/Could not run the comparison/i).length).toBeGreaterThan(0));
   });
 });

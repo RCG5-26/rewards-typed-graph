@@ -108,6 +108,23 @@ export interface ArchitectureComparisonResponse {
   results: ArchitectureComparisonResult[];
 }
 
+/**
+ * Overall plan validity label derived from evaluation issues.
+ * - "valid": no issues
+ * - "incomplete": missing required fields (warning-severity missing_* issues only)
+ * - "invalid": at least one error-severity issue
+ *
+ * Computed client-side from PlanEvaluation.issues — mirrors evaluator.ts#planValidity.
+ */
+export type PlanValidity = "valid" | "incomplete" | "invalid";
+
+export function derivePlanValidity(evaluation: PlanEvaluation): PlanValidity {
+  if (evaluation.issues.some((i) => i.severity === "error")) return "invalid";
+  if (evaluation.issues.some((i) => i.severity === "warning" && i.code.startsWith("missing_")))
+    return "incomplete";
+  return "valid";
+}
+
 /** Human-readable label for each architecture variant (UI card headers). */
 export const VARIANT_LABELS: Record<ArchitectureVariant, string> = {
   "live-graph-orchestrator": "Graph Crew",

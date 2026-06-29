@@ -12,6 +12,18 @@ const FACTS = {
     { programId: "p-chase", programSlug: "program:chase_ur", name: "Chase Ultimate Rewards", issuer: "Chase" },
     { programId: "p-hyatt", programSlug: "program:hyatt", name: "World of Hyatt", issuer: "Hyatt" },
   ],
+  awardOptions: [
+    {
+      awardId: "award:demo_hyatt_ginza:tokyo:3n",
+      awardSlug: "award:demo_hyatt_ginza:tokyo:3n",
+      displayName: "Demo Hyatt Ginza",
+      programId: "p-hyatt",
+      programSlug: "program:hyatt",
+      pointsRequired: 45000,
+      valueBasisPoints: 23333,
+      available: true,
+    },
+  ],
 } as unknown as PublicWalletFacts;
 
 function succeededResult(): ArchitectureComparisonResult {
@@ -63,7 +75,7 @@ describe("ArchitectureResultCard", () => {
 
   it("renders a loading skeleton while running", () => {
     render(<ArchitectureResultCard variant="single-agent" facts={FACTS} state={{ phase: "loading" }} />);
-    expect(screen.getByLabelText("loading")).toBeTruthy();
+    expect(screen.getByLabelText("Loading result")).toBeTruthy();
     expect(screen.getByText(/Running/i)).toBeTruthy();
   });
 
@@ -75,7 +87,8 @@ describe("ArchitectureResultCard", () => {
         state={{ phase: "result", result: succeededResult() }}
       />,
     );
-    expect(screen.getByText("Succeeded")).toBeTruthy();
+    // Execution status is now "Completed" (not "Succeeded") per spec
+    expect(screen.getByText("Completed")).toBeTruthy();
     expect(screen.getByText(/Transfer Chase to Hyatt/i)).toBeTruthy();
     expect(screen.getByText("Goal satisfied")).toBeTruthy();
     expect(screen.getByText("Grounded")).toBeTruthy();

@@ -25,7 +25,9 @@ describe("/test-wallets page", () => {
     });
     render(await TestWalletsPage());
 
-    expect(screen.getByText(/Test Wallets — Architecture Comparison/i)).toBeInTheDocument();
+    // Header now follows the onboarding pattern: a mono eyebrow + a light h1.
+    expect(screen.getByText(/architecture comparison/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /test wallets/i })).toBeInTheDocument();
     expect(screen.getByText(/three architectures run independently/i)).toBeInTheDocument();
     const comparison = screen.getByTestId("comparison");
     expect(comparison).toBeInTheDocument();

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
+import BackLink from "@/components/BackLink";
 import { fromMutationEvent } from "@/lib/api/mutation-adapter";
 import type { RealMutationEvent } from "@/lib/api/types";
 import { deriveComparison, dollars, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
@@ -91,6 +92,7 @@ export default function AgentConsole({
   queryText,
   selectedCardIds,
   onRestart,
+  onEditWallet,
   balances = [],
   facts = null,
   walletProgramNames,
@@ -98,6 +100,8 @@ export default function AgentConsole({
   queryText: string;
   selectedCardIds: string[];
   onRestart: () => void;
+  /** Return to the cards step to edit the wallet (selection + points are preserved). */
+  onEditWallet?: () => void;
   /** The user's real program balances (from `/api/me`) — powers the replan transfer control. */
   balances?: UserBalance[];
   /** Canonical wallet facts (transfer routes + award options) for the facts panel. */
@@ -119,6 +123,10 @@ export default function AgentConsole({
   const [caughtInvalidation, setCaughtInvalidation] = useState(false);
   const [selected, setSelected] = useState<HoverNode | null>(null);
   const [logOpen, setLogOpen] = useState(false);
+  // The "what the agents see" facts were already shown on the ask step, so on
+  // the plan page they start collapsed — available, but not competing with the
+  // plan steps for attention.
+  const [factsOpen, setFactsOpen] = useState(false);
 
   // ── user-driven replan ("I transferred points") ──
   const [transferOpen, setTransferOpen] = useState(false);
@@ -379,15 +387,27 @@ export default function AgentConsole({
           </div>
           <PhaseChip status={status} goalLabel={goalLabel} revision={revision} />
         </div>
-        {/* Head-to-head comparison lives on its own page now (the three
-            architectures run against the canonical wallet there). */}
-        <a
-          href="/test-wallets"
-          className="group flex flex-none items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:shadow-float"
-        >
-          head-to-head comparison
-          <span className="transition-transform duration-base group-hover:translate-x-0.5">→</span>
-        </a>
+        <div className="flex flex-none items-center gap-2.5">
+          {/* Return to the wallet step to add/remove cards or edit points —
+              selection and entered points are preserved by the parent flow. */}
+          {onEditWallet && <BackLink onClick={onEditWallet}>edit wallet</BackLink>}
+          {/* Head-to-head comparison lives on its own page now (the three
+              architectures run against the canonical wallet there). Mirrors the
+              BackLink pill (forward arrow) so the header cluster stays coherent
+              and legible on the dark lane. */}
+          <a
+            href="/test-wallets"
+            className="group inline-flex items-center gap-2 rounded-full border border-strong bg-surface px-4 py-2 text-xs font-semibold text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-highlight-glow hover:text-text-primary"
+          >
+            head-to-head comparison
+            <span
+              className="transition-transform duration-base group-hover:translate-x-0.5"
+              aria-hidden="true"
+            >
+              →
+            </span>
+          </a>
+        </div>
       </div>
 
       {/* ── metric strip: plan value · invalidation caught · tokens vs baseline ── */}
@@ -411,10 +431,10 @@ export default function AgentConsole({
           </div>
         </MetricCard>
 
-        <MetricCard label="invalidation caught">
+        <MetricCard label="invalidation caught" tone="secondary">
           <div className="flex items-center gap-2.5">
             <span
-              className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-sm font-bold"
+              className="flex h-6 w-6 flex-none items-center justify-center rounded-full text-xs font-bold"
               style={{
                 background: caughtInvalidation ? "var(--color-success-bg)" : "var(--color-surface-subtle)",
                 color: caughtInvalidation ? "var(--color-success-fg)" : "var(--color-text-tertiary)",
@@ -422,21 +442,18 @@ export default function AgentConsole({
             >
               {caughtInvalidation ? "✓" : "◴"}
             </span>
-            <span className="text-lg font-semibold text-text-primary">
+            <span className="text-sm font-medium text-text-secondary">
               {caughtInvalidation ? `auto re-planned · r${revision}` : "watching state"}
             </span>
           </div>
         </MetricCard>
 
-        <MetricCard label="tokens vs baseline">
+        <MetricCard label="tokens vs baseline" tone="secondary">
           <div className="flex items-center justify-between gap-3">
-            <span
-              className="font-display text-4xl font-semibold leading-none tabular-nums"
-              style={{ color: "var(--color-accent-text)" }}
-            >
+            <span className="font-display text-2xl font-semibold leading-none tabular-nums text-text-secondary">
               −{tokenSavingPct}%
             </span>
-            <div className="flex items-end gap-3">
+            <div className="flex items-end gap-2.5">
               <TokenBar
                 label="current"
                 value={fmtTokens(cmp.typed.tokens)}
@@ -592,15 +609,32 @@ export default function AgentConsole({
                 )}
               </div>
               {(liveBalances.length > 0 || facts) && (
-                <div className="space-y-3 px-5 pt-3">
-                  {liveBalances.length > 0 && (
-                    <WalletDataPanel
-                      balances={liveBalances}
-                      title="your points · what the agents see"
-                    />
-                  )}
-                  {facts && (
-                    <WalletOptionsPanel facts={facts} programNames={walletProgramNames} />
+                <div className="px-5 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setFactsOpen((o) => !o)}
+                    aria-expanded={factsOpen}
+                    className="flex w-full items-center justify-between rounded-xl border border-subtle bg-surface-subtle px-3.5 py-2 text-left transition hover:border-highlight-glow"
+                  >
+                    <span className="font-mono text-2xs font-semibold uppercase tracking-wide text-text-tertiary">
+                      what the agents see
+                    </span>
+                    <span className={`font-mono text-xs text-text-tertiary transition-transform ${factsOpen ? "rotate-180" : ""}`}>
+                      ⌄
+                    </span>
+                  </button>
+                  {factsOpen && (
+                    <div className="mt-3 space-y-3">
+                      {liveBalances.length > 0 && (
+                        <WalletDataPanel
+                          balances={liveBalances}
+                          title="your points · what the agents see"
+                        />
+                      )}
+                      {facts && (
+                        <WalletOptionsPanel facts={facts} programNames={walletProgramNames} />
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -647,15 +681,9 @@ export default function AgentConsole({
                           </span>
                         </div>
                         <div className="mt-1.5 text-xs leading-relaxed text-text-secondary">{s.reasoning}</div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          {deps.length > 0 && (
-                            <span className="inline-flex max-w-full items-center gap-1 truncate rounded font-mono text-2xs text-text-secondary" style={{ background: "var(--color-surface-subtle)", border: "1px solid var(--color-border)", padding: "2px 7px" }}>
-                              deps: {deps.map((d) => d.label).join(", ")}
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1 rounded font-mono text-2xs font-medium" style={{ background: "var(--color-accent-muted)", color: "var(--color-accent-text)", padding: "2px 7px" }}>
-                            provides: {s.type}
-                          </span>
+                        <div className="mt-2 truncate font-mono text-2xs text-text-tertiary">
+                          provides {s.type}
+                          {deps.length > 0 && ` · deps ${deps.map((d) => d.label).join(", ")}`}
                         </div>
                       </div>
                     </div>
@@ -695,9 +723,25 @@ export default function AgentConsole({
 }
 
 // ── metric strip card ────────────────────────────────────────────────
-function MetricCard({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * `primary` is the visual hero (raised surface); `secondary` is a flat, muted
+ * card so the supporting benchmark metrics recede instead of competing.
+ */
+function MetricCard({
+  label,
+  children,
+  tone = "primary",
+}: {
+  label: string;
+  children: ReactNode;
+  tone?: "primary" | "secondary";
+}) {
+  const surface =
+    tone === "primary"
+      ? "bg-surface px-5 py-4 shadow-raised"
+      : "bg-surface/50 px-5 py-4 ring-1 ring-border-subtle";
   return (
-    <div className="rounded-card bg-surface px-5 py-4 shadow-raised">
+    <div className={`rounded-card ${surface}`}>
       <div className="mb-2.5 font-mono text-2xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">
         {label}
       </div>
@@ -711,9 +755,9 @@ function TokenBar({ label, value, pct, accent }: { label: string; value: string;
     <div className="flex flex-col items-center gap-1">
       <span className="font-mono text-[10px] text-text-tertiary tabular-nums">{value}</span>
       <div
-        className="w-7 rounded-sm"
+        className="w-5 rounded-sm"
         style={{
-          height: `${Math.max(8, Math.min(34, (pct / 100) * 34))}px`,
+          height: `${Math.max(6, Math.min(26, (pct / 100) * 26))}px`,
           background: accent ? "var(--color-accent)" : "var(--color-neutral-300)",
         }}
       />

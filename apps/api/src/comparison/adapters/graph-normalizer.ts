@@ -103,14 +103,18 @@ function classifyGraphStep(type: string, summary: string): NormalizedActionType 
   return classifyAction(summary);
 }
 
-/** The redemption node's slug is the selected award. */
+/** The redemption node's slug is the selected award (canonicalized to awardSlug). */
 function resolveSelectedAward(view: PlanView, facts: CanonicalWalletFacts): string | undefined {
   const redemptionNode = view.graph.nodes.find((n) => n.kind === "redemption");
-  if (redemptionNode && isKnownAward(redemptionNode.slug, facts)) return redemptionNode.slug;
+  if (redemptionNode) {
+    const slug = canonicalAwardSlug(redemptionNode.slug, facts);
+    if (slug) return slug;
+  }
   // Fall back to a step dependency that names a known award.
   for (const step of view.steps) {
     for (const dependency of step.dependencies) {
-      if (isKnownAward(dependency.slug, facts)) return dependency.slug;
+      const slug = canonicalAwardSlug(dependency.slug, facts);
+      if (slug) return slug;
     }
   }
   return redemptionNode?.slug;
@@ -129,7 +133,17 @@ function resolveSelectedProgram(
 }
 
 function isKnownAward(slug: string, facts: CanonicalWalletFacts): boolean {
-  return facts.awardOptions.some((a) => a.awardSlug === slug || a.awardId === slug);
+  return canonicalAwardSlug(slug, facts) !== undefined;
+}
+
+/** Map a graph node slug (UUID or award: slug) to the canonical awardSlug. */
+function canonicalAwardSlug(
+  identifier: string,
+  facts: CanonicalWalletFacts,
+): string | undefined {
+  return facts.awardOptions.find(
+    (a) => a.awardSlug === identifier || a.awardId === identifier,
+  )?.awardSlug;
 }
 
 function buildSummary(awardName: string | undefined, awardId: string | undefined): string {

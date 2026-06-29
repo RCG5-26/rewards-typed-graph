@@ -75,11 +75,59 @@ describe("RedemptionAgent", () => {
 
       await agent.run(ctx);
 
-      expect(ctx.calls).toHaveLength(2);
+      expect(ctx.calls).toHaveLength(4);
       expect(ctx.calls[0].mutation.kind).toBe("CreatePlanStep");
       expect((ctx.calls[0].mutation as { stepType: string }).stepType).toBe("transfer_recommendation");
       expect((ctx.calls[0].mutation as { payload: { fromProgramId: string } }).payload.fromProgramId).toBe(B001);
       expect((ctx.calls[0].mutation as { payload: { toProgramId: string } }).payload.toProgramId).toBe(B002);
+    });
+
+    it("also emits a redemption_recommendation (order 2) so rev1 is a complete, goal-satisfying plan", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(30_000, 180_000);
+
+      await agent.run(ctx);
+
+      const redemptionStep = ctx.calls[2].mutation;
+      expect(redemptionStep.kind).toBe("CreatePlanStep");
+      expect((redemptionStep as { stepType: string }).stepType).toBe("redemption_recommendation");
+      expect((redemptionStep as { stepOrder: number }).stepOrder).toBe(2);
+      expect((redemptionStep as { payload: { redemptionOptionId: string } }).payload.redemptionOptionId).toBe(F001);
+      expect((redemptionStep as { payload: { sourceProgramId: string } }).payload.sourceProgramId).toBe(B002);
+    });
+
+    it("writes human-readable action text on each step for PlanView projection", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(30_000, 180_000);
+
+      await agent.run(ctx);
+
+      const transferPayload = (ctx.calls[0].mutation as { payload: { action?: string; reasoning?: string } })
+        .payload;
+      expect(transferPayload.action).toBe(
+        "Transfer 15,000 Chase Ultimate Rewards points to World of Hyatt.",
+      );
+      expect(transferPayload.reasoning).toContain("15,000");
+
+      const redemptionPayload = (ctx.calls[2].mutation as { payload: { action?: string; reasoning?: string } })
+        .payload;
+      expect(redemptionPayload.action).toBe(
+        "Book Demo Hyatt Ginza 3-night Tokyo award for 45,000 Hyatt points.",
+      );
+      expect(redemptionPayload.reasoning).toContain("Chase transfer");
+    });
+
+    it("anchors the rev1 redemption step on the Hyatt balance (the redeeming program)", async () => {
+      const agent = new RedemptionAgent();
+      const ctx = makeContext(30_000, 180_000);
+
+      await agent.run(ctx);
+
+      const dep = ctx.calls[3].mutation;
+      expect(dep.kind).toBe("RecordStateDependency");
+      expect((dep as { targetNodeId: string }).targetNodeId).toBe(D002); // Hyatt
+      // planStepId threads from the redemption CreatePlanStep (third commit → txn-step-3).
+      expect((dep as { planStepId: string }).planStepId).toBe("txn-step-3");
     });
 
     it("records dependency on Chase UR (the funding source) for transfer step", async () => {
@@ -201,12 +249,20 @@ describe("RedemptionAgent", () => {
   });
 
   describe("RecordStateDependency structural invariants", () => {
-    it("always emits exactly 2 commits (step + dependency)", async () => {
+    it("emits a step+dependency pair per plan step (2 commits per step)", async () => {
       const agent = new RedemptionAgent();
-      for (const [hyatt, chase] of [[60_000, 0], [30_000, 180_000], [1_000, 2_000]]) {
+      // [hyatt, chase, expectedCommits]: direct redeem and insufficient emit one
+      // step (2 commits); the transfer-first branch emits transfer + redemption
+      // (4 commits) so rev1 is a complete plan.
+      const scenarios: [number, number, number][] = [
+        [60_000, 0, 2], // direct redeem (Hyatt already ≥ threshold)
+        [30_000, 180_000, 4], // transfer + redemption
+        [1_000, 2_000, 2], // insufficient total
+      ];
+      for (const [hyatt, chase, expected] of scenarios) {
         const ctx = makeContext(hyatt, chase);
         await agent.run(ctx);
-        expect(ctx.calls).toHaveLength(2);
+        expect(ctx.calls).toHaveLength(expected);
       }
     });
 

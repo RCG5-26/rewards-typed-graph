@@ -94,6 +94,12 @@ export async function runDemoSimulateTransfer(
   const result = await deps.replanService.transferBalance(CANONICAL_GRAPH_USER_ID, input);
   const idempotencyReplayed = result.idempotencyReplayed === true;
 
+  // The rev2 plan reflects the post-transfer world (Hyatt now funds the award
+  // directly, so it drops the transfer step). Evaluate it against post-transfer
+  // balances — using the pre-transfer canonical facts would simulate a direct
+  // redemption from the old 30k Hyatt balance and wrongly fail affordability.
+  const postTransferFacts = applyTransferToFacts(facts, transfer);
+
   return {
     walletId,
     walletVersion: facts.version,
@@ -102,11 +108,33 @@ export async function runDemoSimulateTransfer(
     replanJobId: result.replanJobId,
     staledPlanId: result.staledPlanId,
     currentPlan: result.currentPlan,
-    graphResult: buildGraphResult(facts, result.currentPlan, idempotencyReplayed),
+    graphResult: buildGraphResult(postTransferFacts, result.currentPlan, idempotencyReplayed),
   };
 }
 
-function buildGraphResult(
+/**
+ * Apply the canonical transfer to a wallet's balances, returning a new facts
+ * object. Mirrors the DB mutation (debit source, credit destination) so the
+ * comparison evaluator scores the post-transfer plan against the post-transfer
+ * world. Pure — never mutates the input.
+ */
+export function applyTransferToFacts(
+  facts: CanonicalWalletFacts,
+  transfer: CanonicalTransferSpec,
+): CanonicalWalletFacts {
+  const balances = facts.balances.map((balance) => {
+    if (balance.programId === transfer.sourceProgramId) {
+      return { ...balance, points: balance.points - transfer.amountPoints };
+    }
+    if (balance.programId === transfer.destProgramId) {
+      return { ...balance, points: balance.points + transfer.amountPoints };
+    }
+    return balance;
+  });
+  return { ...facts, balances };
+}
+
+export function buildGraphResult(
   facts: CanonicalWalletFacts,
   view: PlanView,
   idempotencyReplayed: boolean,
