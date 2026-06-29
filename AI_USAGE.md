@@ -1858,3 +1858,87 @@ semantics (inputs + rubric are equal; output semantics are PARTIALLY EQUIVALENT
 (v3.1-vs-legacy payload-shape mismatch) drops the persisted award/route;
 secondary single-step orchestrator semantics + normalizer gating keep
 `Transfer: None` even once the projection is fixed.
+
+## 2026-06-29 — Demo-safe UX coherence pass (branch `demo/ux-polish-final`)
+
+Scope-reduced UX overhaul to make the journey (Landing → Wallet → Goal → Plan →
+Live Comparison → Evidence) read as one coherent, **truthful** product on demo
+day. Worked in an isolated worktree branched from `demo/graph-rev1-ui` @ `14da1c3`
+to avoid colliding with the parallel agent active on that branch. No merge/push.
+
+### Tools used
+Claude Code (Opus 4.8, 1M context); parallel `Explore` subagents for the
+current-state audit; Vitest, `tsc --noEmit`, `next build`; Chrome browser
+automation for landing visual review.
+
+### Important decisions
+- **Truth boundaries first.** Wrote `docs/demo/UX_TRUTH_BOUNDARIES.md` classifying
+  every surface (live PG / live planner / live OpenAI / precomputed artifact /
+  illustrative) before touching UI, so labels match reality.
+- **No silent-fallback verification (requested gate).** Audited
+  `lib/comparison/client.ts` + the three `app/api/demo/*` routes: live failures
+  surface as `PublicApiError` / sanitized `502` / per-architecture `failed` slot —
+  **never** a fixture substituted for a failed live run. Verdict: PASS, not a P0.
+- **Synthetic baseline relabeled (core truth fix).** The onboarding console's
+  "tokens vs baseline −N%" is a live numerator over a synthetic projection
+  (`lib/plan/comparison.ts`), not a measured architecture. Relabeled to
+  "model usage" with the figure framed as "≈N% under an illustrative baseline",
+  removing the false head-to-head impression.
+- **Illustrative preview labeling.** Added an "Illustrative Plan Preview"
+  disclosure to the onboarding console; relabeled "plan value /yr" →
+  "estimated redemption value" (no /yr on a one-time redemption) and
+  "invalidation caught / watching state" → "state monitoring / active".
+- **Landing claims.** Removed the unsupported "book the sweet spot" claim →
+  "evaluate the supported programs, transfer routes, and award options"; labeled
+  the 240k / travel-value figures as an example wallet; neutralized the personal
+  cardholder name to DEMO MEMBER; CTAs → "build my wallet".
+- **Comparison IA.** Renamed visible page "Test wallets" → "Live Planner
+  Comparison"; compacted pre-run with a scenario summary + progressive-disclosure
+  facts panel; replaced three placeholder result cards with one empty state;
+  grouped error findings under "Why this Plan is invalid" with raw codes in a
+  collapsed "Technical details".
+- **Evidence page.** Added `/benchmark` reusing the artifact-backed
+  `BenchmarkView` (30-case fixture benchmark) plus a separately-labeled live
+  structural hero-evidence section; the two are never conflated. Added a
+  contextual comparison → evidence link (global nav deferred per scope).
+
+### Deferred (out of this pass, per reduced scope)
+Per-program balance modal refactor; full Plan vs Technical-Trace redesign; global
+navigation; broad design-token cleanup; custom-wallet persistence; large
+responsive restructuring.
+
+### Validation
+- `npx vitest run` → **250 passed / 1 failed (36 files)**. The single failure
+  (`app/test-wallets/page.test.tsx` loadError) is **pre-existing** — reproduced
+  identically against baseline `14da1c3` (unhandled-rejection quirk with
+  `mockRejectedValue`); not introduced here.
+- `npx tsc --noEmit` → clean. `npx next build` → success; `/benchmark` registered
+  in the route table.
+
+### Manual browser review
+Landing verified live at desktop (1440): CTA "build my wallet", "see how it
+works", card face "DEMO MEMBER", "example wallet · 240,000 pts", "sample travel
+value", count-up settles to ≈ $4,080; how-it-works step 03 shows the de-booked
+copy. Gated routes (`/test-wallets`, `/benchmark`, `/onboarding`) require Google
+sign-in (Clerk, ADR 0006) and were verified via render tests instead of live
+capture.
+
+### Accessibility review
+New controls use semantic `<details>/<summary>` (keyboard-native), real `<a>`
+links with decorative arrows `aria-hidden`, section `aria-labelledby`, the
+empty state + illustrative banner labeled (`aria-label` / `role="note"`),
+preserved `aria-live`/`aria-busy` on the comparison status regions. Global
+`:focus-visible` ring and `prefers-reduced-motion` from the design system are
+unchanged; landing edits were copy-only so existing responsive breakpoints hold.
+
+### Findings caught
+Confirmed the pre-existing `loadError` test failure is not regression; confirmed
+no silent live→fixture fallback exists; identified that `BenchmarkView`/
+`ContrastView`/`AgentActivity*` are built-but-orphaned components (reused
+`BenchmarkView`, left the others untouched).
+
+### Verdict
+`GPFREE UX OVERHAUL PARTIAL` — the demo-safe coherence slice is complete and
+verified (tests + build green except one pre-existing failure); the explicitly
+deferred items above remain out of scope. No merge performed; integration handoff
+provided separately.
