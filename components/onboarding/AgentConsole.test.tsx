@@ -133,7 +133,8 @@ describe("AgentConsole", () => {
     // token figure is framed as model usage vs an illustrative baseline).
     expect(screen.getByText(/estimated redemption value/i)).toBeTruthy();
     expect(screen.getByText(/model usage/i)).toBeTruthy();
-    expect(screen.getByText(/illustrative baseline/i)).toBeTruthy();
+    // The typed graph is deterministic — 0 model tokens, never a fabricated cost.
+    expect(screen.getByText(/deterministic specialists, no LLM call/i)).toBeTruthy();
     // The primary forward action is the live comparison.
     expect(screen.getByText(/Compare planners live/i)).toBeTruthy();
   });

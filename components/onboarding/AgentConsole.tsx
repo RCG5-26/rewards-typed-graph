@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import BackLink from "@/components/BackLink";
 import { fromMutationEvent } from "@/lib/api/mutation-adapter";
 import type { RealMutationEvent } from "@/lib/api/types";
-import { deriveComparison, dollars, fmtTokens, type LiveMetrics } from "@/lib/plan/comparison";
+import { dollars } from "@/lib/plan/comparison";
 import { AGENT_META, agentDarkColor, opColor } from "@/lib/plan/presentation";
 import type {
   Invalidation,
@@ -348,14 +348,6 @@ export default function AgentConsole({
   // to the facts-derived value so the metric is real, not an em dash.
   const effectiveValueCents = valueCents > 0 ? valueCents : derivedValueCents;
 
-  const liveMetrics: LiveMetrics = {
-    planValueCents: effectiveValueCents,
-    opCount: mutations.length,
-    invalidationCaught: caughtInvalidation,
-    revision,
-  };
-
-
   // Keyboard-accessible entry point to the same node detail the canvas exposes
   // via pointer. The canvas is aria-hidden, so this is the only path for
   // keyboard / assistive-tech users; it anchors the popover centered in the rail.
@@ -371,11 +363,6 @@ export default function AgentConsole({
       y: KEYBOARD_POPOVER_Y,
     });
   }
-
-  const cmp = deriveComparison(liveMetrics);
-  // Tokens vs the free-text baseline (CrewAI) — the headline efficiency win.
-  const tokenSavingPct =
-    cmp.crewai.tokens > 0 ? Math.round((1 - cmp.typed.tokens / cmp.crewai.tokens) * 100) : 0;
 
   return (
     <div className="absolute inset-0 z-[2] flex flex-col gap-4 overflow-y-auto px-7 pb-7 pt-5">
@@ -465,30 +452,18 @@ export default function AgentConsole({
           </div>
         </MetricCard>
 
-        {/* Model usage. The live numerator (typed.tokens) is real; the
-            comparison baseline is an illustrative projection, not a measured
-            second architecture (see lib/plan/comparison.ts). Labeled as such so
-            the figure is never read as a head-to-head measurement — the measured
-            comparison lives on /test-wallets and /benchmark. */}
+        {/* Model usage. The typed-graph specialists are deterministic — they
+            plan by committing graph mutations, with no LLM call — so planning
+            costs 0 model tokens. (The measured baseline token costs live on the
+            live comparison + benchmark pages; we never fabricate one here.) */}
         <MetricCard label="model usage" tone="secondary">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="font-display text-2xl font-semibold leading-none tabular-nums text-text-primary">
-                {fmtTokens(cmp.typed.tokens)}
-              </span>
-              <span className="font-mono text-2xs text-text-tertiary">
-                tokens · ≈{tokenSavingPct}% under an illustrative baseline
-              </span>
-            </div>
-            <div className="flex items-end gap-2.5">
-              <TokenBar
-                label="live"
-                value={fmtTokens(cmp.typed.tokens)}
-                pct={cmp.crewai.tokens > 0 ? Math.round((cmp.typed.tokens / cmp.crewai.tokens) * 100) : 100}
-                accent
-              />
-              <TokenBar label="proj" value={fmtTokens(cmp.crewai.tokens)} pct={100} />
-            </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-2xl font-semibold leading-none tabular-nums text-text-primary">
+              0
+            </span>
+            <span className="font-mono text-2xs text-text-tertiary">
+              tokens · deterministic specialists, no LLM call
+            </span>
           </div>
         </MetricCard>
       </div>
@@ -777,23 +752,6 @@ function MetricCard({
   );
 }
 
-function TokenBar({ label, value, pct, accent }: { label: string; value: string; pct: number; accent?: boolean }) {
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <span className="font-mono text-[10px] text-text-tertiary tabular-nums">{value}</span>
-      <div
-        className="w-5 rounded-sm"
-        style={{
-          height: `${Math.max(6, Math.min(26, (pct / 100) * 26))}px`,
-          background: accent ? "var(--color-accent)" : "var(--color-neutral-300)",
-        }}
-      />
-      <span className="font-mono text-[9px] uppercase tracking-wide text-text-tertiary">{label}</span>
-    </div>
-  );
-}
-
-// ── bottom comparison strip (condensed baselines) ────────────────────
 // ── user-driven replan: transfer form + summary ──────────────────────
 function TransferForm({
   balances,
