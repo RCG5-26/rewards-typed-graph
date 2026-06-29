@@ -90,3 +90,89 @@ describe("baseline normalizer", () => {
     expect(plan.summary).toContain("Ginza");
   });
 });
+
+// Regression: incidental "transfer" mentions in non-transfer steps used to be
+// mis-typed as transfers with invented (self / unsupported) routes, making
+// otherwise-valid baseline plans evaluate as INVALID on `unsupported_transfer_route`.
+describe("baseline normalizer — step mis-typing regressions", () => {
+  const HYATT = "00000000-0000-0000-0000-00000000b002";
+  const hasUnsupportedRoute = (plan: ReturnType<typeof normalizeBaselinePlan>) =>
+    evaluatePlan(plan, FACTS).issues.some((i) => i.code === "unsupported_transfer_route");
+
+  it("classifies by the earliest action verb, not an incidental keyword", () => {
+    // "redeem" precedes the later mention of "transfer" → redeem.
+    expect(
+      classifyAction("Redeem 45,000 World of Hyatt points for the stay after the transfer posts."),
+    ).toBe("redeem");
+    // "keep" precedes "transferred" → hold.
+    expect(
+      classifyAction("Keep the United option as a backup, but prioritize Hyatt for fewer transferred points."),
+    ).toBe("hold");
+    // A genuine transfer step is unaffected.
+    expect(classifyAction("Transfer 15,000 Chase Ultimate Rewards points to World of Hyatt")).toBe(
+      "transfer",
+    );
+  });
+
+  it("does not turn a redeem step that mentions 'transfer' into a self-route transfer", () => {
+    const plan = normalizeBaselinePlan(
+      {
+        status: "current",
+        chosen_award_slug: "award:demo_hyatt_ginza:tokyo:3n",
+        steps: [
+          { summary: "Transfer 15,000 Chase Ultimate Rewards points to World of Hyatt" },
+          { summary: "Redeem 45,000 World of Hyatt points for the stay after the transfer posts." },
+        ],
+      },
+      FACTS,
+    );
+    expect(plan.steps[1].actionType).toBe("redeem");
+    // No step is a self-route transfer (source === destination).
+    expect(
+      plan.steps.some(
+        (s) =>
+          s.actionType === "transfer" &&
+          s.sourceProgramId !== undefined &&
+          s.sourceProgramId === s.destinationProgramId,
+      ),
+    ).toBe(false);
+    expect(hasUnsupportedRoute(plan)).toBe(false);
+    // The real recommendation (transfer 15k Chase→Hyatt, then redeem) is valid.
+    expect(isHardValid(evaluatePlan(plan, FACTS))).toBe(true);
+  });
+
+  it("does not turn a 'keep United as backup' step into an unsupported United→Hyatt transfer", () => {
+    const plan = normalizeBaselinePlan(
+      {
+        status: "current",
+        chosen_award_slug: "award:demo_hyatt_ginza:tokyo:3n",
+        steps: [
+          { summary: "Redeem the Demo Hyatt Ginza award for 45,000 Hyatt points." },
+          { summary: "Transfer 15,000 Chase Ultimate Rewards points to World of Hyatt." },
+          { summary: "Keep the United option as a backup, but prioritize Hyatt for fewer transferred points." },
+        ],
+      },
+      FACTS,
+    );
+    expect(plan.steps[2].actionType).toBe("hold");
+    expect(hasUnsupportedRoute(plan)).toBe(false);
+  });
+
+  it("never synthesizes a self-route when a transfer names only the award program", () => {
+    // Source resolves to Hyatt; the destination fallback would also be Hyatt —
+    // the fix must drop the destination rather than emit Hyatt→Hyatt.
+    const plan = normalizeBaselinePlan(
+      {
+        status: "current",
+        chosen_award_slug: "award:demo_hyatt_ginza:tokyo:3n",
+        steps: [{ summary: "Transfer points within World of Hyatt for the award" }],
+      },
+      FACTS,
+    );
+    const transferStep = plan.steps.find((s) => s.actionType === "transfer");
+    if (transferStep?.sourceProgramId === HYATT) {
+      expect(transferStep.destinationProgramId).not.toBe(HYATT);
+    }
+    expect(hasUnsupportedRoute(plan)).toBe(false);
+  });
+});

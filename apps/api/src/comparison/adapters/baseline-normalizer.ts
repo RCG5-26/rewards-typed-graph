@@ -149,19 +149,40 @@ function normalizeStep(
     const programs = resolveProgramsInText(summary, facts);
     if (programs.sourceProgramId) normalized.sourceProgramId = programs.sourceProgramId;
     // Prefer an explicit destination mention; fall back to the award's program.
+    // Never synthesize a self-route (destination === source): that is not a real
+    // transfer and would be wrongly flagged as an unsupported route. Leaving the
+    // destination unset makes the evaluator skip the step's route check while the
+    // affordability gate still judges the plan honestly.
     const destination = programs.destinationProgramId ?? awardProgramId;
-    if (destination) normalized.destinationProgramId = destination;
+    if (destination && destination !== normalized.sourceProgramId) {
+      normalized.destinationProgramId = destination;
+    }
   }
   return normalized;
 }
 
+// Action keywords grouped by type. A step's action is the type whose keyword
+// appears EARLIEST in the prose — the step's actual verb — not whichever type a
+// substring happens to match. This prevents an incidental mention ("redeem … after
+// the transfer posts", "keep the United option … fewer transferred points") from
+// being mis-typed as a transfer just because the word "transfer" appears later.
+const ACTION_KEYWORDS: ReadonlyArray<readonly [NormalizedActionType, readonly string[]]> = [
+  ["transfer", ["transfer"]],
+  ["redeem", ["redeem", "book", "award"]],
+  ["fallback", ["cash", "fallback"]],
+  ["hold", ["hold", "keep", "wait"]],
+];
+
 export function classifyAction(text: string): NormalizedActionType {
   const t = text.toLowerCase();
-  if (t.includes("transfer")) return "transfer";
-  if (t.includes("redeem") || t.includes("book") || t.includes("award")) return "redeem";
-  if (t.includes("cash") || t.includes("fallback")) return "fallback";
-  if (t.includes("hold") || t.includes("keep") || t.includes("wait")) return "hold";
-  return "other";
+  let best: { type: NormalizedActionType; index: number } | null = null;
+  for (const [type, keywords] of ACTION_KEYWORDS) {
+    for (const keyword of keywords) {
+      const at = t.indexOf(keyword);
+      if (at !== -1 && (best === null || at < best.index)) best = { type, index: at };
+    }
+  }
+  return best?.type ?? "other";
 }
 
 /** First integer with optional comma grouping (e.g. "15,000" → 15000). */
