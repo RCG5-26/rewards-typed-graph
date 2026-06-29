@@ -269,6 +269,30 @@ describe("submitBalances", () => {
     );
   });
 
+  it("falls back to the generic message when the error body is not JSON", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+    });
+    const { submitBalances } = await getClient();
+    const { ApiError } = await import("./types");
+
+    try {
+      await submitBalances([{ programId: "p1", points: 1 }], "token-x");
+      expect.unreachable("submitBalances should reject on a 503");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      expect((e as InstanceType<typeof ApiError>).kind).toMatchObject({
+        kind: "server-error",
+        status: 503,
+        message: "Hono API responded 503",
+      });
+    }
+  });
+
   it("preserves the server's validation message on a 400 instead of a generic one", async () => {
     const message = "balances[0].points must be a non-negative safe integer";
     mockFetch.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: message }) });

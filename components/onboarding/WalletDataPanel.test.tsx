@@ -46,7 +46,9 @@ describe("WalletDataPanel", () => {
   });
 
   it("uses the provided title", () => {
-    render(<WalletDataPanel balances={[balance()]} title="your points" />);
-    expect(screen.getByText("your points")).toBeInTheDocument();
+    render(<WalletDataPanel balances={[balance()]} title="what the agents see" />);
+    expect(screen.getByText("what the agents see")).toBeInTheDocument();
+    // Distinct from the component's default so a dropped prop would fail this.
+    expect(screen.queryByText("your points")).toBeNull();
   });
 });

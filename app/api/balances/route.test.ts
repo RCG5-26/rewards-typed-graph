@@ -49,6 +49,14 @@ describe("POST /api/balances", () => {
     expect(mockSubmit).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when the request body is not valid JSON", async () => {
+    signedIn();
+    const badReq = { json: async () => { throw new SyntaxError("Unexpected token"); } } as unknown as Request;
+    const res = await POST(badReq);
+    expect(res.status).toBe(400);
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when an entry is malformed", async () => {
     signedIn();
     const res = await POST(req({ balances: [{ programId: 123, points: "x" }] }));

@@ -32,6 +32,20 @@ describe("WalletPointsModal", () => {
     expect(input.value).toBe("1234");
   });
 
+  it("prefills inputs from initialByCard when reopened with saved points", () => {
+    render(
+      <WalletPointsModal
+        cards={[card({ id: "a", name: "Card A" }), card({ id: "b", name: "Card B" })]}
+        initialByCard={{ a: 5000 }}
+        onClose={() => {}}
+        onSubmit={async () => {}}
+      />,
+    );
+    expect((screen.getByLabelText(/points on card a/i) as HTMLInputElement).value).toBe("5000");
+    // Cards without a seeded value stay blank.
+    expect((screen.getByLabelText(/points on card b/i) as HTMLInputElement).value).toBe("");
+  });
+
   it("closes via the close button, backdrop, and Escape", () => {
     const onClose = vi.fn();
     render(<WalletPointsModal cards={[card()]} onClose={onClose} onSubmit={async () => {}} />);
