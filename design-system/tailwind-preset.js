@@ -35,6 +35,15 @@ module.exports = {
           fg: "var(--color-accent-fg)",
           text: "var(--color-accent-text)",
         },
+        // Landing "icy periwinkle" highlight — primary CTA on the dark lane.
+        // `bg-highlight`, `hover:bg-highlight-hover`, `ring-highlight-glow`.
+        highlight: {
+          DEFAULT: "var(--color-highlight)",
+          hover: "var(--color-highlight-hover)",
+          glow: "var(--color-highlight-glow)",
+          deep: "var(--color-highlight-deep)",
+        },
+        "on-highlight": "var(--color-on-highlight)",
         iris: Object.fromEntries(
           [50, 100, 200, 300, 400, 500, 600, 700, 800, 900].map((s) => [
             s,

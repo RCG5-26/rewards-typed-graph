@@ -42,6 +42,25 @@
   --color-accent-fg: var(--color-iris-700);
   --color-accent-text: var(--color-iris-600);
 
+  /* ── Highlight (landing "icy periwinkle") — primary CTA / emphasis ──
+     The exact accent from the GPFree landing (components/GPFreeHero.tsx):
+     a light, icy iris used as the "start optimizing" button fill and the
+     ambient glow. Captured here so the dark product lane and the marketing
+     hero share one source of truth. Distinct from --color-accent, which stays
+     tuned for contrast on light surfaces. */
+  --color-highlight: oklch(87% 0.1 265); /* icy CTA fill (landing --iris-bright) */
+  --color-highlight-hover: oklch(90% 0.09 265); /* brightness-up on hover */
+  --color-highlight-glow: oklch(80% 0.11 265); /* ring / ambient glow (landing --iris) */
+  --color-highlight-deep: oklch(64% 0.15 265); /* pressed / deep accent (landing --iris-deep) */
+  --color-on-highlight: #0a0b0e; /* near-black ink that sits on the icy fill */
+
+  /* ── Premium card surface (landing hero + onboarding tiles) ── */
+  --card-chip-gold-1: #efdca5;
+  --card-chip-gold-2: #a9823f;
+  --card-sheen: rgba(255, 255, 255, 0.6);
+  --card-edge-glow: oklch(85% 0.02 265 / 0.45);
+  --card-brush-line: rgba(255, 255, 255, 0.035);
+
   --color-border: rgba(0, 0, 0, 0.07);
   --color-border-strong: rgba(0, 0, 0, 0.12);
   --color-border-subtle: rgba(0, 0, 0, 0.04);
@@ -50,4 +69,31 @@
   --color-blob-core: oklch(72% 0.1 265 / 0.65);
   --color-blob-mid: oklch(80% 0.08 265 / 0.3);
   --color-blob-edge: oklch(86% 0.06 265 / 0);
+}
+
+/* Dark product lane — matches GPFreeHero landing palette. Scope with
+   data-theme="dark" on the onboarding shell (and future demo routes). */
+[data-theme="dark"] {
+  --color-bg: #06070a;
+  --color-bg-elevated: #0b0d12;
+  --color-surface: #10131a;
+  --color-surface-raised: #14171f;
+  --color-surface-subtle: #0b0d12;
+
+  --color-text-primary: #f4f4f7;
+  --color-text-secondary: #a6a7b0;
+  --color-text-tertiary: #6a6b74;
+  --color-text-disabled: #4a4a52;
+
+  --color-accent-text: var(--color-highlight-glow);
+
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+
+  --glass-light: rgba(6, 7, 10, 0.72);
+
+  --color-blob-core: oklch(80% 0.11 265 / 0.45);
+  --color-blob-mid: oklch(87% 0.1 265 / 0.2);
+  --color-blob-edge: oklch(90% 0.08 265 / 0);
 }

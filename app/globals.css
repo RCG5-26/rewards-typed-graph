@@ -108,6 +108,16 @@ img {
   }
 }
 
+/* Diagonal glint sweep on premium card surfaces (landing hero + CardTile). */
+@keyframes gp-glint {
+  0% {
+    transform: translateX(-170%) rotate(13deg);
+  }
+  100% {
+    transform: translateX(280%) rotate(13deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   @keyframes gp-row-in {
     from {

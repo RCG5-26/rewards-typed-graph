@@ -121,6 +121,21 @@ warranted).
 **Accent (iris)** — `--color-accent` (=iris-500), `--color-accent-fg/-text/-subtle/-muted`;
 raw scale `--color-iris-50…900`, neutrals `--color-neutral-0…900`.
 
+**Highlight (icy periwinkle)** — the landing's "start optimizing" CTA color, shared
+across the dark lane: `--color-highlight` (icy fill), `--color-highlight-hover`,
+`--color-highlight-glow` (ring/ambient), `--color-highlight-deep` (pressed),
+`--color-on-highlight` (near-black ink on the fill). Utilities: `bg-highlight`,
+`hover:bg-highlight-hover`, `ring-highlight-glow`, `text-on-highlight`. Use this for
+primary CTAs on dark surfaces; keep `--color-accent` for emphasis on light surfaces.
+
+**Premium card surface** — shared hero + onboarding tile treatment:
+`--card-chip-gold-1/2`, `--card-sheen`, `--card-edge-glow`, `--card-brush-line`.
+Glint animation: `gp-glint` in `app/globals.css`.
+
+**Dark product lane** — scope `[data-theme="dark"]` on onboarding (and future demo
+shells). Remaps `--color-bg`, `--color-surface*`, `--color-text-*`, borders, and
+`--glass-light` to the landing near-black palette (`#06070a` … `#10131a`).
+
 **Feedback** — `--color-success`, `--color-warning`, `--color-error` (each with
 `-bg` / `-fg` variants). Used heavily in head-to-head contrast.
 
