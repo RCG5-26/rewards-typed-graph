@@ -146,6 +146,49 @@ describe("TestWalletComparison", () => {
     expect(screen.getByText("45,000")).toBeTruthy();
   });
 
+  it("shows the idempotent-replay success panel (aria-live, balances unchanged)", async () => {
+    const comparison = response();
+    const simulate = {
+      walletId: "transfer-required",
+      walletVersion: "demo-seed-v1",
+      idempotencyReplayed: true,
+      transfer: { sourceProgramId: "p-chase", destProgramId: "p-hyatt", amountPoints: 15000 },
+      replanJobId: null,
+      staledPlanId: null,
+      currentPlan: {
+        planId: "plan-2",
+        planLineageId: "lineage-1",
+        revisionNumber: 2,
+        status: "current",
+        query: WALLET.query,
+        summary: "Redeem Ginza.",
+        steps: [{ order: 1, type: "redemption_recommendation", summary: "Redeem Ginza", status: "current" }],
+      },
+      graphResult: { ...comparison.results[0], evidence: { ...comparison.results[0].evidence, revisionNumber: 2 } },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => comparison })
+      .mockResolvedValueOnce({ ok: true, json: async () => simulate });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TestWalletComparison wallets={[WALLET]} />);
+    fireEvent.click(screen.getByText("Run comparison"));
+    await waitFor(() => expect(screen.getAllByText("Succeeded").length).toBe(2));
+    fireEvent.click(screen.getByText(/Simulate completed transfer/i));
+
+    await waitFor(() =>
+      expect(screen.getByText(/Idempotent replay detected — revision 2 remains current/i)).toBeTruthy(),
+    );
+    // The status surface is an aria-live region for assistive tech.
+    const live = screen.getByText(/Idempotent replay detected/i).closest("[aria-live]");
+    expect(live).not.toBeNull();
+    expect(live?.getAttribute("aria-live")).toBe("polite");
+    // A replay leaves balances untouched (no 165,000 deduction).
+    expect(screen.getByText("180,000")).toBeTruthy();
+    expect(screen.queryByText("165,000")).toBeNull();
+  });
+
   it("runs the comparison and renders three independent results", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
