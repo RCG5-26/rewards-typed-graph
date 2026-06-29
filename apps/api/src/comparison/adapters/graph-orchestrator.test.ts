@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { TRANSFER_REQUIRED_WALLET } from "../canonical-wallet";
-import { evaluatePlan, isHardValid } from "../evaluator";
+import { NO_FEASIBLE_PATH_WALLET, TRANSFER_REQUIRED_WALLET } from "../canonical-wallet";
+import { evaluatePlan, isHardValid, planValidity } from "../evaluator";
 import type { PlanView } from "../../plans/types";
 import { type GraphPlanRunner, runGraphOrchestrator } from "./graph-orchestrator";
 import { normalizeGraphPlan } from "./graph-normalizer";
@@ -104,6 +104,33 @@ describe("graph normalizer", () => {
     expect(isHardValid(evaluation)).toBe(true);
     expect(evaluation.goalSatisfied).toBe(true);
     expect(evaluation.supportedTransferRoute).toBe(true);
+  });
+
+  it("renders a step-less infeasible plan as a cash fallback (no award, goal not satisfied)", () => {
+    // The orchestrator emits no redemption when nothing is fundable, so the
+    // PlanView has no steps and an empty graph — the honest cash-fallback shape.
+    const view: PlanView = {
+      planId: "plan-cf",
+      planLineageId: "lineage-cf",
+      revisionNumber: 1,
+      status: "current",
+      query: NO_FEASIBLE_PATH_WALLET.query,
+      summary: null,
+      steps: [],
+      graph: { nodes: [], edges: [] },
+    };
+    const plan = normalizeGraphPlan(view, NO_FEASIBLE_PATH_WALLET);
+    expect(plan.selectedAwardId).toBeUndefined();
+    expect(plan.goalSatisfied).toBe(false);
+    expect(plan.transferRequired).toBe(false);
+    expect(plan.summary).toBe("Recommends a cash fallback.");
+
+    // The evaluator must NOT mark it invalid: no award is claimed, so there is no
+    // overspend and no falsely-claimed goal — it is an honest (incomplete) plan.
+    const evaluation = evaluatePlan(plan, NO_FEASIBLE_PATH_WALLET);
+    expect(planValidity(evaluation)).not.toBe("invalid");
+    expect(evaluation.goalSatisfied).toBe(false);
+    expect(evaluation.affordable).toBe(true);
   });
 });
 

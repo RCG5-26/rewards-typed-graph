@@ -4,7 +4,7 @@
  * Covers:
  *  - Initial state: Hyatt=30k < 45k threshold → transfer_recommendation + Chase dependency
  *  - Post-transfer state: Hyatt=60k ≥ 45k → redemption_recommendation + Hyatt dependency
- *  - Insufficient total points → redemption step with Hyatt dependency
+ *  - Insufficient total points → no step (cash fallback; no unaffordable award)
  *  - RecordStateDependency always emitted (thesis structural-invalidation proof)
  *  - planStepId from CreatePlanStep result is threaded to RecordStateDependency
  *  - Invalid input rejection
@@ -224,40 +224,39 @@ describe("RedemptionAgent", () => {
   });
 
   describe("insufficient total points", () => {
-    it("emits redemption_recommendation stub with Hyatt dependency when insufficient", async () => {
+    it("emits NO plan step when no award is fundable (cash fallback, not an unaffordable redemption)", async () => {
       const agent = new RedemptionAgent();
       const ctx = makeContext(5_000, 10_000); // total = 15k < 45k
 
       await agent.run(ctx);
 
-      expect(ctx.calls).toHaveLength(2);
-      expect((ctx.calls[0].mutation as { stepType: string }).stepType).toBe(
-        "redemption_recommendation",
-      );
-      expect((ctx.calls[1].mutation as { targetNodeId: string }).targetNodeId).toBe(D002); // Hyatt
+      // The graph must not recommend an award it cannot fund. Emitting nothing
+      // yields a step-less plan the comparison renders as a cash fallback —
+      // honest infeasibility instead of an overspending redemption stub.
+      expect(ctx.calls).toHaveLength(0);
     });
 
-    it("readSet for insufficient path excludes Chase (depends on Hyatt alone)", async () => {
+    it("emits nothing even when Chase holds points but no route can fund the gap", async () => {
       const agent = new RedemptionAgent();
-      const ctx = makeContext(5_000, 10_000, 4, 7); // total < threshold
+      // Hyatt 20k, Chase 20k: combined 40k still < the 45k award minimum.
+      const ctx = makeContext(20_000, 20_000);
 
       await agent.run(ctx);
 
-      expect(ctx.calls[0].readSet).toEqual({ [D002]: 4 });
-      expect(ctx.calls[0].readSet).not.toHaveProperty(D001);
+      expect(ctx.calls).toHaveLength(0);
     });
   });
 
   describe("RecordStateDependency structural invariants", () => {
     it("emits a step+dependency pair per plan step (2 commits per step)", async () => {
       const agent = new RedemptionAgent();
-      // [hyatt, chase, expectedCommits]: direct redeem and insufficient emit one
-      // step (2 commits); the transfer-first branch emits transfer + redemption
-      // (4 commits) so rev1 is a complete plan.
+      // [hyatt, chase, expectedCommits]: direct redeem emits one step (2 commits);
+      // the transfer-first branch emits transfer + redemption (4 commits) so rev1
+      // is a complete plan; the insufficient branch emits nothing (cash fallback).
       const scenarios: [number, number, number][] = [
         [60_000, 0, 2], // direct redeem (Hyatt already ≥ threshold)
         [30_000, 180_000, 4], // transfer + redemption
-        [1_000, 2_000, 2], // insufficient total
+        [1_000, 2_000, 0], // insufficient total → no step (cash fallback)
       ];
       for (const [hyatt, chase, expected] of scenarios) {
         const ctx = makeContext(hyatt, chase);

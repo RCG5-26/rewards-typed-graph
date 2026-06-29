@@ -37,7 +37,10 @@ export function normalizeGraphPlan(view: PlanView, facts: CanonicalWalletFacts):
 
   const plan: NormalizedPlan = {
     summary: view.summary ?? buildSummary(selectedAward?.displayName, selectedAwardId),
-    goalSatisfied: view.status === "current",
+    // A plan that selects no award has not satisfied the redemption goal, even if
+    // it is the lineage's current plan — this is the graph's cash-fallback case
+    // (the orchestrator found no fundable award and emitted no redemption).
+    goalSatisfied: view.status === "current" && selectedAwardId !== undefined,
     transferRequired: transferStep !== undefined,
     ...(transferStep?.points !== undefined ? { transferAmount: transferStep.points } : {}),
     ...(selectedProgramId ? { selectedProgramId } : {}),
@@ -149,5 +152,7 @@ function canonicalAwardSlug(
 function buildSummary(awardName: string | undefined, awardId: string | undefined): string {
   if (awardName) return `Recommends ${awardName}.`;
   if (awardId) return `Recommends ${awardId}.`;
-  return "Graph plan produced no redemption.";
+  // No award selected: the graph found no fundable award and recommends cash —
+  // mirrors the baselines' cash-fallback summary so the lanes read consistently.
+  return "Recommends a cash fallback.";
 }

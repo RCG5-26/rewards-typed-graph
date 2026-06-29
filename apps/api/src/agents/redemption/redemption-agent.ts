@@ -15,6 +15,9 @@
  *    staling the plan and enqueuing exactly one replan job (one job per stale
  *    plan, deduped by `replan_jobs.source_plan_id`). Emitting the redemption now
  *    makes rev1 a complete, goal-satisfying plan comparable to one-shot baselines.
+ *  - Chase+Hyatt < threshold → **infeasible → cash fallback**: emit NO step. No
+ *    award is fundable, so recommending one would be an unaffordable plan; a
+ *    step-less plan is rendered as a cash fallback (honest infeasibility).
  *
  * Ownership: redemption_agent is the SOLE owner of RecordStateDependency
  * (agents/ownership.ts). No other specialist can write this mutation.
@@ -199,45 +202,15 @@ export class RedemptionAgent implements Agent<"redemption_agent"> {
       return;
     }
 
-    // Insufficient points — no path to redemption. Record what we observed.
-    const stepResult = await commit({
-      mutation: {
-        kind: "CreatePlanStep",
-        planId,
-        stepOrder: 1,
-        stepType: "redemption_recommendation",
-        payload: {
-          redemptionOptionId: HYATT_REDEMPTION_OPTION_ID,
-          sourceProgramId: HYATT_PROGRAM_ID,
-          action: redemptionAction(),
-          reasoning: insufficientReasoning(
-            hyattBalance.balancePoints,
-            chaseBalance?.balancePoints ?? 0,
-          ),
-        },
-      },
-      // Insufficient-points path depends on Hyatt alone (the dependency edge below
-      // anchors on Hyatt); keep Chase out of the read-set to avoid spurious staleness.
-      readSet: { [hyattBalance.id]: hyattBalance.version },
-      idempotencyKey: `redemption-insufficient:${planId}:${HYATT_REDEMPTION_OPTION_ID}`,
-    });
-
-    await commit({
-      mutation: {
-        kind: "RecordStateDependency",
-        planStepId: stepResult.mutationTxnId,
-        targetNodeId: hyattBalance.id,
-        observedVersion: hyattBalance.version,
-        target: {
-          targetNodeType: "UserBalance",
-          targetTable: "user_balances",
-          dependedProperty: "balance_points",
-          snapshotValue: { balancePoints: hyattBalance.balancePoints },
-        },
-      },
-      readSet: { [hyattBalance.id]: hyattBalance.version },
-      idempotencyKey: `redemption-dep:${planId}:hyatt-insuf:${hyattBalance.id}`,
-    });
+    // Infeasible — no balance funds the award and no route can close the gap
+    // (Hyatt below threshold AND Chase+Hyatt still short). Recommend a cash
+    // fallback by emitting NO redemption: the only step types available all name
+    // an award/transfer, and recommending an award the wallet cannot fund would
+    // be a dishonest, unaffordable plan. A step-less plan is projected with an
+    // empty graph; the comparison normalizer renders it as a cash fallback
+    // (no selected award, goal not satisfied) — honest infeasibility instead of
+    // an overspending redemption stub the evaluator would mark invalid.
+    return;
   }
 }
 
@@ -316,11 +289,4 @@ function transferReasoning(hyattPoints: number, deficit: number): string {
 
 function redemptionAction(): string {
   return `Book ${GINZA_AWARD_NAME} for ${formatPoints(HYATT_MIN_POINTS)} Hyatt points.`;
-}
-
-function insufficientReasoning(hyattPoints: number, chasePoints: number): string {
-  return (
-    `Combined Hyatt and Chase balances (${formatPoints(hyattPoints + chasePoints)}) are below ` +
-    `the ${formatPoints(HYATT_MIN_POINTS)}-point award minimum.`
-  );
 }
