@@ -8,14 +8,14 @@ import { useEffect, useRef } from "react";
  * Faithful port of the design handoff (`GPFree Landing.dc.html`): a static hero
  * with a pointer/gyro-driven 3D card tilt, floating points, an animated
  * "how it works" stepper, and a closing CTA. Both "start optimizing" CTAs link
- * to the Test Wallets comparison (`/test-wallets`), the demo entry point.
+ * to the onboarding flow (`/onboarding`), the demo entry point.
  *
  * The visual markup is injected verbatim (so it stays pixel-faithful to the
  * handoff) and the original interaction script is ported into a single effect
  * scoped to this component's root.
  */
 
-const SIGN_IN_URL = "/test-wallets";
+const SIGN_IN_URL = "/onboarding";
 
 const STYLE = `
 :root{

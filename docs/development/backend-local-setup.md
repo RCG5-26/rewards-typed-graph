@@ -11,7 +11,7 @@ How to run the backend locally, authenticate against it, point the Next.js shell
 What exists on `origin/main` today:
 
 - **Next.js frontend** (repo root, `app/`) — Clerk Google sign-in + landing/hero. Does **not** call the API yet (no API client wired). Per [ADR 0004](../adr/0004-runtime-topology.md) it migrates to `apps/web` before demo deploy.
-- **Hono API** (`apps/api`) — the one HTTP service the shell talks to. Auth middleware → CORS → mounts plan routes + mutation routes. Boots with `@hono/node-server`.
+- **Hono API** (`apps/api`) — the one HTTP service the shell talks to. Auth middleware → CORS → mounts plan routes + mutation routes + balances route (`apps/api/src/balances/routes.ts`, onboarding points capture). Boots with `@hono/node-server`.
 - **Clerk auth** (identity-only, [ADR 0006](../adr/0006-clerk-identity-only.md)) — verifies the Bearer token (`@clerk/backend`), maps Clerk `sub` → `users.clerk_id` → `users.id`. A dev bypass (`AUTH_DEV_USER_ID`) skips Clerk outside production.
 - **PostgreSQL 16** (docker-compose) — table-per-type graph schema v3.1; OCC via integer `version`.
 - **Python plan-builder bridge** (`apps/api/bridge/hero_bridge.py`) — Option B ([spec 07 §Implementation decision](../../context/feature-specs/07-api-service.md)). `POST /plans` and `POST /balance-transfer` spawn this `psql`-subprocess bridge, which runs the verified hero seam (`tests/integration/hero_flow.py`) and returns a `{ ok, data | error }` envelope.
@@ -127,11 +127,18 @@ python scripts/ensure_schema_seed.py --include-demo-persona
 | GET    | `/plans/:planId`    | —                                                                   | full plan body                                                           |
 | GET    | `/plans/current`    | `?lineageId=<uuid>`                                                 | the one `current` revision for a lineage                                 |
 | POST   | `/balance-transfer` | `{ sourceProgramId, destProgramId, amountPoints, idempotencyKey? }` | `{ planLineageId, staledPlanId, replanJobId, currentPlan }` (revision 2) |
+| POST   | `/balances`         | `{ balances: [{ programId, points }] }`                             | `{ userId, balances }` — validates + echoes the captured per-program points |
 | POST   | `/demo/reset`       | —                                                                   | same as `/session`; restores pristine persona                            |
 | GET    | `/mutations`        | `?after=<event_id>`                                                 | array of mutation events since cursor                                    |
 | GET    | `/mutations/stream` | header `Last-Event-ID`                                              | `text/event-stream`, one frame per mutation                              |
 
 `POST /plans` is **synchronous** (resolved Open question #2 in spec 07): the bridge builds + commits the plan in-request and returns `status: "current"` — there is no `generating` poll window. The shell still opens `/mutations/stream` to animate the per-step writes.
+
+`POST /balances` backs the onboarding wallet picker's points modal: the user enters how many points they hold per card, the web shell sums them per program and posts them through the BFF proxy (`app/api/balances/route.ts`, which injects the Clerk token). The route **validates and echoes** the normalized per-program balances against the authenticated user (non-negative safe-integer points, no duplicate `programId`); it does **not** persist them into the personal graph today — the entered points live in client state and drive the onboarding ask/plan panels. Persisting them (a repository write) is a follow-up.
+
+The plan step's **PLAN VALUE** metric is derived on the web tier, not carried by the contract: `ApiPlan` has no value field, so `toPlanResult` sets `planValueCents: 0`. The console recomputes it from the seed-verified facts — the cash value (`pointsRequired × valueBasisPoints`) of the best award the plan actually booked (matched to a `redemption` graph node). It therefore needs the `/api/demo/test-wallets` facts loaded; without them it falls back to the em-dash. A non-derived value would require the bridge to emit it on `ApiPlan` (follow-up). Token cost stays `not instrumented` until `agent_runs.token_count` is populated, and the CrewAI/single-agent baselines stay `not_run` until run with a paid `OPENAI_API_KEY` — both honest-by-design, never fabricated.
+
+The onboarding ask/plan steps also surface the **"what the agents see"** facts — transfer routes + award options — from the canonical demo wallet. These are read client-side through a new BFF proxy, `GET /api/demo/test-wallets` (`app/api/demo/test-wallets/route.ts`), which forwards the public, unauthenticated Hono `GET /demo/test-wallets` route. Those facts are seed-verified (`canonical-wallet.test.ts` pins them to `fixtures/demo-seed.json`), so the panel shows real data, not hardcoded values. The fetch is best-effort: the panel is simply omitted if the API is unavailable. Entered balances are still shown from the points modal (never the seeded persona balances).
 
 #### Request / response examples (verified live)
 
@@ -149,6 +156,11 @@ python scripts/ensure_schema_seed.py --include-demo-persona
 # POST /balance-transfer → 200
 { "planLineageId":"694a…","staledPlanId":"6609…","replanJobId":"1aa5…",
   "currentPlan":{ …full plan body, "revisionNumber":2, "status":"current" } }
+
+# POST /balances → 200
+# req:  { "balances":[{ "programId":"…b001","points":120000 },{ "programId":"…b002","points":0 }] }
+{ "userId":"…a001","balances":[{ "programId":"…b001","points":120000 },
+  { "programId":"…b002","points":0 }] }
 ```
 
 #### Consuming `/mutations/stream`

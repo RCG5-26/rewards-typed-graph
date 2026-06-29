@@ -1,20 +1,67 @@
-# Local dev Postgres for RCG-9 (ADR 0004). Web/api services land later.
+# Full local stack (ADR 0004): Postgres + Hono API + Next.js web, all in Docker.
+#
+# Bring up:   docker compose up --build
+#   web → http://localhost:3001   api → http://localhost:8787   db → localhost:5432
+#
+# Clerk keys are interpolated from the project `.env` (compose reads it for
+# ${VAR} substitution; the file itself is .dockerignored from the image build).
 services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: rewards_test
+      POSTGRES_DB: rewards_comparison
       POSTGRES_USER: rewards
       POSTGRES_PASSWORD: rewards
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_comparison:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rewards -d rewards_test"]
+      test: ["CMD-SHELL", "pg_isready -U rewards -d rewards_comparison"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      # In-container the DB is reached via the compose service name, not
+      # localhost. (Host tooling can still use localhost:5432 → rewards_comparison.)
+      DATABASE_URL: postgresql://rewards:rewards@postgres:5432/rewards_comparison
+      # Stable default engine (the Python hero bridge); required by the server.
+      PLAN_ENGINE: python-legacy
+      API_PORT: "8787"
+      CORS_ORIGIN: http://localhost:3000
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      # Local-only Clerk bypass so the API can be exercised without a token.
+      AUTH_DEV_USER_ID: "00000000-0000-0000-0000-00000000a001"
+      NODE_ENV: development
+    ports:
+      - "8787:8787"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    environment:
+      # The web tier is database-less (KTD-5): no DATABASE_URL, so /api/cards
+      # serves the fixture and the BFF proxies everything else to the API.
+      API_BASE_URL: http://api:8787
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      PORT: "3000"
+    ports:
+      # Host 3001 → container 3000: a local `next dev` already owns host :3000.
+      # Free that port and switch this back to "3000:3000" for the canonical URL.
+      - "3001:3000"
+    depends_on:
+      - api
+
 volumes:
-  pgdata:
+  pgdata_comparison:

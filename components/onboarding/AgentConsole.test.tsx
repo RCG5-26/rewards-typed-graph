@@ -145,6 +145,23 @@ describe("AgentConsole", () => {
     expect(screen.queryByText("Chase UR")).toBeNull();
   });
 
+  it("renders the entered-balances panel in the plan card when balances are present", () => {
+    renderConsole(BAL);
+    completeInitialPlan([namedStep("redemption_recommendation", 1, "Book it")]);
+
+    expect(screen.getByText("your points · what the agents see")).toBeTruthy();
+    // The panel surfaces the seeded liveBalances (programName + formatted points).
+    expect(screen.getByText("Chase UR")).toBeTruthy();
+    expect(screen.getByText("180,000")).toBeTruthy();
+  });
+
+  it("omits the balances panel when there are no balances", () => {
+    renderConsole();
+    completeInitialPlan([namedStep("redemption_recommendation", 1, "Book it")]);
+
+    expect(screen.queryByText("your points · what the agents see")).toBeNull();
+  });
+
   it("renders the transfer RouteBar when the plan contains a transfer step", () => {
     renderConsole();
     emit(

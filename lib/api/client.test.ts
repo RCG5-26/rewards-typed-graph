@@ -247,6 +247,72 @@ describe("API helper functions", () => {
   });
 });
 
+describe("submitBalances", () => {
+  it("POSTs the balances payload to /balances and returns the body", async () => {
+    const payload = {
+      userId: "u1",
+      balances: [{ programId: "p1", points: 120000 }],
+    };
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+    const { submitBalances } = await getClient();
+
+    const result = await submitBalances([{ programId: "p1", points: 120000 }], "token-x");
+
+    expect(result).toEqual(payload);
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${FAKE_BASE}/balances`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ balances: [{ programId: "p1", points: 120000 }] }),
+        headers: expect.objectContaining({ Authorization: "Bearer token-x" }),
+      }),
+    );
+  });
+
+  it("falls back to the generic message when the error body is not JSON", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new SyntaxError("Unexpected end of JSON input");
+      },
+    });
+    const { submitBalances } = await getClient();
+    const { ApiError } = await import("./types");
+
+    try {
+      await submitBalances([{ programId: "p1", points: 1 }], "token-x");
+      expect.unreachable("submitBalances should reject on a 503");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      expect((e as InstanceType<typeof ApiError>).kind).toMatchObject({
+        kind: "server-error",
+        status: 503,
+        message: "Hono API responded 503",
+      });
+    }
+  });
+
+  it("preserves the server's validation message on a 400 instead of a generic one", async () => {
+    const message = "balances[0].points must be a non-negative safe integer";
+    mockFetch.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: message }) });
+    const { submitBalances } = await getClient();
+    const { ApiError } = await import("./types");
+
+    try {
+      await submitBalances([{ programId: "p1", points: -1 }], "token-x");
+      expect.unreachable("submitBalances should reject on a 400");
+    } catch (e) {
+      expect(e).toBeInstanceOf(ApiError);
+      expect((e as InstanceType<typeof ApiError>).kind).toMatchObject({
+        kind: "server-error",
+        status: 400,
+        message,
+      });
+    }
+  });
+});
+
 describe("ApiError", () => {
   it("preserves backend messages for server errors", async () => {
     const { ApiError } = await import("./types");

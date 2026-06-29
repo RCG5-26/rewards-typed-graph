@@ -3,11 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CardView } from "@/lib/cards/types";
+import type { PublicWalletFacts } from "@/lib/comparison/types";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
-import { isUserGraph, type UserGraph } from "@/lib/user/types";
+import { isUserGraph, type UserBalance, type UserGraph } from "@/lib/user/types";
 import AgentConsole from "./AgentConsole";
 import CardTile from "./CardTile";
 import TopBar from "./TopBar";
+import WalletDataPanel from "./WalletDataPanel";
+import WalletOptionsPanel from "./WalletOptionsPanel";
+import WalletPointsModal from "./WalletPointsModal";
+
+/** Stable program-id fallback when a card's program isn't in the personal graph. */
+function programSlug(programName: string): string {
+  return `program:${programName.toLowerCase().replace(/\s+/g, "_")}`;
+}
 
 type Step = "cards" | "ask" | "plan";
 
@@ -69,11 +78,17 @@ function useCountUp(target: number, duration = 600): number {
 export default function OnboardingFlow() {
   const [cards, setCards] = useState<CardView[]>([]);
   const [me, setMe] = useState<UserGraph | null>(null);
+  // Canonical, seed-verified facts (transfer routes + award options) from
+  // /demo/test-wallets — the "what the agents see" data shown on steps 2 & 3.
+  const [facts, setFacts] = useState<PublicWalletFacts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [step, setStep] = useState<Step>("cards");
   const [query, setQuery] = useState("");
+  // Points the user entered per card (keyed by `card.id`) in the points modal.
+  const [pointsByCard, setPointsByCard] = useState<Record<string, number>>({});
+  const [showPoints, setShowPoints] = useState(false);
 
   // The console opens the SSE plan stream itself; here we just transition.
   function goToPlan() {
@@ -109,6 +124,8 @@ export default function OnboardingFlow() {
       setSelected([]);
       setStep("cards");
       setQuery("");
+      setPointsByCard({});
+      setShowPoints(false);
     }
   }
 
@@ -124,11 +141,17 @@ export default function OnboardingFlow() {
       fetch("/api/me")
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
+      // Wallet facts (transfer routes + award options) are best-effort too: the
+      // ask/plan steps just omit the "what the agents see" panel if unavailable.
+      fetch("/api/demo/test-wallets")
+        .then((r) => (r.ok ? (r.json() as Promise<{ wallets: PublicWalletFacts[] }>) : null))
+        .catch(() => null),
     ])
-      .then(([cardsData, graph]) => {
+      .then(([cardsData, graph, walletFacts]) => {
         if (!active) return;
         setCards(cardsData.cards);
         if (graph && isUserGraph(graph)) setMe(graph);
+        if (walletFacts?.wallets?.[0]) setFacts(walletFacts.wallets[0]);
       })
       .catch((err) => {
         console.error("onboarding load failed", err);
@@ -148,15 +171,84 @@ export default function OnboardingFlow() {
     () => wallet.reduce((sum, c) => sum + c.firstYearValueCents, 0),
     [wallet],
   );
-  // Points on hand reflect only the programs of the cards you've selected.
+
+  // Points the user entered, summed per program (cards sharing a program add up).
+  const enteredByProgram = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of wallet) {
+      const pts = pointsByCard[c.id];
+      if (pts === undefined) continue;
+      m.set(c.programName, (m.get(c.programName) ?? 0) + pts);
+    }
+    return m;
+  }, [wallet, pointsByCard]);
+
+  // The "available data" shown on steps 2 & 3 — built purely from what the user
+  // entered in the points modal, never the seeded demo-persona balances. Program
+  // ids/currency are resolved from the personal graph (or the card) for the
+  // agents, but the points are exactly what was entered. Empty until they enter.
+  const enteredBalances = useMemo<UserBalance[]>(() => {
+    const out: UserBalance[] = [];
+    for (const [programName, points] of enteredByProgram) {
+      const known = me?.balances.find((b) => b.programName === programName);
+      const card = wallet.find((c) => c.programName === programName);
+      out.push({
+        programId: known?.programId ?? programSlug(programName),
+        programName,
+        currencyName: known?.currencyName ?? card?.currencyName ?? "points",
+        balancePoints: points,
+      });
+    }
+    return out;
+  }, [enteredByProgram, me, wallet]);
+
+  // Points on hand reflect only what the user actually entered in the points
+  // modal — never the seeded demo-persona balances. Stays 0 (and hidden) until
+  // they enter real values.
   const pointsOnHand = useMemo(() => {
-    if (!me) return 0;
-    const programs = new Set(wallet.map((c) => c.programName));
-    return me.balances
-      .filter((b) => programs.has(b.programName))
-      .reduce((sum, b) => sum + b.balancePoints, 0);
-  }, [me, wallet]);
+    let sum = 0;
+    for (const points of enteredByProgram.values()) sum += points;
+    return sum;
+  }, [enteredByProgram]);
+
+  const hasEnteredPoints = enteredByProgram.size > 0;
+  // Programs the user carries — scopes the facts panel to relevant routes/awards.
+  const walletProgramNames = useMemo(
+    () => new Set(wallet.map((c) => c.programName)),
+    [wallet],
+  );
   const firstName = me?.user.displayName?.split(" ")[0] ?? null;
+
+  /**
+   * Persist the per-card points entered in the modal: sum them per program,
+   * resolve each program's id from the personal graph (falling back to a slug),
+   * and POST to the API. Commits to local state only on a successful save so the
+   * wallet rail and the step 2/3 panels reflect exactly what the server accepted.
+   */
+  async function handleSavePoints(pointsByCardId: Record<string, number>) {
+    const byProgram = new Map<string, number>();
+    for (const c of wallet) {
+      const pts = pointsByCardId[c.id];
+      if (pts === undefined) continue;
+      byProgram.set(c.programName, (byProgram.get(c.programName) ?? 0) + pts);
+    }
+    const balances = Array.from(byProgram, ([programName, points]) => ({
+      programId: me?.balances.find((b) => b.programName === programName)?.programId
+        ?? programSlug(programName),
+      points,
+    }));
+
+    const res = await fetch("/api/balances", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ balances }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? "Could not save your points. Try again.");
+    }
+    setPointsByCard(pointsByCardId);
+  }
 
   function toggle(id: string) {
     setSelected((prev) =>
@@ -198,7 +290,9 @@ export default function OnboardingFlow() {
             cardWord={cardWord}
             firstName={firstName}
             pointsOnHand={pointsOnHand}
+            hasEnteredPoints={hasEnteredPoints}
             onToggle={toggle}
+            onOpenPoints={() => setShowPoints(true)}
             onContinue={() => setStep("ask")}
           />
         )}
@@ -209,6 +303,9 @@ export default function OnboardingFlow() {
             cardWord={cardWord}
             query={query}
             setQuery={setQuery}
+            balances={enteredBalances}
+            facts={facts}
+            walletProgramNames={walletProgramNames}
             onBack={() => setStep("cards")}
             onPlan={goToPlan}
             prompts={SUGGESTED_PROMPTS}
@@ -220,10 +317,21 @@ export default function OnboardingFlow() {
             queryText={query.trim()}
             selectedCardIds={selected}
             onRestart={handleRestart}
-            balances={me?.balances ?? []}
+            balances={enteredBalances}
+            facts={facts}
+            walletProgramNames={walletProgramNames}
           />
         )}
       </div>
+
+      {showPoints && (
+        <WalletPointsModal
+          cards={wallet}
+          initialByCard={pointsByCard}
+          onClose={() => setShowPoints(false)}
+          onSubmit={handleSavePoints}
+        />
+      )}
     </div>
   );
 }
@@ -239,7 +347,9 @@ function CardsStep({
   cardWord,
   firstName,
   pointsOnHand,
+  hasEnteredPoints,
   onToggle,
+  onOpenPoints,
   onContinue,
 }: {
   cards: CardView[];
@@ -251,7 +361,9 @@ function CardsStep({
   cardWord: string;
   firstName: string | null;
   pointsOnHand: number;
+  hasEnteredPoints: boolean;
   onToggle: (id: string) => void;
+  onOpenPoints: () => void;
   onContinue: () => void;
 }) {
   const hasCards = wallet.length > 0;
@@ -395,6 +507,17 @@ function CardsStep({
           </div>
         </div>
 
+        {hasCards && (
+          <button
+            type="button"
+            onClick={onOpenPoints}
+            className="mb-2.5 flex items-center justify-center gap-2 rounded-full border border-strong bg-surface px-4 py-3 text-sm font-medium text-text-secondary shadow-xs transition duration-base ease-spring-snappy hover:-translate-y-0.5 hover:border-accent hover:text-text-primary"
+          >
+            <span className="text-accent-text">＋</span>
+            {hasEnteredPoints ? "edit your points" : "add your points"}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onContinue}
@@ -415,6 +538,9 @@ function AskStep({
   cardWord,
   query,
   setQuery,
+  balances,
+  facts,
+  walletProgramNames,
   onBack,
   onPlan,
   prompts,
@@ -423,6 +549,9 @@ function AskStep({
   cardWord: string;
   query: string;
   setQuery: (v: string) => void;
+  balances: UserBalance[];
+  facts: PublicWalletFacts | null;
+  walletProgramNames: Set<string>;
   onBack: () => void;
   onPlan: () => void;
   prompts: { tag: string; text: string }[];
@@ -484,6 +613,21 @@ function AskStep({
             ))}
           </div>
         </div>
+
+        {balances.length > 0 && (
+          <WalletDataPanel
+            balances={balances}
+            title="your points · what the agents see"
+            className="mt-6"
+          />
+        )}
+        {facts && (
+          <WalletOptionsPanel
+            facts={facts}
+            programNames={walletProgramNames}
+            className="mt-3"
+          />
+        )}
       </div>
 
       <div className="mt-9 flex w-full max-w-[700px] items-center justify-between">
