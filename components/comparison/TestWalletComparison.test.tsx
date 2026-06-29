@@ -80,11 +80,20 @@ function response(): ArchitectureComparisonResponse {
 describe("TestWalletComparison", () => {
   it("shows the canonical facts and verbatim query before a run", () => {
     render(<TestWalletComparison wallets={[WALLET]} />);
+    // Full facts live in the progressive-disclosure panel (in the DOM, collapsed).
     expect(screen.getByText("180,000")).toBeTruthy();
     expect(screen.getByText(new RegExp(WALLET.query.slice(0, 30)))).toBeTruthy();
-    // "Not started" appears in each architecture result card (3) + each lane in
-    // the ArchitectureExecutionOverview (3) = 6 total.
-    expect(screen.getAllByText(/Not started/i).length).toBe(6);
+  });
+
+  it("hides empty result cards before a run, showing one empty state instead", () => {
+    render(<TestWalletComparison wallets={[WALLET]} />);
+    // No placeholder result cards pre-run: "Not started" now appears only in the
+    // 3 execution-overview lanes, not in 3 result cards as well.
+    expect(screen.getAllByText(/Not started/i).length).toBe(3);
+    expect(
+      screen.getByText(/Run the comparison to generate three independently evaluated Plans/i),
+    ).toBeTruthy();
+    expect(screen.queryByLabelText("Architecture comparison results")).toBeNull();
   });
 
   it("disables the replan button before a comparison has run", () => {

@@ -58,14 +58,15 @@ export default async function TestWalletsPage() {
         </div>
         <header className="mb-8">
           <div className="font-mono text-2xs font-semibold uppercase tracking-[0.18em] text-accent-text">
-            architecture comparison
+            controlled architecture experiment
           </div>
           <h1 className="mt-2 font-display text-3xl font-light leading-[1.08] tracking-snug text-text-primary">
-            Test wallets
+            Live Planner Comparison
           </h1>
           <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-text-secondary">
-            One canonical wallet, one query, three architectures run independently and scored by the
-            same deterministic evaluator. Inspect the wallet below, then run the comparison.
+            Same wallet. Same goal. Three coordination models. One independent evaluator. Every
+            planner receives the same wallet snapshot, award inventory, transfer routes, and planning
+            question — then runs live and is scored by the same deterministic evaluator.
           </p>
         </header>
 

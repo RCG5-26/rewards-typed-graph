@@ -384,13 +384,30 @@ function EvaluationSection({
         ))}
       </ul>
       {errorIssues.length > 0 ? (
-        <ul className="mt-2 space-y-0.5">
-          {errorIssues.map((issue) => (
-            <li key={issue.code} className="text-[11px] text-error">
-              {issue.message}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3">
+          <h5 className="text-xs font-semibold text-error">Why this Plan is invalid</h5>
+          {/* The evaluator's human-readable messages are the primary findings;
+              the raw issue codes are tucked into a collapsed disclosure. */}
+          <ul className="mt-1 list-inside list-disc space-y-0.5">
+            {errorIssues.map((issue) => (
+              <li key={issue.code} className="text-[11px] text-error">
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+          <details className="mt-1.5">
+            <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-wide text-text-tertiary [&::-webkit-details-marker]:hidden">
+              Technical details
+            </summary>
+            <ul className="mt-1 space-y-0.5">
+              {errorIssues.map((issue) => (
+                <li key={issue.code} className="font-mono text-[10px] text-text-tertiary">
+                  {issue.code}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
       ) : null}
     </div>
   );

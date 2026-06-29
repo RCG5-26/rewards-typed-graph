@@ -214,6 +214,13 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
     );
   }
 
+  // Headline award for the compact summary (prefer an available one).
+  const primaryAward = facts.awardOptions.find((a) => a.available) ?? facts.awardOptions[0] ?? null;
+  const totalPoints = facts.balances.reduce((sum, b) => sum + b.points, 0);
+  // Reveal result cards only once a run begins or results arrive — no empty
+  // placeholder cards before execution.
+  const showResultCards = phase === "running" || response !== null;
+
   return (
     <div className="space-y-6">
       {wallets.length > 1 ? (
@@ -239,7 +246,39 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
         </div>
       ) : null}
 
-      <SharedExperimentInput facts={facts} />
+      {/* Compact scenario summary — keeps the pre-run view short. The full,
+          server-derived facts table is one click away (progressive disclosure)
+          so the page is not excessively tall before results arrive. */}
+      <section
+        className="rounded-card border border-subtle bg-surface p-5"
+        aria-label="Scenario summary"
+      >
+        <h2 className="text-sm font-semibold text-text-primary">
+          Controlled scenario: {facts.displayName}
+        </h2>
+        <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1.5 font-mono text-2xs text-text-secondary">
+          <span className="rounded-full border border-subtle px-2 py-0.5">
+            {facts.goal.nights}-night {facts.goal.category.replace(/_/g, " ")} · {facts.goal.destination}
+          </span>
+          <span className="rounded-full border border-subtle px-2 py-0.5">
+            {facts.balances.length} programs · {formatPoints(totalPoints)} pts
+          </span>
+          {primaryAward ? (
+            <span className="rounded-full border border-subtle px-2 py-0.5">
+              {primaryAward.displayName} · {formatPoints(primaryAward.pointsRequired)}
+            </span>
+          ) : null}
+        </div>
+      </section>
+
+      <details className="rounded-card border border-subtle bg-surface">
+        <summary className="cursor-pointer list-none px-5 py-3 text-sm font-medium text-text-secondary transition hover:text-text-primary [&::-webkit-details-marker]:hidden">
+          View complete scenario details
+        </summary>
+        <div className="border-t border-subtle">
+          <SharedExperimentInput facts={facts} />
+        </div>
+      </details>
 
       <ArchitectureExecutionOverview laneStatus={laneStatus} />
 
@@ -302,20 +341,34 @@ export function TestWalletComparison({ wallets }: { wallets: PublicWalletFacts[]
             : null}
       </div>
 
-      <div
-        className="grid gap-4 lg:grid-cols-3"
-        aria-label="Architecture comparison results"
-        aria-busy={phase === "running"}
-      >
-        {CARD_ORDER.map((variant) => (
-          <ArchitectureResultCard
-            key={variant}
-            variant={variant}
-            facts={facts}
-            state={cardState(variant)}
-          />
-        ))}
-      </div>
+      {showResultCards ? (
+        <div
+          className="grid gap-4 lg:grid-cols-3"
+          aria-label="Architecture comparison results"
+          aria-busy={phase === "running"}
+        >
+          {CARD_ORDER.map((variant) => (
+            <ArchitectureResultCard
+              key={variant}
+              variant={variant}
+              facts={facts}
+              state={cardState(variant)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div
+          className="rounded-card border border-dashed border-strong bg-surface p-10 text-center"
+          aria-label="Comparison results"
+        >
+          <p className="text-sm text-text-secondary">
+            Run the comparison to generate three independently evaluated Plans.
+          </p>
+          <p className="mt-1.5 font-mono text-2xs text-text-tertiary">
+            Graph Crew · Chat Crew · Single Agent — same inputs, one deterministic evaluator.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
